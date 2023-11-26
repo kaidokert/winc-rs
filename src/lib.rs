@@ -41,6 +41,7 @@ pub use defmt::{debug, error, info, trace, warn};
 #[cfg(feature = "std")]
 pub use log::{debug, error, info, trace, warn};
 
+mod client;
 pub mod error;
 pub mod manager;
 pub mod socket;
@@ -51,6 +52,10 @@ use core::fmt::Write;
 pub use socket::Socket;
 
 pub use no_std_net::{Ipv4Addr, SocketAddrV4};
+
+pub use client::{SocketSet, WincClient};
+
+pub mod wifi;
 
 #[derive(Debug, PartialEq)]
 pub enum StrError {

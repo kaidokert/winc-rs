@@ -20,6 +20,8 @@ crc-any = { version = "2.4.3", default-features = false }
 
 no-std-net = "0.6.0"
 
+embedded-nal = "0.8.0"
+
 [dependencies.simple_logger]
 default-features = false
 version="4.0.0"
