@@ -69,6 +69,9 @@ impl<X: Xfer> WincClient<X> {
         self.next_session_id += 1;
         ret
     }
+    pub fn spin(&mut self) -> Result<(), u32> {
+        Ok(())
+    }
 }
 
 pub struct ConnectionOptions {}

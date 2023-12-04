@@ -11,6 +11,7 @@ pub enum UdpClientError {
     NotImplemented,
     SocketError,
     NoManager,
+    Illegal,
 }
 
 impl<X: Xfer> UdpClientStack for WincClient<X> {
@@ -32,10 +33,14 @@ impl<X: Xfer> UdpClientStack for WincClient<X> {
             .udp_sockets
             .get(*socket)
             .ok_or(UdpClientError::SocketError)?;
+
+        // ensure network is connected
+        // maybe bind ?
         match remote {
             no_std_net::SocketAddr::V4(addr) => {
                 mgr.send_socket_connect(*sh, addr)
                     .map_err(|_| UdpClientError::SocketError)?;
+                // spin here until connected or timeout
                 Ok(())
             }
             _ => Err(UdpClientError::IPV6NotSupported),
@@ -46,6 +51,7 @@ impl<X: Xfer> UdpClientStack for WincClient<X> {
         socket: &mut Self::UdpSocket,
         _buffer: &mut [u8],
     ) -> embedded_nal::nb::Result<(usize, no_std_net::SocketAddr), Self::Error> {
+        self.spin().ok();
         let mgr = self.manager.as_mut().ok_or(UdpClientError::NoManager)?;
         let sh = self
             .udp_sockets
@@ -55,14 +61,16 @@ impl<X: Xfer> UdpClientStack for WincClient<X> {
             .map_err(|_| UdpClientError::SocketError)?;
         todo!()
     }
-    fn close(&mut self, _socket: Self::UdpSocket) -> Result<(), Self::Error> {
-        todo!()
-    }
     fn send(
         &mut self,
         _socket: &mut Self::UdpSocket,
         _buffer: &[u8],
     ) -> embedded_nal::nb::Result<(), Self::Error> {
+        self.spin().map_err(|_| Self::Error::Illegal)?;
+        todo!()
+    }
+    fn close(&mut self, _socket: Self::UdpSocket) -> Result<(), Self::Error> {
+        self.spin().ok();
         todo!()
     }
 }
