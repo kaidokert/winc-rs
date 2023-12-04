@@ -1,33 +1,58 @@
 use embedded_nal::UdpClientStack;
 
-use crate::{client::UdpSocket, WincClient};
+use crate::transfer::Xfer;
+use crate::{Handle, WincClient};
 
-impl UdpClientStack for WincClient {
-    type UdpSocket = u32;
-    type Error = u32;
+#[derive(Debug, PartialEq)]
+pub enum UdpClientError {
+    SocketStorageNotSet,
+    OutOfSockets,
+    IPV6NotSupported,
+    NotImplemented,
+    SocketError,
+    NoManager,
+}
+
+impl<X: Xfer> UdpClientStack for WincClient<X> {
+    type UdpSocket = Handle;
+    type Error = UdpClientError;
     fn socket(&mut self) -> Result<Self::UdpSocket, Self::Error> {
-        if let Some(ref mut sockets) = self.sockets {
-            if sockets.len() >= sockets.capacity() {
-                return Err(2);
-            }
-            let s = UdpSocket {};
-            sockets.add(s).map(|_| 0).map_err(|_| 3)
-        } else {
-            Err(1)
-        }
+        let s = self.get_next_session_id();
+        self.udp_sockets
+            .add(s)
+            .map_err(|_| UdpClientError::OutOfSockets)
     }
     fn connect(
         &mut self,
-        _socket: &mut Self::UdpSocket,
-        _remote: no_std_net::SocketAddr,
+        socket: &mut Self::UdpSocket,
+        remote: no_std_net::SocketAddr,
     ) -> Result<(), Self::Error> {
-        todo!()
+        let mgr = self.manager.as_mut().ok_or(UdpClientError::NoManager)?;
+        let sh = self
+            .udp_sockets
+            .get(*socket)
+            .ok_or(UdpClientError::SocketError)?;
+        match remote {
+            no_std_net::SocketAddr::V4(addr) => {
+                mgr.send_socket_connect(*sh, addr)
+                    .map_err(|_| UdpClientError::SocketError)?;
+                Ok(())
+            }
+            _ => Err(UdpClientError::IPV6NotSupported),
+        }
     }
     fn receive(
         &mut self,
-        _socket: &mut Self::UdpSocket,
+        socket: &mut Self::UdpSocket,
         _buffer: &mut [u8],
     ) -> embedded_nal::nb::Result<(usize, no_std_net::SocketAddr), Self::Error> {
+        let mgr = self.manager.as_mut().ok_or(UdpClientError::NoManager)?;
+        let sh = self
+            .udp_sockets
+            .get(*socket)
+            .ok_or(UdpClientError::SocketError)?;
+        mgr.send_recv(*sh, 0)
+            .map_err(|_| UdpClientError::SocketError)?;
         todo!()
     }
     fn close(&mut self, _socket: Self::UdpSocket) -> Result<(), Self::Error> {
@@ -39,5 +64,29 @@ impl UdpClientStack for WincClient {
         _buffer: &[u8],
     ) -> embedded_nal::nb::Result<(), Self::Error> {
         todo!()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::transfer::PrefixXfer;
+    use embedded_nal::UdpClientStack;
+    use no_std_net::{Ipv4Addr, Ipv6Addr};
+
+    #[test]
+    fn test_udp_stack() {
+        let mut f = [0u8; 1024];
+        let mut client = WincClient::from_xfer(f.as_mut_slice());
+
+        let mut socket = client.socket().unwrap();
+        let addr = no_std_net::SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 80);
+
+        <WincClient<_> as UdpClientStack>::connect(&mut client, &mut socket, addr.into()).unwrap();
+
+        let addr6 = no_std_net::SocketAddrV6::new(Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 1), 80, 0, 0);
+        let res =
+            <WincClient<_> as UdpClientStack>::connect(&mut client, &mut socket, addr6.into());
+        assert_eq!(res, Err(UdpClientError::IPV6NotSupported));
     }
 }

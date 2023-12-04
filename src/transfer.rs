@@ -41,6 +41,7 @@ pub trait Xfer {
     fn send(&mut self, src: &[u8]) -> Result<(), Error>;
 }
 
+// Debug implementation of Xfer. Prefixes read/write with a 3-byte header.
 pub struct PrefixXfer<T: ReadWrite> {
     stream: T,
 }
