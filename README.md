@@ -3,6 +3,9 @@
 This is draft code to interface with ATWINC1500 Wifi chip from Rust.
 Tested on Adafruit Feather M0 WiFi.
 
+/feather dir has examples running on Feather
+/winc-rs is the library
+
 ## Contributing
 
 See [`CONTRIBUTING.md`](CONTRIBUTING.md) for details.

@@ -23,9 +23,7 @@ panic-probe = { version = "0.3.0", features = ["print-defmt"] }
 cortex-m-semihosting = "0.5.0"
 feather_m0 = { tag = "v0.16.0" , git = "https://github.com/atsamd-rs/atsamd.git" }
 
-# Fluff
-crc-any = { version = "2.4.3", default-features = false }
-arrayvec =  { version = "0.7.2", default-features = false }
+cortex-m-systick-countdown = "0.1.0"
 
 [dev-dependencies]
 defmt-test = "0.3"

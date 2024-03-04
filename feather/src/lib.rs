@@ -9,6 +9,8 @@ use defmt_rtt as _; // global logger
 pub use feather_m0 as bsp;
 pub use bsp::hal;
 
+pub mod init;
+
 use panic_probe as _;
 
 // same panicking *behavior* as `panic-probe` but doesn't print a panic message
