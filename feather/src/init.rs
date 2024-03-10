@@ -6,9 +6,9 @@ use bsp::pac;
 use pac::{CorePeripherals, Peripherals};
 
 use hal::clock::GenericClockController;
-use hal::time::Hertz;
-
+use hal::time::{Hertz, MegaHertz};
 use bsp::pin_alias;
+use bsp::periph_alias;
 
 use super::pins::Pins;
 
@@ -37,6 +37,21 @@ pub fn init() -> Result<(PollingSysTick, bsp::RedLed), FailureSource> {
 
     let hertz: Hertz = gclk0.into();
     let mut del = PollingSysTick::new(core.SYST, &SysTickCalibration::from_clock_hz(hertz.raw()));
+
+    let spi_sercom = periph_alias!(peripherals.spi_sercom);
+
+    let freq = MegaHertz::from_raw(1);
+
+    let spi = bsp::spi_master(
+        &mut clocks,
+        freq.convert(),
+        //400_u32.khz(),
+        spi_sercom,
+        &mut peripherals.PM,
+        pins.sclk,
+        pins.mosi,
+        pins.miso,
+    );
 
     Ok((del, red_led))
 }
