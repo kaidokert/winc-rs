@@ -23,6 +23,8 @@ panic-probe = { version = "0.3.0", features = ["print-defmt"] }
 cortex-m-semihosting = "0.5.0"
 feather_m0 = { tag = "v0.16.0" , git = "https://github.com/atsamd-rs/atsamd.git" }
 
+feather_winc_board = { path= "../feather_winc_board" }
+
 cortex-m-systick-countdown = "0.1.0"
 
 embedded-nal = "=0.8.0"

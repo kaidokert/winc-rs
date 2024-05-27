@@ -1,0 +1,7 @@
+[package]
+name = "feather_winc_board"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+feather_m0 = { tag = "v0.16.0" , git = "https://github.com/atsamd-rs/atsamd.git" }

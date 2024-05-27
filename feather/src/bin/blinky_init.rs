@@ -10,7 +10,7 @@ use cortex_m_systick_countdown::{PollingSysTick, SysTickCalibration};
 
 #[cortex_m_rt::entry]
 fn main() -> ! {
-    if let Ok((mut delay, mut red_led)) = init() {
+    if let Ok((mut delay, mut red_led, cs , spi)) = init() {
         defmt::println!("Hello, blinky with shared init!");
         loop {
             delay.delay_ms(200u32);

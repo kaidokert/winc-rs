@@ -1,6 +1,7 @@
 #![no_main]
 #![no_std]
 
+use bsp::shared::Stream;
 use feather as bsp;
 use bsp::hal::prelude::*;
 
@@ -60,8 +61,12 @@ impl embedded_nal::TcpClientStack for stub {
     fn send(&mut self, _: &mut <Self as TcpClientStack>::TcpSocket, _: &[u8]) -> Result<usize, embedded_nal::nb::Error<<Self as TcpClientStack>::Error>> {
          Ok(4)
     }
-    fn receive(&mut self, _: &mut <Self as TcpClientStack>::TcpSocket, _: &mut [u8]) -> Result<usize, embedded_nal::nb::Error<<Self as TcpClientStack>::Error>> { todo!() }
-    fn close(&mut self, _: <Self as TcpClientStack>::TcpSocket) -> Result<(), <Self as TcpClientStack>::Error> { todo!() }
+    fn receive(&mut self, _: &mut <Self as TcpClientStack>::TcpSocket, _: &mut [u8]) -> Result<usize, embedded_nal::nb::Error<<Self as TcpClientStack>::Error>> { 
+        Ok(4)
+    }
+    fn close(&mut self, _: <Self as TcpClientStack>::TcpSocket) -> Result<(), <Self as TcpClientStack>::Error> { 
+        Ok(())
+    }
 }
 
 fn do_http() -> Result<u8,myErr> {
@@ -89,8 +94,15 @@ fn do_http() -> Result<u8,myErr> {
 fn main() -> ! {
 
 
-    if let Ok((mut delay, mut red_led)) = init() {
+
+    if let Ok((mut delay, mut red_led, cs, spi)) = init() {
         defmt::println!("Hello, tcp_connect with shared init!");
+
+        let delay_shim = | v: u32 | {
+
+        };
+        let stream = Stream::new(spi,delay_shim);
+    
         delay.delay_ms(2000u32);
         let _ = do_http();
         loop {
