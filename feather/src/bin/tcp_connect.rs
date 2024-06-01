@@ -15,6 +15,9 @@ use feather_m0::ehal::can::ErrorKind;
 use embedded_nal::nb::block;
 
 
+use wincwifi::transfer::Xfer;
+
+
 const DEFAULT_TEST_IP: &str = "192.168.1.1";
 
 fn parse_ip_octets(ip: &str) -> [u8; 4] {
@@ -102,6 +105,7 @@ fn main() -> ! {
 
         };
         let stream = Stream::new(spi,delay_shim);
+        //let xfer = RawXfer::new(stream, cs, spi);
     
         delay.delay_ms(2000u32);
         let _ = do_http();

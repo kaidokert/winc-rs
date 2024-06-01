@@ -28,6 +28,7 @@ feather_winc_board = { path= "../feather_winc_board" }
 cortex-m-systick-countdown = "0.1.0"
 
 embedded-nal = "=0.8.0"
+wincwifi = { path = "../winc-rs", default-features = false }
 
 [dev-dependencies]
 defmt-test = "0.3"

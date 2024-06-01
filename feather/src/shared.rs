@@ -4,6 +4,8 @@ use hal::sercom::spi::AnySpi;
 use hal::ehal::spi::FullDuplex;
 use hal::ehal::blocking::spi::Transfer;
 
+use wincwifi::transfer::{Read /* , Write*/};
+
 pub trait DelayTrait: FnMut(u32) {}
 impl<U> DelayTrait for U where U: FnMut(u32) {}
 
@@ -28,5 +30,17 @@ impl<Spi: TransferSpi, Delay: DelayTrait> Stream<Spi, Delay> {
             spi,
             delay
         }
+    }
+    fn transfer(&mut self, buf: &mut [u8]) -> Result<(), hal::sercom::spi::Error> {
+        Ok(())
+    }
+}
+
+impl <Spi: TransferSpi, Delay: DelayTrait> Read for Stream<Spi, Delay> {
+    type ReadError = wincwifi::error::Error;
+
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize, Self::ReadError> {
+        self.transfer(buf).map_err(|_| wincwifi::error::Error::ReadError)?;
+        Ok(buf.len())
     }
 }
