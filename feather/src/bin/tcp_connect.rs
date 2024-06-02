@@ -15,7 +15,7 @@ use feather_m0::ehal::can::ErrorKind;
 use embedded_nal::nb::block;
 
 
-use wincwifi::transfer::Xfer;
+use wincwifi::transfer::{ReadWrite, Xfer};
 
 
 const DEFAULT_TEST_IP: &str = "192.168.1.1";
@@ -96,15 +96,13 @@ fn do_http() -> Result<u8,myErr> {
 #[cortex_m_rt::entry]
 fn main() -> ! {
 
-
-
     if let Ok((mut delay, mut red_led, cs, spi)) = init() {
         defmt::println!("Hello, tcp_connect with shared init!");
 
         let delay_shim = | v: u32 | {
 
         };
-        let stream = Stream::new(spi,delay_shim);
+        let mut stream = Stream::new(cs, spi,delay_shim);
         //let xfer = RawXfer::new(stream, cs, spi);
     
         delay.delay_ms(2000u32);
