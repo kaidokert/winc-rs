@@ -7,12 +7,10 @@ use pac::{CorePeripherals, Peripherals};
 
 use hal::clock::GenericClockController;
 use hal::time::{Hertz, MegaHertz};
-use hal::gpio::{AnyPin};
 use bsp::periph_alias;
-use bsp::{pin_alias, Pins};
+use bsp::pin_alias;
 use core::convert::Infallible;
 
-//use embedded_hal::digital::v2::OutputPin;
 use hal::prelude::*;
 
 use super::shared::TransferSpi;
@@ -32,9 +30,9 @@ impl From<Infallible> for FailureSource {
 }
 
 
-pub fn init() -> Result<(PollingSysTick, bsp::RedLed, impl AnyPin, impl TransferSpi), FailureSource> {
+pub fn init() -> Result<(PollingSysTick, bsp::RedLed, impl hal::gpio::AnyPin, impl TransferSpi), FailureSource> {
     let mut peripherals = Peripherals::take().ok_or(FailureSource::Periph)?;
-    let mut core = CorePeripherals::take().ok_or(FailureSource::Core)?;
+    let core = CorePeripherals::take().ok_or(FailureSource::Core)?;
 
     let mut clocks = GenericClockController::with_internal_32kosc(
         peripherals.GCLK,
@@ -52,12 +50,12 @@ pub fn init() -> Result<(PollingSysTick, bsp::RedLed, impl AnyPin, impl Transfer
 
     let spi_sercom = periph_alias!(peripherals.spi_sercom);
 
+    // Set SPI bus to 1 Mhz
     let freq = MegaHertz::from_raw(1);
 
     let spi = bsp::spi_master(
         &mut clocks,
         freq.convert(),
-        //400_u32.khz(),
         spi_sercom,
         &mut peripherals.PM,
         pins.sclk,
@@ -80,7 +78,6 @@ pub fn init() -> Result<(PollingSysTick, bsp::RedLed, impl AnyPin, impl Transfer
     rst.set_high()?;
 
     del.delay_ms(500);
-
 
     Ok((del, red_led, cs, spi))
 }

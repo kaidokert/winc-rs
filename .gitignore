@@ -2,3 +2,5 @@ winc-rs/target
 winc-rs/Cargo.lock
 target/
 Cargo.lock
+.env
+.vscode/settings.json

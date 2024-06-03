@@ -13,8 +13,6 @@
 // limitations under the License.
 
 use crate::error::Error;
-// todo: get rid of the pub uses here
-pub use genio::{Read, Write};
 
 use crate::transfer::*;
 

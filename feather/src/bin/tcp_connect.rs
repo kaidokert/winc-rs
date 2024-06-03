@@ -108,7 +108,7 @@ pub enum MainError {
 }
 impl From<Infallible> for MainError {
     fn from(_: Infallible) -> Self {
-        todo!()
+        unreachable!("Infallible error")
     }
 }
 impl From<wincwifi::error::Error> for MainError {
@@ -120,7 +120,7 @@ impl From<wincwifi::error::Error> for MainError {
 
 
 fn program() -> Result<(),  MainError> {
-    if let Ok((mut delay, mut red_led, cs, spi)) = init() {
+    if let Ok((delay, mut red_led, cs, spi)) = init() {
         let mut countdown1 = MillisCountDown::new(&delay);
         let mut countdown2 = MillisCountDown::new(&delay);
 
@@ -156,9 +156,9 @@ fn program() -> Result<(),  MainError> {
             manager.dispatch_events()?;
 
             delay2(200u32);
-            red_led.set_high().unwrap();
+            red_led.set_high()?;
             delay2(200u32);
-            red_led.set_low().unwrap();
+            red_led.set_low()?;
         }
     }
     Ok(())

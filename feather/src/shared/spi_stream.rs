@@ -74,7 +74,7 @@ impl<CS: AnyPin, Spi: TransferSpi, Delay: DelayTrait> Write for SpiStream<CS, Sp
         unreachable!()
     }
 
-    fn size_hint(&mut self, bytes_: usize) {
+    fn size_hint(&mut self, _bytes: usize) {
         unreachable!()
     }
 }
