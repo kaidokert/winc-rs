@@ -11,15 +11,15 @@ use super::DelayTrait;
 use super::TransferSpi;
 use core::mem::take;
 
-pub struct Stream<CS: AnyPin, Spi: TransferSpi, Delay: DelayTrait> {
+pub struct SpiStream<CS: AnyPin, Spi: TransferSpi, Delay: DelayTrait> {
     cs: Option<CS>,
     spi: Spi,
     delay: Delay,
 }
 
-impl<CS: AnyPin, Spi: TransferSpi, Delay: DelayTrait> Stream<CS, Spi, Delay> {
+impl<CS: AnyPin, Spi: TransferSpi, Delay: DelayTrait> SpiStream<CS, Spi, Delay> {
     pub fn new(cs: CS, spi: Spi, delay: Delay) -> Self {
-        Stream { 
+        SpiStream { 
             cs: Some(cs),
             spi, delay }
     }
@@ -43,7 +43,7 @@ impl<CS: AnyPin, Spi: TransferSpi, Delay: DelayTrait> Stream<CS, Spi, Delay> {
     }
 }
 
-impl<CS: AnyPin, Spi: TransferSpi, Delay: DelayTrait> Read for Stream<CS, Spi, Delay> {
+impl<CS: AnyPin, Spi: TransferSpi, Delay: DelayTrait> Read for SpiStream<CS, Spi, Delay> {
     type ReadError = wincwifi::error::Error;
 
     fn read(&mut self, buf: &mut [u8]) -> Result<usize, Self::ReadError> {
@@ -54,7 +54,7 @@ impl<CS: AnyPin, Spi: TransferSpi, Delay: DelayTrait> Read for Stream<CS, Spi, D
     }
 }
 
-impl<CS: AnyPin, Spi: TransferSpi, Delay: DelayTrait> Write for Stream<CS, Spi, Delay> {
+impl<CS: AnyPin, Spi: TransferSpi, Delay: DelayTrait> Write for SpiStream<CS, Spi, Delay> {
     type WriteError = wincwifi::error::Error;
     type FlushError = wincwifi::error::Error;
 

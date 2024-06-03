@@ -6,4 +6,4 @@ pub mod spi_stream;
 
 use delay_trait::DelayTrait;
 pub use transfer_spi::TransferSpi;
-pub use spi_stream::Stream;
+pub use spi_stream::SpiStream;

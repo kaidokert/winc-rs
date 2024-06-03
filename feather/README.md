@@ -209,6 +209,14 @@ improving tooling used to develop for embedded systems.
 If you think that our work is useful, consider sponsoring it via [GitHub
 Sponsors].
 
+## Usage
+
+Set `DEFMT_LOG` to `trace`
+
+Set `TEST_SSID` and `TEST_PASSWORD` to wifi credentials. 
+
+Set `TEST_IP` to the machine on the same network
+
 ## License
 
 Licensed under either of
