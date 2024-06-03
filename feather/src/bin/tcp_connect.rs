@@ -2,7 +2,7 @@
 #![no_std]
 
 use bsp::hal::prelude::*;
-use bsp::shared::SpiStream;
+use bsp::shared::{create_delay_closure, SpiStream};
 use core::convert::Infallible;
 use feather as bsp;
 
@@ -15,8 +15,6 @@ use embedded_nal::{IpAddr, Ipv4Addr, SocketAddr};
 use embedded_nal::{TcpClientStack, TcpError, TcpErrorKind};
 
 use wincwifi::manager::{AuthType, EventListener, Manager};
-
-//use wincwifi::transfer::{ReadWrite, Xfer};
 
 const DEFAULT_TEST_IP: &str = "192.168.1.1";
 const DEFAULT_TEST_SSID: &str = "network";
@@ -135,26 +133,22 @@ impl From<wincwifi::error::Error> for MainError {
 }
 
 fn program() -> Result<(), MainError> {
-    if let Ok((delay, mut red_led, cs, spi)) = init() {
-        let mut countdown1 = MillisCountDown::new(&delay);
-        let mut countdown2 = MillisCountDown::new(&delay);
-
+    if let Ok((delay_tick, mut red_led, cs, spi)) = init() {
         defmt::println!("Hello, tcp_connect with shared init!");
 
-        let delay_shim = |v: u32| {
-            countdown1.start_ms(v);
-            nb::block!(countdown1.wait()).unwrap();
-        };
-        let mut delay2 = |v: u32| {
-            countdown2.start_ms(v);
-            nb::block!(countdown2.wait()).unwrap();
-        };
-        let mut manager = Manager::from_xfer(SpiStream::new(cs, spi, delay_shim), Callbacks {});
+        let mut countdown1 = MillisCountDown::new(&delay_tick);
+        let mut countdown2 = MillisCountDown::new(&delay_tick);
+        let mut delay_ms = create_delay_closure(&mut countdown1);
+
+        let mut manager = Manager::from_xfer(
+            SpiStream::new(cs, spi, create_delay_closure(&mut countdown2)),
+            Callbacks {},
+        );
         manager.set_crc_state(true);
 
         manager.start(&mut |v: u32| -> bool {
             defmt::debug!("Waiting start .. {}", v);
-            delay2(40);
+            delay_ms(40);
             false
         })?;
         defmt::debug!("Chip started..");
@@ -164,14 +158,14 @@ fn program() -> Result<(), MainError> {
 
         manager.send_connect(AuthType::WpaPSK, ssid, password, 0xFF, false)?;
 
-        delay2(2000u32);
+        delay_ms(2000u32);
         let _ = do_http();
         loop {
             manager.dispatch_events()?;
 
-            delay2(200u32);
+            delay_ms(200u32);
             red_led.set_high()?;
-            delay2(200u32);
+            delay_ms(200u32);
             red_led.set_low()?;
         }
     }

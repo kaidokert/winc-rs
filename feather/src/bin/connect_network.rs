@@ -1,14 +1,12 @@
 #![no_main]
 #![no_std]
 
-use bsp::hal::ehal::timer::CountDown;
 use bsp::hal::prelude::*;
-use bsp::shared::SpiStream;
+use bsp::shared::{create_delay_closure, SpiStream};
 use core::convert::Infallible;
 use feather as bsp;
 use feather::init::init;
 
-use core::time::Duration;
 use cortex_m_systick_countdown::MillisCountDown;
 
 use wincwifi::manager::{AuthType, EventListener, Manager};
@@ -46,16 +44,6 @@ impl EventListener for Callbacks {
             minute,
             second
         );
-    }
-}
-
-fn create_delay_closure<'a, C>(delay: &'a mut C) -> impl FnMut(u32) + 'a
-where
-    C: CountDown<Time = Duration> + 'a,
-{
-    move |v: u32| {
-        delay.start(Duration::from_millis(v.into()));
-        nb::block!(delay.wait()).unwrap();
     }
 }
 
