@@ -1,8 +1,8 @@
 #![no_main]
 #![no_std]
 
-use bsp::hal::prelude::*;
 use bsp::hal::ehal::timer::CountDown;
+use bsp::hal::prelude::*;
 use bsp::shared::SpiStream;
 use core::convert::Infallible;
 use feather as bsp;
@@ -39,7 +39,12 @@ impl EventListener for Callbacks {
     fn on_system_time(&mut self, year: u16, month: u8, day: u8, hour: u8, minute: u8, second: u8) {
         defmt::info!(
             "System time received: {}-{:02}-{:02} {:02}:{:02}:{:02}",
-            year,month,day,hour,minute,second
+            year,
+            month,
+            day,
+            hour,
+            minute,
+            second
         );
     }
 }

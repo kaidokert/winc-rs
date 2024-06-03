@@ -1,8 +1,8 @@
 #![no_main]
 #![no_std]
 
-use feather as bsp;
 use bsp::hal::prelude::*;
+use feather as bsp;
 
 use feather::init::init;
 

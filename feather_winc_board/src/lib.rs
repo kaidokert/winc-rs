@@ -1,11 +1,11 @@
 #![no_std]
 
 // Re-export everything we need from the core BSP
-pub use feather_m0 as bsp;
 pub use bsp::hal;
-pub use bsp::Pins;
 pub use bsp::pac;
 pub use bsp::periph_alias;
+pub use bsp::Pins;
+pub use feather_m0 as bsp;
 
 pub use bsp::spi_master;
 

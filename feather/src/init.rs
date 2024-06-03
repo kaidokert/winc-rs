@@ -5,11 +5,11 @@ use bsp::pac;
 
 use pac::{CorePeripherals, Peripherals};
 
-use hal::clock::GenericClockController;
-use hal::time::{Hertz, MegaHertz};
 use bsp::periph_alias;
 use bsp::pin_alias;
 use core::convert::Infallible;
+use hal::clock::GenericClockController;
+use hal::time::{Hertz, MegaHertz};
 
 use hal::prelude::*;
 
@@ -29,8 +29,15 @@ impl From<Infallible> for FailureSource {
     }
 }
 
-
-pub fn init() -> Result<(PollingSysTick, bsp::RedLed, impl hal::gpio::AnyPin, impl TransferSpi), FailureSource> {
+pub fn init() -> Result<
+    (
+        PollingSysTick,
+        bsp::RedLed,
+        impl hal::gpio::AnyPin,
+        impl TransferSpi,
+    ),
+    FailureSource,
+> {
     let mut peripherals = Peripherals::take().ok_or(FailureSource::Periph)?;
     let core = CorePeripherals::take().ok_or(FailureSource::Core)?;
 

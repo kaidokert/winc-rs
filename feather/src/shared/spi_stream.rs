@@ -1,5 +1,5 @@
-use defmt::trace;
 use super::hal;
+use defmt::trace;
 
 use hal::gpio::AnyPin;
 
@@ -19,9 +19,11 @@ pub struct SpiStream<CS: AnyPin, Spi: TransferSpi, Delay: DelayTrait> {
 
 impl<CS: AnyPin, Spi: TransferSpi, Delay: DelayTrait> SpiStream<CS, Spi, Delay> {
     pub fn new(cs: CS, spi: Spi, delay: Delay) -> Self {
-        SpiStream { 
+        SpiStream {
             cs: Some(cs),
-            spi, delay }
+            spi,
+            delay,
+        }
     }
     fn transfer(&mut self, buf: &mut [u8]) -> Result<(), hal::sercom::spi::Error> {
         const WAIT_MS: u32 = 1;

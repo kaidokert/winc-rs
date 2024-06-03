@@ -213,7 +213,7 @@ Sponsors].
 
 Set `DEFMT_LOG` to `trace`
 
-Set `TEST_SSID` and `TEST_PASSWORD` to wifi credentials. 
+Set `TEST_SSID` and `TEST_PASSWORD` to wifi credentials.
 
 Set `TEST_IP` to the machine on the same network
 

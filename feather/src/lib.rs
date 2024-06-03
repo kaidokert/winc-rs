@@ -6,8 +6,8 @@ use cortex_m_semihosting::debug;
 use defmt_rtt as _; // global logger
 
 // use some_hal as _; // memory layout
-pub use feather_winc_board as bsp;
 pub use bsp::hal;
+pub use feather_winc_board as bsp;
 
 pub mod init;
 pub mod shared;
@@ -40,7 +40,6 @@ unsafe fn HardFault(_frame: &cortex_m_rt::ExceptionFrame) -> ! {
         debug::exit(debug::EXIT_FAILURE);
     }
 }
-
 
 // defmt-test 0.3.0 has the limitation that this `#[tests]` attribute can only be used
 // once within a crate. the module can be in any file but there can only be at most
