@@ -239,6 +239,9 @@ pub trait EventListener {
     }
 }
 
+struct StubListener {}
+impl EventListener for StubListener {}
+
 pub struct Manager<X: Xfer, E: EventListener> {
     // cached addresses
     not_a_reg_ctrl_4_dma: u32, // todo: make this dynamic/proper
@@ -803,8 +806,12 @@ impl<X: Xfer, E: EventListener> Manager<X, E> {
             .dma_block_write(self.not_a_reg_ctrl_4_dma + HIF_HEADER_OFFSET as u32, &req)?;
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
     }
-
+    
     pub fn dispatch_events(&mut self) -> Result<(), Error> {
+        self.dispatch_events_new::<StubListener>(&mut None)
+    }
+
+    pub fn dispatch_events_new<T : EventListener>(&mut self, listener: &mut Option<T>) -> Result<(), Error> {
         let res = self.is_interrupt_pending()?;
         if !res.0 {
             return Ok(());
@@ -889,59 +896,89 @@ impl<X: Xfer, E: EventListener> Manager<X, E> {
                     self.read_block(address, &mut result)?;
                     let rep = read_dns_reply(&result)?;
                     self.listener.on_resolve(rep.0, &rep.1);
-                }
+                    if let Some(listener) = listener {
+                        listener.on_resolve(rep.0, &rep.1);
+                    }                }
                 IpCode::Ping => {
                     let mut result = [0; 20];
                     self.read_block(address, &mut result)?;
                     let rep = read_ping_reply(&result)?;
                     self.listener
+                        .on_ping(rep.0, rep.1, rep.2, rep.3, rep.4, rep.5);
+                    if let Some(listener) = listener {
+                        listener
                         .on_ping(rep.0, rep.1, rep.2, rep.3, rep.4, rep.5)
+                    }
                 }
                 IpCode::Bind => {
                     let mut result = [0; 4];
                     self.read_block(address, &mut result)?;
                     let rep = read_common_socket_reply(&result)?;
-                    self.listener.on_bind(rep.0, rep.1)
+                    self.listener.on_bind(rep.0, rep.1);
+                    if let Some(listener) = listener {
+                        listener.on_bind(rep.0, rep.1);
+                    }
                 }
                 IpCode::Listen => {
                     let mut result = [0; 4];
                     self.read_block(address, &mut result)?;
                     let rep = read_common_socket_reply(&result)?;
-                    self.listener.on_listen(rep.0, rep.1)
+                    self.listener.on_listen(rep.0, rep.1);
+                    if let Some(listener) = listener {
+                        listener.on_listen(rep.0, rep.1);
+                    }
                 }
                 IpCode::Accept => {
                     let mut result = [0; 12];
                     self.read_block(address, &mut result)?;
                     let rep = read_accept_reply(&result)?;
-                    self.listener.on_accept(rep.0, rep.1, rep.2, rep.3)
+                    self.listener.on_accept(rep.0, rep.1, rep.2, rep.3);
+                    if let Some(listener) = listener {
+                        listener.on_accept(rep.0, rep.1, rep.2, rep.3);
+                    }
                 }
                 IpCode::Connect => {
                     let mut result = [0; 4];
                     self.read_block(address, &mut result)?;
                     let rep = read_common_socket_reply(&result)?;
-                    self.listener.on_connect(rep.0, rep.1)
+                    self.listener.on_connect(rep.0, rep.1);
+                    if let Some(listener) = listener {
+                        listener.on_connect(rep.0, rep.1)
+                    }
                 }
                 IpCode::SendTo => {
                     let mut result = [0; 8];
                     self.read_block(address, &mut result)?;
                     let rep = read_send_reply(&result)?;
-                    self.listener.on_send_to(rep.0, rep.1)
+                    self.listener.on_send_to(rep.0, rep.1);
+                    if let Some(listener) = listener {
+                        listener.on_send_to(rep.0, rep.1)
+                    }
                 }
                 IpCode::Send => {
                     let mut result = [0; 8];
                     self.read_block(address, &mut result)?;
                     let rep = read_send_reply(&result)?;
-                    self.listener.on_send(rep.0, rep.1)
+                    self.listener.on_send(rep.0, rep.1);
+                    if let Some(listener) = listener {
+                        listener.on_send(rep.0, rep.1)
+                    }
                 }
                 IpCode::Recv => {
                     let mut buffer = [0; SOCKET_BUFFER_MAX_LENGTH];
                     let rep = self.get_recv_reply(address, &mut buffer)?;
-                    self.listener.on_recv(rep.0, rep.1, rep.2, rep.3)
+                    self.listener.on_recv(rep.0, rep.1, rep.2, rep.3);
+                    if let Some(listener) = listener {
+                        listener.on_recv(rep.0, rep.1, rep.2, rep.3)
+                    }
                 }
                 IpCode::RecvFrom => {
                     let mut buffer = [0; SOCKET_BUFFER_MAX_LENGTH];
                     let rep = self.get_recv_reply(address, &mut buffer)?;
-                    self.listener.on_recvfrom(rep.0, rep.1, rep.2, rep.3)
+                    self.listener.on_recvfrom(rep.0, rep.1, rep.2, rep.3);
+                    if let Some(listener) = listener {
+                        listener.on_recvfrom(rep.0, rep.1, rep.2, rep.3)
+                    }
                 }
                 IpCode::Close => {
                     unimplemented!("There is no response for close")
