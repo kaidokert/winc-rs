@@ -54,15 +54,40 @@ impl TcpError for myErr {
     }
 }
 
+pub struct Callbacks {
+    tcp_sockets_ids: [bool;4]
+}
+
+impl Callbacks {
+    pub fn new() -> Self {
+        Self { tcp_sockets_ids: [false;4] }
+    }
+}
+
 struct stub<X: wincwifi::transfer::Xfer, E: EventListener> {
-    tcp_sockets_ids: [bool;4],
-    manager: Manager<X, E>
+    manager: Manager<X, E>,
+    callbacks: Option<Callbacks>
+}
+
+impl<X: wincwifi::transfer::Xfer, E: EventListener> stub<X,E> {
+    fn new(manager: Manager<X, E>) -> Self {
+        Self { manager, callbacks: Some(Callbacks::new()) }
+    }
+}
+
+impl EventListener for Callbacks {
+    fn on_dhcp(&mut self, conf: wincwifi::manager::IPConf) {
+        defmt::info!("on_dhcp: IP config: {}", conf);
+    }
+    fn on_connect(&mut self, socket: Socket, err: SocketError) {
+        defmt::debug!("on_connect: socket:{:?} error:{:?}", socket, err);
+        self.tcp_sockets_ids[socket.v as usize] = true;
+    }
 }
 
 impl<X: wincwifi::transfer::Xfer, E: EventListener> stub<X,E> { 
     fn dispatch_events(&mut self) -> Result<(), myErr> {
-        //self.manager.dispatch_events_new(&mut Some(self)).map_err(|some_err|  myErr {})
-        Ok(())
+        self.manager.dispatch_events_new(&mut self.callbacks).map_err(|some_err|  myErr {})
     }
 }
 
@@ -86,10 +111,17 @@ impl<X: wincwifi::transfer::Xfer, E: EventListener> embedded_nal::TcpClientStack
     }
     fn connect(
         &mut self,
-        _: &mut <Self as TcpClientStack>::TcpSocket,
-        _: embedded_nal::SocketAddr,
+        socket: &mut <Self as TcpClientStack>::TcpSocket,
+        remote: embedded_nal::SocketAddr,
     ) -> Result<(), embedded_nal::nb::Error<<Self as TcpClientStack>::Error>> {
         self.dispatch_events()?;
+        match remote {
+            embedded_nal::SocketAddr::V4(addr) => {
+                let foo : wincwifi::Socket = wincwifi::Socket { v: 0 , s: 0 };
+                self.manager.send_socket_connect(foo, addr).map_err(|_| myErr {})?;
+            }
+            _ => {}
+        }
         // this needs to call send_socket_connect
         // e.g we need to have a reference to the manager
         Ok(())
@@ -138,12 +170,6 @@ fn generic_http_client<T, S>(stack: &mut T) -> Result<(), T::Error>
     Ok(())
 }
 
-pub struct Callbacks;
-impl EventListener for Callbacks {
-    fn on_dhcp(&mut self, conf: wincwifi::manager::IPConf) {
-        defmt::info!("on_dhcp: IP config: {}", conf);
-    }
-}
 
 pub enum MainError {
     Any,
@@ -176,7 +202,7 @@ fn program() -> Result<(), MainError> {
 
         let mut manager = Manager::from_xfer(
             SpiStream::new(cs, spi, create_delay_closure(&mut countdown2)),
-            Callbacks {},
+            Callbacks::new()
         );
         manager.set_crc_state(true);
 
@@ -196,10 +222,7 @@ fn program() -> Result<(), MainError> {
 
         let test_ip = option_env!("TEST_IP").unwrap_or(DEFAULT_TEST_IP);
         let ip_values: [u8; 4] = parse_ip_octets(test_ip);
-        let mut stack = stub {
-            tcp_sockets_ids: [false; 4],
-            manager
-        };
+        let mut stack = stub::new(manager);
         generic_http_client(&mut stack).map_err(|err| MainError::Any)?;
 
         loop {
