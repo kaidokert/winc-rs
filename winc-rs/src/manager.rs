@@ -78,7 +78,7 @@ const ETHERNET_HEADER_LENGTH: usize = 14;
 const ETHERNET_HEADER_OFFSET: usize = 34;
 const IP_PACKET_OFFSET: usize = ETHERNET_HEADER_LENGTH + ETHERNET_HEADER_OFFSET; // - HIF_HEADER_OFFSET;
 
-const SOCKET_BUFFER_MAX_LENGTH: usize = 1400;
+pub const SOCKET_BUFFER_MAX_LENGTH: usize = 1400;
 
 // todo this needs to be used
 #[allow(dead_code)]
@@ -806,12 +806,15 @@ impl<X: Xfer, E: EventListener> Manager<X, E> {
             .dma_block_write(self.not_a_reg_ctrl_4_dma + HIF_HEADER_OFFSET as u32, &req)?;
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
     }
-    
+
     pub fn dispatch_events(&mut self) -> Result<(), Error> {
         self.dispatch_events_new::<StubListener>(&mut None)
     }
 
-    pub fn dispatch_events_new<T : EventListener>(&mut self, listener: &mut Option<T>) -> Result<(), Error> {
+    pub fn dispatch_events_new<T: EventListener>(
+        &mut self,
+        listener: &mut Option<T>,
+    ) -> Result<(), Error> {
         let res = self.is_interrupt_pending()?;
         if !res.0 {
             return Ok(());
@@ -898,7 +901,8 @@ impl<X: Xfer, E: EventListener> Manager<X, E> {
                     self.listener.on_resolve(rep.0, &rep.1);
                     if let Some(listener) = listener {
                         listener.on_resolve(rep.0, &rep.1);
-                    }                }
+                    }
+                }
                 IpCode::Ping => {
                     let mut result = [0; 20];
                     self.read_block(address, &mut result)?;
@@ -906,8 +910,7 @@ impl<X: Xfer, E: EventListener> Manager<X, E> {
                     self.listener
                         .on_ping(rep.0, rep.1, rep.2, rep.3, rep.4, rep.5);
                     if let Some(listener) = listener {
-                        listener
-                        .on_ping(rep.0, rep.1, rep.2, rep.3, rep.4, rep.5)
+                        listener.on_ping(rep.0, rep.1, rep.2, rep.3, rep.4, rep.5)
                     }
                 }
                 IpCode::Bind => {
