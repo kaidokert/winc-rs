@@ -83,6 +83,17 @@ impl EventListener for Callbacks {
         defmt::debug!("on_connect: socket:{:?} error:{:?}", socket, err);
         self.tcp_sockets_ids[socket.v as usize] = true;
     }
+    fn on_system_time(&mut self, year: u16, month: u8, day: u8, hour: u8, minute: u8, second: u8) {
+        defmt::info!(
+            "on_system_time: {}-{:02}-{:02} {:02}:{:02}:{:02}",
+            year,
+            month,
+            day,
+            hour,
+            minute,
+            second
+        );
+    }
 }
 
 impl<X: wincwifi::transfer::Xfer, E: EventListener> stub<X,E> { 
