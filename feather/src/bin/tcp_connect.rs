@@ -55,14 +55,13 @@ enum ClientSocketState {
 #[derive(defmt::Format)]
 enum ClientSocketOp {
     None,
+    New,
     Connect,
     Send,
     Recv,
     Close,
 }
 
-#[derive(Debug)]
-struct myErr {}
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Handle(pub u8);
@@ -123,9 +122,31 @@ impl<const N: usize, const BASE: usize> SockHolder<N, BASE> {
     }
 }
 
+#[derive(Debug)]
+enum myErr {
+    DispatcError,
+    NoCallbacks,
+    MyWouldBlock,
+    TcpError,
+    ConnectSendFailed,
+    AddingASocketFailed(i32),
+    ReceiveFailed,
+    SendSendFailed,
+    Weirdness
+}
+
 impl TcpError for myErr {
     fn kind(&self) -> TcpErrorKind {
-        todo!()
+        TcpErrorKind::Other
+    }
+}
+
+impl From<embedded_nal::nb::Error<myErr>> for myErr {
+    fn from(inner: embedded_nal::nb::Error<myErr>) -> Self {
+        match inner {
+            embedded_nal::nb::Error::WouldBlock => myErr::MyWouldBlock,
+            embedded_nal::nb::Error::Other(e) => e,
+        }
     }
 }
 
@@ -173,16 +194,30 @@ impl EventListener for Callbacks {
         defmt::info!("on_dhcp: IP config: {}", conf);
     }
     fn on_connect(&mut self, socket: Socket, err: SocketError) {
-        let sock = self.tcp_sockets.get(Handle(socket.v));
-        defmt::debug!("on_connect: socket:{:?} error:{:?}", socket, err);
+        if let Some(s) = self.tcp_sockets.get(Handle(socket.v)) {
+            if s.op == ClientSocketOp::Connect {
+                defmt::debug!("on_connect: socket:{:?} error:{:?}", s.sock, err);
+                s.op = ClientSocketOp::None;
+            } else {
+                defmt::error!("UNKNOWN STATE on_connect (x): socket:{:?} error:{:?} state:{:?}", s.sock, err, s.op);
+            }
+        } else {
+            defmt::error!("on_connect (x): COULD NOT FIND SOCKET socket:{:?} error:{:?}", socket, err);
+        }
     }
     fn on_send_to(&mut self, socket: Socket, len: i16) {
         defmt::debug!("on_send_to: socket:{:?} length:{:?}", socket, len)
     }
     fn on_send(&mut self, socket: Socket, len: i16) {
-        let sock = self.tcp_sockets.get(Handle(socket.v));
-        if let Some(s) = sock {
-            defmt::debug!("on_send: socket:{:?} length:{:?}", socket, len)
+        if let Some(s) = self.tcp_sockets.get(Handle(socket.v)) {
+            if s.op == ClientSocketOp::Send {
+                defmt::debug!("on_send: socket:{:?} length:{:?}", socket, len);
+                s.op = ClientSocketOp::None;
+            } else {
+                defmt::error!("UNKNOWN STATE on_send (x): socket:{:?} len:{:?} state:{:?}", s.sock, len, s.op);
+            }
+        } else {
+            defmt::error!("on_send (x): COULD NOT FIND SOCKET socket:{:?} len:{:?}", socket, len);
         }
     }
     fn on_recv(
@@ -206,7 +241,7 @@ impl EventListener for Callbacks {
                 s.recv_len = data.len();
                 s.op = ClientSocketOp::None;
             } else {
-                defmt::debug!(
+                defmt::error!(
                     "UNKNOWN on_recv: socket:{:?} address:{:?} port:{:?} data:{:?} error:{:?}",
                     socket,
                     Ipv4AddrFormatWrapper::new(address.ip()),address.port(),
@@ -214,15 +249,8 @@ impl EventListener for Callbacks {
                     err
                 );
             }
-            defmt::debug!(
-                "on_recv: socket:{:?} address:{:?}  port:{:?}  data:{:?} error:{:?}",
-                s.sock,
-                Ipv4AddrFormatWrapper::new(address.ip()), address.port(),
-                data,
-                err
-            );
         } else {
-            defmt::debug!(
+            defmt::error!(
                 "UNKNOWN on_recv: socket:{:?} address:{:?} port:{:?} data:{:?} error:{:?}",
                 socket,
                 Ipv4AddrFormatWrapper::new(address.ip()), address.port(),
@@ -259,19 +287,19 @@ impl<'a, X: wincwifi::transfer::Xfer, E: EventListener> Stack<'a, X, E> {
     fn dispatch_events(&mut self) -> Result<(), myErr> {
         self.manager
             .dispatch_events_new(&mut self.callbacks)
-            .map_err(|some_err| myErr {})
+            .map_err(|some_err| myErr::DispatcError)
     }
     fn wait_for_op_ack(&mut self, socket: &mut mySocket, timeout: u32) -> Result<(), myErr> {
         self.dispatch_events()?;
         let mut timeout = timeout as i32;
         const LOOP_DELAY: u32 = 100;
-        defmt::info!("Waiting for op ack for {:?}", socket.op);
+        defmt::info!("===>Waiting for op ack for {:?}", socket.op);
         while socket.op != ClientSocketOp::None && timeout > 0 {
             (self.delay)(LOOP_DELAY);
             self.dispatch_events()?;
             timeout -= LOOP_DELAY as i32;
         }
-        defmt::info!("Ack received {:?}", socket.op);
+        defmt::info!("<===Ack received {:?}", socket.op);
         Ok(())
     }
 }
@@ -287,12 +315,12 @@ impl<'a, X: wincwifi::transfer::Xfer, E: EventListener> embedded_nal::TcpClientS
         self.dispatch_events()?;
         if let Some(ref mut callbacks) = self.callbacks {
             let s = callbacks.get_next_session_id();
-            let handle = callbacks.tcp_sockets.add(s).map_err(|_| myErr {})?;
+            let handle = callbacks.tcp_sockets.add(s).map_err(|x| myErr::AddingASocketFailed(x))?;
             let mut new_socket = mySocket::new(handle.0, s);
-            new_socket.op = ClientSocketOp::Connect;
+            new_socket.op = ClientSocketOp::New;
             Ok(new_socket)
         } else {
-            Err(myErr {})
+            Err(myErr::NoCallbacks)
         }
     }
     fn connect(
@@ -305,9 +333,10 @@ impl<'a, X: wincwifi::transfer::Xfer, E: EventListener> embedded_nal::TcpClientS
         match remote {
             embedded_nal::SocketAddr::V4(addr) => {
                 socket.op = ClientSocketOp::Connect;
+                defmt::info!("<> Sending send_socket_connect to {:?}", socket.sock);
                 self.manager
                     .send_socket_connect(socket.sock, addr)
-                    .map_err(|_| myErr {})?;
+                    .map_err(|x| myErr::ConnectSendFailed )?;
             }
             _ => {}
         }
@@ -321,9 +350,10 @@ impl<'a, X: wincwifi::transfer::Xfer, E: EventListener> embedded_nal::TcpClientS
     ) -> Result<usize, embedded_nal::nb::Error<<Self as TcpClientStack>::Error>> {
         self.dispatch_events()?;
         socket.op = ClientSocketOp::Send;
+        defmt::info!("<> Sending socket send_send to {:?}", socket.sock);
         self.manager
             .send_send(socket.sock, data)
-            .map_err(|_| myErr {})?;
+            .map_err(|x| myErr::SendSendFailed)?;
         self.wait_for_op_ack(socket, Self::SEND_TIMEOUT)?;
         Ok(data.len())
     }
@@ -335,9 +365,10 @@ impl<'a, X: wincwifi::transfer::Xfer, E: EventListener> embedded_nal::TcpClientS
         self.dispatch_events()?;
         socket.op = ClientSocketOp::Recv;
         let timeout = 1000_i32;
+        defmt::info!("<> Sending socket send_recv to {:?}", socket.sock);
         self.manager
             .send_recv(socket.sock, timeout as u32)
-            .map_err(|_| myErr {})?;
+            .map_err(|x| myErr::ReceiveFailed)?;
         self.wait_for_op_ack(socket, Self::RECV_TIMEOUT)?;
         // data.copy_from_slice(&socket.recv_buffer[..socket.recv_len]);
         Ok(socket.recv_len)
@@ -355,16 +386,18 @@ impl<'a, X: wincwifi::transfer::Xfer, E: EventListener> embedded_nal::TcpClientS
 }
 
 fn generic_http_client<T, S>(stack: &mut T, addr: Ipv4Addr, port: u16) -> Result<(), T::Error>
-    where T: TcpClientStack<TcpSocket = S>
+    where 
+    T: TcpClientStack<TcpSocket = S>,
+    T::Error: From<embedded_nal::nb::Error<<T as TcpClientStack>::Error>>
 {
     let sock = stack.socket();
     if let Ok(mut s) = sock {
         let remote = SocketAddr::new(IpAddr::V4(addr), port);
-        let _ = stack.connect(&mut s, remote);
-        defmt::println!("Socket connected");
+        stack.connect(&mut s, remote)?;
+        defmt::println!("-----Socket connected-----");
         let http_get: &str = "GET / HTTP/1.1\r\n\r\n";
         let nbytes = stack.send(&mut s, http_get.as_bytes());
-        defmt::println!("Request sent {}", nbytes.unwrap());
+        defmt::println!("-----Request sent {}-----", nbytes.unwrap());
         let mut respbuf = [0; 1500];
         let resplen = block!(stack.receive(&mut s, &mut respbuf))?;
     } else {
@@ -422,7 +455,10 @@ fn program() -> Result<(), MainError> {
 
         manager.send_connect(AuthType::WpaPSK, ssid, password, 0xFF, false)?;
 
-        delay_ms(2000u32);
+        for _ in 0..10 {
+            manager.dispatch_events()?;
+            delay_ms(300u32);
+        }
 
         let test_ip = option_env!("TEST_IP").unwrap_or(DEFAULT_TEST_IP);
         let ip_values: [u8; 4] = parse_ip_octets(test_ip);
@@ -430,8 +466,9 @@ fn program() -> Result<(), MainError> {
         let mut stack = Stack::new(manager, &mut delay_ms2);
         let test_port = option_env!("TEST_PORT").unwrap_or(DEFAULT_TEST_PORT);
         let port = u16::from_str(test_port).unwrap_or(12345);
+        defmt::info!("---- Starting HTTP client ---- ");
         generic_http_client(&mut stack, ip, port).map_err(|err| MainError::Any)?;
-
+        defmt::info!("---- HTTP Client done ---- ");
         loop {
             stack.dispatch_events().map_err(|err| MainError::Any)?;
 
