@@ -11,7 +11,7 @@ def start_server(port):
         server_socket.bind(('0.0.0.0', port))
         server_socket.listen()
         server_socket.settimeout(1)  # Set a timeout for the accept() call
-        
+
         print(f"Server listening on 0.0.0.0:{port}")
         print("Available network interface addresses:")
         for ip in local_ips:
@@ -23,12 +23,20 @@ def start_server(port):
                     client_socket, client_address = server_socket.accept()
                     print(f"Connected by {client_address}")
                     with client_socket:
-                        while data := client_socket.recv(1024):
-                            print(f"Received from {client_address}: {data.decode()}")
-                            client_socket.sendall(data)  # Echo the received data back to the client
+                        client_socket.settimeout(1)  # Set a timeout for recv() calls
+                        while True:
+                            try:
+                                data = client_socket.recv(1024)
+                                if not data:
+                                    break
+                                print(f"Received from {client_address}: {data.decode()}")
+                                client_socket.sendall(data)  # Echo the received data back to the client
+                            except socket.timeout:
+                                # Timeout every second to allow a check for KeyboardInterrupt
+                                continue
                 except socket.timeout:
                     # Timeout every second to allow a check for KeyboardInterrupt
-                    pass
+                    continue
         except KeyboardInterrupt:
             print("\nServer shutting down...")
 

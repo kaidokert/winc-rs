@@ -898,7 +898,6 @@ impl<X: Xfer, E: EventListener> Manager<X, E> {
                     let mut result = [0; 68];
                     self.read_block(address, &mut result)?;
                     let rep = read_dns_reply(&result)?;
-                    self.listener.on_resolve(rep.0, &rep.1);
                     if let Some(listener) = listener {
                         listener.on_resolve(rep.0, &rep.1);
                     }
@@ -907,8 +906,6 @@ impl<X: Xfer, E: EventListener> Manager<X, E> {
                     let mut result = [0; 20];
                     self.read_block(address, &mut result)?;
                     let rep = read_ping_reply(&result)?;
-                    self.listener
-                        .on_ping(rep.0, rep.1, rep.2, rep.3, rep.4, rep.5);
                     if let Some(listener) = listener {
                         listener.on_ping(rep.0, rep.1, rep.2, rep.3, rep.4, rep.5)
                     }
@@ -917,7 +914,6 @@ impl<X: Xfer, E: EventListener> Manager<X, E> {
                     let mut result = [0; 4];
                     self.read_block(address, &mut result)?;
                     let rep = read_common_socket_reply(&result)?;
-                    self.listener.on_bind(rep.0, rep.1);
                     if let Some(listener) = listener {
                         listener.on_bind(rep.0, rep.1);
                     }
@@ -926,7 +922,7 @@ impl<X: Xfer, E: EventListener> Manager<X, E> {
                     let mut result = [0; 4];
                     self.read_block(address, &mut result)?;
                     let rep = read_common_socket_reply(&result)?;
-                    self.listener.on_listen(rep.0, rep.1);
+                    //self.listener.on_listen(rep.0, rep.1);
                     if let Some(listener) = listener {
                         listener.on_listen(rep.0, rep.1);
                     }
@@ -935,7 +931,6 @@ impl<X: Xfer, E: EventListener> Manager<X, E> {
                     let mut result = [0; 12];
                     self.read_block(address, &mut result)?;
                     let rep = read_accept_reply(&result)?;
-                    self.listener.on_accept(rep.0, rep.1, rep.2, rep.3);
                     if let Some(listener) = listener {
                         listener.on_accept(rep.0, rep.1, rep.2, rep.3);
                     }
@@ -944,7 +939,6 @@ impl<X: Xfer, E: EventListener> Manager<X, E> {
                     let mut result = [0; 4];
                     self.read_block(address, &mut result)?;
                     let rep = read_common_socket_reply(&result)?;
-                    self.listener.on_connect(rep.0, rep.1);
                     if let Some(listener) = listener {
                         listener.on_connect(rep.0, rep.1)
                     }
@@ -953,7 +947,6 @@ impl<X: Xfer, E: EventListener> Manager<X, E> {
                     let mut result = [0; 8];
                     self.read_block(address, &mut result)?;
                     let rep = read_send_reply(&result)?;
-                    self.listener.on_send_to(rep.0, rep.1);
                     if let Some(listener) = listener {
                         listener.on_send_to(rep.0, rep.1)
                     }
@@ -962,7 +955,6 @@ impl<X: Xfer, E: EventListener> Manager<X, E> {
                     let mut result = [0; 8];
                     self.read_block(address, &mut result)?;
                     let rep = read_send_reply(&result)?;
-                    self.listener.on_send(rep.0, rep.1);
                     if let Some(listener) = listener {
                         listener.on_send(rep.0, rep.1)
                     }
@@ -970,7 +962,6 @@ impl<X: Xfer, E: EventListener> Manager<X, E> {
                 IpCode::Recv => {
                     let mut buffer = [0; SOCKET_BUFFER_MAX_LENGTH];
                     let rep = self.get_recv_reply(address, &mut buffer)?;
-                    self.listener.on_recv(rep.0, rep.1, rep.2, rep.3);
                     if let Some(listener) = listener {
                         listener.on_recv(rep.0, rep.1, rep.2, rep.3)
                     }
@@ -978,7 +969,6 @@ impl<X: Xfer, E: EventListener> Manager<X, E> {
                 IpCode::RecvFrom => {
                     let mut buffer = [0; SOCKET_BUFFER_MAX_LENGTH];
                     let rep = self.get_recv_reply(address, &mut buffer)?;
-                    self.listener.on_recvfrom(rep.0, rep.1, rep.2, rep.3);
                     if let Some(listener) = listener {
                         listener.on_recvfrom(rep.0, rep.1, rep.2, rep.3)
                     }
