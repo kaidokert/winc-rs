@@ -30,10 +30,12 @@ def start_server(port):
                                 if not data:
                                     break
                                 print(f"Received from {client_address}: {data.decode()}")
-                                client_socket.sendall(data)  # Echo the received data back to the client
+                                client_socket.sendall(b"HTTP/1.0 200 OK\r\n\r\n")
+                                #/client_socket.sendall(data)  # Echo the received data back to the client
                             except socket.timeout:
                                 # Timeout every second to allow a check for KeyboardInterrupt
                                 continue
+                    print(f"Disconnected from {client_address}")
                 except socket.timeout:
                     # Timeout every second to allow a check for KeyboardInterrupt
                     continue

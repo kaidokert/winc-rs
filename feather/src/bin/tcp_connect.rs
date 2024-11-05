@@ -46,16 +46,15 @@ fn parse_ip_octets(ip: &str) -> [u8; 4] {
 pub mod socketthings;
 use socketthings::{ClientSocketOp, ClientSocketState, Handle};
 
-struct mySocket<'a> {
+struct mySocket{
     sock: wincwifi::Socket,
     state: ClientSocketState,
     op: ClientSocketOp,
     // recv_buffer: [u8; wincwifi::manager::SOCKET_BUFFER_MAX_LENGTH],
     recv_len: usize,
-    phantom: core::marker::PhantomData<&'a u8>,
 }
 
-impl<'a> mySocket<'a> {
+impl mySocket {
     fn new(handle: u8, session: u16) -> Self {
         Self {
             sock: wincwifi::Socket {
@@ -66,16 +65,15 @@ impl<'a> mySocket<'a> {
             op: ClientSocketOp::New,
             // recv_buffer: [0; wincwifi::manager::SOCKET_BUFFER_MAX_LENGTH],
             recv_len: 0,
-            phantom: Default::default()
         }
     }
 }
 
-struct SockHolder<'a, const N: usize, const BASE: usize> {
-    sock: [Option<mySocket<'a>>; N],
+struct SockHolder<const N: usize, const BASE: usize> {
+    sock: [Option<mySocket>; N],
 }
 
-impl<'a, const N: usize, const BASE: usize> SockHolder<'a, N, BASE> {
+impl<const N: usize, const BASE: usize> SockHolder<N, BASE> {
     pub fn new() -> Self {
         Self {
             sock: core::array::from_fn(|_| None),
@@ -100,7 +98,7 @@ impl<'a, const N: usize, const BASE: usize> SockHolder<'a, N, BASE> {
     fn remove(&mut self, handle: Handle) {
         self.sock[handle.0 as usize] = None;
     }
-    fn get(&mut self, handle: Handle) -> Option<&mut mySocket<'a>> {
+    fn get(&mut self, handle: Handle) -> Option<&mut mySocket> {
         self.sock[handle.0 as usize].as_mut()
     }
 }
@@ -134,18 +132,20 @@ impl From<embedded_nal::nb::Error<myErr>> for myErr {
     }
 }
 
-pub struct Callbacks<'a> {
+pub struct Callbacks {
     next_session_id: u16,
-    tcp_sockets: SockHolder<'a, 7, 0>,
-    udp_sockets: SockHolder<'a, 3, 7>,
+    tcp_sockets: SockHolder<7, 0>,
+    udp_sockets: SockHolder< 3, 7>,
+    recv_buffer: [u8; wincwifi::manager::SOCKET_BUFFER_MAX_LENGTH],
 }
 
-impl<'a> Callbacks<'a> {
+impl Callbacks {
     pub fn new() -> Self {
         Self {
             next_session_id: 0,
             tcp_sockets: SockHolder::new(),
             udp_sockets: SockHolder::new(),
+            recv_buffer: [0; wincwifi::manager::SOCKET_BUFFER_MAX_LENGTH],
         }
     }
     pub fn get_next_session_id(&mut self) -> u16 {
@@ -155,27 +155,25 @@ impl<'a> Callbacks<'a> {
     }
 }
 
-struct Stack<'a, 'b, X: wincwifi::transfer::Xfer, E: EventListener> {
+struct Stack<'a, X: wincwifi::transfer::Xfer, E: EventListener> {
     manager: Manager<X, E>,
-    callbacks: Option<Callbacks<'b>>,
+    callbacks: Option<Callbacks>,
     delay: &'a mut dyn FnMut(u32) -> (),
     recv_timeout: u32,
-    recv_buffer: [u8; wincwifi::manager::SOCKET_BUFFER_MAX_LENGTH],
 }
 
-impl<'a, 'b, X: wincwifi::transfer::Xfer, E: EventListener> Stack<'a, 'b, X, E> {
+impl<'a, X: wincwifi::transfer::Xfer, E: EventListener> Stack<'a,  X, E> {
     fn new(manager: Manager<X, E>, delay: &'a mut impl FnMut(u32)) -> Self {
         Self {
             manager,
             callbacks: Some(Callbacks::new()),
             delay: delay,
             recv_timeout: 1000,
-            recv_buffer: [0; wincwifi::manager::SOCKET_BUFFER_MAX_LENGTH],
         }
     }
 }
 
-impl<'a> EventListener for Callbacks<'a> {
+impl EventListener for Callbacks {
     fn on_dhcp(&mut self, conf: wincwifi::manager::IPConf) {
         defmt::info!("on_dhcp: IP config: {}", conf);
     }
@@ -241,6 +239,7 @@ impl<'a> EventListener for Callbacks<'a> {
                     data,
                     err
                 );
+                self.recv_buffer[..data.len()].copy_from_slice(data);
                 // s.recv_buffer.copy_from_slice(data);
                 s.recv_len = data.len();
                 s.op = ClientSocketOp::None;
@@ -272,6 +271,26 @@ impl<'a> EventListener for Callbacks<'a> {
         data: &[u8],
         err: SocketError,
     ) {
+        let sock = self.tcp_sockets.get(Handle(socket.v));
+        if let Some(s) = sock {
+            if s.op == ClientSocketOp::Recv {
+                defmt::debug!(
+                    "on_recvfrom: socket:{:?} address:{:?} data:{:?} error:{:?}",
+                    s.sock,
+                    Ipv4AddrFormatWrapper::new(address.ip()),
+                    data,
+                    err
+                );
+                return;
+            }
+        }
+        defmt::error!(
+            "UNKNOWN on_recvfrom: socket:{:?} address:{:?} data:{:?} error:{:?}",
+            socket,
+            Ipv4AddrFormatWrapper::new(address.ip()),
+            data,
+            err
+        );
     }
     fn on_system_time(&mut self, year: u16, month: u8, day: u8, hour: u8, minute: u8, second: u8) {
         defmt::info!(
@@ -286,7 +305,7 @@ impl<'a> EventListener for Callbacks<'a> {
     }
 }
 
-impl<'a, 'b, X: wincwifi::transfer::Xfer, E: EventListener> Stack<'a, 'b, X, E> {
+impl<'a,  X: wincwifi::transfer::Xfer, E: EventListener> Stack<'a,  X, E> {
     const SEND_TIMEOUT: u32 = 1000;
     const RECV_TIMEOUT: u32 = 1000;
     const CONNECT_TIMEOUT: u32 = 1000;
@@ -300,33 +319,35 @@ impl<'a, 'b, X: wincwifi::transfer::Xfer, E: EventListener> Stack<'a, 'b, X, E> 
         handle: Handle,
         op: ClientSocketOp,
         timeout: u32,
-    ) -> Result<(), myErr> {
+    ) -> Result<usize, myErr> {
         self.dispatch_events()?;
         let mut timeout = timeout as i32;
         const LOOP_DELAY: u32 = 100;
         defmt::info!("===>Waiting for op ack for {:?}", op);
-        while self
-            .callbacks
-            .as_mut()
-            .unwrap()
-            .tcp_sockets
-            .get(handle)
-            .unwrap()
-            .op
-            != ClientSocketOp::None
-            && timeout > 0
-        {
+        loop {
+            if timeout <= 0 {
+                return Err(myErr::TcpError);
+            }
+            let sock = self
+                .callbacks
+                .as_mut()
+                .unwrap()
+                .tcp_sockets
+                .get(handle)
+                .unwrap();
+            if sock.op == ClientSocketOp::None {
+                defmt::info!("<===Ack received {:?}, sock.recv_len:{:?}", op, sock.recv_len);
+                return Ok(sock.recv_len)
+            }
             (self.delay)(LOOP_DELAY);
             self.dispatch_events()?;
             timeout -= LOOP_DELAY as i32;
         }
-        defmt::info!("<===Ack received {:?}", op);
-        Ok(())
     }
 }
 
-impl<'a, 'b, X: wincwifi::transfer::Xfer, E: EventListener> embedded_nal::TcpClientStack
-    for Stack<'a, 'b, X, E>
+impl<'a,  X: wincwifi::transfer::Xfer, E: EventListener> embedded_nal::TcpClientStack
+    for Stack<'a,  X, E>
 {
     type TcpSocket = Handle; // this should simply be a handle
     type Error = myErr;
@@ -409,7 +430,6 @@ impl<'a, 'b, X: wincwifi::transfer::Xfer, E: EventListener> embedded_nal::TcpCli
             return Err(myErr::NoCallbacks.into());
         }
         self.dispatch_events()?;
-        let mut ret_len = 0;
         let sock = self
             .callbacks
             .as_mut()
@@ -424,13 +444,13 @@ impl<'a, 'b, X: wincwifi::transfer::Xfer, E: EventListener> embedded_nal::TcpCli
         self.manager
             .send_recv(sock.sock, timeout as u32)
             .map_err(|x| myErr::ReceiveFailed(x))?;
-        ret_len = sock.recv_len;
-        self.wait_for_op_ack(*socket, op, Self::RECV_TIMEOUT)?;
+        let recv_len = self.wait_for_op_ack(*socket, op, Self::RECV_TIMEOUT)?;
         {
-            //let sock = self.callbacks.as_mut().unwrap().tcp_sockets.get(*socket).unwrap();
-            // data.copy_from_slice(&socket.recv_buffer[..socket.recv_len]);
+            defmt::info!("Copying data to buffer, len: {}", recv_len);
+            let dest_slice = &mut data[..recv_len];
+            dest_slice.copy_from_slice(&self.callbacks.as_mut().unwrap().recv_buffer[..recv_len]);
         }
-        Ok(ret_len)
+        Ok(recv_len)
     }
     fn close(
         &mut self,
@@ -460,6 +480,11 @@ where
         defmt::println!("-----Request sent {}-----", nbytes.unwrap());
         let mut respbuf = [0; 1500];
         let resplen = block!(stack.receive(&mut s, &mut respbuf))?;
+        defmt::println!("-----Response received {}-----", resplen);
+        let the_received_slice = &respbuf[..resplen];
+        let recvd_str = core::str::from_utf8(the_received_slice).unwrap();
+        defmt::println!("-----Response: {}-----", recvd_str);
+        stack.close(s)?;
     } else {
         defmt::println!("Socket creation failed");
     }
