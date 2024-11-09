@@ -239,7 +239,7 @@ pub trait EventListener {
     }
 }
 
-struct StubListener {}
+pub struct StubListener {}
 impl EventListener for StubListener {}
 
 pub struct Manager<X: Xfer, E: EventListener> {
@@ -250,6 +250,7 @@ pub struct Manager<X: Xfer, E: EventListener> {
 }
 
 impl<X: Xfer, E: EventListener> Manager<X, E> {
+    // Todo: provide a version without listener, defaulting to as stub
     pub fn from_xfer(xfer: X, listener: E) -> Self {
         Self {
             not_a_reg_ctrl_4_dma: 0xbf0000,

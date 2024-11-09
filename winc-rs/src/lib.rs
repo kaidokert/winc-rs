@@ -53,7 +53,8 @@ pub use socket::Socket;
 
 pub use no_std_net::{Ipv4Addr, SocketAddrV4};
 
-pub use client::{Handle, WincClient};
+pub use client::{Handle, WincClient, ClientSocketOp};
+pub use client::SockHolder;
 
 pub mod wifi;
 

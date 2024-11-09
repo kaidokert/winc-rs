@@ -1,22 +1,22 @@
-#![no_main]
-#![no_std]
-
-use bsp::hal::prelude::*;
-use bsp::shared::{create_delay_closure, SpiStream};
-use feather as bsp;
-use feather::init::init;
-
 use cortex_m_systick_countdown::MillisCountDown;
+use embedded_nal::TcpClientStack;
+use feather::{init::init, shared::{create_delay_closure, SpiStream}};
+use wincwifi::manager::{AuthType, EventListener, Manager, StubListener};
 
-use wincwifi::manager::{AuthType, EventListener, Manager};
+use super::bsp::hal::prelude::*;
+use wincwifi::Handle;
 
-const DEFAULT_TEST_SSID: &str = "network";
-const DEFAULT_TEST_PASSWORD: &str = "password";
+use crate::{stack::WincClient, DEFAULT_TEST_PASSWORD, DEFAULT_TEST_SSID};
 
-pub struct Callbacks;
+pub type MyTcpClientStack<'a> = &'a mut dyn TcpClientStack<TcpSocket = Handle, Error = crate::stack::StackError>;
+
+pub struct Callbacks {
+    connected: bool
+}
 impl EventListener for Callbacks {
     fn on_dhcp(&mut self, conf: wincwifi::manager::IPConf) {
         defmt::info!("Network connected: IP config: {}", conf);
+        self.connected = true;
     }
     fn on_system_time(&mut self, year: u16, month: u8, day: u8, hour: u8, minute: u8, second: u8) {
         defmt::info!(
@@ -31,17 +31,21 @@ impl EventListener for Callbacks {
     }
 }
 
-fn program() -> Result<(), wincwifi::error::Error> {
+pub fn connect_and_run(message: &str,
+    execute: impl FnOnce(MyTcpClientStack) -> Result<(), wincwifi::error::Error>
+) -> Result<(), wincwifi::error::Error> {
     if let Ok((delay_tick, mut red_led, cs, spi)) = init() {
-        defmt::println!("Hello, tcp_connect with shared init!");
+        defmt::println!("{}", message);
 
         let mut countdown1 = MillisCountDown::new(&delay_tick);
         let mut countdown2 = MillisCountDown::new(&delay_tick);
+        let mut countdown3 = MillisCountDown::new(&delay_tick);
         let mut delay_ms = create_delay_closure(&mut countdown1);
+        let mut delay_ms2 = create_delay_closure(&mut countdown3);
 
         let mut manager = Manager::from_xfer(
             SpiStream::new(cs, spi, create_delay_closure(&mut countdown2)),
-            Callbacks {},
+            Callbacks { connected: false },
         );
         manager.set_crc_state(true);
 
@@ -57,26 +61,29 @@ fn program() -> Result<(), wincwifi::error::Error> {
 
         manager.send_connect(AuthType::WpaPSK, ssid, password, 0xFF, false)?;
 
-        delay_ms(200);
-        loop {
+        for _ in 0..10 {
             manager.dispatch_events()?;
+            delay_ms(300u32);
+            if manager.listener.connected {
+                break;
+            }
+        }
+        let connected = manager.listener.connected;
+        let mut stack = WincClient::new(manager, &mut delay_ms2);
+        if connected {
+            defmt::info!("Network connected");
+            execute(&mut stack)?;
+        } else {
+            defmt::error!("Failed to connect to network");
+        }
+        loop {
+            stack.dispatch_events().map_err(|_err| wincwifi::error::Error::Failed)?;
 
-            delay_ms(200);
+            delay_ms(200u32);
             red_led.set_high()?;
-            delay_ms(200);
+            delay_ms(200u32);
             red_led.set_low()?;
         }
     }
     Ok(())
-}
-
-#[cortex_m_rt::entry]
-fn main() -> ! {
-    if let Err(something) = program() {
-        defmt::info!("Bad error {}", something);
-        panic!("Error in main program");
-    } else {
-        defmt::info!("Good exit")
-    };
-    loop {}
 }

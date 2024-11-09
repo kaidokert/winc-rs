@@ -37,6 +37,12 @@ pub enum Error {
     FirmwareStart,
 }
 
+impl From<core::convert::Infallible> for Error {
+    fn from(_: core::convert::Infallible) -> Self {
+        unreachable!("Infallible error")
+    }
+}
+
 impl From<StrError> for Error {
     fn from(v: StrError) -> Self {
         Self::Str(v)

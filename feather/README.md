@@ -237,3 +237,41 @@ licensed as above, without any additional terms or conditions.
 [Knurling]: https://knurling.ferrous-systems.com
 [Ferrous Systems]: https://ferrous-systems.com/
 [GitHub Sponsors]: https://github.com/sponsors/knurling-rs
+
+
+TODO list:
+
+Tcp client, multiple sockets / requests
+streaming response
+Timeouts
+no-server connect
+ensure session IDs match
+propagate errors from event listener
+implement EWouldBlock on receive correctly ?
+
+- tcp client
+   http
+   tftp
+- tcp server
+   http
+   tftp
+- udp client
+- udp server
+
+
+Commonly TCP-Based Protocols
+
+    HTTP - Standard for web communication, RESTful services, etc.
+    Telnet - Basic terminal emulation, essentially a raw TCP connection with minimal control codes.
+    POP3 - Used for email retrieval from a mail server to a client.
+    SMTP - Primarily for sending email between servers or from a client to a server.
+    FTP - File transfer protocol with control and data connections.
+    MQTT - Lightweight messaging protocol, commonly used in IoT.
+
+Commonly UDP-Based Protocols
+
+    DNS - Domain name resolution (though it can fall back to TCP for larger responses).
+    NTP/SNTP - Network time synchronization with a simple request-response model.
+    TFTP - Trivial file transfer, designed for simple file transfer over UDP with basic acknowledgment.
+    CoAP - Constrained Application Protocol, a RESTful protocol for constrained environments like IoT.
+

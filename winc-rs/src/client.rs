@@ -1,37 +1,53 @@
 use crate::manager::{EventListener, Manager};
 use crate::transfer::Xfer;
-use crate::Socket as LowLevelSocket;
-//use arrayvec::ArrayVec;
+use crate::Socket;
 use core::marker::PhantomData;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Handle(pub u8);
 
-pub(super) struct SockHolder<const N: usize, const BASE: usize> {
-    sock: [Option<LowLevelSocket>; N],
+#[derive(PartialEq, Clone, Copy)]
+#[cfg_attr(not(feature = "std"), derive(defmt::Format))]
+pub enum ClientSocketOp {
+    None,
+    New,
+    Connect,
+    Send,
+    Recv,
+    Close,
+}
+
+pub struct SockHolder<const N: usize, const BASE: usize> {
+    sockets: [Option<(Socket,ClientSocketOp)>; N],
 }
 
 impl<const N: usize, const BASE: usize> SockHolder<N, BASE> {
     pub fn new() -> Self {
-        Self { sock: [None; N] }
+        Self {
+            sockets: core::array::from_fn(|_| None),
+        }
     }
-    pub(super) fn len(&self) -> usize {
-        self.sock.iter().filter(|a| a.is_some()).count()
+    fn len(&self) -> usize {
+        self.sockets.iter().filter(|a| a.is_some()).count()
     }
-    pub(super) fn add(&mut self, session_id: u16) -> Result<Handle, i32> {
+    pub fn add(&mut self, session_id: u16) -> Result<Handle, i32> {
         if self.len() >= N {
             return Err(-1);
         }
-        for (index, element) in self.sock.iter_mut().enumerate() {
+        for (index, element) in self.sockets.iter_mut().enumerate() {
             if element.is_none() {
-                element.replace(LowLevelSocket::new((BASE + index) as u8, session_id));
+                let ns = Socket::new((BASE + index) as u8, session_id);
+                element.replace((ns, ClientSocketOp::New));
                 return Ok(Handle(index as u8));
             }
         }
         Err(-1)
     }
-    pub(super) fn get(&mut self, handle: Handle) -> Option<&mut LowLevelSocket> {
-        self.sock[handle.0 as usize].as_mut()
+    pub fn remove(&mut self, handle: Handle) {
+        self.sockets[handle.0 as usize] = None;
+    }
+    pub fn get(&mut self, handle: Handle) -> Option<&mut (Socket, ClientSocketOp)> {
+        self.sockets[handle.0 as usize].as_mut()
     }
 }
 
