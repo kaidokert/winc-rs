@@ -1,7 +1,7 @@
 use cortex_m_systick_countdown::MillisCountDown;
 use embedded_nal::TcpClientStack;
 use feather::{init::init, shared::{create_delay_closure, SpiStream}};
-use wincwifi::manager::{AuthType, EventListener, Manager, StubListener};
+use wincwifi::manager::{AuthType, EventListener, Manager};
 
 use super::bsp::hal::prelude::*;
 use wincwifi::Handle;
@@ -18,6 +18,9 @@ impl EventListener for Callbacks {
         defmt::info!("Network connected: IP config: {}", conf);
         self.connected = true;
     }
+    fn on_connstate_changed(&mut self, state: wincwifi::manager::WifiConnState, err: wincwifi::manager::WifiConnError) {
+        defmt::info!("Connection state changed: {:?} {:?}", state, err);
+    }
     fn on_system_time(&mut self, year: u16, month: u8, day: u8, hour: u8, minute: u8, second: u8) {
         defmt::info!(
             "System time received: {}-{:02}-{:02} {:02}:{:02}:{:02}",
@@ -32,8 +35,8 @@ impl EventListener for Callbacks {
 }
 
 pub fn connect_and_run(message: &str,
-    execute: impl FnOnce(MyTcpClientStack) -> Result<(), wincwifi::error::Error>
-) -> Result<(), wincwifi::error::Error> {
+    execute: impl FnOnce(MyTcpClientStack) -> Result<(), crate::stack::StackError>
+) -> Result<(), crate::stack::StackError> {
     if let Ok((delay_tick, mut red_led, cs, spi)) = init() {
         defmt::println!("{}", message);
 
@@ -77,7 +80,7 @@ pub fn connect_and_run(message: &str,
             defmt::error!("Failed to connect to network");
         }
         loop {
-            stack.dispatch_events().map_err(|_err| wincwifi::error::Error::Failed)?;
+            stack.dispatch_events()?;
 
             delay_ms(200u32);
             red_led.set_high()?;

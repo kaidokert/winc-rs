@@ -1,3 +1,5 @@
+use core::convert::Infallible;
+
 use embedded_nal::{TcpClientStack, UdpClientStack};
 use wincwifi::manager::EventListener;
 use wincwifi::Socket;
@@ -13,6 +15,7 @@ struct SocketCallbacks {
     udp_sockets: SockHolder<3, 7>,
     recv_buffer: [u8; wincwifi::manager::SOCKET_BUFFER_MAX_LENGTH],
     recv_len: usize,
+    // Todo: move this into socket
     last_error: SocketError
 }
 
@@ -166,14 +169,38 @@ impl EventListener for SocketCallbacks {
 #[derive(Debug, defmt::Format)]
 pub enum StackError {
     MyWouldBlock,
-    TcpError,
+    GeneralTimeout,
+    ConnectTimeout,
+    RecvTimeout,
+    SendTimeout,
     AddingASocketFailed(i32),
     DispatchError(wincwifi::error::Error),
     ConnectSendFailed(wincwifi::error::Error),
     ReceiveFailed(wincwifi::error::Error),
     SendSendFailed(wincwifi::error::Error),
     SendCloseFailed(wincwifi::error::Error),
+    WincWifiFail(wincwifi::error::Error),
+    OpFailed(SocketError),
     Weirdness,
+    // todo: implement TcpError::PipeClosed correctly
+}
+
+impl From<Infallible> for StackError {
+    fn from(_: Infallible) -> Self {
+        unreachable!()
+    }
+}
+
+impl From<SocketError> for StackError {
+    fn from(inner: SocketError) -> Self {
+        Self::OpFailed(inner)
+    }
+}
+
+impl From<wincwifi::error::Error> for StackError {
+    fn from(inner: wincwifi::error::Error) -> Self {
+        Self::WincWifiFail(inner)
+    }
 }
 
 impl embedded_nal::TcpError for StackError {
@@ -228,15 +255,20 @@ impl<'a, X: wincwifi::transfer::Xfer, E: EventListener> WincClient<'a, X, E> {
     fn wait_for_op_ack(
         &mut self,
         handle: Handle,
-        op: ClientSocketOp,
+        expoect_op: ClientSocketOp,
         timeout: u32,
     ) -> Result<usize, StackError> {
         self.dispatch_events()?;
         let mut timeout = timeout as i32;
-        defmt::debug!("===>Waiting for op ack for {:?}", op);
+        defmt::debug!("===>Waiting for op ack for {:?}", expoect_op);
         loop {
             if timeout <= 0 {
-                return Err(StackError::TcpError);
+                return match expoect_op {
+                    ClientSocketOp::Connect => return Err(StackError::ConnectTimeout),
+                    ClientSocketOp::Send => return Err(StackError::SendTimeout),
+                    ClientSocketOp::Recv => return Err(StackError::RecvTimeout),
+                    _ => Err(StackError::GeneralTimeout)
+                }
             }
             let (_sock,op) = self.callbacks.tcp_sockets.get(handle).unwrap();
             if *op == ClientSocketOp::None {
@@ -245,6 +277,9 @@ impl<'a, X: wincwifi::transfer::Xfer, E: EventListener> WincClient<'a, X, E> {
                     *op,
                     self.callbacks.recv_len
                 );
+                if self.callbacks.last_error != SocketError::NoError {
+                    return Err( StackError::OpFailed(self.callbacks.last_error));
+                }
                 return Ok(self.callbacks.recv_len);
             }
             (self.delay)(self.poll_loop_delay);
