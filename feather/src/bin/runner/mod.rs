@@ -1,5 +1,5 @@
 use cortex_m_systick_countdown::MillisCountDown;
-use embedded_nal::TcpClientStack;
+use embedded_nal::{TcpClientStack, UdpClientStack};
 use feather::{init::init, shared::{create_delay_closure, SpiStream}};
 use wincwifi::manager::{AuthType, EventListener, Manager};
 
@@ -9,6 +9,8 @@ use wincwifi::Handle;
 use crate::{stack::WincClient, DEFAULT_TEST_PASSWORD, DEFAULT_TEST_SSID};
 
 pub type MyTcpClientStack<'a> = &'a mut dyn TcpClientStack<TcpSocket = Handle, Error = crate::stack::StackError>;
+
+pub type MyUdpClientStack<'a> = &'a mut dyn UdpClientStack<UdpSocket = Handle, Error = crate::stack::StackError>;
 
 pub struct Callbacks {
     connected: bool
@@ -34,8 +36,9 @@ impl EventListener for Callbacks {
     }
 }
 
-pub fn connect_and_run(message: &str,
-    execute: impl FnOnce(MyTcpClientStack) -> Result<(), crate::stack::StackError>
+pub fn connect_and_run(message: &str, tcp: bool,
+    execute_tcp: impl FnOnce(MyTcpClientStack) -> Result<(), crate::stack::StackError>,
+    execute_udp: impl FnOnce(MyUdpClientStack) -> Result<(), crate::stack::StackError>,
 ) -> Result<(), crate::stack::StackError> {
     if let Ok((delay_tick, mut red_led, cs, spi)) = init() {
         defmt::println!("{}", message);
@@ -75,7 +78,12 @@ pub fn connect_and_run(message: &str,
         let mut stack = WincClient::new(manager, &mut delay_ms2);
         if connected {
             defmt::info!("Network connected");
-            execute(&mut stack)?;
+            if tcp {
+                execute_tcp(&mut stack)?;
+            } else {
+                defmt::info!("Call UDP here ..");
+                execute_udp(&mut stack)?;
+            }
         } else {
             defmt::error!("Failed to connect to network");
         }
