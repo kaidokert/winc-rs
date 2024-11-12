@@ -15,6 +15,7 @@ pub enum ClientSocketOp {
     Send,
     SendTo,
     Recv,
+    RecvFrom,
     Close,
 }
 

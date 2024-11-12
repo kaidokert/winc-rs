@@ -9,6 +9,7 @@ use feather as bsp;
 use embedded_nal::nb::block;
 use embedded_nal::{IpAddr, Ipv4Addr, SocketAddr};
 use embedded_nal::UdpClientStack;
+use wincwifi::{Ipv4AddrFormatWrapper, SocketAddrV4};
 
 const DEFAULT_TEST_IP: &str = "192.168.1.1";
 const DEFAULT_TEST_PORT: &str = "12345";
@@ -36,7 +37,14 @@ where
         defmt::println!("-----Request sent {}-----", nbytes.unwrap());
         let mut respbuf = [0; 1500];
         let (resplen,addr) = block!(stack.receive(&mut s, &mut respbuf))?;
-        defmt::println!("-----Response received {}-----", resplen);
+        match addr {
+            SocketAddr::V4(sa) => {
+                defmt::println!("-----Response received {}----- {:?}", resplen, Ipv4AddrFormatWrapper::new(sa.ip()));
+            }
+            SocketAddr::V6(sa) => {
+                unreachable!("Shouldn't get here")
+            }
+        }
         let the_received_slice = &respbuf[..resplen];
         let recvd_str = core::str::from_utf8(the_received_slice).unwrap();
         defmt::println!("-----Response: {}-----", recvd_str);

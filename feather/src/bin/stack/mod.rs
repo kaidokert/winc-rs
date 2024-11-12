@@ -22,6 +22,7 @@ struct SocketCallbacks {
     recv_len: usize,
     // Todo: move this into socket
     last_error: SocketError,
+    last_recv_addr: Option<wincwifi::SocketAddrV4>,
 }
 
 impl SocketCallbacks {
@@ -32,6 +33,7 @@ impl SocketCallbacks {
             recv_buffer: [0; wincwifi::manager::SOCKET_BUFFER_MAX_LENGTH],
             recv_len: 0,
             last_error: SocketError::NoError,
+            last_recv_addr: None
         }
     }
     fn resolve(&mut self, socket: Socket) -> Option<&mut (Socket, ClientSocketOp)> {
@@ -172,8 +174,9 @@ impl EventListener for SocketCallbacks {
         err: SocketError,
     ) {
         defmt::debug!("on_recvfrom: socket {:?}", socket);
+        let mut found = false;
         if let Some((s, op)) = self.resolve(socket) {
-            if *op == ClientSocketOp::Recv {
+            if *op == ClientSocketOp::RecvFrom {
                 defmt::debug!(
                     "on_recvfrom: socket:{:?} address:{:?} data:{:?} error:{:?}",
                     s,
@@ -183,16 +186,31 @@ impl EventListener for SocketCallbacks {
                 );
                 *op = ClientSocketOp::None;
                 self.last_error = err;
-                return;
+                found = true;
+            } else {
+                defmt::error!(
+                    "UNKNOWN on_recvfrom: socket:{:?} address:{:?} data:{:?} error:{:?}",
+                    socket,
+                    Ipv4AddrFormatWrapper::new(address.ip()),
+                    data,
+                    err
+                );
             }
+        } else {
+            defmt::error!(
+                "UNKNOWN on_recvfrom: socket:{:?} address:{:?} data:{:?} error:{:?}",
+                socket,
+                Ipv4AddrFormatWrapper::new(address.ip()),
+                data,
+                err
+            );
         }
-        defmt::error!(
-            "UNKNOWN on_recvfrom: socket:{:?} address:{:?} data:{:?} error:{:?}",
-            socket,
-            Ipv4AddrFormatWrapper::new(address.ip()),
-            data,
-            err
-        );
+        if found {
+            self.recv_buffer[..data.len()].copy_from_slice(data);
+            self.recv_len = data.len();
+            self.last_error = err;
+            self.last_recv_addr = Some(address);
+        }
     }
     fn on_system_time(&mut self, year: u16, month: u8, day: u8, hour: u8, minute: u8, second: u8) {
         defmt::info!(
@@ -497,7 +515,7 @@ impl<'a, X: wincwifi::transfer::Xfer, E: EventListener> UdpClientStack for WincC
     ) -> nb::Result<(usize, embedded_nal::SocketAddr), Self::Error> {
         self.dispatch_events()?;
         let (sock, op) = self.callbacks.udp_sockets.get(*socket).unwrap();
-        *op = ClientSocketOp::Recv;
+        *op = ClientSocketOp::RecvFrom;
         let op = *op;
         let timeout = Self::RECV_TIMEOUT;
         defmt::info!("<> Sending udp socket send_recv to {:?}", sock);
@@ -510,12 +528,10 @@ impl<'a, X: wincwifi::transfer::Xfer, E: EventListener> UdpClientStack for WincC
             dest_slice.copy_from_slice(&self.callbacks.recv_buffer[..recv_len]);
         }
         // todo: propagate back the actual address
+        let f = self.last_send_addr.unwrap();
         Ok((
             recv_len,
-            embedded_nal::SocketAddr::V4(embedded_nal::SocketAddrV4::new(
-                embedded_nal::Ipv4Addr::new(7, 7, 7, 7),
-                0,
-            )),
+            embedded_nal::SocketAddr::V4(f),
         ))
     }
 
