@@ -42,14 +42,14 @@ pub fn init() -> Result<
     let core = CorePeripherals::take().ok_or(FailureSource::Core)?;
 
     let mut clocks = GenericClockController::with_internal_32kosc(
-        peripherals.GCLK,
-        &mut peripherals.PM,
-        &mut peripherals.SYSCTRL,
-        &mut peripherals.NVMCTRL,
+        peripherals.gclk,
+        &mut peripherals.pm,
+        &mut peripherals.sysctrl,
+        &mut peripherals.nvmctrl,
     );
 
     let gclk0 = clocks.gclk0();
-    let pins = bsp::pins::Pins::new(peripherals.PORT);
+    let pins = bsp::pins::Pins::new(peripherals.port);
     let red_led: bsp::RedLed = bsp::pin_alias!(pins.red_led).into();
 
     let hertz: Hertz = gclk0.into();
@@ -64,7 +64,7 @@ pub fn init() -> Result<
         &mut clocks,
         freq.convert(),
         spi_sercom,
-        &mut peripherals.PM,
+        &mut peripherals.pm,
         pins.sclk,
         pins.mosi,
         pins.miso,

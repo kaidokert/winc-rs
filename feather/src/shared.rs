@@ -1,6 +1,9 @@
 use super::hal;
 
-use hal::ehal::timer::CountDown;
+// Replace this with InterruptDrivenTimer, it does the same thing
+use embedded_hal_02::timer::CountDown;
+use hal::timer_traits::InterruptDrivenTimer;
+
 use hal::prelude::*;
 
 use core::time::Duration;

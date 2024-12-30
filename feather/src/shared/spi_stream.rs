@@ -4,8 +4,7 @@ use defmt::trace;
 use hal::gpio::AnyPin;
 
 use wincwifi::transfer::{Read, Write};
-
-use hal::ehal::digital::v2::OutputPin;
+use embedded_hal_02::digital::v2::OutputPin;
 
 use super::DelayTrait;
 use super::TransferSpi;

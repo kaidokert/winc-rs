@@ -5,7 +5,7 @@ resolver = "2"
 members = [
     "winc-rs",
     "feather"
-, "feather_winc_board"]
+]
 
 # cargo build/run
 [profile.dev]

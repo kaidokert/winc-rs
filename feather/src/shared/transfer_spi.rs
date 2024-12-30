@@ -1,6 +1,6 @@
 use super::hal;
-use hal::ehal::blocking::spi::Transfer;
-use hal::ehal::spi::FullDuplex;
+use embedded_hal_02::blocking::spi::Transfer;
+use embedded_hal_02::spi::FullDuplex;
 use hal::sercom::spi::AnySpi;
 
 pub trait TransferSpi: AnySpi + Transfer<u8, Error = hal::sercom::spi::Error> {}
