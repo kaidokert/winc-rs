@@ -1,8 +1,5 @@
 use super::hal;
 
-// Replace this with InterruptDrivenTimer, it does the same thing
-use embedded_hal_02::timer::CountDown;
-use hal::timer_traits::InterruptDrivenTimer;
 
 use hal::prelude::*;
 
@@ -16,10 +13,11 @@ use delay_trait::DelayTrait;
 pub use spi_stream::SpiStream;
 pub use transfer_spi::TransferSpi;
 
-pub fn create_delay_closure<'a, C>(delay: &'a mut C) -> impl FnMut(u32) + 'a
-where
-    C: CountDown<Time = Duration> + 'a,
-{
+use cortex_m_systick_countdown::{PollingSysTick,MillisCountDown};
+
+pub fn create_delay_closure<'a>(
+    delay: &'a mut MillisCountDown<'a, PollingSysTick>,
+) -> impl FnMut(u32) + 'a {
     move |v: u32| {
         delay.start(Duration::from_millis(v.into()));
         nb::block!(delay.wait()).unwrap();
