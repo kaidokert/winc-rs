@@ -249,6 +249,10 @@ ensure session IDs match
 propagate errors from event listener
 implement EWouldBlock on receive correctly ?
 
+Implement async version 0.8
+
+Update embedded nal 0.9
+
 - tcp client
    http
    tftp

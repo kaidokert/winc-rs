@@ -314,6 +314,7 @@ impl<'a, X: wincwifi::transfer::Xfer, E: EventListener> WincClient<'a, X, E> {
             .dispatch_events_new(&mut self.callbacks)
             .map_err(|some_err| StackError::DispatchError(some_err))
     }
+    // What could possible go wrong in this wait ? Should this be nb::block! ? 
     fn wait_for_op_ack(
         &mut self,
         handle: Handle,
