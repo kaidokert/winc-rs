@@ -2,6 +2,8 @@ use super::{debug, info};
 use embedded_nal::nb::block;
 use embedded_nal::TcpFullStack;
 
+use super::SocketAddrWrap;
+
 pub fn tcp_server<T, S>(stack: &mut T, port: u16, loop_forever: bool) -> Result<(), T::Error>
 where
     T: TcpFullStack<TcpSocket = S> + ?Sized,
@@ -16,11 +18,18 @@ where
 
     loop {
         let (mut client_sock, addr) = block!(stack.accept(&mut sock))?;
-        info!("-----Accepted connection from {}-----", addr);
+        info!(
+            "-----Accepted connection from {:?}-----",
+            SocketAddrWrap { addr: &addr }
+        );
 
         let mut buf = [0; 1024];
         let n = block!(stack.receive(&mut client_sock, &mut buf))?;
-        info!("-----Received {} bytes from {}-----", n, addr);
+        info!(
+            "-----Received {} bytes from {:?}-----",
+            n,
+            SocketAddrWrap { addr: &addr }
+        );
         let decoded = core::str::from_utf8(&buf[..n]);
         if let Ok(decoded) = decoded {
             debug!("-----Received data: {}-----", decoded);
@@ -30,7 +39,10 @@ where
 
         let response = "HTTP/1.1 200 OK\r\nContent-Length: 13\r\n\r\nHello, client!";
         block!(stack.send(&mut client_sock, response.as_bytes()))?;
-        info!("-----Sent response to {}-----", addr);
+        info!(
+            "-----Sent response to {:?}-----",
+            SocketAddrWrap { addr: &addr }
+        );
         if !loop_forever {
             break;
         }

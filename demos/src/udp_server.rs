@@ -1,3 +1,4 @@
+use super::SocketAddrWrap;
 use super::{debug, info};
 use embedded_nal::nb::block;
 use embedded_nal::UdpFullStack;
@@ -14,11 +15,18 @@ where
     loop {
         let mut buf = [0; 1500];
         let (n, addr) = block!(stack.receive(&mut sock, &mut buf))?;
-        info!("-----Received {} bytes from {}-----", n, addr);
+        info!(
+            "-----Received {} bytes from {:?}-----",
+            n,
+            SocketAddrWrap { addr: &addr }
+        );
 
         let response = "Hello, client!";
         block!(stack.send_to(&mut sock, addr, response.as_bytes()))?;
-        info!("-----Sent response to {}-----", addr);
+        info!(
+            "-----Sent response to {:?}-----",
+            SocketAddrWrap { addr: &addr }
+        );
 
         if !loop_forever {
             break;

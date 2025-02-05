@@ -5,4 +5,21 @@ edition = "2021"
 
 [dependencies]
 embedded-nal = "0.9"
-log = "0.4"
+log = { version = "0.4", optional = true }
+defmt = { version = "0.3", optional = true }
+
+[target.'cfg(not(target_os = "none"))'.dependencies]
+clap = { version = "4", features = ["derive"] }
+env_logger = "0.11"
+std-embedded-nal = "0.4"
+
+
+[[bin]]
+name = "demo-binary"
+path = "src/bin/main.rs"
+required-features = ["std"]
+
+[features]
+default = ["std"]
+std = ["log"]
+defmt = ["dep:defmt"]
