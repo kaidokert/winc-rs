@@ -1,6 +1,6 @@
 [target.'cfg(all(target_arch = "arm", target_os = "none"))']
 
-runner = "probe-rs run --chip ATSAMD21G18A"
+runner = "probe-rs run --speed 1100 --chip ATSAMD21G18A"
 
 rustflags = [
   "-C", "linker=flip-link",
