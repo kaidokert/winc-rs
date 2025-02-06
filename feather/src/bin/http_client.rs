@@ -8,20 +8,20 @@ use wincwifi::StackError;
 
 use core::net::Ipv4Addr;
 
-const DEFAULT_TEST_IP: &str = "192.168.1.1";
-const DEFAULT_TEST_PORT: &str = "12345";
-const DEFAULT_TEST_SSID: &str = "network";
-const DEFAULT_TEST_PASSWORD: &str = "password";
-
 use demos::http_client;
 
 mod runner;
 use runner::{connect_and_run, ClientType, ReturnClient};
 
+const DEFAULT_TEST_IP: &str = "192.168.1.1";
+const DEFAULT_TEST_PORT: &str = "12345";
+const DEFAULT_TEST_SSID: &str = "network";
+const DEFAULT_TEST_PASSWORD: &str = "password";
+
 #[cortex_m_rt::entry]
 fn main() -> ! {
     if let Err(something) = connect_and_run(
-        "Hello,http client",
+        "Hello HTTP client",
         ClientType::Tcp,
         |stack: ReturnClient| -> Result<(), StackError> {
             if let ReturnClient::Tcp(stack) = stack {

@@ -4,7 +4,6 @@
 
 use embedded_nal::UdpClientStack;
 use feather as bsp;
-use nb::block;
 
 mod runner;
 
@@ -13,24 +12,7 @@ use core::str::FromStr;
 use runner::{connect_and_run, ClientType, MyUdpClientStack, ReturnClient};
 use wincwifi::StackError;
 
-fn run<S, E>(stack: &mut S, target: core::net::SocketAddr) -> Result<(), E>
-where
-    E: core::fmt::Debug,
-    S: UdpClientStack<Error = E> + ?Sized,
-{
-    let mut sock = stack.socket()?;
-    stack.connect(&mut sock, target)?;
-    // Data, V1 NON no token, GET, message ID 0x0000, 2x Uri-Path
-    block!(stack.send(&mut sock, b"\x50\x01\0\0\xbb.well-known\x04core"))?;
-
-    let mut respbuf = [0; 1500];
-    let (resplen, _) = block!(stack.receive(&mut sock, &mut respbuf))?;
-    let response = &respbuf[..resplen];
-
-    defmt::println!("Response: {}", core::str::from_utf8(response).unwrap());
-
-    Ok(())
-}
+use demos::coap_client;
 
 const DEFAULT_TEST_IP: &str = "192.168.1.1";
 const DEFAULT_TEST_PORT: &str = "12345";
@@ -41,7 +23,7 @@ const DEFAULT_TEST_PASSWORD: &str = "password";
 #[cortex_m_rt::entry]
 fn main() -> ! {
     if let Err(something) = connect_and_run(
-        "Hello, udp client",
+        "Hello, COAP client",
         ClientType::Udp,
         |stack: ReturnClient| -> Result<(), StackError> {
             if let ReturnClient::Udp(stack) = stack {
@@ -57,8 +39,8 @@ fn main() -> ! {
                 let test_port = option_env!("TEST_PORT").unwrap_or(DEFAULT_TEST_PORT);
                 let port = u16::from_str(test_port).unwrap_or(12345);
                 defmt::info!("---- Starting UDP client ---- ");
-                let target = core::net::SocketAddr::new(core::net::IpAddr::V4(ip), port);
-                run(stack, target)?;
+
+                coap_client::coap_client(stack, ip, port)?;
                 defmt::info!("---- HTTP UDP done ---- ");
             }
             Ok(())

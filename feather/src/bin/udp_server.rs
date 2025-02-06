@@ -21,7 +21,7 @@ use wincwifi::StackError;
 #[cortex_m_rt::entry]
 fn main() -> ! {
     if let Err(something) = connect_and_run(
-        "Hello, udp server",
+        "Hello, UDP server",
         ClientType::UdpFull,
         |stack: ReturnClient| -> Result<(), StackError> {
             if let ReturnClient::UdpFull(stack) = stack {

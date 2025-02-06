@@ -6,8 +6,10 @@ use defmt::{debug, error, info};
 #[cfg(feature = "std")]
 use log::{debug, error, info};
 
+pub mod coap_client;
 pub mod http_client;
 pub mod tcp_server;
+pub mod udp_client;
 pub mod udp_server;
 
 #[derive(Debug)]

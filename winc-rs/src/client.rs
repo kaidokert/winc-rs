@@ -192,21 +192,34 @@ impl EventListener for SocketCallbacks {
         if let Some((s, op)) = self.resolve(socket) {
             if *op == ClientSocketOp::Recv {
                 debug!(
-                    "on_recv: socket:{:?} address:{:?} data:{:?} error:{:?}",
+                    "on_recv: socket:{:?} address:{:?} data:{:?} len:{:?} error:{:?}",
                     s,
                     Ipv4AddrFormatWrapper::new(address.ip()),
                     data,
+                    data.len(),
                     err
                 );
+                #[cfg(feature = "defmt")]
+                {
+                    defmt::info!(
+                        "on_recv: socket:{:?} address:{:?} data:{=[u8]:#04x} len:{:?} error:{:?}",
+                        s,
+                        Ipv4AddrFormatWrapper::new(address.ip()),
+                        data,
+                        data.len(),
+                        err
+                    );
+                }
                 *op = ClientSocketOp::None;
                 found = true;
             } else {
                 error!(
-                    "UNKNOWN on_recv: socket:{:?} address:{:?} port:{:?} data:{:?} error:{:?}",
+                    "UNKNOWN on_recv: socket:{:?} address:{:?} port:{:?} data:{:?} len:{:?} error:{:?}",
                     socket,
                     Ipv4AddrFormatWrapper::new(address.ip()),
                     address.port(),
                     data,
+                    data.len(),
                     err
                 );
             }
@@ -443,8 +456,8 @@ impl<'a, X: Xfer, E: EventListener> WincClient<'a, X, E> {
 
             if *op == ClientSocketOp::None {
                 debug!(
-                    "<===Ack received {:?}, recv_len:{:?}",
-                    *op, client.callbacks.recv_len
+                    "<===Ack received for {:?}, recv_len:{:?}",
+                    expect_op, client.callbacks.recv_len
                 );
 
                 if client.callbacks.last_error != SocketError::NoError {

@@ -67,7 +67,8 @@ def start_combined_server(base_port, port_range, additional_ports=[]):
                     # This is a UDP socket
                     data, client_address = s.recvfrom(1024)
                     port = s.getsockname()[1]
-                    print(f"Received UDP from {client_address} on port {port}: {data.decode()}")
+                    decoded = data.decode('utf-8', errors='replace')  # or use errors='ignore'
+                    print(f"Received UDP from {client_address} on port {port}: {decoded}")
 
                     # Send response including port number
                     response = f"UDP/1.0 200 OK from port {port}\r\n\r\n".encode()

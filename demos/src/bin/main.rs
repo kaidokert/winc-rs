@@ -3,7 +3,10 @@ use core::net::Ipv4Addr;
 
 use std_embedded_nal::Stack;
 
-use demos::{http_client::http_client, tcp_server::tcp_server, udp_server::udp_server};
+use demos::{
+    coap_client::coap_client, http_client::http_client, tcp_server::tcp_server,
+    udp_client::udp_client, udp_server::udp_server,
+};
 
 use log::{debug, error, info, Level};
 
@@ -32,6 +35,7 @@ enum Mode {
     UdpClient,
     HttpClient,
     TcpServer,
+    CoapClient,
 }
 
 #[derive(Parser)]
@@ -96,8 +100,15 @@ fn main() -> Result<(), LocalErrors> {
         Mode::UdpServer => {
             udp_server(&mut stack, port, cli.loop_forever).map_err(|_| LocalErrors::IoError)?;
         }
+        Mode::UdpClient => {
+            udp_client(&mut stack, ip_addr, port).map_err(|_| LocalErrors::IoError)?;
+        }
         Mode::TcpServer => {
             tcp_server(&mut stack, port, cli.loop_forever).map_err(|_| LocalErrors::IoError)?;
+        }
+
+        Mode::CoapClient => {
+            coap_client(&mut stack, ip_addr, port).map_err(|_| LocalErrors::IoError)?;
         }
         _ => {}
     }

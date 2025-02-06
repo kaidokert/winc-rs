@@ -1,8 +1,8 @@
 use super::{error, info};
 use embedded_nal::nb::block;
+use embedded_nal::TcpClientStack;
 
 use core::net::{IpAddr, Ipv4Addr, SocketAddr};
-use embedded_nal::TcpClientStack;
 
 pub fn http_client<T, S>(
     stack: &mut T,
