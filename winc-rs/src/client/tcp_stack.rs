@@ -10,6 +10,7 @@ use super::WincClient;
 use super::Xfer;
 use crate::client::GenResult;
 use crate::debug;
+use crate::manager::SocketError;
 use embedded_nal::nb;
 
 impl<'a, X: Xfer, E: EventListener> embedded_nal::TcpClientStack for WincClient<'a, X, E> {
@@ -65,8 +66,7 @@ impl<'a, X: Xfer, E: EventListener> embedded_nal::TcpClientStack for WincClient<
         Ok(data.len())
     }
 
-    // TODO: Return WouldBlock if there's no data, do just one dispatch
-    // But before we do that, clean up wait_for_op_ack
+    // Nb:: Blocking call, returns nb::Result when no data
     fn receive(
         &mut self,
         socket: &mut <Self as TcpClientStack>::TcpSocket,
@@ -82,7 +82,13 @@ impl<'a, X: Xfer, E: EventListener> embedded_nal::TcpClientStack for WincClient<
             .send_recv(*sock, timeout as u32)
             .map_err(|x| nb::Error::Other(StackError::ReceiveFailed(x)))?;
         if let GenResult::Len(recv_len) =
-            self.wait_for_op_ack(*socket, op, self.recv_timeout, true)?
+            match self.wait_for_op_ack(*socket, op, self.recv_timeout, true) {
+                Ok(result) => result,
+                Err(StackError::OpFailed(SocketError::Timeout)) => {
+                    return Err(nb::Error::WouldBlock)
+                }
+                Err(e) => return Err(nb::Error::Other(e)),
+            }
         {
             let dest_slice = &mut data[..recv_len];
             dest_slice.copy_from_slice(&self.callbacks.recv_buffer[..recv_len]);

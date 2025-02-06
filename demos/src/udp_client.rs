@@ -28,7 +28,10 @@ where
         let nbytes = stack.send(&mut s, http_get.as_bytes());
         info!("-----Request sent {:?}-----", nbytes.unwrap());
         let mut respbuf = [0; 1500];
+
+        info!("-----Response entering block");
         let (resplen, addr) = block!(stack.receive(&mut s, &mut respbuf))?;
+        info!("-----Response passed block");
         match addr {
             SocketAddr::V4(sa) => {
                 info!(

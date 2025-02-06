@@ -10,6 +10,7 @@ use embedded_nal::UdpFullStack;
 use super::Xfer;
 
 use crate::debug;
+use crate::manager::SocketError;
 use embedded_nal::nb;
 
 impl<'a, X: Xfer, E: EventListener> UdpClientStack for WincClient<'a, X, E> {
@@ -30,6 +31,7 @@ impl<'a, X: Xfer, E: EventListener> UdpClientStack for WincClient<'a, X, E> {
         Ok(handle)
     }
 
+    // Not a blocking call
     fn connect(
         &mut self,
         socket: &mut Self::UdpSocket,
@@ -47,6 +49,7 @@ impl<'a, X: Xfer, E: EventListener> UdpClientStack for WincClient<'a, X, E> {
         Ok(())
     }
 
+    // Blocking call ? returns nb::Result
     fn send(&mut self, socket: &mut Self::UdpSocket, buffer: &[u8]) -> nb::Result<(), Self::Error> {
         self.dispatch_events()?;
         debug!("<> in udp send {:?}", socket.0);
@@ -81,7 +84,13 @@ impl<'a, X: Xfer, E: EventListener> UdpClientStack for WincClient<'a, X, E> {
             .send_recvfrom(*sock, timeout)
             .map_err(|x| StackError::ReceiveFailed(x))?;
         if let GenResult::Len(recv_len) =
-            self.wait_for_op_ack(*socket, op, self.recv_timeout, false)?
+            match self.wait_for_op_ack(*socket, op, self.recv_timeout, false) {
+                Ok(result) => result,
+                Err(StackError::OpFailed(SocketError::Timeout)) => {
+                    return Err(nb::Error::WouldBlock)
+                }
+                Err(e) => return Err(nb::Error::Other(e)),
+            }
         {
             let dest_slice = &mut buffer[..recv_len];
             dest_slice.copy_from_slice(&self.callbacks.recv_buffer[..recv_len]);
@@ -92,6 +101,7 @@ impl<'a, X: Xfer, E: EventListener> UdpClientStack for WincClient<'a, X, E> {
         }
     }
 
+    // Not a blocking call
     fn close(&mut self, socket: Self::UdpSocket) -> Result<(), Self::Error> {
         self.dispatch_events()?;
         let (sock, _op) = self.callbacks.udp_sockets.get(socket).unwrap();
@@ -108,6 +118,7 @@ impl<'a, X: Xfer, E: EventListener> UdpClientStack for WincClient<'a, X, E> {
 }
 
 impl<'a, X: Xfer, E: EventListener> UdpFullStack for WincClient<'a, X, E> {
+    // Not a blocking call
     fn bind(&mut self, socket: &mut Self::UdpSocket, local_port: u16) -> Result<(), Self::Error> {
         // Local server ports needs to be bound to 0.0.0.0
         let server_addr =
@@ -122,6 +133,7 @@ impl<'a, X: Xfer, E: EventListener> UdpFullStack for WincClient<'a, X, E> {
         Ok(())
     }
 
+    // TODO: Blocking call, returns nb::Result, handle similar to send()
     fn send_to(
         &mut self,
         socket: &mut Self::UdpSocket,
