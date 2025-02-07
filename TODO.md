@@ -1,0 +1,15 @@
+- In Client, implement chip start, connect, scan
+- Clean up data passing in client events
+- After this, refactor dispatch_events to be internal
+- Feature gate udp / tcp to make the binary smaller
+- Investigate and reduce bloat a bit more
+- Write docs to toplevel APIs
+- Add missing tests
+- Stress test, fast downloads, multi-socket use cases
+- Add Station mode
+- Get github checks properly running
+- Add badges
+- Implement missing SSL stuff
+- Implement firmware update
+- Make it work with Arduino/Adafruit bootloader
+- Clippy clean
