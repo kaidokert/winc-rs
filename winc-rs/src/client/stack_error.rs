@@ -11,6 +11,7 @@ pub enum StackError {
     RecvTimeout,
     SendTimeout,
     OutOfSockets,
+    SocketAlreadyInUse,
     CloseFailed,
     Unexpected,
     DispatchError(crate::errors::Error),

@@ -8,14 +8,14 @@ use feather as bsp;
 mod runner;
 use core::str::FromStr;
 
-const DEFAULT_TEST_SSID: &str = "network";
-const DEFAULT_TEST_PASSWORD: &str = "password";
-const DEFAULT_TEST_PORT: &str = "12345";
-
 use demos::udp_server;
 
 use runner::{connect_and_run, ClientType, ReturnClient};
 use wincwifi::StackError;
+
+const DEFAULT_TEST_SSID: &str = "network";
+const DEFAULT_TEST_PASSWORD: &str = "password";
+const DEFAULT_TEST_PORT: &str = "12345";
 
 // Todo: UDP server
 #[cortex_m_rt::entry]

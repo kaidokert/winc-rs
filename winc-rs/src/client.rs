@@ -10,6 +10,7 @@ use crate::manager::SocketError;
 use crate::{debug, error};
 
 #[derive(Clone, Copy, PartialEq, Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct Handle(pub u8);
 
 mod dns;
@@ -29,6 +30,8 @@ pub enum ClientSocketOp {
     Recv,
     RecvFrom,
     Bind,
+    Listen,
+    Accept,
 }
 
 #[derive(PartialEq, Clone, Copy, Debug)]
@@ -74,6 +77,19 @@ impl<const N: usize, const BASE: usize> SockHolder<N, BASE> {
     pub fn remove(&mut self, handle: Handle) {
         self.sockets[handle.0 as usize] = None;
     }
+    pub fn put(&mut self, handle: Handle, session_id: u16) -> Option<Handle> {
+        if self.len() >= N {
+            return None;
+        }
+        // First check if this index is occupied
+        if self.sockets[handle.0 as usize].is_some() {
+            return None;
+        }
+        self.sockets[handle.0 as usize] =
+            Some((Socket::new(handle.0 as u8, session_id), ClientSocketOp::New));
+        Some(handle)
+    }
+
     pub fn get(&mut self, handle: Handle) -> Option<&mut (Socket, ClientSocketOp)> {
         self.sockets[handle.0 as usize].as_mut()
     }
@@ -86,10 +102,14 @@ struct SocketCallbacks {
     // #define UDP_SOCK_MAX										4
     udp_sockets: SockHolder<4, 7>,
     recv_buffer: [u8; SOCKET_BUFFER_MAX_LENGTH],
+
+    // All this should be moved into an enum rather, these are response
+    // callbacks, mutually exclusive
     recv_len: usize,
-    // Todo: move this into socket
+    // Todo: Maybe per socket ?
     last_error: crate::manager::SocketError,
     last_recv_addr: Option<core::net::SocketAddrV4>,
+    last_accepted_socket: Option<Socket>,
     global_op: Option<GlobalOp>,
 }
 
@@ -102,6 +122,7 @@ impl SocketCallbacks {
             recv_len: 0,
             last_error: crate::manager::SocketError::NoError,
             last_recv_addr: None,
+            last_accepted_socket: None,
             global_op: None,
         }
     }
@@ -117,9 +138,43 @@ impl SocketCallbacks {
 }
 
 impl EventListener for SocketCallbacks {
+    fn on_system_time(&mut self, year: u16, month: u8, day: u8, hour: u8, minute: u8, second: u8) {
+        debug!(
+            "on_system_time: {}-{:02}-{:02} {:02}:{:02}:{:02}",
+            year, month, day, hour, minute, second
+        );
+    }
     fn on_dhcp(&mut self, conf: crate::manager::IPConf) {
         debug!("on_dhcp: IP config: {}", conf);
     }
+    fn on_resolve(&mut self, ip: core::net::Ipv4Addr, host: &str) {
+        debug!(
+            "on_resolve: ip:{:?} host:{:?}",
+            Ipv4AddrFormatWrapper::new(&ip),
+            host
+        );
+
+        let Some(op) = self.global_op else {
+            error!("UNKNOWN on_resolve: host:{:?}", host);
+            return;
+        };
+
+        match op {
+            GlobalOp::GetHostByName => {
+                debug!(
+                    "on_resolve: ip:{:?} host:{:?}",
+                    Ipv4AddrFormatWrapper::new(&ip),
+                    host
+                );
+                self.last_recv_addr = Some(core::net::SocketAddrV4::new(ip, 0));
+                self.global_op = None; // ends polling
+            }
+            _ => {
+                error!("UNKNOWN on_resolve: host: {} state:{:?}", host, op);
+            }
+        }
+    }
+
     fn on_connect(&mut self, socket: Socket, err: crate::manager::SocketError) {
         debug!("on_connect: socket {:?}", socket);
 
@@ -274,39 +329,6 @@ impl EventListener for SocketCallbacks {
             self.last_recv_addr = Some(address);
         }
     }
-    fn on_system_time(&mut self, year: u16, month: u8, day: u8, hour: u8, minute: u8, second: u8) {
-        debug!(
-            "on_system_time: {}-{:02}-{:02} {:02}:{:02}:{:02}",
-            year, month, day, hour, minute, second
-        );
-    }
-    fn on_resolve(&mut self, ip: core::net::Ipv4Addr, host: &str) {
-        debug!(
-            "on_resolve: ip:{:?} host:{:?}",
-            Ipv4AddrFormatWrapper::new(&ip),
-            host
-        );
-
-        let Some(op) = self.global_op else {
-            error!("UNKNOWN on_resolve: host:{:?}", host);
-            return;
-        };
-
-        match op {
-            GlobalOp::GetHostByName => {
-                debug!(
-                    "on_resolve: ip:{:?} host:{:?}",
-                    Ipv4AddrFormatWrapper::new(&ip),
-                    host
-                );
-                self.last_recv_addr = Some(core::net::SocketAddrV4::new(ip, 0));
-                self.global_op = None; // ends polling
-            }
-            _ => {
-                error!("UNKNOWN on_resolve: host: {} state:{:?}", host, op);
-            }
-        }
-    }
     fn on_bind(&mut self, sock: Socket, err: crate::manager::SocketError) {
         debug!("on_bind: socket {:?}", sock);
         if let Some((s, op)) = self.resolve(sock) {
@@ -321,6 +343,69 @@ impl EventListener for SocketCallbacks {
             }
         }
     }
+    fn on_listen(&mut self, sock: Socket, err: crate::manager::SocketError) {
+        debug!("on_listen: socket {:?}", sock);
+        if let Some((s, op)) = self.resolve(sock) {
+            if *op == ClientSocketOp::Listen {
+                *op = ClientSocketOp::None;
+                self.last_error = err;
+            } else {
+                error!(
+                    "UNKNOWN on_listen: socket:{:?} error:{:?} state:{:?}",
+                    s, err, *op
+                );
+            }
+        }
+    }
+
+    // This is different, no error being passed
+    fn on_accept(
+        &mut self,
+        address: core::net::SocketAddrV4,
+        listen_socket: Socket,
+        accepted_socket: Socket,
+        _data_offset: u16,
+    ) {
+        debug!(
+            "on_accept: address:{:?} port:{:?} listen_socket:{:?} accepted_socket:{:?}",
+            Ipv4AddrFormatWrapper::new(address.ip()),
+            address.port(),
+            listen_socket,
+            accepted_socket
+        );
+
+        if let Some((s, op)) = self.resolve(listen_socket) {
+            if *op == ClientSocketOp::Accept {
+                *op = ClientSocketOp::None;
+                self.last_error = SocketError::NoError;
+                self.last_recv_addr = Some(address);
+                self.last_accepted_socket = Some(accepted_socket);
+            } else {
+                error!(
+                    "Socket was NOT in accept : address:{:?} port:{:?} listen_socket:{:?} accepted_socket:{:?}
+                    actual state:{:?}",
+                Ipv4AddrFormatWrapper::new(address.ip()),
+                address.port(),
+                listen_socket,
+                accepted_socket,
+                *op);
+            }
+        } else {
+            error!(
+                "UNKNOWN socket on_accept: address:{:?} port:{:?} listen_socket:{:?} accepted_socket:{:?}",
+                Ipv4AddrFormatWrapper::new(address.ip()),
+                address.port(),
+                listen_socket,
+                accepted_socket
+            );
+        };
+    }
+}
+
+pub enum GenResult {
+    Ip(core::net::Ipv4Addr),
+    Len(usize),
+    Accept(core::net::SocketAddrV4, Socket),
 }
 
 pub struct WincClient<'a, X: Xfer, E: EventListener> {
@@ -334,18 +419,16 @@ pub struct WincClient<'a, X: Xfer, E: EventListener> {
     last_send_addr: Option<core::net::SocketAddrV4>,
 }
 
-pub enum GenResult {
-    Ip(core::net::Ipv4Addr),
-    Len(usize),
-}
-
 impl<'a, X: Xfer, E: EventListener> WincClient<'a, X, E> {
+    const TCP_SOCKET_BACKLOG: u8 = 4;
+    const LISTEN_TIMEOUT: u32 = 100;
+    const ACCEPT_TIMEOUT: u32 = 100;
     const BIND_TIMEOUT: u32 = 100;
     const SEND_TIMEOUT: u32 = 1000;
     const RECV_TIMEOUT: u32 = 1000;
     const CONNECT_TIMEOUT: u32 = 1000;
-    const POLL_LOOP_DELAY: u32 = 100;
     const DNS_TIMEOUT: u32 = 1000;
+    const POLL_LOOP_DELAY: u32 = 10;
     pub fn new(manager: Manager<X, E>, delay: &'a mut impl FnMut(u32)) -> Self {
         Self {
             manager,
@@ -400,6 +483,11 @@ impl<'a, X: Xfer, E: EventListener> WincClient<'a, X, E> {
         expect_op: GlobalOp,
         timeout: u32,
     ) -> Result<GenResult, StackError> {
+        // Lets clear state
+        self.callbacks.last_recv_addr = None;
+        self.callbacks.last_accepted_socket = None;
+        self.callbacks.last_error = SocketError::NoError;
+
         debug!("===>Waiting for gen ack for {:?}", expect_op);
 
         self.wait_with_timeout(timeout, |client, elapsed| {
@@ -437,6 +525,10 @@ impl<'a, X: Xfer, E: EventListener> WincClient<'a, X, E> {
         timeout: u32,
         tcp: bool,
     ) -> Result<GenResult, StackError> {
+        self.callbacks.last_recv_addr = None;
+        self.callbacks.last_accepted_socket = None;
+        self.callbacks.last_error = SocketError::NoError;
+
         debug!("===>Waiting for op ack for {:?}", expect_op);
 
         self.wait_with_timeout(timeout, |client, elapsed| {
@@ -450,6 +542,13 @@ impl<'a, X: Xfer, E: EventListener> WincClient<'a, X, E> {
                     "<===Ack received for {:?}, recv_len:{:?}, elapsed:{}ms",
                     expect_op, client.callbacks.recv_len, elapsed
                 );
+
+                if let Some(accepted_socket) = client.callbacks.last_accepted_socket {
+                    return Some(Ok(GenResult::Accept(
+                        client.callbacks.last_recv_addr.unwrap(),
+                        accepted_socket,
+                    )));
+                }
 
                 if client.callbacks.last_error != SocketError::NoError {
                     return Some(Err(StackError::OpFailed(client.callbacks.last_error)));

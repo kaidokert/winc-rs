@@ -1,3 +1,5 @@
+use core::error;
+
 use embedded_nal::TcpClientStack;
 use embedded_nal::TcpFullStack;
 
@@ -9,8 +11,9 @@ use super::WincClient;
 
 use super::Xfer;
 use crate::client::GenResult;
-use crate::debug;
 use crate::manager::SocketError;
+use crate::Ipv4AddrFormatWrapper;
+use crate::{debug, error, info};
 use embedded_nal::nb;
 
 impl<'a, X: Xfer, E: EventListener> embedded_nal::TcpClientStack for WincClient<'a, X, E> {
@@ -72,6 +75,7 @@ impl<'a, X: Xfer, E: EventListener> embedded_nal::TcpClientStack for WincClient<
         socket: &mut <Self as TcpClientStack>::TcpSocket,
         data: &mut [u8],
     ) -> Result<usize, nb::Error<<Self as TcpClientStack>::Error>> {
+        debug!("Receiving on socket {:?}", socket);
         self.dispatch_events()?;
         let (sock, op) = self.callbacks.tcp_sockets.get(*socket).unwrap();
         *op = ClientSocketOp::Recv;
@@ -98,6 +102,7 @@ impl<'a, X: Xfer, E: EventListener> embedded_nal::TcpClientStack for WincClient<
         }
     }
     fn close(&mut self, socket: <Self as TcpClientStack>::TcpSocket) -> Result<(), Self::Error> {
+        debug!("Closing socket {:?}", socket);
         self.dispatch_events()?;
         let (sock, _op) = self.callbacks.tcp_sockets.get(socket).unwrap();
         self.manager
@@ -113,18 +118,70 @@ impl<'a, X: Xfer, E: EventListener> embedded_nal::TcpClientStack for WincClient<
 }
 
 impl<'a, X: Xfer, E: EventListener> TcpFullStack for WincClient<'a, X, E> {
-    fn bind(&mut self, _socket: &mut Self::TcpSocket, _local_port: u16) -> Result<(), Self::Error> {
-        todo!()
+    fn bind(&mut self, socket: &mut Self::TcpSocket, local_port: u16) -> Result<(), Self::Error> {
+        self.dispatch_events()?;
+        let (sock, op) = self.callbacks.tcp_sockets.get(*socket).unwrap();
+        *op = ClientSocketOp::Bind;
+        let op = *op;
+        debug!("<> Sending socket bind to {:?}", sock);
+
+        let server_addr =
+            core::net::SocketAddrV4::new(core::net::Ipv4Addr::new(0, 0, 0, 0), local_port);
+
+        self.manager
+            .send_bind(*sock, server_addr)
+            .map_err(|x| StackError::BindFailed(x))?;
+        self.wait_for_op_ack(*socket, op, Self::BIND_TIMEOUT, true)?;
+        Ok(())
     }
 
-    fn listen(&mut self, _socket: &mut Self::TcpSocket) -> Result<(), Self::Error> {
-        todo!()
+    fn listen(&mut self, socket: &mut Self::TcpSocket) -> Result<(), Self::Error> {
+        self.dispatch_events()?;
+        let (sock, op) = self.callbacks.tcp_sockets.get(*socket).unwrap();
+        *op = ClientSocketOp::Listen;
+        let op = *op;
+        debug!("<> Sending socket listen to {:?}", sock);
+        self.manager.send_listen(*sock, Self::TCP_SOCKET_BACKLOG)?;
+        self.wait_for_op_ack(*socket, op, Self::LISTEN_TIMEOUT, true)?;
+        Ok(())
     }
 
+    // This is a blocking call, return WouldBlock if no connection has been accepted
     fn accept(
         &mut self,
-        _socket: &mut Self::TcpSocket,
+        socket: &mut Self::TcpSocket,
     ) -> nb::Result<(Self::TcpSocket, core::net::SocketAddr), Self::Error> {
-        todo!()
+        debug!("<> accept called on socket {:?}", socket);
+        self.dispatch_events()?;
+        let (sock, op) = self.callbacks.tcp_sockets.get(*socket).unwrap();
+        debug!("<> Waiting for accept to socket {:?}", sock);
+        *op = ClientSocketOp::Accept;
+        let op = *op;
+        // this needs to catch Err(StackError::GeneralTimeout) and map it to WouldBlock
+        let res = match self.wait_for_op_ack(*socket, op, Self::ACCEPT_TIMEOUT, true) {
+            Ok(res) => res,
+            Err(StackError::GeneralTimeout) => return Err(nb::Error::WouldBlock),
+            Err(e) => return Err(nb::Error::Other(e)),
+        };
+        match res {
+            GenResult::Accept(addr, accepted_socket) => {
+                debug!(
+                    "Accept result: socket {:?} addr {:?} port {}",
+                    accepted_socket,
+                    Ipv4AddrFormatWrapper::new(addr.ip()),
+                    addr.port(),
+                );
+                let handle = self
+                    .callbacks
+                    .tcp_sockets
+                    .put(Handle(accepted_socket.v), accepted_socket.s)
+                    .ok_or(StackError::SocketAlreadyInUse)?;
+                Ok((handle, core::net::SocketAddr::V4(addr)))
+            }
+            _ => {
+                error!("<> Accept failed, we got unexpected");
+                Err(nb::Error::Other(StackError::Unexpected))
+            }
+        }
     }
 }
