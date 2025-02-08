@@ -88,51 +88,17 @@ const UDP_SOCK_MAX: usize = 4;
 #[allow(dead_code)]
 const MAX_SOCKET: usize = TCP_SOCK_MAX + UDP_SOCK_MAX;
 
-// todo: clean up no_std / std logging delta
 pub trait EventListener {
-    fn on_rssi(&mut self, level: i8) {
-        debug!("Got RSSI:{}", level)
-    }
-    fn on_resolve(&mut self, ip: Ipv4Addr, host: &str) {
-        #[cfg(not(feature = "defmt"))]
-        debug!("Got resolve ip:{} host:{}", ip, host);
-        #[cfg(feature = "defmt")]
-        debug!(
-            "Got resolve ip:{} host:{}",
-            Ipv4AddrFormatWrapper::new(&ip),
-            host
-        );
-    }
-    fn on_default_connect(&mut self, connected: bool) {
-        debug!("Got connected {}", connected)
-    }
-    fn on_dhcp(&mut self, conf: IPConf) {
-        debug!("IP config: {}", conf)
-    }
-    fn on_connstate_changed(&mut self, state: WifiConnState, err: WifiConnError) {
-        debug!("Connstate changed, state:{} error:{}", state, err)
-    }
-    fn on_connection_info(&mut self, info: ConnectionInfo) {
-        debug!("Conninfo, state:{}", info)
-    }
-    fn on_scan_result(&mut self, result: ScanResult) {
-        debug!("Scanresult {}", result)
-    }
-    fn on_scan_done(&mut self, num_aps: u8, err: WifiConnError) {
-        debug!("Scan done, aps:{} error:{}", num_aps, err)
-    }
-    fn on_system_time(&mut self, year: u16, month: u8, day: u8, hour: u8, minute: u8, second: u8) {
-        debug!(
-            "on_system_time: {}-{}-{} {}:{}:{}",
-            year, month, day, hour, minute, second
-        )
-    }
-    fn on_ip_conflict(&mut self, ip: Ipv4Addr) {
-        #[cfg(not(feature = "defmt"))]
-        debug!("on_ip_conflict: {}", ip);
-        #[cfg(feature = "defmt")]
-        debug!("on_ip_conflict: {}", Ipv4AddrFormatWrapper::new(&ip));
-    }
+    fn on_rssi(&mut self, level: i8);
+    fn on_resolve(&mut self, ip: Ipv4Addr, host: &str);
+    fn on_default_connect(&mut self, connected: bool);
+    fn on_dhcp(&mut self, conf: IPConf);
+    fn on_connstate_changed(&mut self, state: WifiConnState, err: WifiConnError);
+    fn on_connection_info(&mut self, info: ConnectionInfo);
+    fn on_scan_result(&mut self, result: ScanResult);
+    fn on_scan_done(&mut self, num_aps: u8, err: WifiConnError);
+    fn on_system_time(&mut self, year: u16, month: u8, day: u8, hour: u8, minute: u8, second: u8);
+    fn on_ip_conflict(&mut self, ip: Ipv4Addr);
     fn on_ping(
         &mut self,
         ip: Ipv4Addr,
@@ -141,102 +107,21 @@ pub trait EventListener {
         num_successful: u16,
         num_failed: u16,
         error: PingError,
-    ) {
-        #[cfg(not(feature = "defmt"))]
-        debug!(
-            "on_ping: ip:{} token:{} rtt:{} succeeded:{} failed:{} error:{:?}",
-            ip, token, rtt, num_successful, num_failed, error
-        );
-        #[cfg(feature = "defmt")]
-        debug!(
-            "on_ping: ip:{} token:{} rtt:{} succeeded:{} failed:{} error:{:?}",
-            Ipv4AddrFormatWrapper::new(&ip),
-            token,
-            rtt,
-            num_successful,
-            num_failed,
-            error
-        );
-    }
-    fn on_bind(&mut self, sock: Socket, err: SocketError) {
-        debug!("on_bind: sock:{:?} error:{:?}", sock, err)
-    }
-    fn on_listen(&mut self, sock: Socket, err: SocketError) {
-        debug!("on_listen: sock:{:?} error:{:?}", sock, err)
-    }
+    );
+    fn on_bind(&mut self, sock: Socket, err: SocketError);
+    fn on_listen(&mut self, sock: Socket, err: SocketError);
     fn on_accept(
         &mut self,
         address: SocketAddrV4,
         listen_socket: Socket,
         accepted_socket: Socket,
         data_offset: u16,
-    ) {
-        // todo : offset seems superflous
-        #[cfg(not(feature = "defmt"))]
-        debug!(
-            "on_accept: sockaddr:{} listen_socket:{:?} accept_socket:{:?} data_offset:{}",
-            address, listen_socket, accepted_socket, data_offset
-        );
-        #[cfg(feature = "defmt")]
-        debug!(
-            "on_accept: sockaddr ip:{} port:{} listen_socket:{:?} accept_socket:{:?} data_offset:{}",
-            Ipv4AddrFormatWrapper::new(address.ip()),  address.port(),
-            listen_socket, accepted_socket, data_offset
-        );
-    }
-    fn on_connect(&mut self, socket: Socket, err: SocketError) {
-        debug!("on_connect: socket:{:?} error:{:?}", socket, err)
-    }
-    fn on_send_to(&mut self, socket: Socket, len: i16) {
-        debug!("on_send_to: socket:{:?} length:{:?}", socket, len)
-    }
-    fn on_send(&mut self, socket: Socket, len: i16) {
-        debug!("on_send: socket:{:?} length:{:?}", socket, len)
-    }
-    fn on_recv(&mut self, socket: Socket, address: SocketAddrV4, data: &[u8], err: SocketError) {
-        #[cfg(not(feature = "defmt"))]
-        debug!(
-            "on_recv: socket:{:?} address:{:?} data len:{} err:{:?}",
-            socket,
-            address,
-            data.len(),
-            err
-        );
-        #[cfg(feature = "defmt")]
-        debug!(
-            "on_recv: socket:{:?} ip:{} port:{} data len:{} err:{:?}",
-            socket,
-            Ipv4AddrFormatWrapper::new(address.ip()),
-            address.port(),
-            data.len(),
-            err
-        );
-    }
-    fn on_recvfrom(
-        &mut self,
-        socket: Socket,
-        address: SocketAddrV4,
-        data: &[u8],
-        err: SocketError,
-    ) {
-        #[cfg(not(feature = "defmt"))]
-        debug!(
-            "on_recvfrom: socket:{:?} address:{:?} data len:{} err:{:?}",
-            socket,
-            address,
-            data.len(),
-            err
-        );
-        #[cfg(feature = "defmt")]
-        debug!(
-            "on_recvfrom: socket:{:?} ip:{} port:{} data len:{} err:{:?}",
-            socket,
-            Ipv4AddrFormatWrapper::new(address.ip()),
-            address.port(),
-            data.len(),
-            err
-        );
-    }
+    );
+    fn on_connect(&mut self, socket: Socket, err: SocketError);
+    fn on_send_to(&mut self, socket: Socket, len: i16);
+    fn on_send(&mut self, socket: Socket, len: i16);
+    fn on_recv(&mut self, socket: Socket, address: SocketAddrV4, data: &[u8], err: SocketError);
+    fn on_recvfrom(&mut self, socket: Socket, address: SocketAddrV4, data: &[u8], err: SocketError);
 }
 
 pub struct Manager<X: Xfer> {

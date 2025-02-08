@@ -1,5 +1,9 @@
 - In Client, implement chip start, connect, scan
+    - [x] Chip start
+    - [x] Connect to AP
+    - [x] Scan
 - Clean up data passing in client events
+    - Maybe get rid of EventListener entirely
 - After this, refactor dispatch_events to be internal
 - Feature gate udp / tcp to make the binary smaller
 - Investigate and reduce bloat a bit more

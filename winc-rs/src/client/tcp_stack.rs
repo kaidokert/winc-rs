@@ -1,5 +1,3 @@
-use core::error;
-
 use embedded_nal::TcpClientStack;
 use embedded_nal::TcpFullStack;
 
@@ -12,7 +10,7 @@ use super::Xfer;
 use crate::client::GenResult;
 use crate::manager::SocketError;
 use crate::Ipv4AddrFormatWrapper;
-use crate::{debug, error, info};
+use crate::{debug, error};
 use embedded_nal::nb;
 
 impl<'a, X: Xfer> embedded_nal::TcpClientStack for WincClient<'a, X> {

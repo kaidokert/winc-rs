@@ -1,7 +1,7 @@
 use core::net::Ipv4Addr;
 
 use crate::manager::{
-    ConnectionInfo, ScanResult, WifiConnError, WifiConnState, SOCKET_BUFFER_MAX_LENGTH,
+    ConnectionInfo, PingError, ScanResult, WifiConnError, WifiConnState, SOCKET_BUFFER_MAX_LENGTH,
 };
 use crate::manager::{EventListener, Manager};
 use crate::socket::Socket;
@@ -117,6 +117,8 @@ struct ConnectionState {
     system_time: Option<SystemTime>,
     rssi_level: Option<i8>,
     ip_conflict: Option<Ipv4Addr>,
+    scan_number_aps: Option<u8>,
+    scan_results: Option<ScanResult>,
 }
 
 struct SocketCallbacks {
@@ -175,6 +177,8 @@ impl ConnectionState {
             rssi_level: None,
             ip_conflict: None,
             conn_info: None,
+            scan_number_aps: None,
+            scan_results: None,
         }
     }
     fn reset(&mut self) {
@@ -185,6 +189,8 @@ impl ConnectionState {
         self.rssi_level = None;
         self.ip_conflict = None;
         self.conn_info = None;
+        self.scan_number_aps = None;
+        self.scan_results = None;
     }
 }
 
@@ -192,70 +198,6 @@ impl EventListener for SocketCallbacks {
     fn on_rssi(&mut self, level: i8) {
         info!("client: Got RSSI:{}", level);
         self.connection_state.rssi_level = Some(level);
-    }
-    fn on_default_connect(&mut self, connected: bool) {
-        info!("client: got connected {}", connected)
-    }
-    fn on_connstate_changed(&mut self, state: WifiConnState, err: WifiConnError) {
-        info!("client: Connection state changed: {:?} {:?}", state, err);
-        self.connection_state.conn_state = state;
-        self.connection_state.conn_error = Some(err);
-        match self.state {
-            WifiModuleState::ConnectingToAp => match self.connection_state.conn_state {
-                WifiConnState::Connected => {
-                    self.state = WifiModuleState::ConnectedToAp;
-                }
-                _ => {
-                    self.state = WifiModuleState::ConnectionFailed;
-                    error!(
-                        "on_connstate_changed FAILED: {:?} {:?}",
-                        self.connection_state.conn_state, self.connection_state.conn_error
-                    );
-                }
-            },
-            _ => {
-                error!(
-                    "UNKNOWN STATE on_connstate_changed: {:?} {:?}",
-                    self.connection_state.conn_state, self.connection_state.conn_error
-                );
-            }
-        }
-    }
-    fn on_connection_info(&mut self, info: ConnectionInfo) {
-        info!("client: conninfo, state:{}", info);
-        self.connection_state.conn_info = Some(info);
-    }
-    fn on_system_time(&mut self, year: u16, month: u8, day: u8, hour: u8, minute: u8, second: u8) {
-        info!(
-            "client: on_system_time: {}-{:02}-{:02} {:02}:{:02}:{:02}",
-            year, month, day, hour, minute, second
-        );
-        self.connection_state.system_time = Some(SystemTime {
-            year,
-            month,
-            day,
-            hour,
-            minute,
-            second,
-        });
-    }
-    fn on_dhcp(&mut self, conf: crate::manager::IPConf) {
-        info!("client: on_dhcp: IP config: {}", conf);
-        self.connection_state.ip_conf = Some(conf);
-    }
-    fn on_ip_conflict(&mut self, ip: Ipv4Addr) {
-        info!(
-            "client: on_ip_conflict: {:?}",
-            Ipv4AddrFormatWrapper::new(&ip)
-        );
-        self.connection_state.ip_conflict = Some(ip);
-    }
-
-    fn on_scan_result(&mut self, result: ScanResult) {
-        info!("Scanresult {}", result)
-    }
-    fn on_scan_done(&mut self, num_aps: u8, err: WifiConnError) {
-        info!("Scan done, aps:{} error:{}", num_aps, err)
     }
 
     fn on_resolve(&mut self, ip: core::net::Ipv4Addr, host: &str) {
@@ -284,6 +226,104 @@ impl EventListener for SocketCallbacks {
                 error!("UNKNOWN on_resolve: host: {} state:{:?}", host, op);
             }
         }
+    }
+
+    fn on_default_connect(&mut self, connected: bool) {
+        debug!("client: got connected {}", connected)
+    }
+    fn on_dhcp(&mut self, conf: crate::manager::IPConf) {
+        debug!("client: on_dhcp: IP config: {}", conf);
+        self.connection_state.ip_conf = Some(conf);
+    }
+    fn on_connstate_changed(&mut self, state: WifiConnState, err: WifiConnError) {
+        info!("client: Connection state changed: {:?} {:?}", state, err);
+        self.connection_state.conn_state = state;
+        self.connection_state.conn_error = Some(err);
+        match self.state {
+            WifiModuleState::ConnectingToAp => match self.connection_state.conn_state {
+                WifiConnState::Connected => {
+                    self.state = WifiModuleState::ConnectedToAp;
+                }
+                _ => {
+                    self.state = WifiModuleState::ConnectionFailed;
+                    error!(
+                        "on_connstate_changed FAILED: {:?} {:?}",
+                        self.connection_state.conn_state, self.connection_state.conn_error
+                    );
+                }
+            },
+            _ => {
+                error!(
+                    "UNKNOWN STATE on_connstate_changed: {:?} {:?}",
+                    self.connection_state.conn_state, self.connection_state.conn_error
+                );
+            }
+        }
+    }
+
+    fn on_connection_info(&mut self, info: ConnectionInfo) {
+        debug!("client: conninfo, state:{}", info);
+        self.connection_state.conn_info = Some(info);
+    }
+    fn on_system_time(&mut self, year: u16, month: u8, day: u8, hour: u8, minute: u8, second: u8) {
+        debug!(
+            "client: on_system_time: {}-{:02}-{:02} {:02}:{:02}:{:02}",
+            year, month, day, hour, minute, second
+        );
+        self.connection_state.system_time = Some(SystemTime {
+            year,
+            month,
+            day,
+            hour,
+            minute,
+            second,
+        });
+    }
+    fn on_ip_conflict(&mut self, ip: Ipv4Addr) {
+        info!(
+            "client: on_ip_conflict: {:?}",
+            Ipv4AddrFormatWrapper::new(&ip)
+        );
+        self.connection_state.ip_conflict = Some(ip);
+    }
+
+    fn on_scan_result(&mut self, result: ScanResult) {
+        debug!("Scanresult {}", result);
+        self.connection_state.scan_results = Some(result);
+        match self.state {
+            WifiModuleState::GettingScanResult => {
+                self.state = WifiModuleState::HaveScanResult;
+            }
+            _ => {
+                error!("UNKNOWN STATE on_scan_result: {:?}", self.state);
+            }
+        }
+    }
+    fn on_scan_done(&mut self, num_aps: u8, err: WifiConnError) {
+        debug!("Scan done, aps:{} error:{}", num_aps, err);
+        self.connection_state.conn_error = Some(err);
+        self.connection_state.scan_number_aps = Some(num_aps);
+        match self.state {
+            WifiModuleState::Scanning => {
+                self.state = WifiModuleState::ScanDone;
+            }
+            _ => {
+                error!("UNKNOWN STATE on_scan_done: {:?}", self.state);
+            }
+        }
+    }
+    fn on_ping(
+        &mut self,
+        ip: Ipv4Addr,
+        token: u32,
+        rtt: u32,
+        num_successful: u16,
+        num_failed: u16,
+        error: PingError,
+    ) {
+        debug!("client: on_ping: ip:{:?} token:{:?} rtt:{:?} num_successful:{:?} num_failed:{:?} error:{:?}",
+            Ipv4AddrFormatWrapper::new(&ip),
+            token, rtt, num_successful, num_failed, error);
     }
 
     fn on_connect(&mut self, socket: Socket, err: crate::manager::SocketError) {
