@@ -1,3 +1,5 @@
+use crate::manager::WifiConnError;
+
 use super::SocketError;
 
 use embedded_nal::nb;
@@ -25,6 +27,9 @@ pub enum StackError {
     GlobalOpFailed,
     DnsTimeout,
     DnsFailed,
+    InvalidState,
+    AlreadyConnected,
+    ApJoinFailed(WifiConnError),
 }
 
 impl From<core::convert::Infallible> for StackError {
