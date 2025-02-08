@@ -1,5 +1,4 @@
 use super::ClientSocketOp;
-use super::EventListener;
 use super::GenResult;
 use super::Handle;
 use super::StackError;
@@ -13,7 +12,7 @@ use crate::debug;
 use crate::manager::SocketError;
 use embedded_nal::nb;
 
-impl<'a, X: Xfer, E: EventListener> UdpClientStack for WincClient<'a, X, E> {
+impl<'a, X: Xfer> UdpClientStack for WincClient<'a, X> {
     type UdpSocket = Handle;
 
     type Error = StackError;
@@ -117,7 +116,7 @@ impl<'a, X: Xfer, E: EventListener> UdpClientStack for WincClient<'a, X, E> {
     }
 }
 
-impl<'a, X: Xfer, E: EventListener> UdpFullStack for WincClient<'a, X, E> {
+impl<'a, X: Xfer> UdpFullStack for WincClient<'a, X> {
     // Not a blocking call
     fn bind(&mut self, socket: &mut Self::UdpSocket, local_port: u16) -> Result<(), Self::Error> {
         // Local server ports needs to be bound to 0.0.0.0

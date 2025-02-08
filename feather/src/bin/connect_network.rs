@@ -8,15 +8,12 @@ use feather::init::init;
 
 use cortex_m_systick_countdown::MillisCountDown;
 
-use wincwifi::manager::{EventListener, Manager};
+use wincwifi::manager::Manager;
 
 const DEFAULT_TEST_SSID: &str = "network";
 const DEFAULT_TEST_PASSWORD: &str = "password";
 
 use wincwifi::{StackError, WincClient};
-
-pub struct Callbacks;
-impl EventListener for Callbacks {}
 
 fn program() -> Result<(), StackError> {
     if let Ok((delay_tick, mut red_led, cs, spi)) = init() {
@@ -36,10 +33,11 @@ fn program() -> Result<(), StackError> {
             password
         );
 
-        let manager = Manager::from_xfer(
-            SpiStream::new(cs, spi, create_delay_closure(&mut countdown3)),
-            Callbacks {},
-        );
+        let manager = Manager::from_xfer(SpiStream::new(
+            cs,
+            spi,
+            create_delay_closure(&mut countdown3),
+        ));
         let mut stack = WincClient::new(manager, &mut delay_ms2);
 
         stack

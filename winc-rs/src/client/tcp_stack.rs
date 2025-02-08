@@ -4,7 +4,6 @@ use embedded_nal::TcpClientStack;
 use embedded_nal::TcpFullStack;
 
 use super::ClientSocketOp;
-use super::EventListener;
 use super::Handle;
 use super::StackError;
 use super::WincClient;
@@ -16,7 +15,7 @@ use crate::Ipv4AddrFormatWrapper;
 use crate::{debug, error, info};
 use embedded_nal::nb;
 
-impl<'a, X: Xfer, E: EventListener> embedded_nal::TcpClientStack for WincClient<'a, X, E> {
+impl<'a, X: Xfer> embedded_nal::TcpClientStack for WincClient<'a, X> {
     type TcpSocket = Handle;
     type Error = StackError;
     fn socket(
@@ -117,7 +116,7 @@ impl<'a, X: Xfer, E: EventListener> embedded_nal::TcpClientStack for WincClient<
     }
 }
 
-impl<'a, X: Xfer, E: EventListener> TcpFullStack for WincClient<'a, X, E> {
+impl<'a, X: Xfer> TcpFullStack for WincClient<'a, X> {
     fn bind(&mut self, socket: &mut Self::TcpSocket, local_port: u16) -> Result<(), Self::Error> {
         self.dispatch_events()?;
         let (sock, op) = self.callbacks.tcp_sockets.get(*socket).unwrap();

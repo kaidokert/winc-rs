@@ -8,7 +8,7 @@ use super::StackError;
 use crate::transfer::Xfer;
 use crate::WincClient;
 
-impl<'a, X: Xfer, E: crate::manager::EventListener> Dns for WincClient<'a, X, E> {
+impl<'a, X: Xfer> Dns for WincClient<'a, X> {
     type Error = StackError;
 
     fn get_host_by_name(

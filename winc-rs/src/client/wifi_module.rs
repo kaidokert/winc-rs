@@ -2,7 +2,6 @@ use embedded_nal::nb;
 
 use crate::manager::AuthType;
 
-use super::EventListener;
 use super::StackError;
 use super::WincClient;
 use super::Xfer;
@@ -21,7 +20,7 @@ pub(crate) enum WifiModuleState {
     SystemTimeReceived,
 }
 
-impl<'a, X: Xfer, E: EventListener> WincClient<'a, X, E> {
+impl<'a, X: Xfer> WincClient<'a, X> {
     pub fn heartbeat(&mut self) -> Result<(), StackError> {
         self.dispatch_events()?;
         Ok(())

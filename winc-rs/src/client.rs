@@ -245,7 +245,7 @@ impl EventListener for SocketCallbacks {
     }
     fn on_ip_conflict(&mut self, ip: Ipv4Addr) {
         info!(
-            "client: on_ip_conflict: {}",
+            "client: on_ip_conflict: {:?}",
             Ipv4AddrFormatWrapper::new(&ip)
         );
         self.connection_state.ip_conflict = Some(ip);
@@ -519,8 +519,8 @@ pub enum GenResult {
     Accept(core::net::SocketAddrV4, Socket),
 }
 
-pub struct WincClient<'a, X: Xfer, E: EventListener> {
-    manager: Manager<X, E>,
+pub struct WincClient<'a, X: Xfer> {
+    manager: Manager<X>,
     delay: &'a mut dyn FnMut(u32) -> (),
     recv_timeout: u32,
     poll_loop_delay: u32,
@@ -530,7 +530,7 @@ pub struct WincClient<'a, X: Xfer, E: EventListener> {
     last_send_addr: Option<core::net::SocketAddrV4>,
 }
 
-impl<'a, X: Xfer, E: EventListener> WincClient<'a, X, E> {
+impl<'a, X: Xfer> WincClient<'a, X> {
     const TCP_SOCKET_BACKLOG: u8 = 4;
     const LISTEN_TIMEOUT: u32 = 100;
     const ACCEPT_TIMEOUT: u32 = 100;
@@ -540,7 +540,7 @@ impl<'a, X: Xfer, E: EventListener> WincClient<'a, X, E> {
     const CONNECT_TIMEOUT: u32 = 1000;
     const DNS_TIMEOUT: u32 = 1000;
     const POLL_LOOP_DELAY: u32 = 10;
-    pub fn new(manager: Manager<X, E>, delay: &'a mut impl FnMut(u32)) -> Self {
+    pub fn new(manager: Manager<X>, delay: &'a mut impl FnMut(u32)) -> Self {
         Self {
             manager,
             callbacks: SocketCallbacks::new(),

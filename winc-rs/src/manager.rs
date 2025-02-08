@@ -239,23 +239,18 @@ pub trait EventListener {
     }
 }
 
-pub struct StubListener {}
-impl EventListener for StubListener {}
-
-pub struct Manager<X: Xfer, E: EventListener> {
+pub struct Manager<X: Xfer> {
     // cached addresses
     not_a_reg_ctrl_4_dma: u32, // todo: make this dynamic/proper
     chip: ChipAccess<X>,
-    pub listener: E,
 }
 
-impl<X: Xfer, E: EventListener> Manager<X, E> {
+impl<X: Xfer> Manager<X> {
     // Todo: provide a version without listener, defaulting to as stub
-    pub fn from_xfer(xfer: X, listener: E) -> Self {
+    pub fn from_xfer(xfer: X) -> Self {
         Self {
             not_a_reg_ctrl_4_dma: 0xbf0000,
             chip: ChipAccess::new(xfer),
-            listener,
         }
     }
 
@@ -808,10 +803,6 @@ impl<X: Xfer, E: EventListener> Manager<X, E> {
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
     }
 
-    pub fn dispatch_events(&mut self) -> Result<(), Error> {
-        let mut stub = StubListener {};
-        self.dispatch_events_new::<StubListener>(&mut stub)
-    }
     pub fn dispatch_events_new<T: EventListener>(&mut self, listener: &mut T) -> Result<(), Error> {
         let res = self.is_interrupt_pending()?;
         if !res.0 {
@@ -824,44 +815,36 @@ impl<X: Xfer, E: EventListener> Manager<X, E> {
                 WifiResponse::CurrrentRssi => {
                     let mut result = [0xff; 4];
                     self.read_block(address, &mut result)?;
-                    self.listener.on_rssi(result[0] as i8);
                     listener.on_rssi(result[0] as i8)
                 }
                 WifiResponse::DefaultConnect => {
                     let mut def_connect = [0xff; 4];
                     self.read_block(address, &mut def_connect)?;
-                    self.listener.on_default_connect(def_connect[0] == 0);
                     listener.on_default_connect(def_connect[0] == 0)
                 }
                 WifiResponse::DhcpConf => {
                     let mut result = [0xff; 20];
                     self.read_block(address, &mut result)?;
-                    self.listener.on_dhcp(read_dhcp_conf(&result)?);
                     listener.on_dhcp(read_dhcp_conf(&result)?)
                 }
                 WifiResponse::ConStateChanged => {
                     let mut connstate = [0xff; 4];
                     self.read_block(address, &mut connstate)?;
-                    self.listener
-                        .on_connstate_changed(connstate[0].into(), connstate[1].into());
                     listener.on_connstate_changed(connstate[0].into(), connstate[1].into());
                 }
                 WifiResponse::ConnInfo => {
                     let mut conninfo = [0xff; 48];
                     self.read_block(address, &mut conninfo)?;
-                    self.listener.on_connection_info(conninfo.into());
                     listener.on_connection_info(conninfo.into())
                 }
                 WifiResponse::ScanResult => {
                     let mut result = [0xff; 44];
                     self.read_block(address, &mut result)?;
-                    self.listener.on_scan_result(result.into());
                     listener.on_scan_result(result.into())
                 }
                 WifiResponse::ScanDone => {
                     let mut result = [0xff; 0x4];
                     self.read_block(address, &mut result)?;
-                    self.listener.on_scan_done(result[0], result[1].into());
                     listener.on_scan_done(result[0], result[1].into())
                 }
                 WifiResponse::ClientInfo => {
@@ -872,14 +855,6 @@ impl<X: Xfer, E: EventListener> Manager<X, E> {
                 WifiResponse::GetSysTime => {
                     let mut result = [0xff; 8];
                     self.read_block(address, &mut result)?;
-                    self.listener.on_system_time(
-                        (result[1] as u16 * 256u16) + result[0] as u16,
-                        result[2],
-                        result[3],
-                        result[4],
-                        result[5],
-                        result[6],
-                    );
                     listener.on_system_time(
                         (result[1] as u16 * 256u16) + result[0] as u16,
                         result[2],
@@ -893,8 +868,6 @@ impl<X: Xfer, E: EventListener> Manager<X, E> {
                     // replies with 4 bytes of conflicted IP
                     let mut result = [0xff; 4];
                     self.read_block(address, &mut result)?;
-                    self.listener
-                        .on_ip_conflict(u32::from_be_bytes(result).into());
                     listener.on_ip_conflict(u32::from_be_bytes(result).into());
                 }
                 WifiResponse::ProvisionInfo => {
