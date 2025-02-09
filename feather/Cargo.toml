@@ -8,11 +8,6 @@ version = "0.1.0"
 [lib]
 harness = false
 
-# needed for each integration test
-[[test]]
-name = "integration"
-harness = false
-
 [dependencies]
 cortex-m = { version = "0.7.3", features = ["critical-section-single-core"] }
 cortex-m-rt = "0.7.0"
@@ -30,9 +25,6 @@ cortex-m-systick-countdown = "0.1.0"
 embedded-nal = "=0.9.0"
 wincwifi = { path = "../winc-rs", default-features = false, features=["defmt"] }
 demos = { path = "../demos", default-features = false, features=["defmt"] }
-
-[dev-dependencies]
-defmt-test = "0.3"
 
 # cargo build/run
 [profile.dev]

@@ -52,7 +52,7 @@ pub trait Write {
     }
 }
 
-impl<'a> Read for &'a [u8] {
+impl Read for &[u8] {
     type ReadError = void::Void;
     fn read(&mut self, buf: &mut [u8]) -> Result<usize, Self::ReadError> {
         use core::cmp::min;
@@ -67,7 +67,7 @@ impl<'a> Read for &'a [u8] {
     }
 }
 
-impl<'a> Read for &'a mut [u8] {
+impl Read for &mut [u8] {
     type ReadError = void::Void;
     fn read(&mut self, buf: &mut [u8]) -> Result<usize, Self::ReadError> {
         let mut immutable: &[u8] = self;
@@ -77,11 +77,11 @@ impl<'a> Read for &'a mut [u8] {
     }
 }
 
-impl<'a> Write for &'a mut [u8] {
+impl Write for &mut [u8] {
     type WriteError = BufferOverflow;
     fn write(&mut self, buf: &[u8]) -> Result<usize, Self::WriteError> {
         if buf.len() <= self.len() {
-            let (first, second) = ::core::mem::replace(self, &mut []).split_at_mut(buf.len());
+            let (first, second) = ::core::mem::take(self).split_at_mut(buf.len());
             first.copy_from_slice(&buf[0..buf.len()]);
             *self = second;
             Ok(buf.len())

@@ -10,6 +10,7 @@ use super::DelayTrait;
 use super::TransferSpi;
 use core::mem::take;
 
+// TODO: Maybe this doesn't need a delay
 pub struct SpiStream<CS: AnyPin, Spi: TransferSpi, Delay: DelayTrait> {
     cs: Option<CS>,
     spi: Spi,

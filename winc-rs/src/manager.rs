@@ -36,9 +36,6 @@ pub use responses::{ConnectionInfo, ScanResult};
 
 use core::net::{Ipv4Addr, SocketAddrV4};
 
-#[cfg(feature = "defmt")]
-use crate::nonstd::Ipv4AddrFormatWrapper;
-
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[derive(Debug, PartialEq, Default)]
 enum HifGroup {
@@ -88,51 +85,17 @@ const UDP_SOCK_MAX: usize = 4;
 #[allow(dead_code)]
 const MAX_SOCKET: usize = TCP_SOCK_MAX + UDP_SOCK_MAX;
 
-// todo: clean up no_std / std logging delta
 pub trait EventListener {
-    fn on_rssi(&mut self, level: i8) {
-        debug!("Got RSSI:{}", level)
-    }
-    fn on_resolve(&mut self, ip: Ipv4Addr, host: &str) {
-        #[cfg(not(feature = "defmt"))]
-        debug!("Got resolve ip:{} host:{}", ip, host);
-        #[cfg(feature = "defmt")]
-        debug!(
-            "Got resolve ip:{} host:{}",
-            Ipv4AddrFormatWrapper::new(&ip),
-            host
-        );
-    }
-    fn on_default_connect(&mut self, connected: bool) {
-        debug!("Got connected {}", connected)
-    }
-    fn on_dhcp(&mut self, conf: IPConf) {
-        debug!("IP config: {}", conf)
-    }
-    fn on_connstate_changed(&mut self, state: WifiConnState, err: WifiConnError) {
-        debug!("Connstate changed, state:{} error:{}", state, err)
-    }
-    fn on_connection_info(&mut self, info: ConnectionInfo) {
-        debug!("Conninfo, state:{}", info)
-    }
-    fn on_scan_result(&mut self, result: ScanResult) {
-        debug!("Scanresult {}", result)
-    }
-    fn on_scan_done(&mut self, num_aps: u8, err: WifiConnError) {
-        debug!("Scan done, aps:{} error:{}", num_aps, err)
-    }
-    fn on_system_time(&mut self, year: u16, month: u8, day: u8, hour: u8, minute: u8, second: u8) {
-        debug!(
-            "on_system_time: {}-{}-{} {}:{}:{}",
-            year, month, day, hour, minute, second
-        )
-    }
-    fn on_ip_conflict(&mut self, ip: Ipv4Addr) {
-        #[cfg(not(feature = "defmt"))]
-        debug!("on_ip_conflict: {}", ip);
-        #[cfg(feature = "defmt")]
-        debug!("on_ip_conflict: {}", Ipv4AddrFormatWrapper::new(&ip));
-    }
+    fn on_rssi(&mut self, level: i8);
+    fn on_resolve(&mut self, ip: Ipv4Addr, host: &str);
+    fn on_default_connect(&mut self, connected: bool);
+    fn on_dhcp(&mut self, conf: IPConf);
+    fn on_connstate_changed(&mut self, state: WifiConnState, err: WifiConnError);
+    fn on_connection_info(&mut self, info: ConnectionInfo);
+    fn on_scan_result(&mut self, result: ScanResult);
+    fn on_scan_done(&mut self, num_aps: u8, err: WifiConnError);
+    fn on_system_time(&mut self, year: u16, month: u8, day: u8, hour: u8, minute: u8, second: u8);
+    fn on_ip_conflict(&mut self, ip: Ipv4Addr);
     fn on_ping(
         &mut self,
         ip: Ipv4Addr,
@@ -141,121 +104,35 @@ pub trait EventListener {
         num_successful: u16,
         num_failed: u16,
         error: PingError,
-    ) {
-        #[cfg(not(feature = "defmt"))]
-        debug!(
-            "on_ping: ip:{} token:{} rtt:{} succeeded:{} failed:{} error:{:?}",
-            ip, token, rtt, num_successful, num_failed, error
-        );
-        #[cfg(feature = "defmt")]
-        debug!(
-            "on_ping: ip:{} token:{} rtt:{} succeeded:{} failed:{} error:{:?}",
-            Ipv4AddrFormatWrapper::new(&ip),
-            token,
-            rtt,
-            num_successful,
-            num_failed,
-            error
-        );
-    }
-    fn on_bind(&mut self, sock: Socket, err: SocketError) {
-        debug!("on_bind: sock:{:?} error:{:?}", sock, err)
-    }
-    fn on_listen(&mut self, sock: Socket, err: SocketError) {
-        debug!("on_listen: sock:{:?} error:{:?}", sock, err)
-    }
+    );
+    fn on_bind(&mut self, sock: Socket, err: SocketError);
+    fn on_listen(&mut self, sock: Socket, err: SocketError);
     fn on_accept(
         &mut self,
         address: SocketAddrV4,
         listen_socket: Socket,
         accepted_socket: Socket,
         data_offset: u16,
-    ) {
-        // todo : offset seems superflous
-        #[cfg(not(feature = "defmt"))]
-        debug!(
-            "on_accept: sockaddr:{} listen_socket:{:?} accept_socket:{:?} data_offset:{}",
-            address, listen_socket, accepted_socket, data_offset
-        );
-        #[cfg(feature = "defmt")]
-        debug!(
-            "on_accept: sockaddr ip:{} port:{} listen_socket:{:?} accept_socket:{:?} data_offset:{}",
-            Ipv4AddrFormatWrapper::new(address.ip()),  address.port(),
-            listen_socket, accepted_socket, data_offset
-        );
-    }
-    fn on_connect(&mut self, socket: Socket, err: SocketError) {
-        debug!("on_connect: socket:{:?} error:{:?}", socket, err)
-    }
-    fn on_send_to(&mut self, socket: Socket, len: i16) {
-        debug!("on_send_to: socket:{:?} length:{:?}", socket, len)
-    }
-    fn on_send(&mut self, socket: Socket, len: i16) {
-        debug!("on_send: socket:{:?} length:{:?}", socket, len)
-    }
-    fn on_recv(&mut self, socket: Socket, address: SocketAddrV4, data: &[u8], err: SocketError) {
-        #[cfg(not(feature = "defmt"))]
-        debug!(
-            "on_recv: socket:{:?} address:{:?} data len:{} err:{:?}",
-            socket,
-            address,
-            data.len(),
-            err
-        );
-        #[cfg(feature = "defmt")]
-        debug!(
-            "on_recv: socket:{:?} ip:{} port:{} data len:{} err:{:?}",
-            socket,
-            Ipv4AddrFormatWrapper::new(address.ip()),
-            address.port(),
-            data.len(),
-            err
-        );
-    }
-    fn on_recvfrom(
-        &mut self,
-        socket: Socket,
-        address: SocketAddrV4,
-        data: &[u8],
-        err: SocketError,
-    ) {
-        #[cfg(not(feature = "defmt"))]
-        debug!(
-            "on_recvfrom: socket:{:?} address:{:?} data len:{} err:{:?}",
-            socket,
-            address,
-            data.len(),
-            err
-        );
-        #[cfg(feature = "defmt")]
-        debug!(
-            "on_recvfrom: socket:{:?} ip:{} port:{} data len:{} err:{:?}",
-            socket,
-            Ipv4AddrFormatWrapper::new(address.ip()),
-            address.port(),
-            data.len(),
-            err
-        );
-    }
+    );
+    fn on_connect(&mut self, socket: Socket, err: SocketError);
+    fn on_send_to(&mut self, socket: Socket, len: i16);
+    fn on_send(&mut self, socket: Socket, len: i16);
+    fn on_recv(&mut self, socket: Socket, address: SocketAddrV4, data: &[u8], err: SocketError);
+    fn on_recvfrom(&mut self, socket: Socket, address: SocketAddrV4, data: &[u8], err: SocketError);
 }
 
-pub struct StubListener {}
-impl EventListener for StubListener {}
-
-pub struct Manager<X: Xfer, E: EventListener> {
+pub struct Manager<X: Xfer> {
     // cached addresses
     not_a_reg_ctrl_4_dma: u32, // todo: make this dynamic/proper
     chip: ChipAccess<X>,
-    pub listener: E,
 }
 
-impl<X: Xfer, E: EventListener> Manager<X, E> {
+impl<X: Xfer> Manager<X> {
     // Todo: provide a version without listener, defaulting to as stub
-    pub fn from_xfer(xfer: X, listener: E) -> Self {
+    pub fn from_xfer(xfer: X) -> Self {
         Self {
             not_a_reg_ctrl_4_dma: 0xbf0000,
             chip: ChipAccess::new(xfer),
-            listener,
         }
     }
 
@@ -808,10 +685,6 @@ impl<X: Xfer, E: EventListener> Manager<X, E> {
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
     }
 
-    pub fn dispatch_events(&mut self) -> Result<(), Error> {
-        let mut stub = StubListener {};
-        self.dispatch_events_new::<StubListener>(&mut stub)
-    }
     pub fn dispatch_events_new<T: EventListener>(&mut self, listener: &mut T) -> Result<(), Error> {
         let res = self.is_interrupt_pending()?;
         if !res.0 {
@@ -824,38 +697,37 @@ impl<X: Xfer, E: EventListener> Manager<X, E> {
                 WifiResponse::CurrrentRssi => {
                     let mut result = [0xff; 4];
                     self.read_block(address, &mut result)?;
-                    self.listener.on_rssi(result[0] as i8);
+                    listener.on_rssi(result[0] as i8)
                 }
                 WifiResponse::DefaultConnect => {
                     let mut def_connect = [0xff; 4];
                     self.read_block(address, &mut def_connect)?;
-                    self.listener.on_default_connect(def_connect[0] == 0);
+                    listener.on_default_connect(def_connect[0] == 0)
                 }
                 WifiResponse::DhcpConf => {
                     let mut result = [0xff; 20];
                     self.read_block(address, &mut result)?;
-                    self.listener.on_dhcp(read_dhcp_conf(&result)?);
+                    listener.on_dhcp(read_dhcp_conf(&result)?)
                 }
                 WifiResponse::ConStateChanged => {
                     let mut connstate = [0xff; 4];
                     self.read_block(address, &mut connstate)?;
-                    self.listener
-                        .on_connstate_changed(connstate[0].into(), connstate[1].into())
+                    listener.on_connstate_changed(connstate[0].into(), connstate[1].into());
                 }
                 WifiResponse::ConnInfo => {
                     let mut conninfo = [0xff; 48];
                     self.read_block(address, &mut conninfo)?;
-                    self.listener.on_connection_info(conninfo.into())
+                    listener.on_connection_info(conninfo.into())
                 }
                 WifiResponse::ScanResult => {
                     let mut result = [0xff; 44];
                     self.read_block(address, &mut result)?;
-                    self.listener.on_scan_result(result.into())
+                    listener.on_scan_result(result.into())
                 }
                 WifiResponse::ScanDone => {
                     let mut result = [0xff; 0x4];
                     self.read_block(address, &mut result)?;
-                    self.listener.on_scan_done(result[0], result[1].into())
+                    listener.on_scan_done(result[0], result[1].into())
                 }
                 WifiResponse::ClientInfo => {
                     unimplemented!("PS mode not yet supported")
@@ -865,7 +737,7 @@ impl<X: Xfer, E: EventListener> Manager<X, E> {
                 WifiResponse::GetSysTime => {
                     let mut result = [0xff; 8];
                     self.read_block(address, &mut result)?;
-                    self.listener.on_system_time(
+                    listener.on_system_time(
                         (result[1] as u16 * 256u16) + result[0] as u16,
                         result[2],
                         result[3],
@@ -878,8 +750,7 @@ impl<X: Xfer, E: EventListener> Manager<X, E> {
                     // replies with 4 bytes of conflicted IP
                     let mut result = [0xff; 4];
                     self.read_block(address, &mut result)?;
-                    self.listener
-                        .on_ip_conflict(u32::from_be_bytes(result).into())
+                    listener.on_ip_conflict(u32::from_be_bytes(result).into());
                 }
                 WifiResponse::ProvisionInfo => {
                     unimplemented!("Provisioning not yet supported")
@@ -981,13 +852,10 @@ mod tests {
         );
     }
 
-    pub struct Evt;
-    impl EventListener for Evt {}
-
     type ByteWrite<'a> = &'a mut [u8];
 
-    fn make_manager<'a>(writer: ByteWrite<'a>, cb: Evt) -> Manager<ByteWrite<'a>, Evt> {
-        let mut mgr = Manager::from_xfer(writer, cb);
+    fn make_manager<'a>(writer: ByteWrite<'a>) -> Manager<ByteWrite<'a>> {
+        let mut mgr = Manager::from_xfer(writer);
         mgr.chip.verify = false;
         mgr.chip.crc = false;
         mgr.chip.check_crc = false;
@@ -1000,7 +868,7 @@ mod tests {
     fn test_close() {
         let mut buff = [0u8; 90];
         let mut writer = buff.as_mut_slice();
-        let mut mgr = make_manager(&mut writer, Evt {});
+        let mut mgr = make_manager(&mut writer);
         assert_eq!(mgr.send_close(Socket::new(67, 512 + 42)).unwrap(), ());
         assert_eq!(buff[CMD_OFFSET], 0x49);
         let theslice = &buff[DATA_OFFSET..DATA_OFFSET + 4];
@@ -1011,7 +879,7 @@ mod tests {
     fn test_ping() {
         let mut buff = [0u8; 100];
         let mut writer = buff.as_mut_slice();
-        let mut mgr = make_manager(&mut writer, Evt {});
+        let mut mgr = make_manager(&mut writer);
 
         assert_eq!(
             mgr.send_ping_req(Ipv4Addr::new(192, 168, 5, 196), 42, 512 + 5, 0xDA),
@@ -1035,7 +903,7 @@ mod tests {
     fn test_bind() {
         let mut buff = [0u8; 100];
         let mut writer = buff.as_mut_slice();
-        let mut mgr = make_manager(&mut writer, Evt {});
+        let mut mgr = make_manager(&mut writer);
         assert_eq!(
             mgr.send_bind(
                 Socket::new(42, 512 + 10),
@@ -1061,7 +929,7 @@ mod tests {
     fn test_listen() {
         let mut buff = [0u8; 100];
         let mut writer = buff.as_mut_slice();
-        let mut mgr = make_manager(&mut writer, Evt {});
+        let mut mgr = make_manager(&mut writer);
         assert_eq!(mgr.send_listen(Socket::new(7, 512 + 10), 42), Ok(()));
         assert_eq!(buff[CMD_OFFSET], 0x42);
         let slice = &buff[DATA_OFFSET..DATA_OFFSET + 4];
@@ -1072,7 +940,7 @@ mod tests {
     fn test_connnect() {
         let mut buff = [0u8; 100];
         let mut writer = buff.as_mut_slice();
-        let mut mgr = make_manager(&mut writer, Evt {});
+        let mut mgr = make_manager(&mut writer);
 
         assert_eq!(
             mgr.send_socket_connect(
@@ -1099,7 +967,7 @@ mod tests {
     fn test_sendto() {
         let mut buff = [0u8; 120];
         let mut writer = buff.as_mut_slice();
-        let mut mgr = make_manager(&mut writer, Evt {});
+        let mut mgr = make_manager(&mut writer);
 
         assert_eq!(
             mgr.send_sendto(
@@ -1129,7 +997,7 @@ mod tests {
     fn test_send() {
         let mut buff = [0u8; 120];
         let mut writer = buff.as_mut_slice();
-        let mut mgr = make_manager(&mut writer, Evt {});
+        let mut mgr = make_manager(&mut writer);
 
         assert_eq!(mgr.send_send(Socket::new(7, 522), &[42]), Ok(()));
         assert_eq!(buff[CMD_OFFSET], 0x45);
@@ -1151,7 +1019,7 @@ mod tests {
     fn test_recv() {
         let mut buff = [0u8; 120];
         let mut writer = buff.as_mut_slice();
-        let mut mgr = make_manager(&mut writer, Evt {});
+        let mut mgr = make_manager(&mut writer);
 
         assert_eq!(mgr.send_recv(Socket::new(7, 522), 0x01020304), Ok(()));
         assert_eq!(buff[CMD_OFFSET], 0x46);
@@ -1169,7 +1037,7 @@ mod tests {
     fn test_recvfrom() {
         let mut buff = [0u8; 120];
         let mut writer = buff.as_mut_slice();
-        let mut mgr = make_manager(&mut writer, Evt {});
+        let mut mgr = make_manager(&mut writer);
 
         assert_eq!(mgr.send_recvfrom(Socket::new(7, 522), 0x01020304), Ok(()));
         assert_eq!(buff[CMD_OFFSET], 0x48);
@@ -1192,7 +1060,7 @@ mod tests {
         buff[OFFSET + 8] = 0xF4; // set negative status
         buff[OFFSET + 9] = 0xFF;
         let mut writer = buff.as_mut_slice();
-        let mut mgr = make_manager(&mut writer, Evt {});
+        let mut mgr = make_manager(&mut writer);
 
         let mut test = [2u8; 20];
         let (socket, _, dataslice, err) = mgr.get_recv_reply(2, &mut test).unwrap();

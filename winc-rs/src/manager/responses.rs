@@ -255,7 +255,7 @@ pub fn read_accept_reply(
 ) -> Result<(SocketAddrV4, Socket, Socket, u16), Error> {
     let reader = &mut response;
     if read16(reader)? != AF_INET {
-        error!("Error response: {:x}", HexWrap { v: &response });
+        error!("Error response: {:x}", HexWrap { v: response });
         return Err(Error::UnexpectedAddressFamily);
     }
     let port = read16be(reader)?;
@@ -313,6 +313,7 @@ pub fn read_dhcp_conf<'a>(mut response: &[u8]) -> Result<IPConf, ErrType<'a>> {
     })
 }
 
+// tstrDnsReply: returns hostname, IP
 pub fn read_dns_reply(mut response: &[u8]) -> Result<(Ipv4Addr, HostName), Error> {
     let reader = &mut response;
     let mut strbuffer = [0u8; 64];
@@ -354,6 +355,7 @@ pub fn read_recv_reply(mut response: &[u8]) -> Result<(Socket, SocketAddrV4, i16
     ))
 }
 
+// tstrBindReply, tstrListenReply, tstrConnectReply
 pub fn read_common_socket_reply<'a>(
     mut response: &[u8],
 ) -> Result<(Socket, SocketError), ErrType<'a>> {

@@ -1,37 +1,25 @@
 #![no_main]
 #![no_std]
 
-use bsp::hal::prelude::*;
-use bsp::shared::{create_delay_closure, SpiStream};
 use feather as bsp;
 use feather::init::init;
 
+use bsp::hal::prelude::*;
+use bsp::shared::{create_delay_closure, SpiStream};
 use cortex_m_systick_countdown::MillisCountDown;
 
 use wincwifi::manager::Manager;
-
-const DEFAULT_TEST_SSID: &str = "network";
-const DEFAULT_TEST_PASSWORD: &str = "password";
-
 use wincwifi::{StackError, WincClient};
 
 fn program() -> Result<(), StackError> {
     if let Ok((delay_tick, mut red_led, cs, spi)) = init() {
-        defmt::println!("Hello, Winc Module");
+        defmt::println!("Hello, Winc scan");
 
         let mut countdown1 = MillisCountDown::new(&delay_tick);
         let mut countdown2 = MillisCountDown::new(&delay_tick);
         let mut countdown3 = MillisCountDown::new(&delay_tick);
         let mut delay_ms = create_delay_closure(&mut countdown1);
         let mut delay_ms2 = create_delay_closure(&mut countdown2);
-
-        let ssid = option_env!("TEST_SSID").unwrap_or(DEFAULT_TEST_SSID);
-        let password = option_env!("TEST_PASSWORD").unwrap_or(DEFAULT_TEST_PASSWORD);
-        defmt::info!(
-            "Connecting to network: {} with password: {}",
-            ssid,
-            password
-        );
 
         let manager = Manager::from_xfer(SpiStream::new(
             cs,
@@ -48,10 +36,23 @@ fn program() -> Result<(), StackError> {
             })
             .unwrap();
 
-        defmt::info!("Started, connecting to AP ..");
-        nb::block!(stack.connect_to_ap(ssid, password))?;
+        defmt::info!("Scanning for access points ..");
+        let num_aps = nb::block!(stack.scan())?;
+        defmt::info!("Scan done, aps:{}", num_aps);
 
-        defmt::info!(".. connected to AP, going to loop");
+        for i in 0..num_aps {
+            let result = nb::block!(stack.get_scan_result(i))?;
+            defmt::info!(
+                "Scan strings: [{}] '{}' rssi:{} ch:{} {} {=[u8]:#x}",
+                i,
+                result.ssid.as_str(),
+                result.rssi,
+                result.channel,
+                result.auth,
+                result.bssid
+            );
+        }
+
         loop {
             delay_ms(200);
             red_led.set_high()?;

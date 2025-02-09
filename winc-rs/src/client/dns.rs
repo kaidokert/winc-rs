@@ -8,7 +8,7 @@ use super::StackError;
 use crate::transfer::Xfer;
 use crate::WincClient;
 
-impl<'a, X: Xfer, E: crate::manager::EventListener> Dns for WincClient<'a, X, E> {
+impl<X: Xfer> Dns for WincClient<'_, X> {
     type Error = StackError;
 
     fn get_host_by_name(
@@ -20,8 +20,7 @@ impl<'a, X: Xfer, E: crate::manager::EventListener> Dns for WincClient<'a, X, E>
             unimplemented!("IPv6 not supported");
         }
         self.callbacks.global_op = Some(GlobalOp::GetHostByName);
-        let _res = self
-            .manager
+        self.manager
             .send_gethostbyname(hostname)
             .map_err(|_x| StackError::GlobalOpFailed)?;
         let res = self.wait_for_gen_ack(GlobalOp::GetHostByName, Self::DNS_TIMEOUT)?;
@@ -29,7 +28,7 @@ impl<'a, X: Xfer, E: crate::manager::EventListener> Dns for WincClient<'a, X, E>
         if let GenResult::Ip(ip) = res {
             return Ok(IpAddr::V4(ip));
         }
-        return Err(StackError::DnsFailed.into());
+        Err(StackError::DnsFailed.into())
     }
 
     fn get_host_by_address(

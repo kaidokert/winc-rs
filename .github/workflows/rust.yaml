@@ -10,9 +10,11 @@ jobs:
 
     runs-on: ubuntu-latest
 
-    steps:
+    steps: # Needs to run in a subdirectory
     - uses: actions/checkout@v2
     - name: Build
+      working-directory: winc-rs
       run: cargo build --verbose
     - name: Run tests
+      working-directory: winc-rs
       run: cargo test --verbose

@@ -16,7 +16,7 @@
 
 repos:
 -   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v3.4.0
+    rev: v5.0.0
     hooks:
     -   id: trailing-whitespace
     -   id: end-of-file-fixer
@@ -32,5 +32,37 @@ repos:
     rev: v1.0
     hooks:
     -   id: fmt
-    -   id: cargo-check
-    -   id: clippy
+        name: Run fmt2 for winc-rs
+        args: ['--manifest-path=winc-rs/Cargo.toml', '--']
+    -   id: fmt
+        name: Run fmt2 for feather
+        args: ['--manifest-path=feather/Cargo.toml', '--']
+
+-   repo: local
+    hooks:
+    - id: check_winc_rs
+      name: Run Cargo check for winc-rs
+      language: system
+      entry: cargo check --manifest-path=winc-rs/Cargo.toml
+      files: \.(rs|toml)$
+      pass_filenames: false
+    - id: check_feather
+      name: Run Cargo check for Feather
+      language: system
+      # Needs to run in the directory, to pick up .cargo/config.toml
+      entry: python -c 'import os,sys; os.environ["RUSTFLAGS"]="-D warnings"; os.chdir("feather"); sys.exit(os.system("cargo check --lib --bins --examples"))'
+      files: \.(rs|toml)$
+      pass_filenames: false
+    - id: check_demos
+      name: Run cargo check for demos
+      language: system
+      entry: python -c 'import os, sys; os.environ["RUSTFLAGS"]="-D warnings"; sys.exit(os.system("cargo check --manifest-path=demos/Cargo.toml"))'
+      # entry: cargo check --manifest-path=demos/Cargo.toml
+      files: \.(rs|toml)$
+      pass_filenames: false
+    - id: clippy_winc_rs
+      name: Run clippy for winc-rs
+      language: system
+      entry: cargo clippy --manifest-path=winc-rs/Cargo.toml -- -D warnings
+      files: \.(rs|toml)$
+      pass_filenames: false

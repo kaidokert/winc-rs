@@ -12,21 +12,19 @@ pub mod tcp_server;
 pub mod udp_client;
 pub mod udp_server;
 
+#[allow(dead_code)]
 #[derive(Debug)]
 struct Ipv4AddrWrap<'a> {
     addr: &'a core::net::Ipv4Addr,
 }
 
-#[derive(Debug)]
-struct IpAddrWrap<'a> {
-    addr: &'a core::net::IpAddr,
-}
-
+#[allow(dead_code)]
 #[derive(Debug)]
 struct SocketAddrWrap<'a> {
     addr: &'a core::net::SocketAddr,
 }
 
+#[allow(dead_code)]
 #[derive(Debug)]
 struct SocketAddrV4Wrap<'a> {
     addr: &'a core::net::SocketAddrV4,
@@ -44,16 +42,6 @@ impl defmt::Format for Ipv4AddrWrap<'_> {
             ((ip >> 8) & 0xFF) as u8,
             ((ip >> 0) & 0xFF) as u8,
         );
-    }
-}
-
-#[cfg(feature = "defmt")]
-impl defmt::Format for IpAddrWrap<'_> {
-    fn format(&self, fmt: defmt::Formatter) {
-        match self.addr {
-            core::net::IpAddr::V4(addr) => defmt::write!(fmt, "{}", Ipv4AddrWrap { addr }),
-            _ => panic!("Unsupported IP address type"),
-        }
     }
 }
 

@@ -1,4 +1,8 @@
-use crate::manager::SOCKET_BUFFER_MAX_LENGTH;
+use core::net::Ipv4Addr;
+
+use crate::manager::{
+    ConnectionInfo, PingError, ScanResult, WifiConnError, WifiConnState, SOCKET_BUFFER_MAX_LENGTH,
+};
 use crate::manager::{EventListener, Manager};
 use crate::socket::Socket;
 use crate::transfer::Xfer;
@@ -7,7 +11,7 @@ use crate::Ipv4AddrFormatWrapper;
 
 use crate::manager::SocketError;
 
-use crate::{debug, error};
+use crate::{debug, error, info};
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
@@ -17,7 +21,9 @@ mod dns;
 mod stack_error;
 mod tcp_stack;
 mod udp_stack;
+mod wifi_module;
 pub use stack_error::StackError;
+use wifi_module::WifiModuleState;
 
 #[derive(PartialEq, Clone, Copy, Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
@@ -86,13 +92,36 @@ impl<const N: usize, const BASE: usize> SockHolder<N, BASE> {
             return None;
         }
         self.sockets[handle.0 as usize] =
-            Some((Socket::new(handle.0 as u8, session_id), ClientSocketOp::New));
+            Some((Socket::new(handle.0, session_id), ClientSocketOp::New));
         Some(handle)
     }
 
     pub fn get(&mut self, handle: Handle) -> Option<&mut (Socket, ClientSocketOp)> {
         self.sockets[handle.0 as usize].as_mut()
     }
+}
+
+// TODO: This should be exposed to user
+#[allow(dead_code)]
+struct SystemTime {
+    year: u16,
+    month: u8,
+    day: u8,
+    hour: u8,
+    minute: u8,
+    second: u8,
+}
+
+struct ConnectionState {
+    conn_state: WifiConnState,
+    conn_error: Option<WifiConnError>,
+    ip_conf: Option<crate::manager::IPConf>,
+    conn_info: Option<ConnectionInfo>,
+    system_time: Option<SystemTime>,
+    rssi_level: Option<i8>,
+    ip_conflict: Option<Ipv4Addr>,
+    scan_number_aps: Option<u8>,
+    scan_results: Option<ScanResult>,
 }
 
 struct SocketCallbacks {
@@ -111,6 +140,8 @@ struct SocketCallbacks {
     last_recv_addr: Option<core::net::SocketAddrV4>,
     last_accepted_socket: Option<Socket>,
     global_op: Option<GlobalOp>,
+    connection_state: ConnectionState,
+    state: wifi_module::WifiModuleState,
 }
 
 impl SocketCallbacks {
@@ -124,6 +155,8 @@ impl SocketCallbacks {
             last_recv_addr: None,
             last_accepted_socket: None,
             global_op: None,
+            connection_state: ConnectionState::new(),
+            state: wifi_module::WifiModuleState::Reset,
         }
     }
     fn resolve(&mut self, socket: Socket) -> Option<&mut (Socket, ClientSocketOp)> {
@@ -137,16 +170,28 @@ impl SocketCallbacks {
     }
 }
 
+impl ConnectionState {
+    fn new() -> Self {
+        Self {
+            conn_state: WifiConnState::Disconnected,
+            conn_error: None,
+            ip_conf: None,
+            system_time: None,
+            rssi_level: None,
+            ip_conflict: None,
+            conn_info: None,
+            scan_number_aps: None,
+            scan_results: None,
+        }
+    }
+}
+
 impl EventListener for SocketCallbacks {
-    fn on_system_time(&mut self, year: u16, month: u8, day: u8, hour: u8, minute: u8, second: u8) {
-        debug!(
-            "on_system_time: {}-{:02}-{:02} {:02}:{:02}:{:02}",
-            year, month, day, hour, minute, second
-        );
+    fn on_rssi(&mut self, level: i8) {
+        info!("client: Got RSSI:{}", level);
+        self.connection_state.rssi_level = Some(level);
     }
-    fn on_dhcp(&mut self, conf: crate::manager::IPConf) {
-        debug!("on_dhcp: IP config: {}", conf);
-    }
+
     fn on_resolve(&mut self, ip: core::net::Ipv4Addr, host: &str) {
         debug!(
             "on_resolve: ip:{:?} host:{:?}",
@@ -173,6 +218,104 @@ impl EventListener for SocketCallbacks {
                 error!("UNKNOWN on_resolve: host: {} state:{:?}", host, op);
             }
         }
+    }
+
+    fn on_default_connect(&mut self, connected: bool) {
+        debug!("client: got connected {}", connected)
+    }
+    fn on_dhcp(&mut self, conf: crate::manager::IPConf) {
+        debug!("client: on_dhcp: IP config: {}", conf);
+        self.connection_state.ip_conf = Some(conf);
+    }
+    fn on_connstate_changed(&mut self, state: WifiConnState, err: WifiConnError) {
+        info!("client: Connection state changed: {:?} {:?}", state, err);
+        self.connection_state.conn_state = state;
+        self.connection_state.conn_error = Some(err);
+        match self.state {
+            WifiModuleState::ConnectingToAp => match self.connection_state.conn_state {
+                WifiConnState::Connected => {
+                    self.state = WifiModuleState::ConnectedToAp;
+                }
+                _ => {
+                    self.state = WifiModuleState::ConnectionFailed;
+                    error!(
+                        "on_connstate_changed FAILED: {:?} {:?}",
+                        self.connection_state.conn_state, self.connection_state.conn_error
+                    );
+                }
+            },
+            _ => {
+                error!(
+                    "UNKNOWN STATE on_connstate_changed: {:?} {:?}",
+                    self.connection_state.conn_state, self.connection_state.conn_error
+                );
+            }
+        }
+    }
+
+    fn on_connection_info(&mut self, info: ConnectionInfo) {
+        debug!("client: conninfo, state:{}", info);
+        self.connection_state.conn_info = Some(info);
+    }
+    fn on_system_time(&mut self, year: u16, month: u8, day: u8, hour: u8, minute: u8, second: u8) {
+        debug!(
+            "client: on_system_time: {}-{:02}-{:02} {:02}:{:02}:{:02}",
+            year, month, day, hour, minute, second
+        );
+        self.connection_state.system_time = Some(SystemTime {
+            year,
+            month,
+            day,
+            hour,
+            minute,
+            second,
+        });
+    }
+    fn on_ip_conflict(&mut self, ip: Ipv4Addr) {
+        info!(
+            "client: on_ip_conflict: {:?}",
+            Ipv4AddrFormatWrapper::new(&ip)
+        );
+        self.connection_state.ip_conflict = Some(ip);
+    }
+
+    fn on_scan_result(&mut self, result: ScanResult) {
+        debug!("Scanresult {}", result);
+        self.connection_state.scan_results = Some(result);
+        match self.state {
+            WifiModuleState::GettingScanResult => {
+                self.state = WifiModuleState::HaveScanResult;
+            }
+            _ => {
+                error!("UNKNOWN STATE on_scan_result: {:?}", self.state);
+            }
+        }
+    }
+    fn on_scan_done(&mut self, num_aps: u8, err: WifiConnError) {
+        debug!("Scan done, aps:{} error:{}", num_aps, err);
+        self.connection_state.conn_error = Some(err);
+        self.connection_state.scan_number_aps = Some(num_aps);
+        match self.state {
+            WifiModuleState::Scanning => {
+                self.state = WifiModuleState::ScanDone;
+            }
+            _ => {
+                error!("UNKNOWN STATE on_scan_done: {:?}", self.state);
+            }
+        }
+    }
+    fn on_ping(
+        &mut self,
+        ip: Ipv4Addr,
+        token: u32,
+        rtt: u32,
+        num_successful: u16,
+        num_failed: u16,
+        error: PingError,
+    ) {
+        debug!("client: on_ping: ip:{:?} token:{:?} rtt:{:?} num_successful:{:?} num_failed:{:?} error:{:?}",
+            Ipv4AddrFormatWrapper::new(&ip),
+            token, rtt, num_successful, num_failed, error);
     }
 
     fn on_connect(&mut self, socket: Socket, err: crate::manager::SocketError) {
@@ -374,7 +517,7 @@ impl EventListener for SocketCallbacks {
             accepted_socket
         );
 
-        if let Some((s, op)) = self.resolve(listen_socket) {
+        if let Some((_s, op)) = self.resolve(listen_socket) {
             if *op == ClientSocketOp::Accept {
                 *op = ClientSocketOp::None;
                 self.last_error = SocketError::NoError;
@@ -408,9 +551,9 @@ pub enum GenResult {
     Accept(core::net::SocketAddrV4, Socket),
 }
 
-pub struct WincClient<'a, X: Xfer, E: EventListener> {
-    manager: Manager<X, E>,
-    delay: &'a mut dyn FnMut(u32) -> (),
+pub struct WincClient<'a, X: Xfer> {
+    manager: Manager<X>,
+    delay: &'a mut dyn FnMut(u32),
     recv_timeout: u32,
     poll_loop_delay: u32,
     callbacks: SocketCallbacks,
@@ -419,7 +562,7 @@ pub struct WincClient<'a, X: Xfer, E: EventListener> {
     last_send_addr: Option<core::net::SocketAddrV4>,
 }
 
-impl<'a, X: Xfer, E: EventListener> WincClient<'a, X, E> {
+impl<'a, X: Xfer> WincClient<'a, X> {
     const TCP_SOCKET_BACKLOG: u8 = 4;
     const LISTEN_TIMEOUT: u32 = 100;
     const ACCEPT_TIMEOUT: u32 = 100;
@@ -429,7 +572,7 @@ impl<'a, X: Xfer, E: EventListener> WincClient<'a, X, E> {
     const CONNECT_TIMEOUT: u32 = 1000;
     const DNS_TIMEOUT: u32 = 1000;
     const POLL_LOOP_DELAY: u32 = 10;
-    pub fn new(manager: Manager<X, E>, delay: &'a mut impl FnMut(u32)) -> Self {
+    pub fn new(manager: Manager<X>, delay: &'a mut impl FnMut(u32)) -> Self {
         Self {
             manager,
             callbacks: SocketCallbacks::new(),
@@ -448,7 +591,7 @@ impl<'a, X: Xfer, E: EventListener> WincClient<'a, X, E> {
     pub fn dispatch_events(&mut self) -> Result<(), StackError> {
         self.manager
             .dispatch_events_new(&mut self.callbacks)
-            .map_err(|some_err| StackError::DispatchError(some_err))
+            .map_err(StackError::DispatchError)
     }
     fn wait_with_timeout<F, T>(
         &mut self,
@@ -491,7 +634,7 @@ impl<'a, X: Xfer, E: EventListener> WincClient<'a, X, E> {
         debug!("===>Waiting for gen ack for {:?}", expect_op);
 
         self.wait_with_timeout(timeout, |client, elapsed| {
-            if client.callbacks.global_op == None {
+            if client.callbacks.global_op.is_none() {
                 debug!("<===Ack received {:?} elapsed:{}ms", expect_op, elapsed);
 
                 if let Some(addr) = client.callbacks.last_recv_addr {
@@ -506,14 +649,14 @@ impl<'a, X: Xfer, E: EventListener> WincClient<'a, X, E> {
             }
             None
         })
-        .or_else(|e| {
+        .map_err(|e| {
             if matches!(e, StackError::GeneralTimeout) {
                 match expect_op {
-                    GlobalOp::GetHostByName => Err(StackError::DnsTimeout),
-                    _ => Err(StackError::GeneralTimeout),
+                    GlobalOp::GetHostByName => StackError::DnsTimeout,
+                    _ => StackError::GeneralTimeout,
                 }
             } else {
-                Err(e)
+                e
             }
         })
     }
@@ -558,16 +701,16 @@ impl<'a, X: Xfer, E: EventListener> WincClient<'a, X, E> {
             }
             None
         })
-        .or_else(|e| {
+        .map_err(|e| {
             if matches!(e, StackError::GeneralTimeout) {
                 match expect_op {
-                    ClientSocketOp::Connect => Err(StackError::ConnectTimeout),
-                    ClientSocketOp::Send => Err(StackError::SendTimeout),
-                    ClientSocketOp::Recv => Err(StackError::RecvTimeout),
-                    _ => Err(StackError::GeneralTimeout),
+                    ClientSocketOp::Connect => StackError::ConnectTimeout,
+                    ClientSocketOp::Send => StackError::SendTimeout,
+                    ClientSocketOp::Recv => StackError::RecvTimeout,
+                    _ => StackError::GeneralTimeout,
                 }
             } else {
-                Err(e)
+                e
             }
         })
     }
