@@ -46,6 +46,6 @@ defmt = { version = "0.3.2", default-features = false, optional=true }
 test-log = "0.2.11"
 
 [features]
-std=["dep:log", "dep:simple_logger"]
+std=["dep:log"]
 defmt = ["dep:defmt"]
 default = ["std"]

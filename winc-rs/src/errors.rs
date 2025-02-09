@@ -71,19 +71,3 @@ impl<T> From<ReadExactError<T>> for Error {
         Error::BufferReadError
     }
 }
-
-pub enum WifiConnectionError {
-    Failed,
-}
-
-#[cfg(test)]
-mod tests {
-    //use super::*;
-
-    #[test]
-    fn test_err() {
-        //type ReadXErr<'a> = ReadExactError<<&'a [u8] as Read>::ReadError>;
-        //let b : ReadXErr = ReadXErr::default();
-        //let f : Error = b.into();
-    }
-}

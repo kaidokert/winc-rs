@@ -15,6 +15,11 @@ jobs:
     - name: Build winc-rs
       working-directory: winc-rs
       run: cargo build --verbose
+    - name: Build winc-rs with defmt
+      working-directory: winc-rs
+      env:
+        DEFMT_LOG: "trace"
+      run: cargo build --verbose --features defmt
     - name: Run tests
       working-directory: winc-rs
       run: cargo test --verbose
