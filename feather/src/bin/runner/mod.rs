@@ -27,6 +27,7 @@ pub type MyTcpFullStack<'a> =
 
 pub type MyDns<'a> = &'a mut dyn Dns<Error = wincwifi::StackError>;
 
+#[allow(dead_code)]
 pub enum ClientType {
     Tcp,
     Udp,
@@ -35,6 +36,7 @@ pub enum ClientType {
     TcpFull,
 }
 
+#[allow(dead_code)]
 pub enum ReturnClient<'a> {
     Tcp(MyTcpClientStack<'a>),
     Udp(MyUdpClientStack<'a>),

@@ -24,7 +24,7 @@ pub(crate) enum WifiModuleState {
     HaveScanResult,
 }
 
-impl<'a, X: Xfer> WincClient<'a, X> {
+impl<X: Xfer> WincClient<'_, X> {
     pub fn heartbeat(&mut self) -> Result<(), StackError> {
         self.dispatch_events()?;
         Ok(())
@@ -94,7 +94,7 @@ impl<'a, X: Xfer> WincClient<'a, X> {
             WifiModuleState::ScanDone => {
                 self.callbacks.state = WifiModuleState::Started;
                 let num_aps = self.callbacks.connection_state.scan_number_aps.unwrap();
-                defmt::debug!("Scan done, aps:{}", num_aps);
+                debug!("Scan done, aps:{}", num_aps);
                 Ok(num_aps)
             }
             _ => Ok(0),

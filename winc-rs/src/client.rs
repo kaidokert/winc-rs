@@ -92,7 +92,7 @@ impl<const N: usize, const BASE: usize> SockHolder<N, BASE> {
             return None;
         }
         self.sockets[handle.0 as usize] =
-            Some((Socket::new(handle.0 as u8, session_id), ClientSocketOp::New));
+            Some((Socket::new(handle.0, session_id), ClientSocketOp::New));
         Some(handle)
     }
 
@@ -101,6 +101,8 @@ impl<const N: usize, const BASE: usize> SockHolder<N, BASE> {
     }
 }
 
+// TODO: This should be exposed to user
+#[allow(dead_code)]
 struct SystemTime {
     year: u16,
     month: u8,
@@ -109,6 +111,7 @@ struct SystemTime {
     minute: u8,
     second: u8,
 }
+
 struct ConnectionState {
     conn_state: WifiConnState,
     conn_error: Option<WifiConnError>,
@@ -180,17 +183,6 @@ impl ConnectionState {
             scan_number_aps: None,
             scan_results: None,
         }
-    }
-    fn reset(&mut self) {
-        self.conn_state = WifiConnState::Disconnected;
-        self.conn_error = None;
-        self.ip_conf = None;
-        self.system_time = None;
-        self.rssi_level = None;
-        self.ip_conflict = None;
-        self.conn_info = None;
-        self.scan_number_aps = None;
-        self.scan_results = None;
     }
 }
 
@@ -525,7 +517,7 @@ impl EventListener for SocketCallbacks {
             accepted_socket
         );
 
-        if let Some((s, op)) = self.resolve(listen_socket) {
+        if let Some((_s, op)) = self.resolve(listen_socket) {
             if *op == ClientSocketOp::Accept {
                 *op = ClientSocketOp::None;
                 self.last_error = SocketError::NoError;
@@ -561,7 +553,7 @@ pub enum GenResult {
 
 pub struct WincClient<'a, X: Xfer> {
     manager: Manager<X>,
-    delay: &'a mut dyn FnMut(u32) -> (),
+    delay: &'a mut dyn FnMut(u32),
     recv_timeout: u32,
     poll_loop_delay: u32,
     callbacks: SocketCallbacks,
@@ -599,7 +591,7 @@ impl<'a, X: Xfer> WincClient<'a, X> {
     pub fn dispatch_events(&mut self) -> Result<(), StackError> {
         self.manager
             .dispatch_events_new(&mut self.callbacks)
-            .map_err(|some_err| StackError::DispatchError(some_err))
+            .map_err(StackError::DispatchError)
     }
     fn wait_with_timeout<F, T>(
         &mut self,
@@ -642,7 +634,7 @@ impl<'a, X: Xfer> WincClient<'a, X> {
         debug!("===>Waiting for gen ack for {:?}", expect_op);
 
         self.wait_with_timeout(timeout, |client, elapsed| {
-            if client.callbacks.global_op == None {
+            if client.callbacks.global_op.is_none() {
                 debug!("<===Ack received {:?} elapsed:{}ms", expect_op, elapsed);
 
                 if let Some(addr) = client.callbacks.last_recv_addr {
@@ -657,14 +649,14 @@ impl<'a, X: Xfer> WincClient<'a, X> {
             }
             None
         })
-        .or_else(|e| {
+        .map_err(|e| {
             if matches!(e, StackError::GeneralTimeout) {
                 match expect_op {
-                    GlobalOp::GetHostByName => Err(StackError::DnsTimeout),
-                    _ => Err(StackError::GeneralTimeout),
+                    GlobalOp::GetHostByName => StackError::DnsTimeout,
+                    _ => StackError::GeneralTimeout,
                 }
             } else {
-                Err(e)
+                e
             }
         })
     }
@@ -709,16 +701,16 @@ impl<'a, X: Xfer> WincClient<'a, X> {
             }
             None
         })
-        .or_else(|e| {
+        .map_err(|e| {
             if matches!(e, StackError::GeneralTimeout) {
                 match expect_op {
-                    ClientSocketOp::Connect => Err(StackError::ConnectTimeout),
-                    ClientSocketOp::Send => Err(StackError::SendTimeout),
-                    ClientSocketOp::Recv => Err(StackError::RecvTimeout),
-                    _ => Err(StackError::GeneralTimeout),
+                    ClientSocketOp::Connect => StackError::ConnectTimeout,
+                    ClientSocketOp::Send => StackError::SendTimeout,
+                    ClientSocketOp::Recv => StackError::RecvTimeout,
+                    _ => StackError::GeneralTimeout,
                 }
             } else {
-                Err(e)
+                e
             }
         })
     }

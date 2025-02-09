@@ -36,9 +36,6 @@ pub use responses::{ConnectionInfo, ScanResult};
 
 use core::net::{Ipv4Addr, SocketAddrV4};
 
-#[cfg(feature = "defmt")]
-use crate::nonstd::Ipv4AddrFormatWrapper;
-
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[derive(Debug, PartialEq, Default)]
 enum HifGroup {

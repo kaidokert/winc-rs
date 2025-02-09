@@ -12,7 +12,7 @@ use crate::debug;
 use crate::manager::SocketError;
 use embedded_nal::nb;
 
-impl<'a, X: Xfer> UdpClientStack for WincClient<'a, X> {
+impl<X: Xfer> UdpClientStack for WincClient<'_, X> {
     type UdpSocket = Handle;
 
     type Error = StackError;
@@ -59,7 +59,7 @@ impl<'a, X: Xfer> UdpClientStack for WincClient<'a, X> {
         if let Some(addr) = self.last_send_addr {
             self.manager
                 .send_sendto(*sock, addr, buffer)
-                .map_err(|x| StackError::SendSendFailed(x))?;
+                .map_err(StackError::SendSendFailed)?;
         } else {
             return Err(StackError::Unexpected.into());
         }
@@ -81,7 +81,7 @@ impl<'a, X: Xfer> UdpClientStack for WincClient<'a, X> {
         debug!("<> Sending udp socket send_recv to {:?}", sock);
         self.manager
             .send_recvfrom(*sock, timeout)
-            .map_err(|x| StackError::ReceiveFailed(x))?;
+            .map_err(StackError::ReceiveFailed)?;
         if let GenResult::Len(recv_len) =
             match self.wait_for_op_ack(*socket, op, self.recv_timeout, false) {
                 Ok(result) => result,
@@ -106,7 +106,7 @@ impl<'a, X: Xfer> UdpClientStack for WincClient<'a, X> {
         let (sock, _op) = self.callbacks.udp_sockets.get(socket).unwrap();
         self.manager
             .send_close(*sock)
-            .map_err(|x| StackError::SendCloseFailed(x))?;
+            .map_err(StackError::SendCloseFailed)?;
         self.callbacks
             .udp_sockets
             .get(socket)
@@ -116,7 +116,7 @@ impl<'a, X: Xfer> UdpClientStack for WincClient<'a, X> {
     }
 }
 
-impl<'a, X: Xfer> UdpFullStack for WincClient<'a, X> {
+impl<X: Xfer> UdpFullStack for WincClient<'_, X> {
     // Not a blocking call
     fn bind(&mut self, socket: &mut Self::UdpSocket, local_port: u16) -> Result<(), Self::Error> {
         // Local server ports needs to be bound to 0.0.0.0
@@ -127,7 +127,7 @@ impl<'a, X: Xfer> UdpFullStack for WincClient<'a, X> {
         let op = *op;
         self.manager
             .send_bind(*sock, server_addr)
-            .map_err(|x| StackError::BindFailed(x))?;
+            .map_err(StackError::BindFailed)?;
         self.wait_for_op_ack(*socket, op, Self::BIND_TIMEOUT, false)?;
         Ok(())
     }
@@ -155,7 +155,7 @@ impl<'a, X: Xfer> UdpFullStack for WincClient<'a, X> {
         let op = *op;
         self.manager
             .send_sendto(*sock, send_addr, buffer)
-            .map_err(|x| StackError::SendSendFailed(x))?;
+            .map_err(StackError::SendSendFailed)?;
         self.wait_for_op_ack(*socket, op, Self::SEND_TIMEOUT, false)?;
         Ok(())
     }

@@ -8,7 +8,7 @@ use demos::{
     udp_client::udp_client, udp_server::udp_server,
 };
 
-use log::{debug, error, info, Level};
+use log::Level;
 
 pub fn parse_ip_octets(ip: &str) -> [u8; 4] {
     let mut octets = [0; 4];
@@ -110,7 +110,6 @@ fn main() -> Result<(), LocalErrors> {
         Mode::CoapClient => {
             coap_client(&mut stack, ip_addr, port).map_err(|_| LocalErrors::IoError)?;
         }
-        _ => {}
     }
     Ok(())
 }

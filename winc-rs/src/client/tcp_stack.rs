@@ -13,7 +13,7 @@ use crate::Ipv4AddrFormatWrapper;
 use crate::{debug, error};
 use embedded_nal::nb;
 
-impl<'a, X: Xfer> embedded_nal::TcpClientStack for WincClient<'a, X> {
+impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {
     type TcpSocket = Handle;
     type Error = StackError;
     fn socket(
@@ -42,7 +42,7 @@ impl<'a, X: Xfer> embedded_nal::TcpClientStack for WincClient<'a, X> {
                 debug!("<> Sending send_socket_connect to {:?}", sock);
                 self.manager
                     .send_socket_connect(*sock, addr)
-                    .map_err(|x| StackError::ConnectSendFailed(x))?;
+                    .map_err(StackError::ConnectSendFailed)?;
                 self.wait_for_op_ack(*socket, op, Self::CONNECT_TIMEOUT, true)?;
             }
             core::net::SocketAddr::V6(_) => unimplemented!("IPv6 not supported"),
@@ -61,7 +61,7 @@ impl<'a, X: Xfer> embedded_nal::TcpClientStack for WincClient<'a, X> {
         debug!("<> Sending socket send_send to {:?}", sock);
         self.manager
             .send_send(*sock, data)
-            .map_err(|x| StackError::SendSendFailed(x))?;
+            .map_err(StackError::SendSendFailed)?;
         self.wait_for_op_ack(*socket, op, Self::SEND_TIMEOUT, true)?;
         Ok(data.len())
     }
@@ -80,7 +80,7 @@ impl<'a, X: Xfer> embedded_nal::TcpClientStack for WincClient<'a, X> {
         let timeout = Self::RECV_TIMEOUT;
         debug!("<> Sending socket send_recv to {:?}", sock);
         self.manager
-            .send_recv(*sock, timeout as u32)
+            .send_recv(*sock, timeout)
             .map_err(|x| nb::Error::Other(StackError::ReceiveFailed(x)))?;
         if let GenResult::Len(recv_len) =
             match self.wait_for_op_ack(*socket, op, self.recv_timeout, true) {
@@ -104,7 +104,7 @@ impl<'a, X: Xfer> embedded_nal::TcpClientStack for WincClient<'a, X> {
         let (sock, _op) = self.callbacks.tcp_sockets.get(socket).unwrap();
         self.manager
             .send_close(*sock)
-            .map_err(|x| StackError::SendCloseFailed(x))?;
+            .map_err(StackError::SendCloseFailed)?;
         self.callbacks
             .tcp_sockets
             .get(socket)
@@ -114,7 +114,7 @@ impl<'a, X: Xfer> embedded_nal::TcpClientStack for WincClient<'a, X> {
     }
 }
 
-impl<'a, X: Xfer> TcpFullStack for WincClient<'a, X> {
+impl<X: Xfer> TcpFullStack for WincClient<'_, X> {
     fn bind(&mut self, socket: &mut Self::TcpSocket, local_port: u16) -> Result<(), Self::Error> {
         self.dispatch_events()?;
         let (sock, op) = self.callbacks.tcp_sockets.get(*socket).unwrap();
@@ -127,7 +127,7 @@ impl<'a, X: Xfer> TcpFullStack for WincClient<'a, X> {
 
         self.manager
             .send_bind(*sock, server_addr)
-            .map_err(|x| StackError::BindFailed(x))?;
+            .map_err(StackError::BindFailed)?;
         self.wait_for_op_ack(*socket, op, Self::BIND_TIMEOUT, true)?;
         Ok(())
     }

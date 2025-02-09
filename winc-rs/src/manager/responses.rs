@@ -255,7 +255,7 @@ pub fn read_accept_reply(
 ) -> Result<(SocketAddrV4, Socket, Socket, u16), Error> {
     let reader = &mut response;
     if read16(reader)? != AF_INET {
-        error!("Error response: {:x}", HexWrap { v: &response });
+        error!("Error response: {:x}", HexWrap { v: response });
         return Err(Error::UnexpectedAddressFamily);
     }
     let port = read16be(reader)?;

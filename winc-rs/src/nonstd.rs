@@ -22,7 +22,7 @@ pub struct Ipv4AddrFormatWrapper<'a> {
 
 impl<'a> Ipv4AddrFormatWrapper<'a> {
     pub fn new(ip: &'a Ipv4Addr) -> Self {
-        return Self { ip };
+        Self { ip }
     }
 }
 

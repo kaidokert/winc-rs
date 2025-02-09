@@ -1,8 +1,6 @@
 #![no_main]
 #![no_std]
 
-use core::str::FromStr;
-
 use feather as bsp;
 use feather::init::init;
 
