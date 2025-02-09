@@ -855,13 +855,10 @@ mod tests {
         );
     }
 
-    pub struct Evt;
-    impl EventListener for Evt {}
-
     type ByteWrite<'a> = &'a mut [u8];
 
-    fn make_manager<'a>(writer: ByteWrite<'a>, cb: Evt) -> Manager<ByteWrite<'a>, Evt> {
-        let mut mgr = Manager::from_xfer(writer, cb);
+    fn make_manager<'a>(writer: ByteWrite<'a>) -> Manager<ByteWrite<'a>> {
+        let mut mgr = Manager::from_xfer(writer);
         mgr.chip.verify = false;
         mgr.chip.crc = false;
         mgr.chip.check_crc = false;
@@ -874,7 +871,7 @@ mod tests {
     fn test_close() {
         let mut buff = [0u8; 90];
         let mut writer = buff.as_mut_slice();
-        let mut mgr = make_manager(&mut writer, Evt {});
+        let mut mgr = make_manager(&mut writer);
         assert_eq!(mgr.send_close(Socket::new(67, 512 + 42)).unwrap(), ());
         assert_eq!(buff[CMD_OFFSET], 0x49);
         let theslice = &buff[DATA_OFFSET..DATA_OFFSET + 4];
@@ -885,7 +882,7 @@ mod tests {
     fn test_ping() {
         let mut buff = [0u8; 100];
         let mut writer = buff.as_mut_slice();
-        let mut mgr = make_manager(&mut writer, Evt {});
+        let mut mgr = make_manager(&mut writer);
 
         assert_eq!(
             mgr.send_ping_req(Ipv4Addr::new(192, 168, 5, 196), 42, 512 + 5, 0xDA),
@@ -909,7 +906,7 @@ mod tests {
     fn test_bind() {
         let mut buff = [0u8; 100];
         let mut writer = buff.as_mut_slice();
-        let mut mgr = make_manager(&mut writer, Evt {});
+        let mut mgr = make_manager(&mut writer);
         assert_eq!(
             mgr.send_bind(
                 Socket::new(42, 512 + 10),
@@ -935,7 +932,7 @@ mod tests {
     fn test_listen() {
         let mut buff = [0u8; 100];
         let mut writer = buff.as_mut_slice();
-        let mut mgr = make_manager(&mut writer, Evt {});
+        let mut mgr = make_manager(&mut writer);
         assert_eq!(mgr.send_listen(Socket::new(7, 512 + 10), 42), Ok(()));
         assert_eq!(buff[CMD_OFFSET], 0x42);
         let slice = &buff[DATA_OFFSET..DATA_OFFSET + 4];
@@ -946,7 +943,7 @@ mod tests {
     fn test_connnect() {
         let mut buff = [0u8; 100];
         let mut writer = buff.as_mut_slice();
-        let mut mgr = make_manager(&mut writer, Evt {});
+        let mut mgr = make_manager(&mut writer);
 
         assert_eq!(
             mgr.send_socket_connect(
@@ -973,7 +970,7 @@ mod tests {
     fn test_sendto() {
         let mut buff = [0u8; 120];
         let mut writer = buff.as_mut_slice();
-        let mut mgr = make_manager(&mut writer, Evt {});
+        let mut mgr = make_manager(&mut writer);
 
         assert_eq!(
             mgr.send_sendto(
@@ -1003,7 +1000,7 @@ mod tests {
     fn test_send() {
         let mut buff = [0u8; 120];
         let mut writer = buff.as_mut_slice();
-        let mut mgr = make_manager(&mut writer, Evt {});
+        let mut mgr = make_manager(&mut writer);
 
         assert_eq!(mgr.send_send(Socket::new(7, 522), &[42]), Ok(()));
         assert_eq!(buff[CMD_OFFSET], 0x45);
@@ -1025,7 +1022,7 @@ mod tests {
     fn test_recv() {
         let mut buff = [0u8; 120];
         let mut writer = buff.as_mut_slice();
-        let mut mgr = make_manager(&mut writer, Evt {});
+        let mut mgr = make_manager(&mut writer);
 
         assert_eq!(mgr.send_recv(Socket::new(7, 522), 0x01020304), Ok(()));
         assert_eq!(buff[CMD_OFFSET], 0x46);
@@ -1043,7 +1040,7 @@ mod tests {
     fn test_recvfrom() {
         let mut buff = [0u8; 120];
         let mut writer = buff.as_mut_slice();
-        let mut mgr = make_manager(&mut writer, Evt {});
+        let mut mgr = make_manager(&mut writer);
 
         assert_eq!(mgr.send_recvfrom(Socket::new(7, 522), 0x01020304), Ok(()));
         assert_eq!(buff[CMD_OFFSET], 0x48);
@@ -1066,7 +1063,7 @@ mod tests {
         buff[OFFSET + 8] = 0xF4; // set negative status
         buff[OFFSET + 9] = 0xFF;
         let mut writer = buff.as_mut_slice();
-        let mut mgr = make_manager(&mut writer, Evt {});
+        let mut mgr = make_manager(&mut writer);
 
         let mut test = [2u8; 20];
         let (socket, _, dataslice, err) = mgr.get_recv_reply(2, &mut test).unwrap();
