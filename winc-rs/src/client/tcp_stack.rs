@@ -77,6 +77,7 @@ impl<'a, X: Xfer, E: EventListener> embedded_nal::TcpClientStack for WincClient<
     ) -> Result<usize, nb::Error<<Self as TcpClientStack>::Error>> {
         debug!("Receiving on socket {:?}", socket);
         self.dispatch_events()?;
+        debug!("Receiving on socket {:?}", socket);
         let (sock, op) = self.callbacks.tcp_sockets.get(*socket).unwrap();
         *op = ClientSocketOp::Recv;
         let op = *op;
