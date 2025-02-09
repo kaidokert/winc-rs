@@ -16,7 +16,7 @@
 
 repos:
 -   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v3.4.0
+    rev: v5.0.0
     hooks:
     -   id: trailing-whitespace
     -   id: end-of-file-fixer
@@ -58,7 +58,6 @@ repos:
       language: system
       entry: python -c 'import os, sys; os.environ["RUSTFLAGS"]="-D warnings"; sys.exit(os.system("cargo check --manifest-path=demos/Cargo.toml"))'
       # entry: cargo check --manifest-path=demos/Cargo.toml
-      env: RUSTFLAGS="-D warnings"
       files: \.(rs|toml)$
       pass_filenames: false
     - id: clippy_winc_rs
