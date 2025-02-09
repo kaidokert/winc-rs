@@ -1,7 +1,11 @@
 # WINC1500 Rust
 
+[![crate](https://img.shields.io/crates/v/wincwifi.svg)](https://crates.io/crates/wincwifi)
+[![documentation](https://docs.rs/wincwifi/badge.svg)](https://docs.rs/wincwifi/)
+[![Build](https://github.com/kaidokert/winc-rs/actions/workflows/rust.yaml/badge.svg)](https://github.com/kaidokert/winc-rs/actions/workflows/rust.yaml)
+
 This is draft code to interface with ATWINC1500 Wifi chip from Rust.
-Tested on Adafruit Feather M0 WiFi.
+Tested on [Adafruit Feather M0 WiFi](https://www.adafruit.com/product/3010).
 
 /feather dir has examples running on Feather
 /winc-rs is the library
