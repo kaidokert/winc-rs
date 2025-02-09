@@ -114,6 +114,7 @@ impl<'a, X: Xfer> embedded_nal::TcpClientStack for WincClient<'a, X> {
     }
 }
 
+#[cfg(feature = "tcp_server")]
 impl<'a, X: Xfer> TcpFullStack for WincClient<'a, X> {
     fn bind(&mut self, socket: &mut Self::TcpSocket, local_port: u16) -> Result<(), Self::Error> {
         self.dispatch_events()?;

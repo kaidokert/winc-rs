@@ -84,7 +84,9 @@ pub fn connect_and_run(
             ClientType::Udp => execute(ReturnClient::Udp(&mut stack))?,
             ClientType::Dns => execute(ReturnClient::Dns(&mut stack))?,
             ClientType::UdpFull => execute(ReturnClient::UdpFull(&mut stack))?,
+            #[cfg(feature = "dep:wincwifi/tcp_full")]
             ClientType::TcpFull => execute(ReturnClient::TcpFull(&mut stack))?,
+            _ => {}
         }
 
         loop {

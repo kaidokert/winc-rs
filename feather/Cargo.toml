@@ -28,8 +28,21 @@ nb = { version = "1.0"}
 cortex-m-systick-countdown = "0.1.0"
 
 embedded-nal = "=0.9.0"
-wincwifi = { path = "../winc-rs", default-features = false, features=["defmt"] }
+# wincwifi = { path = "../winc-rs", default-features = false, features=[ "defmt", "tcp_server", "tcp_client", "udp_server", "udp_client", "ping" ] }
+wincwifi = { path = "../winc-rs", default-features = false, features=[ "defmt"] }
 demos = { path = "../demos", default-features = false, features=["defmt"] }
+
+[[bin]]
+name = "udp_client"
+required-features = ["udp_client"]
+
+[features]
+default = ["udp_client"]
+udp_client = ["wincwifi/udp_client"]
+udp_server = ["wincwifi/udp_server"]
+tcp_client = ["wincwifi/tcp_client"]
+tcp_server = ["wincwifi/tcp_server"]
+ping = ["wincwifi/ping"]
 
 [dev-dependencies]
 defmt-test = "0.3"

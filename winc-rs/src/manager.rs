@@ -556,6 +556,8 @@ impl<X: Xfer> Manager<X> {
             .dma_block_write(self.not_a_reg_ctrl_4_dma + HIF_HEADER_OFFSET as u32, &req)?;
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
     }
+
+    #[cfg(feature = "tcp_server")]
     pub fn send_listen(&mut self, socket: Socket, backlog: u8) -> Result<(), Error> {
         let req = write_listen_req(socket, backlog)?;
         self.write_hif_header(
@@ -784,18 +786,22 @@ impl<X: Xfer> Manager<X> {
                     let rep = read_common_socket_reply(&result)?;
                     listener.on_bind(rep.0, rep.1);
                 }
+                #[cfg(feature = "tcp_server")]
                 IpCode::Listen => {
                     let mut result = [0; 4];
                     self.read_block(address, &mut result)?;
                     let rep = read_common_socket_reply(&result)?;
                     listener.on_listen(rep.0, rep.1);
                 }
+                #[cfg(feature = "tcp_server")]
                 IpCode::Accept => {
                     let mut result = [0; 12];
                     self.read_block(address, &mut result)?;
                     let rep = read_accept_reply(&result)?;
                     listener.on_accept(rep.0, rep.1, rep.2, rep.3);
                 }
+                #[cfg(not(feature = "tcp_server"))]
+                IpCode::Listen | IpCode::Accept => {}
                 IpCode::Connect => {
                     let mut result = [0; 4];
                     self.read_block(address, &mut result)?;
