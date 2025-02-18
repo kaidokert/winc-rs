@@ -5,11 +5,11 @@
     - [x] Connect to AP
     - [x] Scan
     - [ ] Connect with saved credentials
-- Fix the module start wait
+- [x] Fix the module start wait
 - Clean up data passing in client events
     - Maybe get rid of EventListener entirely
-- Refactor dispatch_events to be internal, don't expose to clients
-- [ ] Write docs to toplevel APIs
+- [x] Refactor dispatch_events to be internal, don't expose to clients
+- [ ] Write docs to toplevel APIs - Work in progress
 - Feature gate udp / tcp to make the binary smaller
 - Investigate and reduce bloat a bit more
 - Add missing tests

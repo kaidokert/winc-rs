@@ -24,6 +24,19 @@
 //!
 //! Connecting to AP, getting and IP, DNS lookups etc are implemented.
 //!
+//! Basic usage:
+//! ```
+//! // spi: something that implements the protocol transfer
+//! // delay_fn: a callback function that lets the library wait
+//! let mut client = WincClient::new(spi, delay_fn);
+//! nb::block!(client.start_wifi_module());
+//! nb::block!(client.connect_to_ap("ssid", "password"));
+//! nb::block!(client.get_host_by_name("google.com", AddrType::IPv4));
+//! loop {
+//!     delay_fn(1000);
+//!     client.heartbeat(); // periodically poll the chip
+//! }
+//! ```
 #![no_std]
 
 #[cfg(feature = "std")]

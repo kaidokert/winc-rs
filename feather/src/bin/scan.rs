@@ -25,13 +25,18 @@ fn program() -> Result<(), StackError> {
             &mut delay_ms2,
         );
 
-        stack
-            .start_module(&mut |v: u32| -> bool {
-                defmt::debug!("Waiting start .. {}", v);
-                delay_ms(20);
-                false
-            })
-            .unwrap();
+        let mut v = 0;
+        loop {
+            match stack.start_wifi_module() {
+                Ok(_) => break,
+                Err(nb::Error::WouldBlock) => {
+                    defmt::debug!("Waiting start .. {}", v);
+                    v += 1;
+                    delay_ms(5)
+                }
+                Err(e) => return Err(e.into()),
+            }
+        }
 
         defmt::info!("Scanning for access points ..");
         let num_aps = nb::block!(stack.scan())?;

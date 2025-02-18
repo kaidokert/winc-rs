@@ -34,30 +34,42 @@ impl<X: Xfer> WincClient<'_, X> {
         Ok(())
     }
 
-    // TODO: refactor this to use nb::Result, no callback
     /// Initializes the Wifi module - boots the firmware and
     /// does the rest of the initialization.
     ///
-    /// # Arguments
+    /// # Returns
     ///
-    /// * `wait_callback` - A callback function that is called when the module is ready.
-    ///
-    /// Note this isn't a great API, it'll be refactored
-    ///
-    pub fn start_module(
-        &mut self,
-        wait_callback: &mut dyn FnMut(u32) -> bool,
-    ) -> Result<(), StackError> {
-        if self.callbacks.state != WifiModuleState::Reset {
-            return Err(StackError::InvalidState);
+    /// * `()` - The Wifi module has been started.
+    /// * `nb::Error::WouldBlock` - The Wifi module is still starting.
+    /// * `StackError` - An error occurred while starting the Wifi module.
+    pub fn start_wifi_module(&mut self) -> nb::Result<(), StackError> {
+        match self.callbacks.state {
+            WifiModuleState::Reset => {
+                self.callbacks.state = WifiModuleState::Starting;
+                self.manager.set_crc_state(true);
+                self.boot = Some(Default::default());
+                Err(nb::Error::WouldBlock)
+            }
+            WifiModuleState::Starting => {
+                if let Some(state) = self.boot.as_mut() {
+                    let result = self
+                        .manager
+                        .boot_the_chip(state)
+                        .map_err(|x| nb::Error::Other(StackError::WincWifiFail(x)))?;
+                    if result {
+                        self.callbacks.state = WifiModuleState::Started;
+                        self.boot = None;
+                        return Ok(());
+                    }
+                    Err(nb::Error::WouldBlock)
+                } else {
+                    Err(nb::Error::Other(StackError::InvalidState))
+                }
+            }
+            _ => Err(nb::Error::Other(StackError::InvalidState)),
         }
-        self.callbacks.state = WifiModuleState::Starting;
-        self.manager.set_crc_state(true);
-        self.manager.start(wait_callback)?;
-        self.callbacks.state = WifiModuleState::Started;
-
-        Ok(())
     }
+
     pub fn connect_to_ap(&mut self, ssid: &str, password: &str) -> nb::Result<(), StackError> {
         match self.callbacks.state {
             WifiModuleState::Reset | WifiModuleState::Starting => {

@@ -129,6 +129,33 @@ pub struct Manager<X: Xfer> {
     chip: ChipAccess<X>,
 }
 
+/// The stages of the boot process
+#[derive(Debug, PartialEq)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub(crate) enum BootStage {
+    Start,
+    StartBootrom,
+    Stage2,
+    Stage3,
+    Stage4,
+    StageStartFirmware,
+    FinishFirmwareBoot,
+}
+
+/// Stores boot state for the long-running boot
+/// process
+pub(crate) struct BootState {
+    stage: BootStage,
+    loop_value: u32,
+}
+impl Default for BootState {
+    fn default() -> Self {
+        Self {
+            stage: BootStage::Start,
+            loop_value: 0,
+        }
+    }
+}
 impl<X: Xfer> Manager<X> {
     // Todo: provide a version without listener, defaulting to as stub
     pub fn from_xfer(xfer: X) -> Self {
@@ -175,75 +202,82 @@ impl<X: Xfer> Manager<X> {
         // clear bit 1 of WAKE_CLK_REG
         // read CLOCKS_EN_REG, check for bit 2
     }
-    pub fn wait_bootrom(&mut self, f: &mut dyn FnMut(u32) -> bool) -> Result<bool, Error> {
-        const MAX_LOOPS: u32 = 10;
 
-        let mut val = 0;
-        loop {
-            let efuse = self.chip.single_reg_read(Regs::EFuseRead.into())? & 0x80000000;
-            if efuse != 0 {
-                break;
-            }
-            if val >= MAX_LOOPS || f(val) {
-                return Ok(false);
-            }
-            val += 1;
-        }
-        let mut host_wait = self.chip.single_reg_read(Regs::WaitForHost.into())? & 0x1;
+    // This is a re-write of the old start functions below
+    pub fn boot_the_chip(&mut self, state: &mut BootState) -> Result<bool, Error> {
+        const MAX_LOOPS: u32 = 10;
         const FINISH_BOOT_ROM: u32 = 0x10add09e;
-        if host_wait == 0 {
-            val = 0;
-            while host_wait != FINISH_BOOT_ROM {
-                host_wait = self.chip.single_reg_read(Regs::BootRom.into())?;
-                if val > MAX_LOOPS || f(val) {
-                    return Ok(false);
+        info!("Waiting for chip start .. stage: {:?}", state.stage);
+        match state.stage {
+            BootStage::Start => {
+                info!("chip id {:x} rev:{:x}", self.chip_id()?, self.chip_rev()?);
+                self.configure_spi_packetsize()?;
+                state.stage = BootStage::StartBootrom;
+                state.loop_value = 0;
+            }
+            BootStage::StartBootrom => {
+                if state.loop_value >= MAX_LOOPS {
+                    return Err(Error::BootRoomStart);
                 }
-                val += 1;
+                let efuse = self.chip.single_reg_read(Regs::EFuseRead.into())? & 0x80000000;
+                if efuse != 0 {
+                    state.stage = BootStage::Stage2;
+                }
+            }
+            BootStage::Stage2 => {
+                let host_wait = self.chip.single_reg_read(Regs::WaitForHost.into())? & 0x1;
+                if host_wait != 0 {
+                    state.stage = BootStage::Stage4;
+                } else {
+                    state.stage = BootStage::Stage3;
+                    state.loop_value = 0;
+                }
+            }
+            BootStage::Stage3 => {
+                if state.loop_value >= MAX_LOOPS {
+                    return Err(Error::BootRoomStart);
+                }
+                let host_wait = self.chip.single_reg_read(Regs::BootRom.into())?;
+                if host_wait == FINISH_BOOT_ROM {
+                    state.stage = BootStage::Stage4;
+                }
+            }
+            BootStage::Stage4 => {
+                let driver_rev = 0x13521352; // todo
+                self.chip
+                    .single_reg_write(Regs::NmiState.into(), driver_rev)?;
+                self.chip_id()?;
+                // write conf
+                let mut conf: u32 = 0;
+                conf |= 0x102; // Reserved + ENABLE_PMU bit
+                self.chip.single_reg_write(Regs::NmiGp1.into(), conf)?;
+                let verify = self.chip.single_reg_read(Regs::NmiGp1.into())?;
+                assert_eq!(verify, conf); // todo: loop
+                                          // start firmware
+                const START_FIRMWARE: u32 = 0xef522f61;
+                self.chip
+                    .single_reg_write(Regs::BootRom.into(), START_FIRMWARE)?;
+                state.stage = BootStage::StageStartFirmware;
+                state.loop_value = 0;
+            }
+            BootStage::StageStartFirmware => {
+                if state.loop_value >= MAX_LOOPS {
+                    return Err(Error::FirmwareStart);
+                }
+                const FINISH_INIT: u32 = 0x02532636;
+                let reg = self.chip.single_reg_read(Regs::NmiState.into())?;
+                if reg == FINISH_INIT {
+                    state.stage = BootStage::FinishFirmwareBoot;
+                }
+            }
+            BootStage::FinishFirmwareBoot => {
+                self.chip.single_reg_write(Regs::NmiState.into(), 0)?;
+                self.enable_interrupt_pins()?;
+                return Ok(true);
             }
         }
-        let driver_rev = 0x13521352; // todo
-        self.chip
-            .single_reg_write(Regs::NmiState.into(), driver_rev)?;
-        self.chip_id()?;
-        // write conf
-        let mut conf: u32 = 0;
-        conf |= 0x102; // Reserved + ENABLE_PMU bit
-        self.chip.single_reg_write(Regs::NmiGp1.into(), conf)?;
-        let verify = self.chip.single_reg_read(Regs::NmiGp1.into())?;
-        assert_eq!(verify, conf); // todo: loop
-                                  // start firmware
-        const START_FIRMWARE: u32 = 0xef522f61;
-        self.chip
-            .single_reg_write(Regs::BootRom.into(), START_FIRMWARE)?;
-        Ok(true)
-    }
-    pub fn wait_firmware_start(&mut self, f: &mut dyn FnMut(u32) -> bool) -> Result<bool, Error> {
-        const MAX_LOOPS: u32 = 10;
-        const FINISH_INIT: u32 = 0x02532636;
-        let mut val = 0;
-        loop {
-            let reg = self.chip.single_reg_read(Regs::NmiState.into())?;
-            if reg == FINISH_INIT {
-                break;
-            }
-            if val > MAX_LOOPS || f(val) {
-                return Ok(false);
-            }
-            val += 1;
-        }
-        self.chip.single_reg_write(Regs::NmiState.into(), 0)?;
-        Ok(true)
-    }
-
-    // wait for both bootrom and firmware start
-    pub fn wait_chip_start(&mut self, f: &mut dyn FnMut(u32) -> bool) -> Result<bool, Error> {
-        match self.wait_bootrom(f) {
-            Ok(true) => match self.wait_firmware_start(f) {
-                Ok(true) => Ok(true),
-                _ => Err(Error::FirmwareStart),
-            },
-            _ => Err(Error::BootRoomStart),
-        }
+        state.loop_value += 1;
+        Ok(false)
     }
 
     pub fn configure_spi_packetsize(&mut self) -> Result<(), Error> {
@@ -252,16 +286,6 @@ impl<X: Xfer> Manager<X> {
         conf |= 0x00000050; // set to 8k packet size
         self.chip.single_reg_write(Regs::SpiConfig.into(), conf)?;
         trace!("Set spiconfig to {:x}", conf);
-        Ok(())
-    }
-
-    pub fn start(&mut self, wait: &mut dyn FnMut(u32) -> bool) -> Result<(), Error> {
-        info!("chip id {:x} rev:{:x}", self.chip_id()?, self.chip_rev()?);
-        self.configure_spi_packetsize()?;
-        if !self.wait_chip_start(wait)? {
-            return Err(Error::FirmwareStart);
-        };
-        self.enable_interrupt_pins()?;
         Ok(())
     }
 

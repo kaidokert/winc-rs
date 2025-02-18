@@ -63,13 +63,18 @@ pub fn connect_and_run(
             &mut delay_ms2,
         );
 
-        stack
-            .start_module(&mut |v: u32| -> bool {
-                defmt::debug!("Waiting start .. {}", v);
-                delay_ms(20);
-                false
-            })
-            .unwrap();
+        let mut v = 0;
+        loop {
+            match stack.start_wifi_module() {
+                Ok(_) => break,
+                Err(nb::Error::WouldBlock) => {
+                    defmt::debug!("Waiting start .. {}", v);
+                    v += 1;
+                    delay_ms(5)
+                }
+                Err(e) => return Err(e.into()),
+            }
+        }
 
         defmt::debug!("Chip started..");
 
@@ -81,7 +86,7 @@ pub fn connect_and_run(
         defmt::info!("Network connected");
         for _ in 0..10 {
             delay_ms(50);
-            stack.dispatch_events()?;
+            stack.heartbeat()?;
         }
         defmt::info!("Running the demo..");
         match client_type {
@@ -93,7 +98,7 @@ pub fn connect_and_run(
         }
 
         loop {
-            stack.dispatch_events()?;
+            stack.heartbeat()?;
 
             delay_ms(200u32);
             red_led.set_high()?;

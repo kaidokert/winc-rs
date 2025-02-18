@@ -565,6 +565,7 @@ pub struct WincClient<'a, X: Xfer> {
     next_session_id: u16,
     // TODO: Lets change that per socket
     last_send_addr: Option<core::net::SocketAddrV4>,
+    boot: Option<crate::manager::BootState>,
 }
 
 impl<'a, X: Xfer> WincClient<'a, X> {
@@ -600,6 +601,7 @@ impl<'a, X: Xfer> WincClient<'a, X> {
             poll_loop_delay: Self::POLL_LOOP_DELAY,
             next_session_id: 0,
             last_send_addr: None,
+            boot: None,
         }
     }
     fn get_next_session_id(&mut self) -> u16 {
@@ -607,7 +609,7 @@ impl<'a, X: Xfer> WincClient<'a, X> {
         self.next_session_id += 1;
         ret
     }
-    pub fn dispatch_events(&mut self) -> Result<(), StackError> {
+    fn dispatch_events(&mut self) -> Result<(), StackError> {
         self.manager
             .dispatch_events_new(&mut self.callbacks)
             .map_err(StackError::DispatchError)

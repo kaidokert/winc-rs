@@ -20,7 +20,7 @@ where
     T: Dns + ?Sized,
     T::Error: From<embedded_nal::nb::Error<T::Error>>,
 {
-    let ip = stack.get_host_by_name(host, embedded_nal::AddrType::IPv4);
+    let ip = nb::block!(stack.get_host_by_name(host, embedded_nal::AddrType::IPv4));
     match ip {
         Ok(IpAddr::V4(ip)) => {
             let octets = ip.octets();
