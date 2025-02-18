@@ -68,6 +68,7 @@ impl core::fmt::Display for WifiConnError {
     }
 }
 
+/// Type of authentication used by an access point
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[derive(Debug, PartialEq, Default)]
 pub enum AuthType {

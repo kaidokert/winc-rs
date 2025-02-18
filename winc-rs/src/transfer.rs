@@ -14,67 +14,23 @@
 
 pub use crate::readwrite::{Read, Write};
 
-#[cfg(feature = "std")]
-use std::{thread, time};
-
 use crate::errors::Error;
-use arrayvec::{ArrayVec, CapacityError};
 
-type TmpBuffer = ArrayVec<u8, 256>;
-
+/// Trait for reading and writing data
 pub trait ReadWrite: Read + Write {}
 impl<U> ReadWrite for U where U: Read + Write {}
 
-fn concat<'a>(
-    dest: &'a mut TmpBuffer,
-    slice1: &[u8],
-    slice2: &[u8],
-) -> Result<&'a TmpBuffer, CapacityError> {
-    dest.clear();
-    dest.try_extend_from_slice(slice1)?;
-    dest.try_extend_from_slice(slice2)?;
-    Ok(dest)
-}
-
+/// Trait for transferring data to/from the WincWifi chip
+///
+/// Implement this trait directly, or implement [Read] and [Write]
+/// and use the blanket implementation.
+/// There is an example SPI implementantion in demo crate.
 pub trait Xfer {
     fn recv(&mut self, dest: &mut [u8]) -> Result<(), Error>;
     fn send(&mut self, src: &[u8]) -> Result<(), Error>;
 }
 
-// Debug implementation of Xfer. Prefixes read/write with a 3-byte header.
-pub struct PrefixXfer<T: ReadWrite> {
-    stream: T,
-}
-impl<T: ReadWrite> PrefixXfer<T> {
-    pub fn new(stream: T) -> Self {
-        PrefixXfer { stream }
-    }
-}
-
-impl<T: ReadWrite> Xfer for PrefixXfer<T> {
-    fn recv(&mut self, dest: &mut [u8]) -> Result<(), Error> {
-        let rd_cmnd = [0xA2, 0x00, dest.len() as u8];
-        self.stream.write(&rd_cmnd).map_err(|_| Error::WriteError)?;
-        self.stream.read_exact(dest).map_err(|_| Error::ReadError)?;
-        Ok(())
-    }
-
-    fn send(&mut self, src: &[u8]) -> Result<(), Error> {
-        let wr_cmnd = [0x81, 00, src.len() as u8];
-        let wr_slice = &wr_cmnd[..];
-        let mut buf = TmpBuffer::new();
-        concat(&mut buf, wr_slice, src)?;
-        self.stream
-            .write(buf.as_slice())
-            .map_err(|_| Error::WriteError)?;
-
-        #[cfg(feature = "std")]
-        thread::sleep(time::Duration::from_millis(10));
-
-        Ok(())
-    }
-}
-
+// Blanket implementation
 impl<U> Xfer for U
 where
     U: ReadWrite,
@@ -85,21 +41,5 @@ where
     fn send(&mut self, src: &[u8]) -> Result<(), Error> {
         self.write(src).map_err(|_| Error::WriteError)?;
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-
-    use super::*;
-
-    #[test]
-    fn test_concat() {
-        let mut array = TmpBuffer::new();
-
-        assert_eq!(
-            concat(&mut array, &[1u8; 2], &[2u8; 3]).unwrap().as_slice(),
-            &[1, 1, 2, 2, 2]
-        );
     }
 }

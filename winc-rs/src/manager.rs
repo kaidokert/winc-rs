@@ -36,6 +36,8 @@ pub use responses::{ConnectionInfo, ScanResult};
 
 use core::net::{Ipv4Addr, SocketAddrV4};
 
+pub use responses::FirmwareInfo;
+
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[derive(Debug, PartialEq, Default)]
 enum HifGroup {
@@ -146,6 +148,7 @@ impl<X: Xfer> Manager<X> {
         self.chip.single_reg_read(Regs::ChipRev.into())
     }
 
+    #[allow(dead_code)] // todo
     pub fn get_firmware_ver_short(&mut self) -> Result<(Revision, Revision), Error> {
         let res = self.chip.single_reg_read(Regs::NmiRev.into())?;
         let unpack = res.to_le_bytes();
@@ -163,6 +166,7 @@ impl<X: Xfer> Manager<X> {
         ))
     }
 
+    #[allow(dead_code)] // todo
     pub fn chip_wake() {
         unimplemented!()
         // read HOST_CORT_COMM
@@ -431,6 +435,8 @@ impl<X: Xfer> Manager<X> {
             val,
         )
     }
+
+    #[allow(dead_code)] // todo: this is supposed to connect with stored credentials
     pub fn send_default_connect(&mut self) -> Result<(), Error> {
         self.write_hif_header(
             HifGroup::Wifi(WifiResponse::Unhandled),

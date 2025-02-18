@@ -8,7 +8,6 @@ use bsp::hal::prelude::*;
 use bsp::shared::{create_delay_closure, SpiStream};
 use cortex_m_systick_countdown::MillisCountDown;
 
-use wincwifi::manager::Manager;
 use wincwifi::{StackError, WincClient};
 
 fn program() -> Result<(), StackError> {
@@ -21,12 +20,10 @@ fn program() -> Result<(), StackError> {
         let mut delay_ms = create_delay_closure(&mut countdown1);
         let mut delay_ms2 = create_delay_closure(&mut countdown2);
 
-        let manager = Manager::from_xfer(SpiStream::new(
-            cs,
-            spi,
-            create_delay_closure(&mut countdown3),
-        ));
-        let mut stack = WincClient::new(manager, &mut delay_ms2);
+        let mut stack = WincClient::new(
+            SpiStream::new(cs, spi, create_delay_closure(&mut countdown3)),
+            &mut delay_ms2,
+        );
 
         stack
             .start_module(&mut |v: u32| -> bool {

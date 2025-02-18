@@ -253,7 +253,72 @@ impl<X: Xfer> ChipAccess<X> {
 #[cfg(test)]
 mod tests {
 
+    use arrayvec::{ArrayVec, CapacityError};
+
+    #[cfg(feature = "std")]
+    use std::{thread, time};
+
     use super::*;
+
+    type TmpBuffer = ArrayVec<u8, 256>;
+
+    fn concat<'a>(
+        dest: &'a mut TmpBuffer,
+        slice1: &[u8],
+        slice2: &[u8],
+    ) -> Result<&'a TmpBuffer, CapacityError> {
+        dest.clear();
+        dest.try_extend_from_slice(slice1)?;
+        dest.try_extend_from_slice(slice2)?;
+        Ok(dest)
+    }
+
+    /// Debug implementation of Xfer trait.
+    ///
+    /// Prefixes read/write with a 3-byte header ( good for sending
+    /// over the wire to a development host or such )
+    pub(crate) struct PrefixXfer<T: ReadWrite> {
+        stream: T,
+    }
+    impl<T: ReadWrite> PrefixXfer<T> {
+        pub fn new(stream: T) -> Self {
+            PrefixXfer { stream }
+        }
+    }
+
+    impl<T: ReadWrite> Xfer for PrefixXfer<T> {
+        fn recv(&mut self, dest: &mut [u8]) -> Result<(), Error> {
+            let rd_cmnd = [0xA2, 0x00, dest.len() as u8];
+            self.stream.write(&rd_cmnd).map_err(|_| Error::WriteError)?;
+            self.stream.read_exact(dest).map_err(|_| Error::ReadError)?;
+            Ok(())
+        }
+
+        fn send(&mut self, src: &[u8]) -> Result<(), Error> {
+            let wr_cmnd = [0x81, 00, src.len() as u8];
+            let wr_slice = &wr_cmnd[..];
+            let mut buf = TmpBuffer::new();
+            concat(&mut buf, wr_slice, src)?;
+            self.stream
+                .write(buf.as_slice())
+                .map_err(|_| Error::WriteError)?;
+
+            #[cfg(feature = "std")]
+            thread::sleep(time::Duration::from_millis(10));
+
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn test_concat() {
+        let mut array = TmpBuffer::new();
+
+        assert_eq!(
+            concat(&mut array, &[1u8; 2], &[2u8; 3]).unwrap().as_slice(),
+            &[1, 1, 2, 2, 2]
+        );
+    }
 
     fn mkreg(reg: u32) -> [u8; 5] {
         let mut cmd = [0u8; 5];

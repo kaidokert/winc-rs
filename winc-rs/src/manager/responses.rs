@@ -85,6 +85,7 @@ fn from_c_byte_slice<const N: usize>(input: &[u8]) -> Result<ArrayString<N>, Str
     Ok(ret)
 }
 
+/// A revision number of the firmware
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[derive(Debug, PartialEq)]
 pub struct Revision {
@@ -93,6 +94,7 @@ pub struct Revision {
     pub patch: u8,
 }
 
+/// Information about the firmware version of the Wifi module
 pub struct FirmwareInfo {
     pub chip_id: u32,
     pub firmware_revison: Revision,
@@ -185,6 +187,7 @@ impl core::fmt::Display for ConnectionInfo {
     }
 }
 
+/// Result of a scan for access points
 #[derive(Debug, PartialEq, Default)]
 pub struct ScanResult {
     pub index: u8,
@@ -192,6 +195,7 @@ pub struct ScanResult {
     pub auth: AuthType,
     pub channel: u8,
     pub bssid: [u8; 6], // todo: special bssid type?
+    /// SSID of the access point
     pub ssid: Ssid,
 }
 

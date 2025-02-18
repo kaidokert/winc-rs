@@ -19,11 +19,10 @@
 //! Barebones [embedded_nal::TcpClientStack] and [embedded_nal::TcpClientStack]
 //! are there, but not well tested.
 //!
-//! The low-lever library is in [manager] module, it's the part that wraps the
-//! HIF protocol and the chip registers.
+//! The low-lever library is in internal `manager`` module, it's the part that
+//! wraps the HIF protocol and the chip registers.
 //!
 //! Connecting to AP, getting and IP, DNS lookups etc are implemented.
-//!
 //!
 #![no_std]
 
@@ -40,9 +39,9 @@ pub(crate) use log::{debug, error, info, trace, warn};
 
 mod client;
 pub mod errors;
-pub mod manager;
+mod manager;
 pub mod readwrite;
-pub mod socket;
+mod socket;
 pub mod transfer;
 
 #[cfg(feature = "defmt")]
@@ -50,6 +49,11 @@ use core::fmt::Write;
 
 pub use client::StackError;
 pub use client::WincClient;
+pub use manager::AuthType;
+pub use manager::FirmwareInfo;
+
+// TODO: maybe don't expose this directly
+pub use manager::ScanResult;
 
 // TODO: None of this should be public
 pub use client::Handle;
@@ -114,4 +118,4 @@ impl<'a> defmt::Format for HexWrap<'a> {
 }
 
 mod nonstd;
-pub use nonstd::Ipv4AddrFormatWrapper;
+use nonstd::Ipv4AddrFormatWrapper;

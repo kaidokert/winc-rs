@@ -13,6 +13,22 @@ use crate::Ipv4AddrFormatWrapper;
 use crate::{debug, error};
 use embedded_nal::nb;
 
+impl<X: Xfer> WincClient<'_, X> {
+    /// Todo: actually implement this
+    pub fn set_socket_option(
+        &mut self,
+        socket: &Handle,
+        option: u8,
+        value: u32,
+    ) -> Result<(), StackError> {
+        let (sock, _op) = self.callbacks.tcp_sockets.get(*socket).unwrap();
+        self.manager
+            .send_setsockopt(*sock, option, value)
+            .map_err(StackError::WincWifiFail)?;
+        Ok(())
+    }
+}
+
 impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {
     type TcpSocket = Handle;
     type Error = StackError;

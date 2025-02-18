@@ -4,7 +4,6 @@ use feather::{
     init::init,
     shared::{create_delay_closure, SpiStream},
 };
-use wincwifi::manager::Manager;
 
 use super::bsp::hal::prelude::*;
 use wincwifi::Handle;
@@ -59,12 +58,11 @@ pub fn connect_and_run(
         let mut delay_ms = create_delay_closure(&mut countdown1);
         let mut delay_ms2 = create_delay_closure(&mut countdown3);
 
-        let manager = Manager::from_xfer(SpiStream::new(
-            cs,
-            spi,
-            create_delay_closure(&mut countdown2),
-        ));
-        let mut stack = WincClient::new(manager, &mut delay_ms2);
+        let mut stack = WincClient::new(
+            SpiStream::new(cs, spi, create_delay_closure(&mut countdown2)),
+            &mut delay_ms2,
+        );
+
         stack
             .start_module(&mut |v: u32| -> bool {
                 defmt::debug!("Waiting start .. {}", v);
@@ -81,6 +79,11 @@ pub fn connect_and_run(
         nb::block!(stack.connect_to_ap(ssid, password))?;
 
         defmt::info!("Network connected");
+        for _ in 0..10 {
+            delay_ms(50);
+            stack.dispatch_events()?;
+        }
+        defmt::info!("Running the demo..");
         match client_type {
             ClientType::Tcp => execute(ReturnClient::Tcp(&mut stack))?,
             ClientType::Udp => execute(ReturnClient::Udp(&mut stack))?,

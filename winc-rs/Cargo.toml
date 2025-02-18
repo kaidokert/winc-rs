@@ -1,6 +1,6 @@
 [package]
 name = "wincwifi"
-version = "0.1.4"
+version = "0.1.5"
 edition = "2021"
 license = "Apache-2.0"
 authors = ["kaidokert <kaidokert@gmail.com>"]
@@ -39,7 +39,6 @@ arrayvec =  { version = "0.7.2", default-features = false }
 # TODO: Remove maybe ?
 void = { version =  "1", default-features = false }
 
-simple_logger = { version = "4.0.0", default-features = false, optional=true }
 defmt = { version = "0.3.2", default-features = false, optional=true }
 
 [dev-dependencies]

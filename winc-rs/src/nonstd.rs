@@ -14,6 +14,7 @@
 
 use core::net::Ipv4Addr;
 
+/// Wrapper to dump Ipv4Addr
 #[derive(Debug)]
 pub struct Ipv4AddrFormatWrapper<'a> {
     #[allow(unused)]

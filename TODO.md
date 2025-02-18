@@ -9,7 +9,7 @@
 - Clean up data passing in client events
     - Maybe get rid of EventListener entirely
 - Refactor dispatch_events to be internal, don't expose to clients
-- Write docs to toplevel APIs
+- [ ] Write docs to toplevel APIs
 - Feature gate udp / tcp to make the binary smaller
 - Investigate and reduce bloat a bit more
 - Add missing tests

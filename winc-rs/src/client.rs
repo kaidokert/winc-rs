@@ -13,9 +13,10 @@ use crate::manager::SocketError;
 
 use crate::{debug, error, info};
 
+/// Handle to a socket. Returned by socket APIs
 #[derive(Clone, Copy, PartialEq, Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub struct Handle(pub u8);
+pub struct Handle(u8);
 
 mod dns;
 mod stack_error;
@@ -551,6 +552,10 @@ pub enum GenResult {
     Accept(core::net::SocketAddrV4, Socket),
 }
 
+/// Client for the WincWifi chip.
+///
+/// This manages the state of the chip and
+/// network connections
 pub struct WincClient<'a, X: Xfer> {
     manager: Manager<X>,
     delay: &'a mut dyn FnMut(u32),
@@ -572,7 +577,21 @@ impl<'a, X: Xfer> WincClient<'a, X> {
     const CONNECT_TIMEOUT: u32 = 1000;
     const DNS_TIMEOUT: u32 = 1000;
     const POLL_LOOP_DELAY: u32 = 10;
-    pub fn new(manager: Manager<X>, delay: &'a mut impl FnMut(u32)) -> Self {
+    /// Create a new WincClient..
+    ///
+    /// # Arguments
+    ///
+    /// * `transfer` - The transfer implementation to use for client,
+    ///             typically a struct wrapping SPI communication.
+    /// * `delay` - A delay function. Currently required - a closure
+    ///             that takes millisconds as an arg.
+    ///
+    ///  See [Xfer] for details how to implement a transfer struct.
+    pub fn new(transfer: X, delay: &'a mut impl FnMut(u32)) -> Self {
+        let manager = Manager::from_xfer(transfer);
+        Self::new_internal(manager, delay)
+    }
+    fn new_internal(manager: Manager<X>, delay: &'a mut impl FnMut(u32)) -> Self {
         Self {
             manager,
             callbacks: SocketCallbacks::new(),

@@ -16,6 +16,9 @@ impl<E> From<E> for ReadExactError<E> {
 #[derive(Debug)]
 pub struct BufferOverflow;
 
+/// Trait for reading data from a source
+///
+/// Interface mimics std::io::Read
 pub trait Read {
     type ReadError;
     fn available_bytes(&self, _at_least: usize) -> bool {
@@ -40,6 +43,9 @@ pub trait Read {
     }
 }
 
+/// Trait for writing data to a destination
+///
+/// Interface mimics std::io::Write
 pub trait Write {
     type WriteError;
     fn write(&mut self, buf: &[u8]) -> Result<usize, Self::WriteError>;
