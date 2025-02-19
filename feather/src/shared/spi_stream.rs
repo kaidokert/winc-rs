@@ -4,20 +4,24 @@ use defmt::trace;
 use hal::gpio::AnyPin;
 
 use hal::ehal::digital::OutputPin;
-use wincwifi::transfer::{Read, Write};
+use wincwifi::transfer::Xfer;
 
-use super::DelayTrait;
-use super::TransferSpi;
+use super::SpiBus;
 use core::mem::take;
 
-// TODO: Maybe this doesn't need a delay
-pub struct SpiStream<CS: AnyPin, Spi: TransferSpi, Delay: DelayTrait> {
+// Helper trait to define the signature once
+pub trait DelayFunc: FnMut(u32) {}
+impl<U> DelayFunc for U where U: FnMut(u32) {}
+
+// TODO: Maybe this doesn't need a delay at all
+pub struct SpiStream<CS: AnyPin, Spi: SpiBus, Delay: DelayFunc> {
     cs: Option<CS>,
     spi: Spi,
+    // Alternative: delay: &'a mut dyn FnMut(u32) as a borrow
     delay: Delay,
 }
 
-impl<CS: AnyPin, Spi: TransferSpi, Delay: DelayTrait> SpiStream<CS, Spi, Delay> {
+impl<CS: AnyPin, Spi: SpiBus, Delay: DelayFunc> SpiStream<CS, Spi, Delay> {
     pub fn new(cs: CS, spi: Spi, delay: Delay) -> Self {
         SpiStream {
             cs: Some(cs),
@@ -45,29 +49,21 @@ impl<CS: AnyPin, Spi: TransferSpi, Delay: DelayTrait> SpiStream<CS, Spi, Delay> 
     }
 }
 
-impl<CS: AnyPin, Spi: TransferSpi, Delay: DelayTrait> Read for SpiStream<CS, Spi, Delay> {
-    type ReadError = wincwifi::errors::Error;
-
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize, Self::ReadError> {
-        self.transfer(buf)
+impl<CS: AnyPin, Spi: SpiBus, Delay: DelayFunc> Xfer for SpiStream<CS, Spi, Delay> {
+    fn recv(&mut self, dest: &mut [u8]) -> Result<(), wincwifi::errors::Error> {
+        self.transfer(dest)
             .map_err(|_| wincwifi::errors::Error::ReadError)?;
-        trace!("Stream: read {} {=[u8]:#x} bytes", buf.len(), buf);
-        Ok(buf.len())
+        trace!("Stream: read {} {=[u8]:#x} bytes", dest.len(), dest);
+        Ok(())
     }
-}
 
-impl<CS: AnyPin, Spi: TransferSpi, Delay: DelayTrait> Write for SpiStream<CS, Spi, Delay> {
-    type WriteError = wincwifi::errors::Error;
-
-    fn write(&mut self, buf: &[u8]) -> Result<usize, Self::WriteError> {
-        // TODO : Maybe we can do away with the copy and fixed buffer and not panic here
-        // or at least loop
+    fn send(&mut self, src: &[u8]) -> Result<(), wincwifi::errors::Error> {
         let mut tmp = [0; 256];
-        let tmp_slice = &mut tmp[0..buf.len()];
-        tmp_slice.clone_from_slice(buf);
-        trace!("Stream: writing {=[u8]:#x} bytes", buf);
+        let tmp_slice = &mut tmp[0..src.len()];
+        tmp_slice.clone_from_slice(src);
+        trace!("Stream: writing {=[u8]:#x} bytes", src);
         self.transfer(tmp_slice)
             .map_err(|_| wincwifi::errors::Error::WriteError)?;
-        Ok(buf.len())
+        Ok(())
     }
 }

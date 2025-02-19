@@ -43,9 +43,6 @@
 extern crate std;
 
 #[cfg(feature = "defmt")]
-use arrayvec::ArrayString;
-
-#[cfg(feature = "defmt")]
 pub(crate) use defmt::{debug, error, info, trace, warn};
 #[cfg(not(feature = "defmt"))]
 pub(crate) use log::{debug, error, info, trace, warn};
@@ -57,12 +54,10 @@ pub mod readwrite;
 mod socket;
 pub mod transfer;
 
-#[cfg(feature = "defmt")]
-use core::fmt::Write;
-
 pub use client::StackError;
 pub use client::WincClient;
 pub use manager::AuthType;
+pub use manager::ConnectionInfo;
 pub use manager::FirmwareInfo;
 
 // TODO: maybe don't expose this directly
@@ -90,18 +85,16 @@ impl From<arrayvec::CapacityError> for StrError {
 }
 
 #[cfg(feature = "defmt")]
-fn display_to_defmt<T: core::fmt::Display>(f: defmt::Formatter, v: &T) {
-    let mut x = ArrayString::<40>::default();
-    write!(&mut x, "{}", v).ok();
-    defmt::write!(f, "{}", &x as &str)
-}
-
-#[cfg(feature = "defmt")]
 impl defmt::Format for StrError {
     fn format(&self, f: defmt::Formatter) {
         match self {
-            Self::Utf8Error(e) => display_to_defmt(f, e),
-            Self::CapacityError(e) => display_to_defmt(f, e),
+            Self::Utf8Error(e) => defmt::write!(
+                f,
+                "UTF-8 error: invalid sequence at position {}, error length: {:?}",
+                e.valid_up_to(),
+                e.error_len()
+            ),
+            Self::CapacityError(_) => defmt::write!(f, "Capacity error: array full"),
         }
     }
 }

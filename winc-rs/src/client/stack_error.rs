@@ -30,6 +30,7 @@ pub enum StackError {
     InvalidState,
     AlreadyConnected,
     ApJoinFailed(WifiConnError),
+    ApScanFailed(WifiConnError),
 }
 
 impl From<core::convert::Infallible> for StackError {

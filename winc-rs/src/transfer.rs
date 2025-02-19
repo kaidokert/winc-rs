@@ -12,18 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-pub use crate::readwrite::{Read, Write};
+use crate::readwrite::{Read, Write};
 
 use crate::errors::Error;
 
 /// Trait for reading and writing data
-pub trait ReadWrite: Read + Write {}
+pub(crate) trait ReadWrite: Read + Write {}
 impl<U> ReadWrite for U where U: Read + Write {}
 
 /// Trait for transferring data to/from the WincWifi chip
 ///
-/// Implement this trait directly, or implement [Read] and [Write]
-/// and use the blanket implementation.
 /// There is an example SPI implementantion in demo crate.
 pub trait Xfer {
     fn recv(&mut self, dest: &mut [u8]) -> Result<(), Error>;

@@ -22,7 +22,7 @@ mod chip_access;
 mod constants;
 mod requests;
 mod responses;
-use crate::{debug, info, trace};
+use crate::{debug, trace};
 use chip_access::ChipAccess;
 use constants::WifiRequest;
 pub use constants::{AuthType, PingError, SocketError, WifiConnState}; // todo response shouldn't be leaking
@@ -207,10 +207,10 @@ impl<X: Xfer> Manager<X> {
     pub fn boot_the_chip(&mut self, state: &mut BootState) -> Result<bool, Error> {
         const MAX_LOOPS: u32 = 10;
         const FINISH_BOOT_ROM: u32 = 0x10add09e;
-        info!("Waiting for chip start .. stage: {:?}", state.stage);
+        debug!("Waiting for chip start .. stage: {:?}", state.stage);
         match state.stage {
             BootStage::Start => {
-                info!("chip id {:x} rev:{:x}", self.chip_id()?, self.chip_rev()?);
+                debug!("chip id {:x} rev:{:x}", self.chip_id()?, self.chip_rev()?);
                 self.configure_spi_packetsize()?;
                 state.stage = BootStage::StartBootrom;
                 state.loop_value = 0;
@@ -460,7 +460,6 @@ impl<X: Xfer> Manager<X> {
         )
     }
 
-    #[allow(dead_code)] // todo: this is supposed to connect with stored credentials
     pub fn send_default_connect(&mut self) -> Result<(), Error> {
         self.write_hif_header(
             HifGroup::Wifi(WifiResponse::Unhandled),

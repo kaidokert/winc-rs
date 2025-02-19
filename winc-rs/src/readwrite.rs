@@ -19,7 +19,7 @@ pub struct BufferOverflow;
 /// Trait for reading data from a source
 ///
 /// Interface mimics std::io::Read
-pub trait Read {
+pub(crate) trait Read {
     type ReadError;
     fn available_bytes(&self, _at_least: usize) -> bool {
         true
@@ -46,9 +46,10 @@ pub trait Read {
 /// Trait for writing data to a destination
 ///
 /// Interface mimics std::io::Write
-pub trait Write {
+pub(crate) trait Write {
     type WriteError;
     fn write(&mut self, buf: &[u8]) -> Result<usize, Self::WriteError>;
+    #[allow(dead_code)]
     fn write_all(&mut self, mut buf: &[u8]) -> Result<(), Self::WriteError> {
         while !buf.is_empty() {
             let len = self.write(buf)?;

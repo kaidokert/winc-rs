@@ -13,7 +13,7 @@ use hal::time::{Hertz, MegaHertz};
 
 use hal::prelude::*;
 
-use super::shared::TransferSpi;
+use super::shared::SpiBus;
 
 use cortex_m_systick_countdown::{PollingSysTick, SysTickCalibration};
 
@@ -34,7 +34,7 @@ pub fn init() -> Result<
         PollingSysTick,
         bsp::RedLed,
         impl hal::gpio::AnyPin,
-        impl TransferSpi,
+        impl SpiBus,
     ),
     FailureSource,
 > {
