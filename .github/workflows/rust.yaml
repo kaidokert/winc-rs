@@ -10,8 +10,14 @@ jobs:
 
     runs-on: ubuntu-latest
 
-    steps: # Needs to run in a subdirectory
+    steps:
     - uses: actions/checkout@v2
+    - uses: actions-rs/toolchain@v1
+      with:
+          toolchain: stable
+          target: thumbv6m-none-eabi
+          components: rustfmt, clippy
+          profile: minimal
     - name: Build winc-rs
       working-directory: winc-rs
       run: cargo build --verbose
