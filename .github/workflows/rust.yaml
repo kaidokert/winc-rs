@@ -18,6 +18,8 @@ jobs:
           target: thumbv6m-none-eabi
           components: rustfmt, clippy
           profile: minimal
+    - name: Install flip-link
+      run: cargo install flip-link
     - name: Build winc-rs
       working-directory: winc-rs
       run: cargo build --verbose
