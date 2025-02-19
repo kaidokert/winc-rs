@@ -25,15 +25,20 @@
 //! Connecting to AP, getting and IP, DNS lookups etc are implemented.
 //!
 //! Basic usage:
-//! ```
+//! ```no_run
+//! # use wincwifi::WincClient;
+//! # use embedded_nal::{nb, AddrType, Dns};
+//! # fn del_fn(ms: u32) {}
+//! # let mut delay_fn = del_fn;
+//! # let mut buffer = [0; 1];
+//! # let mut spi = buffer.as_mut_slice();
 //! // spi: something that implements the protocol transfer
 //! // delay_fn: a callback function that lets the library wait
-//! let mut client = WincClient::new(spi, delay_fn);
+//! let mut client = WincClient::new(spi, &mut delay_fn);
 //! nb::block!(client.start_wifi_module());
 //! nb::block!(client.connect_to_ap("ssid", "password"));
 //! nb::block!(client.get_host_by_name("google.com", AddrType::IPv4));
 //! loop {
-//!     delay_fn(1000);
 //!     client.heartbeat(); // periodically poll the chip
 //! }
 //! ```
