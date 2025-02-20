@@ -7,6 +7,17 @@ version = "0.1.0"
 
 [lib]
 harness = false
+test = false
+bench = false
+
+
+[dev-dependencies]
+embedded-test = { version = "0.6.0", features = ["defmt"] }
+panic-halt = "0.2.0"
+
+[[test]]
+name = "example_test"
+harness = false
 
 [dependencies]
 cortex-m = { version = "0.7.3", features = ["critical-section-single-core"] }
