@@ -16,6 +16,7 @@ mod tests {
         Peripherals::take().unwrap()
     }
 
+    #[ignore = "This test requires external setup"]
     #[test]
     fn minimal_test() {
         assert!(true);
@@ -29,5 +30,10 @@ mod tests {
     #[test]
     fn minimal_test3() {
         assert!(true);
+    }
+
+    #[test]
+    fn bench_test(_peri: Peripherals) {
+        //c.bench_function("foo", |b| b.iter(|| foo()));
     }
 }

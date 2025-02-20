@@ -12,7 +12,8 @@ bench = false
 
 
 [dev-dependencies]
-embedded-test = { version = "0.6.0", features = ["defmt"] }
+embedded-test = { version = "0.6.0", features = ["defmt","external-executor", "embassy"] }
+# embedded-test = { path="../../upstream/embedded-test", features = ["defmt","external-executor", "embassy"] }
 panic-halt = "0.2.0"
 
 [[test]]
