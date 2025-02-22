@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head><title>LED</title></head>
+<body>
+    <h1>LED Control</h1>
+    <div id="b1">get</div><div id="b2">post</div>
+</body>
+<script>
+    document.getElementById("b1").onclick = () => {
+        fetch("/api/led/")
+            .then(response => response.json())
+            .then(data => console.log(data));
+    };
+    document.getElementById("b2").onclick = () => {
+        fetch("/api/led/", {
+            method: "POST",
+            body: JSON.stringify({ led: true })
+        })
+            .then(response => response.json())
+            .then(data => console.log(data));
+    };
+</script>
+</html>

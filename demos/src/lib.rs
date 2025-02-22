@@ -2,12 +2,13 @@
 #![no_std]
 
 #[cfg(not(feature = "std"))]
-use defmt::{debug, error, info};
+use defmt::{debug, error, info, trace};
 #[cfg(feature = "std")]
-use log::{debug, error, info};
+use log::{debug, error, info, trace};
 
 pub mod coap_client;
 pub mod http_client;
+pub mod http_server;
 pub mod tcp_server;
 pub mod udp_client;
 pub mod udp_server;
