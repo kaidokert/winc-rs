@@ -48,3 +48,9 @@ test-log = "0.2.11"
 std=["dep:log"]
 defmt = ["dep:defmt"]
 default = ["std"]
+
+# Todo: add feature flags to save binary space
+# - TCP
+# - UDP
+# - ssl, and disable all SSL code by default
+# - firmware update, disable all firmware code by default

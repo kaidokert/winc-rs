@@ -745,7 +745,7 @@ impl<X: Xfer> Manager<X> {
         let (hif, _len, address) = self.read_hif_header(res.1)?;
         match hif {
             HifGroup::Wifi(e) => match e {
-                WifiResponse::CurrrentRssi => {
+                WifiResponse::CurrentRssi => {
                     let mut result = [0xff; 4];
                     self.read_block(address, &mut result)?;
                     listener.on_rssi(result[0] as i8)
@@ -809,7 +809,10 @@ impl<X: Xfer> Manager<X> {
                 WifiResponse::GetPrng => {
                     unimplemented!("PRNG request not yet supported")
                 }
-                WifiResponse::Unhandled => {
+                WifiResponse::Unhandled
+                | WifiResponse::Wps
+                | WifiResponse::EthernetRxPacket
+                | WifiResponse::WifiRxPacket => {
                     panic!("Unhandled Wifi HIF")
                 }
             },
@@ -878,7 +881,15 @@ impl<X: Xfer> Manager<X> {
                 IpCode::SetSocketOption => {
                     unimplemented!("There is no response for setsockoption")
                 }
-                IpCode::Unhandled => {
+                IpCode::Unhandled
+                | IpCode::SslConnect
+                | IpCode::SslSend
+                | IpCode::SslRecv
+                | IpCode::SslClose
+                | IpCode::SslCreate
+                | IpCode::SslSetSockOpt
+                | IpCode::SslBind
+                | IpCode::SslExpCheck => {
                     panic!("Received unhandled HIF code {:?}", e)
                 }
             },
