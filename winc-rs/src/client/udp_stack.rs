@@ -51,19 +51,25 @@ impl<X: Xfer> UdpClientStack for WincClient<'_, X> {
     // Blocking call ? returns nb::Result
     fn send(&mut self, socket: &mut Self::UdpSocket, buffer: &[u8]) -> nb::Result<(), Self::Error> {
         self.dispatch_events()?;
-        debug!("<> in udp send {:?}", socket.0);
-        let (sock, op) = self.callbacks.udp_sockets.get(*socket).unwrap();
-        *op = ClientSocketOp::SendTo;
-        let op = *op;
-        debug!("<> Sending socket udp send_send to {:?}", sock);
-        if let Some(addr) = self.last_send_addr {
-            self.manager
-                .send_sendto(*sock, addr, buffer)
-                .map_err(StackError::SendSendFailed)?;
-        } else {
-            return Err(StackError::Unexpected.into());
+        let mut offset = 0;
+
+        while offset < buffer.len() {
+            let to_send = buffer[offset..].len().min(Self::MAX_SEND_LENGTH);
+
+            let (sock, op) = self.callbacks.udp_sockets.get(*socket).unwrap();
+            *op = ClientSocketOp::SendTo(buffer.len() as i16);
+            let op = *op;
+            debug!("<> Sending socket udp send_send to {:?}", sock);
+            if let Some(addr) = self.last_send_addr {
+                self.manager
+                    .send_sendto(*sock, addr, buffer)
+                    .map_err(StackError::SendSendFailed)?;
+            } else {
+                return Err(StackError::Unexpected.into());
+            }
+            self.wait_for_op_ack(*socket, op, Self::SEND_TIMEOUT, false)?;
+            offset += to_send;
         }
-        self.wait_for_op_ack(*socket, op, Self::SEND_TIMEOUT, false)?;
         Ok(())
     }
 
@@ -151,7 +157,7 @@ impl<X: Xfer> UdpFullStack for WincClient<'_, X> {
 
         debug!("<> in udp send_to {:?}", socket.0);
         let (sock, op) = self.callbacks.udp_sockets.get(*socket).unwrap();
-        *op = ClientSocketOp::SendTo;
+        *op = ClientSocketOp::SendTo(buffer.len() as i16);
         let op = *op;
         self.manager
             .send_sendto(*sock, send_addr, buffer)

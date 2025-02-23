@@ -46,7 +46,7 @@ pub enum ReturnClient<'a> {
 pub fn connect_and_run(
     message: &str,
     client_type: ClientType,
-    execute: impl FnOnce(ReturnClient) -> Result<(), wincwifi::StackError>,
+    execute: impl FnOnce(ReturnClient, core::net::Ipv4Addr) -> Result<(), wincwifi::StackError>,
 ) -> Result<(), wincwifi::StackError> {
     if let Ok((delay_tick, mut red_led, cs, spi)) = init() {
         defmt::println!("{}", message);
@@ -76,21 +76,27 @@ pub fn connect_and_run(
         let ssid = option_env!("TEST_SSID").unwrap_or(DEFAULT_TEST_SSID);
         let password = option_env!("TEST_PASSWORD").unwrap_or(DEFAULT_TEST_PASSWORD);
 
-        delay_ms(50);
+        for _ in 0..10 {
+            delay_ms(50);
+            stack.heartbeat()?;
+        }
+        defmt::debug!("Connecting to AP.. {} {}", ssid, password);
         nb::block!(stack.connect_to_ap(ssid, password, false))?;
 
-        defmt::info!("Network connected");
+        defmt::debug!("Getting IP settings..");
+        let info = nb::block!(stack.get_ip_settings())?;
+        let my_ip = info.ip;
         for _ in 0..10 {
             delay_ms(50);
             stack.heartbeat()?;
         }
         defmt::info!("Running the demo..");
         match client_type {
-            ClientType::Tcp => execute(ReturnClient::Tcp(&mut stack))?,
-            ClientType::Udp => execute(ReturnClient::Udp(&mut stack))?,
-            ClientType::Dns => execute(ReturnClient::Dns(&mut stack))?,
-            ClientType::UdpFull => execute(ReturnClient::UdpFull(&mut stack))?,
-            ClientType::TcpFull => execute(ReturnClient::TcpFull(&mut stack))?,
+            ClientType::Tcp => execute(ReturnClient::Tcp(&mut stack), my_ip)?,
+            ClientType::Udp => execute(ReturnClient::Udp(&mut stack), my_ip)?,
+            ClientType::Dns => execute(ReturnClient::Dns(&mut stack), my_ip)?,
+            ClientType::UdpFull => execute(ReturnClient::UdpFull(&mut stack), my_ip)?,
+            ClientType::TcpFull => execute(ReturnClient::TcpFull(&mut stack), my_ip)?,
         }
 
         loop {

@@ -112,7 +112,7 @@ fn main() -> Result<(), LocalErrors> {
             coap_client(&mut stack, ip_addr, port).map_err(|_| LocalErrors::IoError)?;
         }
         Mode::HttpServer => {
-            http_server(&mut stack, port, cli.loop_forever).map_err(|_| LocalErrors::IoError)?;
+            http_server(&mut stack, port).map_err(|_| LocalErrors::IoError)?;
         }
     }
     Ok(())

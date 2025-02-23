@@ -25,7 +25,7 @@ fn main() -> ! {
     if let Err(something) = connect_and_run(
         "Hello, COAP client",
         ClientType::Udp,
-        |stack: ReturnClient| -> Result<(), StackError> {
+        |stack: ReturnClient, _: core::net::Ipv4Addr| -> Result<(), StackError> {
             if let ReturnClient::Udp(stack) = stack {
                 defmt::info!("In UDP client stack thing");
                 let test_ip = option_env!("TEST_IP").unwrap_or(DEFAULT_TEST_IP);

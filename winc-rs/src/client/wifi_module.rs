@@ -1,6 +1,6 @@
 use embedded_nal::nb;
 
-use crate::manager::{AuthType, FirmwareInfo, ScanResult};
+use crate::manager::{AuthType, FirmwareInfo, IPConf, ScanResult};
 
 use super::PingResult;
 use super::StackError;
@@ -193,6 +193,15 @@ impl<X: Xfer> WincClient<'_, X> {
                     return Ok(result);
                 }
             }
+        }
+
+        self.dispatch_events()?;
+        Err(nb::Error::WouldBlock)
+    }
+
+    pub fn get_ip_settings(&mut self) -> nb::Result<IPConf, StackError> {
+        if let Some(ip_conf) = &self.callbacks.connection_state.ip_conf {
+            return Ok(ip_conf.clone());
         }
 
         self.dispatch_events()?;

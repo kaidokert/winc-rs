@@ -1,4 +1,4 @@
-use super::{debug, info, trace};
+use super::{debug, error, info, trace};
 use embedded_nal::nb::block;
 use embedded_nal::TcpFullStack;
 
@@ -29,27 +29,86 @@ fn usize_to_decimal_string<'a>(value: usize, buffer: &'a mut [u8]) -> &'a str {
     core::str::from_utf8(&buffer[0..len]).unwrap()
 }
 
-fn send_index<'a>(_body: &[u8], output: &'a mut [u8]) -> &'a [u8] {
-    let embed_index = include_bytes!("static/index.html");
-    // copy the embeded index.html to the output buffer
-    output[0..embed_index.len()].copy_from_slice(embed_index);
-    return &output[0..embed_index.len()];
+#[allow(dead_code)]
+#[derive(Debug)]
+struct WrapError(httparse::Error);
+
+#[cfg(feature = "defmt")]
+impl defmt::Format for WrapError {
+    fn format(&self, fmt: defmt::Formatter) {
+        match self.0 {
+            httparse::Error::HeaderName => defmt::write!(fmt, "HeaderName"),
+            httparse::Error::HeaderValue => defmt::write!(fmt, "HeaderValue"),
+            httparse::Error::NewLine => defmt::write!(fmt, "NewLine"),
+            httparse::Error::Status => defmt::write!(fmt, "Status"),
+            httparse::Error::Token => defmt::write!(fmt, "Token"),
+            httparse::Error::TooManyHeaders => defmt::write!(fmt, "TooManyHeaders"),
+            httparse::Error::Version => defmt::write!(fmt, "Version"),
+        }
+    }
 }
 
-fn handle_led<'a>(_body: &[u8], output: &'a mut [u8]) -> &'a [u8] {
-    let response = "{ \"led\": true }";
-    output[0..response.len()].copy_from_slice(response.as_bytes());
-    return &output[0..response.len()];
+type Handler<'h> = &'h mut dyn FnMut(&[u8], &mut [u8]) -> Result<usize, u16>;
+
+pub struct Path<'paths, 'handler> {
+    paths: &'paths [&'paths str],
+    handler: Handler<'handler>,
+    is_json: bool,
 }
 
-type Handler<'a> = fn(&[u8], &'a mut [u8]) -> &'a [u8];
-
-pub fn http_server<T, S>(stack: &mut T, port: u16, loop_forever: bool) -> Result<(), T::Error>
+pub fn http_server<T, S>(stack: &mut T, port: u16) -> Result<(), T::Error>
 where
     T: TcpFullStack<TcpSocket = S> + ?Sized,
 {
     let index_paths = ["/", "index.htm", "index.html"];
     let led_paths = ["/api/led/"];
+    let mut led_state = false;
+
+    let mut send_index = |_body: &[u8], output: &mut [u8]| -> Result<usize, u16> {
+        let embed_index = include_bytes!("static/index.html");
+        output[..embed_index.len()].copy_from_slice(embed_index);
+        Ok(embed_index.len())
+    };
+
+    let mut handle_led = |body: &[u8], output: &mut [u8]| -> Result<usize, u16> {
+        if !body.is_empty() && body.contains(&b':') {
+            led_state = body.windows(4).any(|w| w == b"true");
+        }
+        let response = if led_state {
+            b"{\"led\": true }"
+        } else {
+            b"{\"led\": false}"
+        };
+        output[..response.len()].copy_from_slice(response);
+        Ok(response.len())
+    };
+
+    let mut known_paths = [
+        Path {
+            paths: index_paths.as_slice(),
+            handler: &mut send_index,
+            is_json: false,
+        },
+        Path {
+            paths: led_paths.as_slice(),
+            handler: &mut handle_led,
+            is_json: true,
+        },
+    ];
+
+    http_server_args(stack, port, &mut known_paths)
+}
+
+pub fn http_server_args<'paths, 'handler, T, S>(
+    stack: &mut T,
+    port: u16,
+    known_paths: &mut [Path<'paths, 'handler>],
+) -> Result<(), T::Error>
+where
+    T: TcpFullStack<TcpSocket = S> + ?Sized,
+{
+    let mut send_buffer = [0; 2048];
+    let mut content_length_buffer = [0; 20];
 
     let mut sock = stack.socket()?;
     debug!("-----Binding to TCP port {}-----", port);
@@ -62,12 +121,6 @@ where
 
     loop {
         // In the loop so we can borrow response again every loop
-        let known_paths = [
-            (index_paths.as_slice(), send_index as Handler<'_>, false),
-            (led_paths.as_slice(), handle_led as Handler<'_>, true),
-        ];
-        let mut content_length_buffer = [0; 20];
-
         let (mut client_sock, addr) = block!(stack.accept(&mut sock))?;
         info!(
             "-----Accepted connection from {:?}-----",
@@ -95,7 +148,6 @@ where
                     req.method, req.path, req.version
                 );
                 for header in req.headers {
-                    // only dump interesting headers
                     if ["Host", "Content-Length", "Content-Type", "Connection"]
                         .contains(&header.name)
                     {
@@ -115,58 +167,65 @@ where
                 } else {
                     &[]
                 };
-                let path = req.path.unwrap_or("(invalid path)");
+                let request_path = req.path.unwrap_or("(invalid path)");
 
-                let mut response = [0; 1024];
                 let mut handled = false;
 
-                for (paths, handler, is_json) in known_paths {
-                    if paths.contains(&path) {
-                        let body_slice = handler(body, &mut response);
-                        debug!("-----Response body length: {}-----", body_slice.len());
+                for path in known_paths.iter_mut() {
+                    if path.paths.contains(&request_path) {
+                        send_buffer.fill(0);
+                        match (path.handler)(body, &mut send_buffer) {
+                            Ok(len) => {
+                                block!(stack.send(
+                                    &mut client_sock,
+                                    "HTTP/1.1 200 OK\r\nContent-Length: ".as_bytes()
+                                ))?;
+                                let content_length =
+                                    usize_to_decimal_string(len, &mut content_length_buffer);
+                                block!(stack.send(&mut client_sock, content_length.as_bytes()))?;
 
-                        let send_header = "HTTP/1.1 200 OK\r\nContent-Length: ";
-                        block!(stack.send(&mut client_sock, send_header.as_bytes()))?;
-                        let content_length =
-                            usize_to_decimal_string(body_slice.len(), &mut content_length_buffer);
-                        block!(stack.send(&mut client_sock, content_length.as_bytes()))?;
-                        // write content type
-                        match is_json {
-                            true => block!(stack.send(
-                                &mut client_sock,
-                                "\r\nContent-Type: application/json\r\n\r\n".as_bytes()
-                            ))?,
-                            false => block!(stack.send(
-                                &mut client_sock,
-                                "\r\nContent-Type: text/html\r\n\r\n".as_bytes()
-                            ))?,
+                                if path.is_json {
+                                    block!(stack.send(
+                                        &mut client_sock,
+                                        "\r\nContent-Type: application/json\r\n\r\n".as_bytes()
+                                    ))?;
+                                } else {
+                                    block!(stack.send(
+                                        &mut client_sock,
+                                        "\r\nContent-Type: text/html\r\n\r\n".as_bytes()
+                                    ))?;
+                                }
+                                block!(stack.send(&mut client_sock, &send_buffer[..len]))?;
+                            }
+                            Err(e) => {
+                                let mut error_code_buf = [0; 20];
+                                let error_code =
+                                    usize_to_decimal_string(e as usize, &mut error_code_buf);
+                                block!(stack.send(&mut client_sock, "HTTP/1.1 ".as_bytes()))?;
+                                block!(stack.send(&mut client_sock, error_code.as_bytes()))?;
+                                block!(stack.send(&mut client_sock, " Error\r\n".as_bytes()))?;
+                                continue;
+                            }
                         };
-                        block!(stack.send(&mut client_sock, body_slice))?;
+
                         handled = true;
                         break;
                     }
                 }
                 if !handled {
-                    let not_found = "HTTP/1.1 404 File not found\r\n";
-                    block!(stack.send(&mut client_sock, not_found.as_bytes()))?;
+                    block!(stack.send(&mut client_sock, "HTTP/1.1 404 Not found\r\n".as_bytes()))?;
                 }
             }
             Err(e) => {
-                debug!("-----Error parsing request: {}-----", e);
+                error!("-----Error parsing request: {:?}-----", WrapError(e));
                 continue;
             }
             Ok(httparse::Status::Partial) => {
-                debug!("-----Request parsed, but not complete-----");
+                error!("-----Request parsed, but not complete-----");
                 continue;
             }
         }
 
         stack.close(client_sock)?;
-        if !loop_forever {
-            info!("Quiting the loop");
-            break;
-        }
-        info!("Looping again");
     }
-    Ok(())
 }

@@ -32,8 +32,8 @@ pub enum ClientSocketOp {
     None,
     New,
     Connect,
-    Send,
-    SendTo,
+    Send(i16),
+    SendTo(i16),
     Recv,
     RecvFrom,
     Bind,
@@ -360,14 +360,22 @@ impl EventListener for SocketCallbacks {
     fn on_send_to(&mut self, socket: Socket, len: i16) {
         debug!("on_send_to: socket:{:?} length:{:?}", socket, len);
         if let Some((s, op)) = self.resolve(socket) {
-            if *op == ClientSocketOp::SendTo {
-                debug!("on_send_to: socket:{:?} length:{:?}", socket, len);
-                *op = ClientSocketOp::None;
-            } else {
-                error!(
-                    "UNKNOWN STATE on_send_to (x): socket:{:?} len:{:?} state:{:?}",
-                    s, len, *op
-                );
+            match op {
+                ClientSocketOp::SendTo(req_len) => {
+                    if len >= *req_len {
+                        debug!("FIN: on_send_to: socket:{:?} length:{:?}", socket, len);
+                        *op = ClientSocketOp::None;
+                    } else {
+                        debug!("CONT: on_send_to: socket:{:?} length:{:?}", socket, len);
+                        *req_len -= len;
+                    }
+                }
+                _ => {
+                    error!(
+                        "UNKNOWN STATE on_send_to (x): socket:{:?} len:{:?} state:{:?}",
+                        s, len, *op
+                    );
+                }
             }
         } else {
             error!(
@@ -377,17 +385,25 @@ impl EventListener for SocketCallbacks {
         }
     }
     fn on_send(&mut self, socket: Socket, len: i16) {
-        debug!("on_send: socket {:?}", socket);
+        debug!("on_send: socket {:?} len:{}", socket, len);
 
         if let Some((s, op)) = self.resolve(socket) {
-            if *op == ClientSocketOp::Send {
-                debug!("on_send: socket:{:?} length:{:?}", socket, len);
-                *op = ClientSocketOp::None;
-            } else {
-                error!(
-                    "UNKNOWN STATE on_send (x): socket:{:?} len:{:?} state:{:?}",
-                    s, len, *op
-                );
+            match op {
+                ClientSocketOp::Send(req_len) => {
+                    if len >= *req_len {
+                        debug!("FIN: on_send: socket:{:?} length:{:?}", socket, len);
+                        *op = ClientSocketOp::None;
+                    } else {
+                        debug!("CONT: on_send: socket:{:?} length:{:?}", socket, len);
+                        *req_len -= len;
+                    }
+                }
+                _ => {
+                    error!(
+                        "UNKNOWN STATE on_send (x): socket:{:?} len:{:?} state:{:?}",
+                        s, len, *op
+                    );
+                }
             }
         } else {
             error!(
@@ -589,6 +605,9 @@ pub struct WincClient<'a, X: Xfer> {
 }
 
 impl<'a, X: Xfer> WincClient<'a, X> {
+    // Max send frame length
+    const MAX_SEND_LENGTH: usize = 1400;
+
     const TCP_SOCKET_BACKLOG: u8 = 4;
     const LISTEN_TIMEOUT: u32 = 100;
     const ACCEPT_TIMEOUT: u32 = 100;
@@ -676,7 +695,6 @@ impl<'a, X: Xfer> WincClient<'a, X> {
     ) -> Result<GenResult, StackError> {
         // Lets clear state
         self.callbacks.last_recv_addr = None;
-        self.callbacks.last_accepted_socket = None;
         self.callbacks.last_error = SocketError::NoError;
 
         debug!("===>Waiting for gen ack for {:?}", expect_op);
@@ -717,7 +735,6 @@ impl<'a, X: Xfer> WincClient<'a, X> {
         tcp: bool,
     ) -> Result<GenResult, StackError> {
         self.callbacks.last_recv_addr = None;
-        self.callbacks.last_accepted_socket = None;
         self.callbacks.last_error = SocketError::NoError;
 
         debug!("===>Waiting for op ack for {:?}", expect_op);
@@ -734,7 +751,7 @@ impl<'a, X: Xfer> WincClient<'a, X> {
                     expect_op, client.callbacks.recv_len, elapsed
                 );
 
-                if let Some(accepted_socket) = client.callbacks.last_accepted_socket {
+                if let Some(accepted_socket) = client.callbacks.last_accepted_socket.take() {
                     return Some(Ok(GenResult::Accept(
                         client.callbacks.last_recv_addr.unwrap(),
                         accepted_socket,
@@ -753,7 +770,7 @@ impl<'a, X: Xfer> WincClient<'a, X> {
             if matches!(e, StackError::GeneralTimeout) {
                 match expect_op {
                     ClientSocketOp::Connect => StackError::ConnectTimeout,
-                    ClientSocketOp::Send => StackError::SendTimeout,
+                    ClientSocketOp::Send(_) => StackError::SendTimeout,
                     ClientSocketOp::Recv => StackError::RecvTimeout,
                     _ => StackError::GeneralTimeout,
                 }

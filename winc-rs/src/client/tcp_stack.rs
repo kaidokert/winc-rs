@@ -71,14 +71,22 @@ impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {
         data: &[u8],
     ) -> Result<usize, nb::Error<<Self as TcpClientStack>::Error>> {
         self.dispatch_events()?;
-        let (sock, op) = self.callbacks.tcp_sockets.get(*socket).unwrap();
-        *op = ClientSocketOp::Send;
-        let op = *op;
-        debug!("<> Sending socket send_send to {:?}", sock);
-        self.manager
-            .send_send(*sock, data)
-            .map_err(StackError::SendSendFailed)?;
-        self.wait_for_op_ack(*socket, op, Self::SEND_TIMEOUT, true)?;
+
+        // Send in chunks of up to 1400 bytes
+        let mut offset = 0;
+        while offset < data.len() {
+            let to_send = data[offset..].len().min(Self::MAX_SEND_LENGTH);
+            let (sock, op) = self.callbacks.tcp_sockets.get(*socket).unwrap();
+            *op = ClientSocketOp::Send(to_send as i16);
+
+            let op = *op;
+            debug!("<> Sending socket send_send to {:?} len:{}", sock, to_send);
+            self.manager
+                .send_send(*sock, &data[offset..offset + to_send])
+                .map_err(StackError::SendSendFailed)?;
+            self.wait_for_op_ack(*socket, op, Self::SEND_TIMEOUT, true)?;
+            offset += to_send;
+        }
         Ok(data.len())
     }
 

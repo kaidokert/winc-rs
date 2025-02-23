@@ -297,7 +297,7 @@ pub fn read_accept_reply(
     ))
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone)]
 pub struct IPConf {
     pub ip: Ipv4Addr,
     pub gateway: Ipv4Addr,

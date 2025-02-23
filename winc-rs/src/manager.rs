@@ -82,6 +82,8 @@ const IP_PACKET_OFFSET: usize = ETHERNET_HEADER_LENGTH + ETHERNET_HEADER_OFFSET;
 
 pub const SOCKET_BUFFER_MAX_LENGTH: usize = 1400;
 
+const HIF_SEND_RETRIES: usize = 1000;
+
 // todo this needs to be used
 #[allow(dead_code)]
 const TCP_SOCK_MAX: usize = 7;
@@ -402,24 +404,37 @@ impl<X: Xfer> Manager<X> {
         len: u16,
         data_packet: bool,
     ) -> Result<(), Error> {
-        // write nmistate
+        // Write NMI state
         let mut state: u32 = 0;
         state |= gid as u32;
-        if data_packet {
-            state |= ((op | 0x80) as u32) << 8;
+        state |= if data_packet {
+            ((op | 0x80) as u32) << 8
         } else {
-            state |= (op as u32) << 8;
-        }
+            (op as u32) << 8
+        };
         state |= (len as u32) << 16;
         self.chip.single_reg_write(Regs::NmiState.into(), state)?;
-        // write rcv_ctrl2 bit 1
+        // Set RCV_CTRL_2 bit 1
         self.chip
             .single_reg_write(Regs::WifiHostRcvCtrl2.into(), 2)?;
-        // read back rcv_ctrl2 wait for bit 1
-        let mut res = self.chip.single_reg_read(Regs::WifiHostRcvCtrl2.into())?;
-        res &= 2;
-        assert_eq!(res, 0); // todo: loop
-                            // read dma_addr from rcv_ctrl4
+
+        // Wait for bit 1 in RCV_CTRL_2 to clear, with timeout
+        let mut retries = HIF_SEND_RETRIES;
+        let mut res;
+        loop {
+            res = self.chip.single_reg_read(Regs::WifiHostRcvCtrl2.into())?;
+            res &= 2;
+            if res == 0 || retries == 0 {
+                break;
+            }
+            // TODO: There should be a small back-off delay here
+            // perhaps add "delay" to Xfer trait and call into it
+            retries -= 1;
+        }
+        if res != 0 {
+            return Err(Error::HifSendFailed);
+        }
+        // Read DMA address from RCV_CTRL_4
         self.not_a_reg_ctrl_4_dma = self.chip.single_reg_read(Regs::WifiHostRcvCtrl4.into())?;
         trace!("Dma address: {:x}", self.not_a_reg_ctrl_4_dma);
         Ok(())

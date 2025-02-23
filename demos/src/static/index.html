@@ -1,23 +1,57 @@
 <!DOCTYPE html>
 <html lang="en">
-    <head><title>LED</title></head>
+    <head><title>LED</title>
+        <style>
+            body {
+                margin: 2rem auto;
+                padding: 0 1rem;
+                text-align: center;
+            }
+            #led {
+                font-size: 1.5rem;
+                margin: 1.5rem;
+                font-weight: bold;
+                color: #2563eb;
+            }
+            div[id^="b"] {
+                background: #2563eb;
+                color: white;
+                padding: 0.75rem 1.5rem;
+                margin: 0.5rem;
+                border-radius: 0.5rem;
+                display: inline-block;
+            }
+            div[id^="b"]:hover {
+                background: #1d4ed8;
+            }
+        </style>
+    </head>
 <body>
-    <h1>LED Control</h1>
-    <div id="b1">get</div><div id="b2">post</div>
+    <h1>LED Control</h1><div id="led">&nbsp;</div>
+    <div id="b1">get status</div>
+    <div id="b2">led off</div>
+    <div id="b3">led on</div>
 </body>
 <script>
-    document.getElementById("b1").onclick = () => {
-        fetch("/api/led/")
+    function updateLed(data) {
+        let el = document.getElementById("led");
+        el.innerHTML = data.led ? "ON" : "OFF";
+        el.style.backgroundColor = data.led ? "red" : "yellow";
+    }
+    const buttonConfig = [
+        { id: "b1", m: "GET",  h: data => updateLed(data) },
+        { id: "b2", m: "POST", body: { led: false }, h: data =>updateLed(data) },
+        { id: "b3", m: "POST", body: { led: true }, h: data => updateLed(data) }
+    ];
+    buttonConfig.forEach(({ id, m, body, h }) => {
+        document.getElementById(id).onclick = () => {
+            fetch("/api/led/", {
+                method: m,
+                ...(body && { body: JSON.stringify(body) })
+            })
             .then(response => response.json())
-            .then(data => console.log(data));
-    };
-    document.getElementById("b2").onclick = () => {
-        fetch("/api/led/", {
-            method: "POST",
-            body: JSON.stringify({ led: true })
-        })
-            .then(response => response.json())
-            .then(data => console.log(data));
-    };
+            .then(h);
+        };
+    });
 </script>
 </html>

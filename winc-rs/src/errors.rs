@@ -34,6 +34,8 @@ pub enum Error {
     BootRomStart,
     /// Wifi module firmware failed to start
     FirmwareStart,
+    /// HIF send failed
+    HifSendFailed,
 }
 
 impl From<core::convert::Infallible> for Error {
