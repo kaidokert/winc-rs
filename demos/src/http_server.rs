@@ -51,25 +51,27 @@ impl defmt::Format for WrapError {
 type Handler<'h> = &'h mut dyn FnMut(&[u8], &mut [u8]) -> Result<usize, u16>;
 
 pub struct Path<'paths, 'handler> {
-    paths: &'paths [&'paths str],
-    handler: Handler<'handler>,
-    is_json: bool,
+    pub paths: &'paths [&'paths str],
+    pub handler: Handler<'handler>,
+    pub is_json: bool,
+}
+
+const EMBED_INDEX: &[u8] = include_bytes!("static/index.html");
+pub const INDEX_PATHS: [&str; 3] = ["/", "index.htm", "index.html"];
+pub const LED_PATHS: [&str; 1] = ["/api/led/"];
+
+pub fn embed_index(output: &mut [u8]) -> Result<usize, u16> {
+    output[..EMBED_INDEX.len()].copy_from_slice(EMBED_INDEX);
+    Ok(EMBED_INDEX.len())
 }
 
 pub fn http_server<T, S>(stack: &mut T, port: u16) -> Result<(), T::Error>
 where
     T: TcpFullStack<TcpSocket = S> + ?Sized,
 {
-    let index_paths = ["/", "index.htm", "index.html"];
-    let led_paths = ["/api/led/"];
     let mut led_state = false;
-
-    let mut send_index = |_body: &[u8], output: &mut [u8]| -> Result<usize, u16> {
-        let embed_index = include_bytes!("static/index.html");
-        output[..embed_index.len()].copy_from_slice(embed_index);
-        Ok(embed_index.len())
-    };
-
+    let mut send_index =
+        |_body: &[u8], output: &mut [u8]| -> Result<usize, u16> { embed_index(output) };
     let mut handle_led = |body: &[u8], output: &mut [u8]| -> Result<usize, u16> {
         if !body.is_empty() && body.contains(&b':') {
             led_state = body.windows(4).any(|w| w == b"true");
@@ -85,12 +87,12 @@ where
 
     let mut known_paths = [
         Path {
-            paths: index_paths.as_slice(),
+            paths: INDEX_PATHS.as_slice(),
             handler: &mut send_index,
             is_json: false,
         },
         Path {
-            paths: led_paths.as_slice(),
+            paths: LED_PATHS.as_slice(),
             handler: &mut handle_led,
             is_json: true,
         },
@@ -115,12 +117,10 @@ where
     stack.bind(&mut sock, port)?;
     info!("-----Bound to TCP port {}-----", port);
 
-    // do listen, accept, and send/receive
     stack.listen(&mut sock)?;
     info!("-----Listening-----");
 
     loop {
-        // In the loop so we can borrow response again every loop
         let (mut client_sock, addr) = block!(stack.accept(&mut sock))?;
         info!(
             "-----Accepted connection from {:?}-----",

@@ -1,3 +1,7 @@
+//! Make a very basic HTTP get request
+//!
+//! IP, port, and hostname are passed as env vars at build time
+
 #![no_main]
 #![no_std]
 

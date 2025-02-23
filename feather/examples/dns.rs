@@ -1,3 +1,6 @@
+//! Demonstrate a DNS lookup
+//!
+
 #![no_main]
 #![no_std]
 #![allow(unused_imports)]

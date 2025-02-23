@@ -1,3 +1,6 @@
+//! Scan for access points
+//!
+
 #![no_main]
 #![no_std]
 

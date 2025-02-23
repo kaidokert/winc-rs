@@ -1,3 +1,7 @@
+//! Connect to a saved access point
+//! Credentials are saved on the module on a previous
+//! successful connection
+
 #![no_main]
 #![no_std]
 

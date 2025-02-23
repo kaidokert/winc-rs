@@ -1,3 +1,6 @@
+//! Ping an IP address
+//!
+
 #![no_main]
 #![no_std]
 

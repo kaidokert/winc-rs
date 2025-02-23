@@ -1,3 +1,5 @@
+//! A simple UDP server that listens for incoming packets
+
 #![no_main]
 #![no_std]
 #![allow(unused_imports)]

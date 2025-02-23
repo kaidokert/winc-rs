@@ -1,3 +1,5 @@
+//! A simple TCP server that responds with a fixed message
+
 #![no_main]
 #![no_std]
 #![allow(unused_imports)]

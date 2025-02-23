@@ -1,3 +1,5 @@
+//! A mandatory blinky to verify the board is working
+
 #![no_main]
 #![no_std]
 
