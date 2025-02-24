@@ -3,6 +3,8 @@ use core::net::Ipv4Addr;
 
 use std_embedded_nal::Stack;
 
+#[cfg(feature = "iperf3")]
+use demos::iperf3_client::iperf3_client;
 use demos::{
     coap_client::coap_client, http_client::http_client, http_server::http_server,
     tcp_server::tcp_server, udp_client::udp_client, udp_server::udp_server,
@@ -29,7 +31,7 @@ pub fn parse_ip_octets(ip: &str) -> [u8; 4] {
     octets
 }
 
-#[derive(Clone, clap::ValueEnum, Debug)]
+#[derive(Clone, clap::Subcommand, Debug)]
 enum Mode {
     UdpServer,
     UdpClient,
@@ -37,12 +39,32 @@ enum Mode {
     TcpServer,
     CoapClient,
     HttpServer,
+    Iperf3Client(Iperf3Config), // Embed the config directly in the mode
+}
+
+#[derive(Parser, Clone, Debug)]
+struct Iperf3Config {
+    /// number of bytes to transmit (instead of -t)
+    #[arg(short, default_value_t = 32)]
+    numbytes: usize,
+
+    /// time in seconds to transmit for (default 10 secs)
+    #[arg(short = 't', long = "time", default_value_t = 10)]
+    time: usize,
+
+    /// number of blocks (packets) to transmit (instead of -t or -n)
+    #[arg(short = 'k', long)]
+    numblocks: Option<usize>,
+
+    /// length of buffer to read or write
+    #[arg(short = 'l', long, default_value_t = 32)]
+    block_len: usize,
 }
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 struct Cli {
-    #[arg(short, long, default_value = "http-client")]
+    #[command(subcommand)]
     mode: Mode,
 
     #[arg(short, long, action = clap::ArgAction::Count)]
@@ -113,6 +135,11 @@ fn main() -> Result<(), LocalErrors> {
         }
         Mode::HttpServer => {
             http_server(&mut stack, port).map_err(|_| LocalErrors::IoError)?;
+        }
+        Mode::Iperf3Client(_config) => {
+            #[cfg(feature = "iperf3")]
+            iperf3_client(&mut stack, ip_addr, Some(port), &mut rand::rng())
+                .map_err(|_| LocalErrors::IoError)?;
         }
     }
     Ok(())
