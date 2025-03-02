@@ -2,6 +2,7 @@ use serde_json_core::heapless;
 
 #[derive(Debug, Clone)]
 #[allow(unused)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum Cmds {
     TestStart = 1,
     TestRunning = 2,
@@ -34,6 +35,7 @@ impl SessionConfig {
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Default, Clone, Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct StreamResults {
     pub id: u8,
     pub bytes: u32,
@@ -59,6 +61,7 @@ impl StreamResults {
 pub const MAX_SESSION_RESULTS_LEN: usize = StreamResults::MAX_STREAM_RESULTS_LEN + 100;
 
 #[derive(serde::Serialize, serde::Deserialize, Default, Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct SessionResults<const N: usize> {
     pub cpu_util_total: f32,
     pub cpu_util_user: f32,

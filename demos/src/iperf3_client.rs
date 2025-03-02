@@ -4,12 +4,14 @@ use super::{debug, error, info};
 use embedded_nal::nb::block;
 use embedded_nal::TcpClientStack;
 use iperf_data::{Cmds, SessionConfig, SessionResults, StreamResults};
-use rand_core::RngCore;
+pub use rand_core::RngCore;
 
 mod iperf_data;
 
 const DEFAULT_PORT: u16 = 5201;
 
+#[derive(Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum Errors {
     TCP,
     UnexpectedResponse,
@@ -113,6 +115,7 @@ where
 
     let mut control_socket = stack.socket()?;
     let remote = SocketAddr::new(IpAddr::V4(server_addr), port.unwrap_or(DEFAULT_PORT));
+    info!("-----Connecting to {}-----", remote.port());
     block!(stack.connect(&mut control_socket, remote))?;
     info!("-----Socket connected-----");
 
@@ -169,7 +172,7 @@ where
         ..Default::default()
     };
     let json = results.serde_json().unwrap();
-    debug!("-----Sending results----- {}", json);
+    debug!("-----Sending results----- {:?}", json);
     send_json(stack, &mut control_socket, &json)?;
 
     let mut remote_results_buffer = [0; iperf_data::MAX_SESSION_RESULTS_LEN * 2];

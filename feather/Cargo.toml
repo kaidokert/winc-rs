@@ -26,6 +26,13 @@ embedded-nal = "=0.9.0"
 wincwifi = { path = "../winc-rs", default-features = false, features=["defmt"] }
 demos = { path = "../demos", default-features = false, features=["defmt"] }
 
+[[example]]
+name = "iperf3_client"
+required-features = ["iperf3"]
+
+[features]
+iperf3 = ["demos/iperf3"]
+
 # cargo build/run
 [profile.dev]
 # lto = "off"
