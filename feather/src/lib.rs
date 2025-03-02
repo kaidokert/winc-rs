@@ -10,6 +10,7 @@ pub use bsp::hal;
 pub use feather_m0 as bsp;
 
 pub mod init;
+pub mod init2;
 pub mod shared;
 
 use panic_probe as _;
