@@ -20,10 +20,15 @@
 - [ ] Write docs to toplevel APIs - Work in progress
 - [ ] Feature gate udp / tcp to make the binary smaller
 - [ ] Investigate and reduce bloat a bit more
+- [ ] Implement a simple telnet command shell for testing/demos ( e.g. blinky, iperf )
 - [x] Get github checks properly running
 - [x] Add badges
 - [x] Add missing coverage
-- [ ] Implement an async version of this
 - Add missing tests
 - Stress test, fast downloads ( iperf3 ), multi-socket use cases
-- Make it work with Arduino/Adafruit bootloader
+   [x] Basic iperf3 TCP client is running, at up to 300 kbit/s ( packetsize=8192 )
+   [ ] Add iperf3 UDP mode
+   [ ] Figure out where the speed bottleneck is and try increase
+   [ ] Add multi-stream test mode ( up to 7 TCP, 3 UDP sockets )
+- [ ] Make it work with Arduino/Adafruit bootloader ( at 8 kilobyte start address )
+- [ ] Implement an async version of this

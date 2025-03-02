@@ -15,10 +15,12 @@ use core::net::Ipv4Addr;
 
 use core::str::FromStr;
 
-use demos::iperf3_client::iperf3_client;
+use demos::iperf3_client::{iperf3_client, Conf, TestConfig};
 
-const DEFAULT_TEST_IP: &str = "34.19.56.238";
+const DEFAULT_IPERF_IP: &str = "192.168.1.1";
 const DEFAULT_TEST_PORT: &str = "5201";
+
+const MAX_BLOCK_LEN: usize = 8192;
 
 use cortex_m::peripheral::{syst::SystClkSource, SYST};
 
@@ -123,17 +125,35 @@ where
 
         defmt::info!(".. connected to AP, running iperf3 ..");
 
-        let test_ip = option_env!("TEST_IP").unwrap_or(DEFAULT_TEST_IP);
+        let test_ip = option_env!("TEST_IPERF_IP").unwrap_or(DEFAULT_IPERF_IP);
         let ip_values: [u8; 4] = parse_ip_octets(test_ip);
         let server_addr = Ipv4Addr::new(ip_values[0], ip_values[1], ip_values[2], ip_values[3]);
         let test_port = option_env!("TEST_PORT").unwrap_or(DEFAULT_TEST_PORT);
         let port = u16::from_str(test_port).unwrap_or(12345);
 
-        // read systick value from SYST, it's somewhat random by now after
-        // waiting for the AP to connect
+        let numbytes = match option_env!("NUM_BYTES") {
+            Some(numbytes) => numbytes.parse::<usize>().unwrap(),
+            None => 256,
+        };
+        let block_len = match option_env!("BLOCK_LEN") {
+            Some(block) => block.parse::<usize>().unwrap(),
+            None => 32,
+        };
+
+        let conf = TestConfig {
+            conf: Conf::Bytes(numbytes),
+            transmit_block_len: block_len,
+        };
+
         let systick = SYST::get_current();
         let mut fake_rng = FakeRng { init: systick };
-        iperf3_client(&mut stack, server_addr, Some(port), &mut fake_rng)?;
+        iperf3_client::<MAX_BLOCK_LEN, _, _>(
+            &mut stack,
+            server_addr,
+            Some(port),
+            &mut fake_rng,
+            Some(conf),
+        )?;
 
         loop {
             delay_ms(200);

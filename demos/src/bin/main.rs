@@ -4,7 +4,7 @@ use core::net::Ipv4Addr;
 use std_embedded_nal::Stack;
 
 #[cfg(feature = "iperf3")]
-use demos::iperf3_client::iperf3_client;
+use demos::iperf3_client::{iperf3_client, Conf, TestConfig};
 use demos::{
     coap_client::coap_client, http_client::http_client, http_server::http_server,
     tcp_server::tcp_server, udp_client::udp_client, udp_server::udp_server,
@@ -138,8 +138,27 @@ fn main() -> Result<(), LocalErrors> {
         }
         Mode::Iperf3Client(_config) => {
             #[cfg(feature = "iperf3")]
-            iperf3_client(&mut stack, ip_addr, Some(port), &mut rand::rng())
+            {
+                let conf = if _config.numblocks.is_some() {
+                    TestConfig {
+                        conf: Conf::Blocks(_config.numblocks.unwrap()),
+                        transmit_block_len: _config.block_len,
+                    }
+                } else {
+                    TestConfig {
+                        conf: Conf::Bytes(_config.numbytes),
+                        transmit_block_len: _config.block_len,
+                    }
+                };
+                iperf3_client::<65536, _, _>(
+                    &mut stack,
+                    ip_addr,
+                    Some(port),
+                    &mut rand::rng(),
+                    Some(conf),
+                )
                 .map_err(|_| LocalErrors::IoError)?;
+            }
         }
     }
     Ok(())

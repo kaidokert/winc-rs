@@ -97,21 +97,44 @@ where
     block!(stack.send(&mut control_socket, &buf))
 }
 
-const MAX_BLOCK_LEN: usize = 1024;
+pub enum Conf {
+    Time(usize),
+    Bytes(usize),
+    Blocks(usize),
+}
 
-pub fn iperf3_client<T, S>(
+pub struct TestConfig {
+    pub conf: Conf,
+    pub transmit_block_len: usize,
+}
+
+pub fn iperf3_client<const MAX_BLOCK_LEN: usize, T, S>(
     stack: &mut T,
     server_addr: core::net::Ipv4Addr,
     port: Option<u16>,
     rng: &mut dyn RngCore,
+    config: Option<TestConfig>,
 ) -> Result<(), Errors>
 where
     T: TcpClientStack<TcpSocket = S> + ?Sized,
     T::Error: embedded_nal::TcpError,
 {
-    let full_len = 1024_1000 * 20;
-    let block_len = 256;
+    let my_confg = config.unwrap_or(TestConfig {
+        conf: Conf::Bytes(1024_1000 * 20),
+        transmit_block_len: 256,
+    });
+
+    let full_len = match my_confg.conf {
+        Conf::Time(time) => {
+            todo!()
+        }
+        Conf::Bytes(bytes) => bytes,
+        Conf::Blocks(blocks) => blocks * my_confg.transmit_block_len,
+    };
+    let block_len = my_confg.transmit_block_len;
+
     assert!(block_len <= MAX_BLOCK_LEN);
+    info!("Congig: full_len: {} block_size: {}", full_len, block_len);
 
     let mut control_socket = stack.socket()?;
     let remote = SocketAddr::new(IpAddr::V4(server_addr), port.unwrap_or(DEFAULT_PORT));
@@ -121,7 +144,7 @@ where
 
     let cookie = make_cookie(rng);
     block!(stack.send(&mut control_socket, &cookie))?;
-    debug!(
+    info!(
         "-----Sent cookie:----- {:?}",
         core::str::from_utf8(&cookie).unwrap()
     );
@@ -135,7 +158,7 @@ where
     };
     let json = conf.serde_json().unwrap();
     send_json(stack, &mut control_socket, &json)?;
-    debug!("-----Sent param exchange-----");
+    info!("-----Sent param exchange-----");
 
     read_control(stack, &mut control_socket, Cmds::CreateStreams)?;
     {
@@ -144,9 +167,9 @@ where
         block!(stack.send(&mut transport_socket, &cookie))?;
         debug!("-----Sent cookie to transport socket-----");
         read_control(stack, &mut control_socket, Cmds::TestStart)?;
-        info!("-----Test started-----");
+        debug!("-----Test started-----");
         read_control(stack, &mut control_socket, Cmds::TestRunning)?;
-        debug!("-----Test running-----");
+        info!("-----Test running-----");
         let mut to_send = full_len as isize;
         loop {
             let buffer = [0xAA; MAX_BLOCK_LEN];
@@ -172,7 +195,7 @@ where
         ..Default::default()
     };
     let json = results.serde_json().unwrap();
-    debug!("-----Sending results----- {:?}", json);
+    info!("-----Sending results----- {:?}", json);
     send_json(stack, &mut control_socket, &json)?;
 
     let mut remote_results_buffer = [0; iperf_data::MAX_SESSION_RESULTS_LEN * 2];
@@ -193,13 +216,25 @@ where
     let strm = &session_results.streams[0];
     let speed = strm.bytes as f32 / (strm.end_time - strm.start_time);
     if speed > 1_000_000_000.0 {
-        info!("Speed {} in Gb/s", speed / 1_000_000_000.0);
+        info!(
+            "Speed {} in Gb/s ( {} in GBits/s)",
+            speed / 1_000_000_000.0,
+            speed * 8.0 / 1_000_000_000.0
+        );
     } else if speed > 1_000_000.0 {
-        info!("Speed {} in Mb/s", speed / 1000_000.0);
+        info!(
+            "Speed {} in Mb/s ( {} in MBits/s)",
+            speed / 1000_000.0,
+            speed * 8.0 / 1000_000.0
+        );
     } else if speed > 1000.0 {
-        info!("Speed {} in kb/s", speed / 1000.0);
+        info!(
+            "Speed {} in kb/s ( {} in KBits/s)",
+            speed / 1000.0,
+            speed * 8.0 / 1000.0
+        );
     } else {
-        info!("Speed {} in bytes/s", speed);
+        info!("Speed {} in bytes/s ( {} in bits/s)", speed, speed * 8.0);
     }
 
     send_cmd(stack, &mut control_socket, Cmds::IperfDone)?;
