@@ -9,9 +9,8 @@ use feather as bsp;
 use bsp::hal::ehal as embedded_hal;
 use bsp::hal::ehal::{digital::InputPin, digital::OutputPin};
 
-use feather::init2::init;
-
 use core::fmt::Write;
+use feather::init2::init;
 use ssd1306::mode::DisplayConfig;
 use ssd1306::rotation::DisplayRotation;
 use ssd1306::size::DisplaySize128x32;
