@@ -7,7 +7,8 @@ use std_embedded_nal::Stack;
 use demos::iperf3_client::{iperf3_client, Conf, TestConfig};
 use demos::{
     coap_client::coap_client, http_client::http_client, http_server::http_server,
-    tcp_server::tcp_server, udp_client::udp_client, udp_server::udp_server,
+    tcp_server::tcp_server, telnet_shell::telnet_shell, udp_client::udp_client,
+    udp_server::udp_server,
 };
 
 use log::Level;
@@ -40,6 +41,7 @@ enum Mode {
     CoapClient,
     HttpServer,
     Iperf3Client(Iperf3Config), // Embed the config directly in the mode
+    TelnetServer,
 }
 
 #[derive(Parser, Clone, Debug)]
@@ -159,6 +161,10 @@ fn main() -> Result<(), LocalErrors> {
                 )
                 .map_err(|_| LocalErrors::IoError)?;
             }
+        }
+        #[cfg(feature = "telnet")]
+        Mode::TelnetServer => {
+            telnet_shell(&mut stack, cli.port).map_err(|_| LocalErrors::IoError)?;
         }
     }
     Ok(())

@@ -11,8 +11,10 @@ httparse = { version = "1.10", default-features = false }
 serde-json-core = { version = "0.6.0", default-features = false, optional = true, features=["heapless"] }
 heapless = { version = "0.8.0", default-features = false, optional = true }
 serde = { version = "1.0.218", default-features = false, optional = true, features=["derive"] }
-rand_core = { version = "0.9.2", default-features = false, optional = true }
-rand = { version = "0.9.0", optional = true }
+rand_core = { version = "0.9", default-features = false, optional = true }
+rand = { version = "0.9", optional = true }
+menu = { version = "0.6", optional = true }
+embedded-io = { version = "0.6", optional = true }
 
 [target.'cfg(not(target_os = "none"))'.dependencies]
 clap = { version = "4", features = ["derive"] }
@@ -27,9 +29,10 @@ required-features = ["std"]
 
 
 [features]
-default = ["std"]
+default = ["std","telnet"]
 std = ["log", "rand"]
 defmt = ["dep:defmt", "heapless/defmt-03"]
 iperf3 = ["dep:serde-json-core", "dep:heapless", "dep:serde", "dep:rand_core"]
+telnet = ["dep:menu", "dep:embedded-io"]
 rand_core = ["dep:rand_core"]
 rand = ["dep:rand"]

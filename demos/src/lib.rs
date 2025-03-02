@@ -12,6 +12,8 @@ pub mod http_server;
 #[cfg(feature = "iperf3")]
 pub mod iperf3_client;
 pub mod tcp_server;
+#[cfg(feature = "telnet")]
+pub mod telnet_shell;
 pub mod udp_client;
 pub mod udp_server;
 
