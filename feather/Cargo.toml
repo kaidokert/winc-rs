@@ -64,8 +64,13 @@ async = ["embassy-executor", "wincwifi/async", "systick-timer", "embassy-time" ,
 name = "iperf3_client"
 required-features = ["iperf3"]
 
+[[example]]
+name = "oled"
+required-features = ["oled"]
+
 [features]
 iperf3 = ["demos/iperf3"]
+oled = ["dep:ssd1306"]
 
 # cargo build/run
 [profile.dev]
