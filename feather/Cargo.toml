@@ -60,6 +60,13 @@ oled = ["dep:ssd1306"]
 telnet = ["demos/telnet"]
 async = ["embassy-executor", "wincwifi/async", "systick-timer", "embassy-time" , "embassy-time-driver"]
 
+[[example]]
+name = "iperf3_client"
+required-features = ["iperf3"]
+
+[features]
+iperf3 = ["demos/iperf3"]
+
 # cargo build/run
 [profile.dev]
 # lto = "off"
