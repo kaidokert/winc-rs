@@ -9,24 +9,20 @@ use feather as bsp;
 use bsp::hal::ehal as embedded_hal;
 use bsp::hal::ehal::{digital::InputPin, digital::OutputPin};
 
-use core::fmt::Write;
 use feather::init2::init;
+
+use core::fmt::Write;
 use ssd1306::mode::DisplayConfig;
 use ssd1306::rotation::DisplayRotation;
 use ssd1306::size::DisplaySize128x32;
 use ssd1306::I2CDisplayInterface;
 use ssd1306::Ssd1306;
 
-use feather::init2::FailureSource;
-use wincwifi::StackError;
-
 use embedded_hal::digital::ErrorKind;
 
 #[derive(Debug, defmt::Format)]
 pub enum MyError {
     PinError(ErrorKind),
-    FailureSource(FailureSource),
-    Stack(StackError),
     DisplayError,
 }
 
