@@ -7,21 +7,12 @@ use super::StackError;
 use super::WincClient;
 use super::Xfer;
 
+use super::socket_callbacks::WifiModuleState;
+
 use crate::info;
 
 // 1 minute max, if no other delays are added
 const AP_CONNECT_TIMEOUT_MILLISECONDS: u32 = 60_000;
-
-#[derive(Debug, PartialEq)]
-#[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub(crate) enum WifiModuleState {
-    Reset,
-    Starting,
-    Started,
-    ConnectingToAp,
-    ConnectedToAp,
-    ConnectionFailed,
-}
 
 impl<X: Xfer> WincClient<'_, X> {
     /// Call this periodically to receive network events
