@@ -85,6 +85,9 @@ pub use manager::ScanResult;
 
 pub use client::Handle;
 
+#[cfg(feature = "async")]
+mod async_client;
+
 // TODO: Merge this into CommError
 #[derive(Debug, PartialEq)]
 pub enum StrError {

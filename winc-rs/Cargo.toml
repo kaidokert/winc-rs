@@ -40,6 +40,7 @@ arrayvec =  { version = "0.7.2", default-features = false }
 void = { version =  "1", default-features = false }
 
 defmt = { version = "0.3.2", default-features = false, optional=true }
+embedded-nal-async = { version = "0.8.0", optional = true }
 
 [dev-dependencies]
 test-log = "0.2.11"
@@ -47,7 +48,9 @@ test-log = "0.2.11"
 [features]
 std=["dep:log"]
 defmt = ["dep:defmt"]
-default = ["std"]
+default = ["std","async"]
+embedded-nal-async = ["dep:embedded-nal-async"]
+async = ["dep:embedded-nal-async"]
 
 # Todo: add feature flags to save binary space
 # - TCP
