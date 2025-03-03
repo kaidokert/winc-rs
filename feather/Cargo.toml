@@ -36,9 +36,14 @@ required-features = ["iperf3"]
 name = "oled"
 required-features = ["oled"]
 
+[[example]]
+name = "telnet_shell"
+required-features = ["telnet"]
+
 [features]
 iperf3 = ["demos/iperf3"]
 oled = ["dep:ssd1306"]
+telnet = ["demos/telnet"]
 
 # cargo build/run
 [profile.dev]

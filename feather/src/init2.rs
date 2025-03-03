@@ -43,12 +43,12 @@ pub struct InitResult<
     SPI: SpiBus,
     I2C: I2c,
     OUTPUT1: OutputPin,
-    OUTPUT2: OutputPin,
+    OUTPUT2: hal::gpio::AnyPin, // todo: change this to OutputPin
     INPUT1: InputPin,
     INPUT2: InputPin,
     INPUT3: InputPin,
 > {
-    pub del: PollingSysTick,
+    pub delay_tick: PollingSysTick,
     pub red_led: OUTPUT1,
     pub cs: OUTPUT2,
     pub spi: SPI,
@@ -63,7 +63,7 @@ pub fn init() -> Result<
         impl SpiBus,
         impl I2c,
         impl OutputPin,
-        impl OutputPin,
+        impl hal::gpio::AnyPin,
         impl InputPin,
         impl InputPin,
         impl InputPin,
@@ -126,7 +126,7 @@ pub fn init() -> Result<
     del.delay_ms(500);
 
     Ok(InitResult {
-        del,
+        delay_tick: del,
         red_led,
         cs,
         spi,

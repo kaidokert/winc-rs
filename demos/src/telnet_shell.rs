@@ -135,8 +135,8 @@ where
             let received_len = match block!(runner.interface.recv(recv_buffer.as_mut_slice())) {
                 Ok(len) => len,
                 Err(e) => {
-                    info!("-----Error receiving: {:?}-----", e);
-                    break;
+                    info!("-----Error receiving: -----");
+                    return Err(e);
                 }
             };
             if received_len == 0 {
@@ -163,7 +163,10 @@ where
         info!("-----Closing connection-----");
         match runner.interface.close() {
             Ok(_) => info!("-----Connection closed-----"),
-            Err(e) => info!("-----Error closing connection: {:?}-----", e),
+            Err(e) => {
+                info!("-----Error closing connection: -----");
+                return Err(e);
+            }
         };
     }
     // loop forever above
