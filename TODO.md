@@ -21,6 +21,7 @@
 - [ ] Feature gate udp / tcp to make the binary smaller
 - [ ] Investigate and reduce bloat a bit more
 - [ ] Implement a simple telnet command shell for testing/demos ( e.g. blinky, iperf )
+      Basic Telnet exists - but it's slow and doesn't expose any board commands
 - [x] Get github checks properly running
 - [x] Add badges
 - [x] Add missing coverage
