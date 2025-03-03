@@ -68,6 +68,7 @@ mod errors;
 mod manager;
 mod readwrite;
 mod socket;
+mod stack;
 mod transfer;
 pub use errors::Error as CommError;
 pub use transfer::Xfer as Transfer;

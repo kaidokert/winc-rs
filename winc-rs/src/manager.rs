@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+/// Low-level chip manager
 use crate::errors::Error;
 use core::fmt::Debug;
 

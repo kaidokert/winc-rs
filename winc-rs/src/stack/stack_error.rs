@@ -1,6 +1,6 @@
 use crate::manager::WifiConnError;
 
-use super::SocketError;
+use crate::manager::SocketError;
 
 use embedded_nal::nb;
 

@@ -3,20 +3,19 @@ use core::net::Ipv4Addr;
 use crate::manager::{EventListener, SocketError, WifiConnError, WifiConnState};
 use crate::ConnectionInfo;
 
-use super::{debug, error, info};
+use crate::{debug, error, info};
 
-use super::ClientSocketOp;
-use super::GlobalOp;
-use super::Handle;
+use crate::socket::Socket;
+
+use crate::Ipv4AddrFormatWrapper;
+
 use super::SockHolder;
-use super::Socket;
+use crate::manager::{PingError, ScanResult, SOCKET_BUFFER_MAX_LENGTH};
 
-use super::PingError;
-use super::ScanResult;
-
-use super::SOCKET_BUFFER_MAX_LENGTH;
-
-use super::Ipv4AddrFormatWrapper;
+/// Opaque handle to a socket. Returned by socket APIs
+#[derive(Clone, Copy, PartialEq, Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub struct Handle(pub u8);
 
 #[derive(Debug, PartialEq)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
@@ -113,6 +112,29 @@ pub(crate) struct SocketCallbacks {
     pub global_op: Option<GlobalOp>,
     pub connection_state: ConnectionState,
     pub state: WifiModuleState,
+}
+
+#[derive(PartialEq, Clone, Copy, Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub enum GlobalOp {
+    GetHostByName,
+    #[allow(dead_code)] // todo: we'll add this later
+    Ping,
+}
+
+#[derive(PartialEq, Clone, Copy, Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub enum ClientSocketOp {
+    None,
+    New,
+    Connect,
+    Send(i16),
+    SendTo(i16),
+    Recv,
+    RecvFrom,
+    Bind,
+    Listen,
+    Accept,
 }
 
 impl SocketCallbacks {

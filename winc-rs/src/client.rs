@@ -1,55 +1,21 @@
 use crate::manager::Manager;
-use crate::manager::{PingError, ScanResult, SOCKET_BUFFER_MAX_LENGTH};
 use crate::socket::Socket;
 use crate::transfer::Xfer;
 
-use crate::Ipv4AddrFormatWrapper;
-
 use crate::manager::SocketError;
 
-use crate::{debug, error, info};
-
-/// Opaque handle to a socket. Returned by socket APIs
-#[derive(Clone, Copy, PartialEq, Debug)]
-#[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub struct Handle(u8);
+use crate::debug;
 
 mod dns;
-mod stack_error;
 mod tcp_stack;
 mod udp_stack;
 mod wifi_module;
-pub use stack_error::StackError;
 
-mod sock_holder;
-use sock_holder::SockHolder;
+pub use crate::stack::StackError;
 
-mod socket_callbacks;
-pub use socket_callbacks::PingResult;
-use socket_callbacks::SocketCallbacks;
-
-#[derive(PartialEq, Clone, Copy, Debug)]
-#[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub enum ClientSocketOp {
-    None,
-    New,
-    Connect,
-    Send(i16),
-    SendTo(i16),
-    Recv,
-    RecvFrom,
-    Bind,
-    Listen,
-    Accept,
-}
-
-#[derive(PartialEq, Clone, Copy, Debug)]
-#[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub enum GlobalOp {
-    GetHostByName,
-    #[allow(dead_code)] // todo: we'll add this later
-    Ping,
-}
+use crate::stack::socket_callbacks::SocketCallbacks;
+pub use crate::stack::socket_callbacks::{ClientSocketOp, GlobalOp};
+pub use crate::stack::socket_callbacks::{Handle, PingResult};
 
 pub enum GenResult {
     Ip(core::net::Ipv4Addr),
@@ -283,41 +249,6 @@ mod test_shared {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn test_winc_client() {}
-
-    #[test]
-    fn test_fa_client() {}
-
-    #[test]
-    fn test_containers() {
-        let mut socks = SockHolder::<2, 7>::new();
-        let handle0 = socks.add(13).unwrap();
-        let (s, _) = socks.get(handle0).unwrap();
-        assert_eq!(s.v, 7);
-        assert_eq!(s.s, 13);
-        let handle1 = socks.add(42).unwrap();
-        let (s, _) = socks.get(handle1).unwrap();
-        assert_eq!(s.v, 8);
-        assert_eq!(s.s, 42);
-        assert_eq!(socks.add(42), None);
-        socks.remove(handle0);
-        let handle2 = socks.add(50).unwrap();
-        let (s, _) = socks.get(handle2).unwrap();
-        assert_eq!(s.v, 7);
-        assert_eq!(s.s, 50);
-    }
-    #[test]
-    fn test_mixmatch() {
-        let mut tcp_sockets: SockHolder<7, 0> = SockHolder::new();
-        let mut udp_sockets: SockHolder<4, 7> = SockHolder::new();
-        let tcp_sock = tcp_sockets.add(13).unwrap();
-        assert_eq!(tcp_sock.0, 0);
-        assert_eq!(tcp_sockets.get(tcp_sock).unwrap().0.v, 0);
-        let udp_sock = udp_sockets.add(42).unwrap();
-        assert_eq!(udp_sock.0, 0);
-        assert_eq!(udp_sockets.get(udp_sock).unwrap().0.v, 7);
-    }
 }

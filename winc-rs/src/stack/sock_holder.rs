@@ -54,3 +54,38 @@ impl<const N: usize, const BASE: usize> SockHolder<N, BASE> {
         self.sockets[handle.0 as usize].as_mut()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_containers() {
+        let mut socks = SockHolder::<2, 7>::new();
+        let handle0 = socks.add(13).unwrap();
+        let (s, _) = socks.get(handle0).unwrap();
+        assert_eq!(s.v, 7);
+        assert_eq!(s.s, 13);
+        let handle1 = socks.add(42).unwrap();
+        let (s, _) = socks.get(handle1).unwrap();
+        assert_eq!(s.v, 8);
+        assert_eq!(s.s, 42);
+        assert_eq!(socks.add(42), None);
+        socks.remove(handle0);
+        let handle2 = socks.add(50).unwrap();
+        let (s, _) = socks.get(handle2).unwrap();
+        assert_eq!(s.v, 7);
+        assert_eq!(s.s, 50);
+    }
+    #[test]
+    fn test_mixmatch() {
+        let mut tcp_sockets: SockHolder<7, 0> = SockHolder::new();
+        let mut udp_sockets: SockHolder<4, 7> = SockHolder::new();
+        let tcp_sock = tcp_sockets.add(13).unwrap();
+        assert_eq!(tcp_sock.0, 0);
+        assert_eq!(tcp_sockets.get(tcp_sock).unwrap().0.v, 0);
+        let udp_sock = udp_sockets.add(42).unwrap();
+        assert_eq!(udp_sock.0, 0);
+        assert_eq!(udp_sockets.get(udp_sock).unwrap().0.v, 7);
+    }
+}

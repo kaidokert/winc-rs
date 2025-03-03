@@ -7,7 +7,7 @@ use super::StackError;
 use super::WincClient;
 use super::Xfer;
 
-use super::socket_callbacks::WifiModuleState;
+use crate::stack::socket_callbacks::WifiModuleState;
 
 use crate::info;
 
