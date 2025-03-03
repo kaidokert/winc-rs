@@ -123,7 +123,7 @@ impl core::fmt::Display for WifiConnState {
     }
 }
 
-#[allow(dead_code)] // Todo: once complete maybe can removepub enum WifiRequest {
+#[allow(dead_code)] // Todo: once complete maybe can remove
 pub enum WifiRequest {
     Restart = 0x01,            // implemented
     SetMacAddress = 0x02,      // M2M_WIFI_REQ_SET_MAC_ADDRESS

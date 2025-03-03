@@ -118,8 +118,6 @@ pub(crate) struct SocketCallbacks {
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum GlobalOp {
     GetHostByName,
-    #[allow(dead_code)] // todo: we'll add this later
-    Ping,
 }
 
 #[derive(PartialEq, Clone, Copy, Debug)]
@@ -184,9 +182,6 @@ impl EventListener for SocketCallbacks {
                 );
                 self.last_recv_addr = Some(core::net::SocketAddrV4::new(ip, 0));
                 self.global_op = None; // ends polling
-            }
-            Some(op) => {
-                error!("UNKNOWN on_resolve: host: {} state:{:?}", host, op);
             }
             _ => {
                 error!("UNKNOWN on_resolve: host: {}", host);

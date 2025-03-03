@@ -593,7 +593,7 @@ impl<X: Xfer> Manager<X> {
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
     }
     pub fn send_bind(&mut self, socket: Socket, address: SocketAddrV4) -> Result<(), Error> {
-        // todo: AF is useless here
+        // todo: address family is useless here
         let req = write_bind_req(socket, 2, address)?;
         self.write_hif_header(
             HifGroup::Ip(IpCode::Bind),

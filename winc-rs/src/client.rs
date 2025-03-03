@@ -34,7 +34,7 @@ pub struct WincClient<'a, X: Xfer> {
     poll_loop_delay: u32,
     callbacks: SocketCallbacks,
     next_session_id: u16,
-    // TODO: Lets change that per socket
+    // TODO: bug: Lets change this to be per socket, or per UDP socket only
     last_send_addr: Option<core::net::SocketAddrV4>,
     boot: Option<crate::manager::BootState>,
     operation_countdown: u32,
@@ -67,9 +67,6 @@ impl<'a, X: Xfer> WincClient<'a, X> {
     ///  See [Xfer] for details how to implement a transfer struct.
     pub fn new(transfer: X, delay: &'a mut impl FnMut(u32)) -> Self {
         let manager = Manager::from_xfer(transfer);
-        Self::new_internal(manager, delay)
-    }
-    fn new_internal(manager: Manager<X>, delay: &'a mut impl FnMut(u32)) -> Self {
         Self {
             manager,
             callbacks: SocketCallbacks::new(),
@@ -157,7 +154,6 @@ impl<'a, X: Xfer> WincClient<'a, X> {
             if matches!(e, StackError::GeneralTimeout) {
                 match expect_op {
                     GlobalOp::GetHostByName => StackError::DnsTimeout,
-                    _ => StackError::GeneralTimeout,
                 }
             } else {
                 e

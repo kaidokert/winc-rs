@@ -110,7 +110,7 @@ impl From<[u8; 40]> for FirmwareInfo {
         let mut build_date = [0u8; 12];
         let mut build_time = [0u8; 9];
 
-        // todo: maybe get rid of unwraps
+        // todo: get rid of unwraps
         let chip_id = read32le(reader).unwrap();
         reader.read_exact(&mut ver).unwrap();
         reader.read_exact(&mut build_date).unwrap();

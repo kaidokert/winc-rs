@@ -73,7 +73,6 @@ impl<X: Xfer> UdpClientStack for WincClient<'_, X> {
         Ok(())
     }
 
-    // TODO: We should return WouldBlock if there's no data
     fn receive(
         &mut self,
         socket: &mut Self::UdpSocket,
@@ -138,7 +137,6 @@ impl<X: Xfer> UdpFullStack for WincClient<'_, X> {
         Ok(())
     }
 
-    // TODO: Blocking call, returns nb::Result, handle similar to send()
     fn send_to(
         &mut self,
         socket: &mut Self::UdpSocket,

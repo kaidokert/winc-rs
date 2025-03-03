@@ -135,7 +135,7 @@ impl<X: Xfer> ChipAccess<X> {
         Ok(u32::from_le_bytes(data_buf))
     }
 
-    // todo: change reg arg to enum
+    // todo: change register argument to enum
     pub fn single_reg_write(&mut self, reg: u32, val: u32) -> Result<(), Error> {
         // info!("write {:x} val {:x}", reg, val);
         let v = val.to_le_bytes();
@@ -237,7 +237,7 @@ impl<X: Xfer> ChipAccess<X> {
         self.protocol_verify("dma_block_write:zero", &rdbuf, &[0])?;
 
         trace!("Sending F3 marker");
-        self.xfer.send(&[0xf3])?; // todo: could be 1/2/3 depending
+        self.xfer.send(&[0xf3])?; // todo: could be 1/2/3, depending on conditions
 
         trace!("Sending data ...");
         self.xfer.send(data)?;
