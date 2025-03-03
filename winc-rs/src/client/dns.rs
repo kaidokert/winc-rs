@@ -19,6 +19,8 @@ impl<X: Xfer> Dns for WincClient<'_, X> {
         if addr_type != AddrType::IPv4 {
             unimplemented!("IPv6 not supported");
         }
+        // Todo: this global_op isn't necessary at all, just use `last_recv_addr`
+        // for passing state back from the callback
         self.callbacks.global_op = Some(GlobalOp::GetHostByName);
         self.manager
             .send_gethostbyname(hostname)

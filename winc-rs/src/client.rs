@@ -123,6 +123,8 @@ impl<'a, X: Xfer> WincClient<'a, X> {
         }
     }
 
+    // Todo: This isn't really needed. It only deals with `last_recv_addr`
+    // and `last_error` which are just passed back to the caller.
     fn wait_for_gen_ack(
         &mut self,
         expect_op: GlobalOp,

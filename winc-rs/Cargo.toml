@@ -43,6 +43,7 @@ defmt = { version = "0.3.2", default-features = false, optional=true }
 embedded-nal-async = { version = "0.8.0", optional = true }
 
 [dev-dependencies]
+async-std = { version= "1.13", features= ["attributes"] }
 test-log = "0.2.11"
 
 [features]
