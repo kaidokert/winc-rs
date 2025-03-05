@@ -7,6 +7,7 @@ use core::marker::PhantomData;
 use core::ops::DerefMut;
 
 mod dns;
+mod module;
 
 pub struct AsyncClient<'a, X: Xfer> {
     manager: RefCell<Manager<X>>,

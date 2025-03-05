@@ -17,7 +17,7 @@ use crate::manager::{PingError, ScanResult, SOCKET_BUFFER_MAX_LENGTH};
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct Handle(pub u8);
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub(crate) enum WifiModuleState {
     Reset,
