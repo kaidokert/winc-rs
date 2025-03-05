@@ -4,7 +4,7 @@
         {
             "type": "probe-rs-debug",
             "request": "launch",
-            "name": "probe-rs Test",
+            "name": "probe-rs blinky [debug]",
             "cwd": "${workspaceFolder}",
             "connectUnderReset": false,
             "chip": "ATSAMD21G18A",
@@ -17,12 +17,36 @@
                 {
                     "rttEnabled": false,
                     "coreIndex": 0,
-                    "programBinary": "${workspaceFolder}\\target\\thumbv6m-none-eabi\\debug\\blinky"
+                    "programBinary": "${workspaceFolder}\\target\\thumbv6m-none-eabi\\debug\\examples\\blinky"
                 }
             ],
             "env": {
-                "RUST_LOG": "debug"
+                "RUST_LOG": "info"
+            }
+        },
+        {
+            "type": "probe-rs-debug",
+            "request": "launch",
+            "name": "probe-rs async debug",
+            "cwd": "${workspaceFolder}",
+            "connectUnderReset": false,
+            "chip": "ATSAMD21G18A",
+            "flashingConfig": {
+                "flashingEnabled": true,
+                "haltAfterReset": true
+            },
+            "consoleLogLevel": "Debug",
+            "coreConfigs": [
+                {
+                    "rttEnabled": false,
+                    "coreIndex": 0,
+                    "programBinary": "${workspaceFolder}\\target\\thumbv6m-none-eabi\\debug\\examples\\async_connect_saved"
+                }
+            ],
+            "env": {
+                "RUST_LOG": "info"
             }
         }
+
     ]
 }
