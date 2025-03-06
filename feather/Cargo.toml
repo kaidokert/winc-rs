@@ -56,7 +56,7 @@ required-features = ["async"]
 iperf3 = ["demos/iperf3"]
 oled = ["dep:ssd1306"]
 telnet = ["demos/telnet"]
-async = ["embassy-executor", "embassy-time", "embassy-time-driver"]
+async = ["embassy-executor", "wincwifi/async"]
 custom_driver = []
 
 # cargo build/run
