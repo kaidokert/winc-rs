@@ -9,9 +9,6 @@ use feather::shared::SpiStream;
 use wincwifi::AsyncClient;
 use wincwifi::StackError;
 
-#[cfg(feature = "custom_driver")]
-mod time_driver;
-
 async fn program() -> Result<(), StackError> {
     if let Ok(ini) = init() {
         defmt::info!("Embassy async blinky");

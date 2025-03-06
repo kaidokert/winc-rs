@@ -44,7 +44,7 @@ fn program() -> Result<(), MyError> {
         display.init().map_err(|_| MyError::DisplayError)?;
         display.clear().map_err(|_| MyError::DisplayError)?;
 
-        let mut delay = ini.del;
+        let mut delay = ini.delay_tick;
         let mut red_led = ini.red_led;
         let mut btn_a = ini.button_a;
         let mut btn_b = ini.button_b;

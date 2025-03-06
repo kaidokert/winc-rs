@@ -30,3 +30,5 @@ Guidelines](https://opensource.google/conduct/).
 All submissions, including submissions by project members, require review. We
 use [GitHub pull requests](https://docs.github.com/articles/about-pull-requests)
 for this purpose.
+
+For more detailed development environment notes, see [`DEVELOPMENT.md`](DEVELOPMENT.md)

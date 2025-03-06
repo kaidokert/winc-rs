@@ -20,6 +20,8 @@ These are also separately runnable with `std-embedded-nal` crate.
 
 See [`CONTRIBUTING.md`](CONTRIBUTING.md) for details.
 
+See [`DEVELOPMENT.md`](DEVELOPMENT.md) for development setup, and `TODO.md` for backlog of issues to be addressed.
+
 ## License
 
 Apache 2.0; see [`LICENSE`](LICENSE) for details.

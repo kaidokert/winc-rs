@@ -29,8 +29,6 @@ demos = { path = "../demos", default-features = false, features=["defmt"] }
 ssd1306 = { version = "0.9.0", optional = true }
 
 embassy-executor = { version = "0.7" , features= ["arch-cortex-m", "executor-thread", "defmt"], optional = true }
-embassy-time = { version = "0.4" , features= ["defmt"], optional = true }
-embassy-time-driver = { version = "0.2", optional = true }
 
 [[example]]
 name = "iperf3_client"
@@ -57,7 +55,6 @@ iperf3 = ["demos/iperf3"]
 oled = ["dep:ssd1306"]
 telnet = ["demos/telnet"]
 async = ["embassy-executor", "wincwifi/async"]
-custom_driver = []
 
 # cargo build/run
 [profile.dev]
