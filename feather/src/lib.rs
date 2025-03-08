@@ -11,6 +11,8 @@ pub use feather_m0 as bsp;
 
 pub mod init;
 pub mod init2;
+#[cfg(feature = "async")]
+pub mod init3;
 pub mod shared;
 
 use panic_probe as _;

@@ -3,7 +3,6 @@ use cortex_m::{
     interrupt::{self, Mutex},
     peripheral::SYST,
 };
-use cortex_m_rt::exception;
 
 struct Wakeup {
     wakeup_at: u64,
@@ -37,7 +36,7 @@ impl<const N: usize> SystickDriver<N> {
     ///  Note the tick frequency is configured to embassy_time_driver::TICK_HZ.
     ///
     pub const fn new(systick_freq: u64, reload_value: u32) -> Self {
-        let timer = cortex::Timer::new(embassy_time_driver::TICK_HZ, reload_value, systick_freq);
+        let timer = crate::Timer::new(embassy_time_driver::TICK_HZ, reload_value, systick_freq);
         Self {
             wakeup_at: Mutex::new(RefCell::new([const { None }; N])),
             timer: timer,
@@ -61,6 +60,10 @@ impl<const N: usize> SystickDriver<N> {
         })
     }
 
+    pub fn start(&self, syst: &mut SYST) {
+        self.timer.start(syst);
+    }
+
     /// Call this from the SysTick interrupt handler.
     pub fn systick_interrupt(&self) {
         self.timer.systick_handler();
@@ -70,7 +73,7 @@ impl<const N: usize> SystickDriver<N> {
 
 impl<const N: usize> embassy_time_driver::Driver for SystickDriver<N> {
     fn now(&self) -> u64 {
-        DRIVER.timer.now()
+        self.timer.now()
     }
 
     fn schedule_wake(&self, at: u64, waker: &core::task::Waker) {
@@ -94,15 +97,11 @@ impl<const N: usize> embassy_time_driver::Driver for SystickDriver<N> {
     }
 }
 
-pub fn init(syst: &mut SYST) {
-    DRIVER.timer.start(syst);
-}
-
 #[cfg(feature = "embassy-defaults")]
 embassy_time_driver::time_driver_impl!(static DRIVER: SystickDriver<4> = SystickDriver::new(48_000_000, 47999));
 
 #[cfg(feature = "embassy-defaults")]
-#[exception]
+#[cortex_m_rt::exception]
 fn SysTick() {
     DRIVER.systick_interrupt();
 }

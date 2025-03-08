@@ -1,8 +1,5 @@
 use core::sync::atomic::{AtomicU32, Ordering};
 
-#[cfg(feature = "cortex-m")]
-use cortex_m::peripheral::{syst::SystClkSource, SYST};
-
 /// A 64-bit timer based on SysTick.
 ///
 /// Stores wraparounds in 2 32-bit atomics. Scales the systick counts
@@ -70,7 +67,7 @@ impl Timer {
     }
 
     /// Returns the current SysTick counter value.
-    const fn get_syst(&self) -> u32 {
+    fn get_syst(&self) -> u32 {
         #[cfg(test)]
         return self.current_systick;
 
@@ -138,7 +135,7 @@ impl Timer {
 
     /// Call this if you haven't already started the timer.
     #[cfg(feature = "cortex-m")]
-    pub fn start(&self, syst: &mut SYST) {
+    pub fn start(&self, syst: &mut cortex_m::peripheral::SYST) {
         syst.set_clock_source(cortex_m::peripheral::syst::SystClkSource::Core);
         syst.set_reload(self.reload_value);
         syst.clear_current();
