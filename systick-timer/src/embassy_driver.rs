@@ -98,7 +98,7 @@ impl<const N: usize> embassy_time_driver::Driver for SystickDriver<N> {
 }
 
 #[cfg(feature = "embassy-defaults")]
-embassy_time_driver::time_driver_impl!(static DRIVER: SystickDriver<4> = SystickDriver::new(48_000_000, 47999));
+embassy_time_driver::time_driver_impl!(static DRIVER: SystickDriver<4> = SystickDriver::new(8_000_000, 7_999));
 
 #[cfg(feature = "embassy-defaults")]
 #[cortex_m_rt::exception]

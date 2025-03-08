@@ -9,7 +9,7 @@
 //! any Cortex-M0/M3/M4/M7 code.
 //!
 //! Usage:
-//! ```
+//! ```ignore
 //! use systick_timer::Timer;
 //! // Set up timer with 1ms resolution, reload at 1ms, 48MHz clock
 //! let timer = Timer::new(1000, 47999, 48_000_000);
@@ -19,7 +19,7 @@
 //! ```
 //! Alternatively, to reduce the frequency of overflow interrupts,
 //! you can use the maximum reload value:
-//! ```
+//! ```ignore
 //! let timer = Timer::new(1000, 16_777_215, 48_000_000);
 //! ```
 //! This generates an interrupt and reloads the timer every ~350ms, but
@@ -27,16 +27,18 @@
 //!
 //! ----------------------------------------------------------------
 //!
-//! To use the Embassy driver, the setup needs to look as follows:
+//! To use the Embassy driver, the setup needs to look as follows. First,
+//! create a static instance of the timer, passing in SysTick frequency
+//! and reload value. The constant <4> determines the number of concurrent
+//! wait tasks supported.
 //!
 //! ```ignore
-//! // Create a static instance of the timer, passing in SysTick frequency
-//! // and reload value.
 //! embassy_time_driver::time_driver_impl!(static DRIVER: SystickDriver<4>
 //!   = SystickDriver::new(8_000_000, 7999));
 //! ```
 //!
-//! You must have a SysTick interrupt handler that calls the driver's
+//! Next, you must have a SysTick interrupt handler that calls the driver's
+//! `systick_interrupt()` method on its static instance.
 //!
 //! ```ignore
 //! #[exception]
@@ -45,7 +47,8 @@
 //! }
 //! ```
 //!
-//! And in main, before using any timer calls, initialize the driver:
+//! And in main, before using any timer calls, initialize the driver with
+//! the actual SysTick peripheral:
 //!
 //! ```ignore
 //! #[embassy_executor::main]

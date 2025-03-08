@@ -1,0 +1,5 @@
+[target.'cfg(all(target_arch = "arm", target_os = "none"))']
+runner = "qemu-system-arm -s -cpu cortex-m0 -machine microbit -nographic -semihosting-config enable=on,target=native -kernel "
+
+[alias]
+runq = "run --target thumbv6m-none-eabi --features=cortex-m,embassy-time-driver,cortex-m/critical-section-single-core,embassy-executor/arch-cortex-m,embassy-executor/executor-thread"
