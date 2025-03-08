@@ -1,20 +1,17 @@
 #![no_std]
 #![no_main]
 
-use cortex_m_systick_countdown::MillisCountDown;
+use embassy_time::Timer;
 use feather::hal::ehal::digital::OutputPin;
-use feather::init2::init;
-use feather::shared::delay_fn;
+use feather::init3::init;
 use feather::shared::SpiStream;
 use wincwifi::AsyncClient;
 use wincwifi::StackError;
 
 async fn program() -> Result<(), StackError> {
-    if let Ok(ini) = init() {
+    if let Ok(ini) = init().await {
         defmt::info!("Embassy async blinky");
         let mut red_led = ini.red_led;
-        let mut cnt = MillisCountDown::new(&ini.delay_tick);
-        let mut delay = delay_fn(&mut cnt);
         let mut module = AsyncClient::new(SpiStream::new(ini.cs, ini.spi));
         defmt::info!("Initializing module");
         module.start_wifi_module().await?;
@@ -22,9 +19,9 @@ async fn program() -> Result<(), StackError> {
         module.connect_to_saved_ap().await?;
         defmt::info!("Connected to saved network");
         loop {
-            delay(200u32); // Todo: replace this with embbassy_time::Timer::after_millis(200).await
+            Timer::after_millis(200).await;
             red_led.set_high().unwrap();
-            delay(200u32); // Todo: replace this with embbassy_time::Timer::after_millis(200).await
+            Timer::after_millis(200).await;
             red_led.set_low().unwrap();
         }
     }
