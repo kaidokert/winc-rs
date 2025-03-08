@@ -1,0 +1,14 @@
+[package]
+name = "systick-timer"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+cortex-m = "0.7"
+cortex-m-rt = "0.7.5"
+embassy-time-driver = { version = "0.2", optional = true }
+
+[features]
+default = ["embassy-defaults"]
+cortex-m =[]
+embassy-defaults=[]
