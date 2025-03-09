@@ -125,7 +125,7 @@ where
     });
 
     let full_len = match my_confg.conf {
-        Conf::Time(time) => {
+        Conf::Time(_time) => {
             todo!()
         }
         Conf::Bytes(bytes) => bytes,

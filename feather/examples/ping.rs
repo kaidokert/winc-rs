@@ -6,9 +6,9 @@
 
 use core::net::Ipv4Addr;
 
-use bsp::hal::prelude::*;
 use bsp::shared::SpiStream;
 use feather as bsp;
+use feather::hal::ehal::digital::OutputPin;
 use feather::init::init;
 use feather::shared::{create_countdowns, delay_fn, parse_ip_octets};
 
@@ -21,15 +21,16 @@ const DEFAULT_TEST_TTL: u8 = 200;
 const DEFAULT_TEST_COUNT: u16 = 4;
 
 fn program() -> Result<(), StackError> {
-    if let Ok((delay_tick, mut red_led, cs, spi)) = init() {
+    if let Ok(mut ini) = init() {
         defmt::println!("Hello, Winc ping");
+        let red_led = &mut ini.red_led;
 
-        let mut cnt = create_countdowns(&delay_tick);
+        let mut cnt = create_countdowns(&ini.delay_tick);
         let mut delay1 = delay_fn(&mut cnt.0);
         let mut delay_ms = delay_fn(&mut cnt.1);
 
         defmt::info!("Connecting to saved network ..",);
-        let mut stack = WincClient::new(SpiStream::new(cs, spi), &mut delay1);
+        let mut stack = WincClient::new(SpiStream::new(ini.cs, ini.spi), &mut delay1);
 
         let mut v = 0;
         loop {
@@ -70,9 +71,9 @@ fn program() -> Result<(), StackError> {
         defmt::info!(".. ping completed, going to loop");
         loop {
             delay_ms(200);
-            red_led.set_high()?;
+            red_led.set_high().unwrap();
             delay_ms(200);
-            red_led.set_low()?;
+            red_led.set_low().unwrap();
             stack.heartbeat().unwrap();
         }
     }

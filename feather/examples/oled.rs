@@ -11,7 +11,7 @@ use feather as bsp;
 use bsp::hal::ehal as embedded_hal;
 use bsp::hal::ehal::{digital::InputPin, digital::OutputPin};
 
-use feather::init2::init;
+use feather::init::init;
 
 use core::fmt::Write;
 use ssd1306::mode::DisplayConfig;
