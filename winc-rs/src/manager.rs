@@ -746,6 +746,10 @@ impl<X: Xfer> Manager<X> {
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
     }
 
+    pub fn may_wait_for_interrupt(&mut self) {
+        self.chip.wait_for_interrupt()
+    }
+
     pub fn dispatch_events_new<T: EventListener>(&mut self, listener: &mut T) -> Result<(), Error> {
         let res = self.is_interrupt_pending()?;
         if !res.0 {

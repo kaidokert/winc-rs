@@ -87,6 +87,10 @@ impl<X: Xfer> ChipAccess<X> {
         }
     }
 
+    pub fn wait_for_interrupt(&mut self) {
+        self.xfer.wait_for_interrupt()
+    }
+
     pub fn switch_to_high_speed(&mut self) {
         self.xfer.switch_to_high_speed();
     }

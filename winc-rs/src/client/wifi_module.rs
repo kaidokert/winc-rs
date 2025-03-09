@@ -156,7 +156,7 @@ impl<X: Xfer> WincClient<'_, X> {
             }
         }
 
-        self.dispatch_events()?;
+        self.dispatch_events_may_wait()?;
         Err(nb::Error::WouldBlock)
     }
 
@@ -186,7 +186,7 @@ impl<X: Xfer> WincClient<'_, X> {
             }
         }
 
-        self.dispatch_events()?;
+        self.dispatch_events_may_wait()?;
         Err(nb::Error::WouldBlock)
     }
 
@@ -195,7 +195,7 @@ impl<X: Xfer> WincClient<'_, X> {
             return Ok(ip_conf.clone());
         }
 
-        self.dispatch_events()?;
+        self.dispatch_events_may_wait()?;
         Err(nb::Error::WouldBlock)
     }
 
@@ -216,7 +216,7 @@ impl<X: Xfer> WincClient<'_, X> {
             }
         }
 
-        self.dispatch_events()?;
+        self.dispatch_events_may_wait()?;
         Err(nb::Error::WouldBlock)
     }
 
@@ -244,7 +244,7 @@ impl<X: Xfer> WincClient<'_, X> {
                 }
             }
         }
-        self.dispatch_events()?;
+        self.dispatch_events_may_wait()?;
         Err(nb::Error::WouldBlock)
     }
 
@@ -290,7 +290,7 @@ impl<X: Xfer> WincClient<'_, X> {
             }
         }
 
-        self.dispatch_events()?;
+        self.dispatch_events_may_wait()?;
         Err(nb::Error::WouldBlock)
     }
 }

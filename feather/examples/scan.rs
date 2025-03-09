@@ -53,8 +53,10 @@ fn program() -> Result<(), StackError> {
             }
         }
         let mut delay_ms2 = create_custom_delay_closure(&mut cnt.1);
+        let mut spi_stream = SpiStream::new(ini.cs, ini.spi);
+        spi_stream.enable_interrupts();
 
-        let mut stack = WincClient::new(SpiStream::new(ini.cs, ini.spi), &mut delay_ms2);
+        let mut stack = WincClient::new(spi_stream, &mut delay_ms2);
 
         let mut v = 0;
         loop {
@@ -72,7 +74,6 @@ fn program() -> Result<(), StackError> {
 
         let scan = |stack: &mut WincClient<_>| -> Result<(), StackError> {
             defmt::info!("Scanning for access points ..");
-            //let num_aps = nb::block!(stack.scan())?;
             let num_aps = loop {
                 match stack.scan() {
                     Ok(num_aps) => break num_aps,

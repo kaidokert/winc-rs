@@ -31,6 +31,8 @@ pub trait Xfer {
     /// Optionally reduce bus wait times after initialization.
     /// This speeds up the overall communications
     fn switch_to_high_speed(&mut self) {}
+    /// Optionally wait for an interrupt from IRQ pin
+    fn wait_for_interrupt(&mut self) {}
 }
 
 // Blanket implementation
