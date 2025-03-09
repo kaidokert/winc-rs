@@ -61,12 +61,6 @@ repos:
       # entry: cargo check --manifest-path=demos/Cargo.toml
       files: \.(rs|toml)$
       pass_filenames: false
-    - id: check_systick_timer
-      name: Run cargo check for systick-timer
-      language: system
-      entry: cargo check --manifest-path=systick-timer/Cargo.toml
-      files: \.(rs|toml)$
-      pass_filenames: false
     - id: clippy_winc_rs
       name: Run clippy for winc-rs
       language: system
