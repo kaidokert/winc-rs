@@ -9,7 +9,6 @@ use defmt_rtt as _; // global logger
 pub use bsp::hal;
 pub use feather_m0 as bsp;
 
-pub mod init;
 pub mod init2;
 #[cfg(feature = "async")]
 pub mod init3;

@@ -5,25 +5,26 @@
 #![no_main]
 #![no_std]
 
-use bsp::hal::prelude::*;
 use bsp::shared::SpiStream;
 use feather as bsp;
-use feather::init::init;
+use feather::hal::ehal::digital::OutputPin;
+use feather::init2::init;
 use feather::shared::{create_countdowns, delay_fn};
 
 use wincwifi::{StackError, WincClient};
 
 fn program() -> Result<(), StackError> {
-    if let Ok((delay_tick, mut red_led, cs, spi)) = init() {
+    if let Ok(mut ini) = init() {
         defmt::println!("Hello, Winc Module");
+        let red_led = &mut ini.red_led;
 
-        let mut cnt = create_countdowns(&delay_tick);
+        let mut cnt = create_countdowns(&ini.delay_tick);
 
         let mut delay_ms = delay_fn(&mut cnt.0);
         let mut delay_ms2 = delay_fn(&mut cnt.1);
 
         defmt::info!("Connecting to saved network ..",);
-        let mut stack = WincClient::new(SpiStream::new(cs, spi), &mut delay_ms2);
+        let mut stack = WincClient::new(SpiStream::new(ini.cs, ini.spi), &mut delay_ms2);
 
         let mut v = 0;
         loop {
@@ -48,9 +49,9 @@ fn program() -> Result<(), StackError> {
         defmt::info!(".. connected to AP, going to loop");
         loop {
             delay_ms(200);
-            red_led.set_high()?;
+            red_led.set_high().unwrap();
             delay_ms(200);
-            red_led.set_low()?;
+            red_led.set_low().unwrap();
             stack.heartbeat().unwrap();
         }
     }

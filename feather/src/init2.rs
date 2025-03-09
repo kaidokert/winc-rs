@@ -26,6 +26,12 @@ const I2C_KHZ: u32 = 400;
 
 use cortex_m_systick_countdown::{PollingSysTick, SysTickCalibration};
 
+// Chip reset sequence timing. TODO: Shorten those as much as
+// we reliably can
+const WIFI_RESET_DELAY_DOWN: u32 = 50;
+const WIFI_RESET_DELAY_UP: u32 = 20;
+const WIFI_RESET_DELAY_WAIT: u32 = 50;
+
 #[derive(Debug, defmt::Format)]
 pub enum FailureSource {
     Periph,
@@ -115,15 +121,13 @@ pub fn init() -> Result<
     OutputPin::set_high(&mut cs)?; // CS: pull low for transaction, high to end
     OutputPin::set_high(&mut rst)?; // Reset pin for the WiFi module, controlled by the library
 
-    del.delay_ms(500);
-
+    del.delay_ms(WIFI_RESET_DELAY_DOWN);
     OutputPin::set_low(&mut cs)?; // CS: pull low for transaction, high to end
     OutputPin::set_low(&mut rst)?;
-    del.delay_ms(50);
+    del.delay_ms(WIFI_RESET_DELAY_UP);
     OutputPin::set_high(&mut rst)?;
     OutputPin::set_high(&mut cs)?; // CS: pull low for transaction, high to end
-
-    del.delay_ms(500);
+    del.delay_ms(WIFI_RESET_DELAY_WAIT);
 
     Ok(InitResult {
         delay_tick: del,

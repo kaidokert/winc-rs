@@ -1,10 +1,10 @@
 use embedded_nal::{Dns, TcpClientStack, TcpFullStack, UdpClientStack, UdpFullStack};
+use feather::hal::ehal::digital::OutputPin;
 use feather::{
-    init::init,
+    init2::init,
     shared::{create_countdowns, delay_fn, SpiStream},
 };
 
-use super::bsp::hal::prelude::*;
 use wincwifi::Handle;
 
 use wincwifi::WincClient;
@@ -48,15 +48,16 @@ pub fn connect_and_run(
     client_type: ClientType,
     execute: impl FnOnce(ReturnClient, core::net::Ipv4Addr) -> Result<(), wincwifi::StackError>,
 ) -> Result<(), wincwifi::StackError> {
-    if let Ok((delay_tick, mut red_led, cs, spi)) = init() {
+    if let Ok(mut ini) = init() {
         defmt::println!("{}", message);
 
-        let mut cnt = create_countdowns(&delay_tick);
+        let mut cnt = create_countdowns(&ini.delay_tick);
+        let red_led = &mut ini.red_led;
 
         let mut delay_ms = delay_fn(&mut cnt.0);
         let mut delay_ms2 = delay_fn(&mut cnt.1);
 
-        let mut stack = WincClient::new(SpiStream::new(cs, spi), &mut delay_ms2);
+        let mut stack = WincClient::new(SpiStream::new(ini.cs, ini.spi), &mut delay_ms2);
 
         let mut v = 0;
         loop {
@@ -103,9 +104,9 @@ pub fn connect_and_run(
             stack.heartbeat()?;
 
             delay_ms(200u32);
-            red_led.set_high()?;
+            red_led.set_high().unwrap();
             delay_ms(200u32);
-            red_led.set_low()?;
+            red_led.set_low().unwrap();
         }
     }
     Ok(())
