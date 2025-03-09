@@ -5,7 +5,7 @@
 #![no_std]
 
 use feather as bsp;
-use feather::init2::init;
+use feather::init::init;
 
 use bsp::shared::SpiStream;
 use feather::hal::ehal::digital::OutputPin;

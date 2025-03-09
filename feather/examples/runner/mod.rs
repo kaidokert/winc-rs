@@ -1,7 +1,7 @@
 use embedded_nal::{Dns, TcpClientStack, TcpFullStack, UdpClientStack, UdpFullStack};
 use feather::hal::ehal::digital::OutputPin;
 use feather::{
-    init2::init,
+    init::init,
     shared::{create_countdowns, delay_fn, SpiStream},
 };
 

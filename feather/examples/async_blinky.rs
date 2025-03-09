@@ -2,7 +2,7 @@
 #![no_main]
 
 use feather::hal::ehal::digital::OutputPin;
-use feather::init3::init;
+use feather::init_async::init;
 
 use embassy_time::Timer;
 

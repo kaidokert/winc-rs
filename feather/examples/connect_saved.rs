@@ -8,7 +8,7 @@
 use bsp::shared::SpiStream;
 use feather as bsp;
 use feather::hal::ehal::digital::OutputPin;
-use feather::init2::init;
+use feather::init::init;
 use feather::shared::{create_countdowns, delay_fn};
 
 use wincwifi::{StackError, WincClient};

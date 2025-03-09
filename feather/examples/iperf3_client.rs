@@ -10,7 +10,7 @@ use bsp::hal::ehal::digital::OutputPin;
 use bsp::hal::prelude::*;
 use bsp::shared::{parse_ip_octets, SpiStream};
 use feather as bsp;
-use feather::init2::init;
+use feather::init::init;
 use feather::shared::{create_countdowns, delay_fn};
 
 use wincwifi::{StackError, WincClient};

@@ -9,9 +9,9 @@ use defmt_rtt as _; // global logger
 pub use bsp::hal;
 pub use feather_m0 as bsp;
 
-pub mod init2;
+pub mod init;
 #[cfg(feature = "async")]
-pub mod init3;
+pub mod init_async;
 pub mod shared;
 
 use panic_probe as _;

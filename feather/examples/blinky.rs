@@ -6,7 +6,7 @@
 use bsp::hal::ehal::digital::OutputPin;
 use bsp::hal::prelude::*;
 use feather as bsp;
-use feather::init2::init;
+use feather::init::init;
 
 #[cortex_m_rt::entry]
 fn main() -> ! {
