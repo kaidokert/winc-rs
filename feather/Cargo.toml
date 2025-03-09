@@ -17,7 +17,7 @@ defmt-rtt = "0.4"
 panic-probe = { version = "0.3.0", features = ["print-defmt"] }
 cortex-m-semihosting = "0.5.0"
 
-feather_m0 = { version = "0.17.1" , features=["winc"]}
+feather_m0 = { version = "0.18" , features=["winc"]}
 embedded-hal = { version= "1", features = ["defmt-03"]}
 nb = { version = "1.0"}
 
