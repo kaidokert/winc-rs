@@ -78,6 +78,7 @@ pub use client::StackError;
 pub use client::WincClient;
 pub use manager::AuthType;
 pub use manager::ConnectionInfo;
+pub use manager::DebugInfo;
 pub use manager::FirmwareInfo;
 
 // TODO: maybe don't expose this directly

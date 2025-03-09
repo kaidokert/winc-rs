@@ -81,6 +81,9 @@ impl<'a, X: Xfer> WincClient<'a, X> {
             debug_callback: None,
         }
     }
+    pub fn get_debug_info(&mut self) -> crate::manager::DebugInfo {
+        self.manager.debug_info.clone()
+    }
     fn get_next_session_id(&mut self) -> u16 {
         let ret = self.next_session_id;
         self.next_session_id += 1;

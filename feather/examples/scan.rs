@@ -4,6 +4,7 @@
 #![no_main]
 #![no_std]
 
+use cortex_m_systick_countdown::{MillisCountDown, PollingSysTick};
 use feather as bsp;
 use feather::init::init;
 
@@ -17,22 +18,43 @@ use core::sync::atomic::{AtomicUsize, Ordering};
 use feather::bsp::pac;
 use pac::interrupt;
 
+use core::time::Duration;
+use feather::hal::prelude::*;
+
 static CNT5: AtomicUsize = AtomicUsize::new(0);
 static CNT15: AtomicUsize = AtomicUsize::new(0);
+
+static TIMES_CALLED: AtomicUsize = AtomicUsize::new(0);
+static TOTAL_TIME: AtomicUsize = AtomicUsize::new(0);
 
 fn program() -> Result<(), StackError> {
     if let Ok(mut ini) = init() {
         defmt::println!("Hello, Winc scan");
         let red_led = &mut ini.red_led;
 
-        let mut cnt = create_countdowns(&ini.delay_tick);
-        let mut delay_ms = delay_fn(&mut cnt.0);
-        let mut delay_ms2 = delay_fn(&mut cnt.1);
-
-        let mut stack = WincClient::new(SpiStream::new(ini.cs, ini.spi), &mut delay_ms2);
-
         let mut prev_5_value: usize = CNT5.load(Ordering::SeqCst);
         let mut prev_15_value: usize = CNT15.load(Ordering::SeqCst);
+
+        let mut cnt = create_countdowns(&ini.delay_tick);
+        let mut delay_ms = delay_fn(&mut cnt.0);
+
+        fn create_custom_delay_closure<'a>(
+            delay: &'a mut MillisCountDown<'a, PollingSysTick>,
+        ) -> impl FnMut(u32) + 'a {
+            move |v: u32| {
+                defmt::info!("Called: {}", v);
+                let called = 1 + TIMES_CALLED.load(Ordering::SeqCst);
+                TIMES_CALLED.store(called, Ordering::SeqCst);
+                let total = v as usize + TOTAL_TIME.load(Ordering::SeqCst);
+                TOTAL_TIME.store(total, Ordering::SeqCst);
+
+                delay.start(Duration::from_millis(v.into()));
+                nb::block!(delay.wait()).unwrap();
+            }
+        }
+        let mut delay_ms2 = create_custom_delay_closure(&mut cnt.1);
+
+        let mut stack = WincClient::new(SpiStream::new(ini.cs, ini.spi), &mut delay_ms2);
 
         let mut v = 0;
         loop {
@@ -46,10 +68,21 @@ fn program() -> Result<(), StackError> {
                 Err(e) => return Err(e.into()),
             }
         }
+        let scan_loop_counter = AtomicUsize::new(0);
 
         let scan = |stack: &mut WincClient<_>| -> Result<(), StackError> {
             defmt::info!("Scanning for access points ..");
-            let num_aps = nb::block!(stack.scan())?;
+            //let num_aps = nb::block!(stack.scan())?;
+            let num_aps = loop {
+                match stack.scan() {
+                    Ok(num_aps) => break num_aps,
+                    Err(nb::Error::WouldBlock) => {
+                        let loop_count = scan_loop_counter.load(Ordering::SeqCst);
+                        scan_loop_counter.store(loop_count + 1, Ordering::SeqCst);
+                    }
+                    Err(e) => return Err(e.into()),
+                }
+            };
             defmt::info!("Scan done, aps:{}", num_aps);
 
             for i in 0..num_aps {
@@ -86,6 +119,13 @@ fn program() -> Result<(), StackError> {
             if new_value != prev_5_value {
                 prev_5_value = new_value;
                 defmt::println!("Wifi IRQ counter: {}", new_value);
+                defmt::println!("Times called: {}", TIMES_CALLED.load(Ordering::SeqCst));
+                defmt::println!("Total time: {}", TOTAL_TIME.load(Ordering::SeqCst));
+                defmt::println!("Debug info: {:?}", stack.get_debug_info());
+                defmt::println!(
+                    "Scan loop counter: {}",
+                    scan_loop_counter.load(Ordering::SeqCst)
+                );
             }
         }
     }
