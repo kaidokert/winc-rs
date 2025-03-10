@@ -34,3 +34,6 @@ jobs:
     - name: Build feather
       working-directory: feather
       run: cargo build --verbose --lib --bins --examples
+    - name: Build feather_async
+      working-directory: feather_async
+      run: cargo build --verbose --lib --bins --examples
