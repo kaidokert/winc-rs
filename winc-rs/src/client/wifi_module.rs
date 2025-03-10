@@ -143,6 +143,7 @@ impl<X: Xfer> WincClient<'_, X> {
                 self.manager
                     .send_scan(0xFF, PASSIVE_SCAN_TIME)
                     .map_err(|x| nb::Error::Other(StackError::WincWifiFail(x)))?;
+                // Signal operation in progress
                 self.callbacks.connection_state.scan_number_aps = Some(None);
             }
             Some(num_aps) => {

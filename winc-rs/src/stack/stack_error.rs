@@ -26,9 +26,6 @@ pub enum StackError {
     BindFailed(crate::errors::Error),
     WincWifiFail(crate::errors::Error),
     OpFailed(SocketError),
-    /// Logical error, an operation encountered
-    /// and unexpected state
-    GlobalOpFailed,
     /// DNS lookup timed out
     DnsTimeout,
     /// Unexpected DNS error

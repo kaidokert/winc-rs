@@ -108,16 +108,10 @@ pub(crate) struct SocketCallbacks {
     // Todo: Maybe per socket ?
     pub last_error: crate::manager::SocketError,
     pub last_recv_addr: Option<core::net::SocketAddrV4>,
+    pub dns_resolved_addr: Option<Option<core::net::Ipv4Addr>>,
     pub last_accepted_socket: Option<Socket>,
-    pub global_op: Option<GlobalOp>,
     pub connection_state: ConnectionState,
     pub state: WifiModuleState,
-}
-
-#[derive(PartialEq, Clone, Copy, Debug)]
-#[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub enum GlobalOp {
-    GetHostByName,
 }
 
 #[derive(PartialEq, Clone, Copy, Debug)]
@@ -144,8 +138,8 @@ impl SocketCallbacks {
             recv_len: 0,
             last_error: crate::manager::SocketError::NoError,
             last_recv_addr: None,
+            dns_resolved_addr: None,
             last_accepted_socket: None,
-            global_op: None,
             connection_state: ConnectionState::new(),
             state: WifiModuleState::Reset,
         }
@@ -173,20 +167,7 @@ impl EventListener for SocketCallbacks {
             Ipv4AddrFormatWrapper::new(&ip),
             host
         );
-        match self.global_op {
-            Some(GlobalOp::GetHostByName) => {
-                debug!(
-                    "on_resolve: ip:{:?} host:{:?}",
-                    Ipv4AddrFormatWrapper::new(&ip),
-                    host
-                );
-                self.last_recv_addr = Some(core::net::SocketAddrV4::new(ip, 0));
-                self.global_op = None; // ends polling
-            }
-            _ => {
-                error!("UNKNOWN on_resolve: host: {}", host);
-            }
-        }
+        self.dns_resolved_addr = Some(Some(ip));
     }
 
     fn on_default_connect(&mut self, connected: bool) {

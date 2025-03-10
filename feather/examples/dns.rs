@@ -1,5 +1,8 @@
 //! Demonstrate a DNS lookup
 //!
+//! Input is a single or a comma separated list of hosts
+//! export TEST_HOST=www.google.com,www.rustinaction.com
+//!
 
 #![no_main]
 #![no_std]
@@ -23,6 +26,7 @@ where
     T: Dns + ?Sized,
     T::Error: From<embedded_nal::nb::Error<T::Error>>,
 {
+    defmt::info!("DNS lookup for: {}", host);
     let ip = nb::block!(stack.get_host_by_name(host, embedded_nal::AddrType::IPv4));
     match ip {
         Ok(IpAddr::V4(ip)) => {
@@ -51,7 +55,8 @@ fn main() -> ! {
         |stack: ReturnClient, _: core::net::Ipv4Addr| -> Result<(), StackError> {
             if let ReturnClient::Dns(stack) = stack {
                 let host = option_env!("TEST_HOST").unwrap_or(DEFAULT_TEST_HOST);
-                dns_client(stack, host)?;
+                host.split(',')
+                    .try_for_each(|host_part| dns_client(stack, host_part))?;
             }
             Ok(())
         },

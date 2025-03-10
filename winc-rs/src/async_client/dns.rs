@@ -1,6 +1,6 @@
 use core::net::IpAddr;
+use core::net::Ipv4Addr;
 
-use crate::client::GlobalOp;
 use crate::transfer::Xfer;
 use crate::StackError;
 use embedded_nal_async::AddrType;
@@ -21,30 +21,30 @@ impl<X: Xfer> Dns for AsyncClient<'_, X> {
         }
         {
             let mut callbacks = self.callbacks.borrow_mut();
-            callbacks.last_recv_addr = None;
-            // Todo: this global_op isn't necessary at all, just use `last_recv_addr` for signaling
-            callbacks.global_op = Some(GlobalOp::GetHostByName);
+            callbacks.dns_resolved_addr = Some(None);
         }
         {
             let mut manager = self.manager.borrow_mut();
             manager
                 .send_gethostbyname(host)
-                .map_err(|_x| StackError::GlobalOpFailed)?;
+                .map_err(StackError::WincWifiFail)?;
         }
         let mut count = Self::DNS_TIMEOUT;
         loop {
             // todo: make this async so we can simply .await on it
-            self.dispatch_events()
-                .map_err(|_x| StackError::GlobalOpFailed)?;
-            {
-                // The callbacks system CLEARS GlobalOpn
-                let mut callbacks = self.callbacks.borrow_mut();
-                if callbacks.global_op.is_none() {
-                    if let Some(addr) = callbacks.last_recv_addr.take() {
-                        return Ok(IpAddr::V4(*addr.ip()));
-                    }
+            self.dispatch_events()?;
+
+            if let Some(result) = &mut self.callbacks.borrow_mut().dns_resolved_addr {
+                if let Some(ip) = result.take() {
+                    *result = None;
+                    return if ip == Ipv4Addr::new(0, 0, 0, 0) {
+                        Err(StackError::DnsFailed)
+                    } else {
+                        Ok(IpAddr::V4(ip))
+                    };
                 }
             }
+
             self.yield_once().await;
             count -= 1;
             if count == 0 {

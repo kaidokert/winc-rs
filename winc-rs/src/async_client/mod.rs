@@ -45,6 +45,10 @@ impl<X: Xfer> AsyncClient<'_, X> {
             .dispatch_events_new(callbacks.deref_mut())
             .map_err(StackError::DispatchError)
     }
+    pub fn heartbeat(&self) -> Result<(), StackError> {
+        self.dispatch_events()?;
+        Ok(())
+    }
 
     async fn yield_once(&self) {
         // Runtime-specific yield here

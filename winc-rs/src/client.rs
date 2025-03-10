@@ -13,12 +13,11 @@ mod wifi_module;
 
 pub use crate::stack::StackError;
 
+pub use crate::stack::socket_callbacks::ClientSocketOp;
 use crate::stack::socket_callbacks::SocketCallbacks;
-pub use crate::stack::socket_callbacks::{ClientSocketOp, GlobalOp};
 pub use crate::stack::socket_callbacks::{Handle, PingResult};
 
 pub enum GenResult {
-    Ip(core::net::Ipv4Addr),
     Len(usize),
     Accept(core::net::SocketAddrV4, Socket),
 }
@@ -53,7 +52,6 @@ impl<'a, X: Xfer> WincClient<'a, X> {
     const SEND_TIMEOUT: u32 = 1000;
     const RECV_TIMEOUT: u32 = 1000;
     const CONNECT_TIMEOUT: u32 = 1000;
-    const DNS_TIMEOUT: u32 = 1000;
     const POLL_LOOP_DELAY: u32 = 10;
     /// Create a new WincClient..
     ///
@@ -121,46 +119,6 @@ impl<'a, X: Xfer> WincClient<'a, X> {
             timeout -= self.poll_loop_delay as i32;
             elapsed += self.poll_loop_delay;
         }
-    }
-
-    // Todo: This isn't really needed. It only deals with `last_recv_addr`
-    // and `last_error` which are just passed back to the caller.
-    fn wait_for_gen_ack(
-        &mut self,
-        expect_op: GlobalOp,
-        timeout: u32,
-    ) -> Result<GenResult, StackError> {
-        // Lets clear state
-        self.callbacks.last_recv_addr = None;
-        self.callbacks.last_error = SocketError::NoError;
-
-        debug!("===>Waiting for gen ack for {:?}", expect_op);
-
-        self.wait_with_timeout(timeout, |client, elapsed| {
-            if client.callbacks.global_op.is_none() {
-                debug!("<===Ack received {:?} elapsed:{}ms", expect_op, elapsed);
-
-                if let Some(addr) = client.callbacks.last_recv_addr {
-                    return Some(Ok(GenResult::Ip(*addr.ip())));
-                }
-
-                if client.callbacks.last_error != SocketError::NoError {
-                    return Some(Err(StackError::OpFailed(client.callbacks.last_error)));
-                }
-
-                return Some(Err(StackError::GlobalOpFailed));
-            }
-            None
-        })
-        .map_err(|e| {
-            if matches!(e, StackError::GeneralTimeout) {
-                match expect_op {
-                    GlobalOp::GetHostByName => StackError::DnsTimeout,
-                }
-            } else {
-                e
-            }
-        })
     }
 
     fn wait_for_op_ack(
