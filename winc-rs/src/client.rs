@@ -52,6 +52,7 @@ impl<'a, X: Xfer> WincClient<'a, X> {
     const SEND_TIMEOUT: u32 = 1000;
     const RECV_TIMEOUT: u32 = 1000;
     const CONNECT_TIMEOUT: u32 = 1000;
+    const DNS_TIMEOUT: u32 = 1000;
     const POLL_LOOP_DELAY: u32 = 10;
     /// Create a new WincClient..
     ///

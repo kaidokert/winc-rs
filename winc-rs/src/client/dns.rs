@@ -26,6 +26,7 @@ impl<X: Xfer> Dns for WincClient<'_, X> {
                     .send_gethostbyname(hostname)
                     .map_err(StackError::WincWifiFail)?;
                 // Signal operation in progress
+                self.operation_countdown = Self::DNS_TIMEOUT;
                 self.callbacks.dns_resolved_addr = Some(None);
             }
             Some(result) => {
@@ -35,6 +36,10 @@ impl<X: Xfer> Dns for WincClient<'_, X> {
                         return Err(StackError::DnsFailed.into());
                     }
                     return Ok(IpAddr::V4(ip));
+                }
+                self.operation_countdown -= 1;
+                if self.operation_countdown == 0 {
+                    return Err(nb::Error::Other(StackError::DnsTimeout));
                 }
             }
         }
@@ -68,14 +73,14 @@ mod tests {
             callbacks.on_resolve(Ipv4Addr::new(127, 0, 0, 1), "");
         };
         client.debug_callback = Some(&mut my_debug);
-        let result = client.get_host_by_name("example.com", AddrType::IPv4);
+        let result = nb::block!(client.get_host_by_name("example.com", AddrType::IPv4));
         assert_eq!(result.ok(), Some(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))));
     }
     #[test]
     fn test_get_host_by_name_timeout() {
         let mut delay = |_| {};
         let mut client = make_test_client(&mut delay);
-        let result = client.get_host_by_name("example.com", AddrType::IPv4);
+        let result = nb::block!(client.get_host_by_name("example.com", AddrType::IPv4));
         assert_eq!(result.err(), Some(StackError::DnsTimeout.into()));
     }
     #[test]
