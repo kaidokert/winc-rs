@@ -1,7 +1,6 @@
 [package]
-# TODO(1) fix `authors` and `name` if you didn't use `cargo-generate`
 authors = ["kaidokert <kaidokert@gmail.com>"]
-name = "feather"
+name = "feather_async"
 edition = "2021"
 version = "0.1.0"
 
@@ -9,40 +8,22 @@ version = "0.1.0"
 harness = false
 
 [dependencies]
-cortex-m = { version = "0.7.3", features = ["critical-section-single-core"] }
-cortex-m-rt = "0.7.0"
+cortex-m = { version = "0.7", features = ["critical-section-single-core"] }
+cortex-m-rt = "0.7"
 defmt = "0.3"
-
 defmt-rtt = "0.4"
-panic-probe = { version = "0.3.0", features = ["print-defmt"] }
+panic-probe = { version = "0.3", features = ["print-defmt"] }
 
-feather_m0 = { version = "0.17.1" , features=["winc"]}
+feather_m0 = { version = "0.17" , features=["winc"]}
 embedded-hal = { version= "1", features = ["defmt-03"]}
-nb = { version = "1.0"}
 
-cortex-m-systick-countdown = "0.1.0"
+wincwifi = { path = "../winc-rs", default-features = false, features=["defmt", "async"] }
 
-embedded-nal = "=0.9.0"
-wincwifi = { path = "../winc-rs", default-features = false, features=["defmt"] }
-demos = { path = "../demos", default-features = false, features=["defmt"] }
-ssd1306 = { version = "0.9.0", optional = true }
-
-[[example]]
-name = "iperf3_client"
-required-features = ["iperf3"]
-
-[[example]]
-name = "oled"
-required-features = ["oled"]
-
-[[example]]
-name = "telnet_shell"
-required-features = ["telnet"]
-
-[features]
-iperf3 = ["demos/iperf3"]
-oled = ["dep:ssd1306"]
-telnet = ["demos/telnet"]
+embassy-executor = { version = "0.7" , features= ["arch-cortex-m", "executor-thread", "defmt"] }
+systick-timer = { version = "0.1",  features=["cortex-m","embassy-time-driver"] }
+embassy-time-driver = { version ="0.2" }
+embassy-time = { version = "0.4" }
+embedded-nal-async = { version = "0.8" }
 
 # cargo build/run
 [profile.dev]

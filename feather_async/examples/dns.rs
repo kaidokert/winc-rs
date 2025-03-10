@@ -11,13 +11,14 @@ use embedded_nal_async::Dns;
 
 use core::net::IpAddr;
 use embassy_time::Timer;
-use feather::hal::ehal::digital::OutputPin;
-use feather::init_async::init;
-use feather::shared::SpiStream;
+use feather_async::hal::ehal::digital::OutputPin;
+use feather_async::init::init;
+use feather_async::shared::SpiStream;
 use wincwifi::{AsyncClient, StackError};
 
 const DEFAULT_TEST_HOST: &str = "www.google.com";
 
+// Todo: move this to demos_async
 async fn dns_client<T>(stack: &mut T, host: &str) -> Result<(), T::Error>
 where
     T: Dns + ?Sized,
@@ -25,7 +26,7 @@ where
 {
     defmt::info!("DNS lookup for: {}", host);
     let ip = stack
-        .get_host_by_name(host, embedded_nal::AddrType::IPv4)
+        .get_host_by_name(host, embedded_nal_async::AddrType::IPv4)
         .await;
     match ip {
         Ok(IpAddr::V4(ip)) => defmt::info!(

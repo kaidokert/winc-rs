@@ -1,0 +1,17 @@
+[target.'cfg(all(target_arch = "arm", target_os = "none"))']
+
+runner = "probe-rs run --speed 1100 --chip ATSAMD21G18A"
+
+rustflags = [
+  "-C", "linker=flip-link",
+  "-C", "link-arg=-Tlink.x",
+  "-C", "link-arg=-Tdefmt.x",
+  "-C", "link-arg=--nmagic",
+]
+
+[build]
+target = "thumbv6m-none-eabi"    # Cortex-M0 and Cortex-M0+
+
+[alias]
+rb = "run --example"
+rrb = "run --release --example"

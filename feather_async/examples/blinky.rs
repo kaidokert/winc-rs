@@ -1,23 +1,15 @@
 #![no_std]
 #![no_main]
 
-use embassy_time::Timer;
-use feather::hal::ehal::digital::OutputPin;
-use feather::init_async::init;
-use feather::shared::SpiStream;
-use wincwifi::AsyncClient;
-use wincwifi::StackError;
+use feather_async::hal::ehal::digital::OutputPin;
+use feather_async::init::init;
 
-async fn program() -> Result<(), StackError> {
+use embassy_time::Timer;
+
+async fn program() -> Result<(), ()> {
     if let Ok(ini) = init().await {
-        defmt::info!("Embassy async blinky");
+        defmt::info!("Embassy-time async blinky");
         let mut red_led = ini.red_led;
-        let mut module = AsyncClient::new(SpiStream::new(ini.cs, ini.spi));
-        defmt::info!("Initializing module");
-        module.start_wifi_module().await?;
-        defmt::info!("Connecting to saved network");
-        module.connect_to_saved_ap().await?;
-        defmt::info!("Connected to saved network");
         loop {
             Timer::after_millis(200).await;
             red_led.set_high().unwrap();

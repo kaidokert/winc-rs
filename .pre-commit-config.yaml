@@ -54,6 +54,13 @@ repos:
       entry: python -c 'import os,sys; os.environ["RUSTFLAGS"]="-D warnings"; os.chdir("feather"); sys.exit(os.system("cargo check --lib --bins --examples"))'
       files: \.(rs|toml)$
       pass_filenames: false
+    - id: check_feather_async
+      name: Run Cargo check for Feather Async code
+      language: system
+      # Needs to run in the directory, to pick up .cargo/config.toml
+      entry: python -c 'import os,sys; os.environ["RUSTFLAGS"]="-D warnings"; os.chdir("feather_async"); sys.exit(os.system("cargo check --lib --bins --examples"))'
+      files: \.(rs|toml)$
+      pass_filenames: false
     - id: check_demos
       name: Run cargo check for demos
       language: system
