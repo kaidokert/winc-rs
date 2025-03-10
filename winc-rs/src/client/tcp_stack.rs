@@ -207,3 +207,83 @@ impl<X: Xfer> TcpFullStack for WincClient<'_, X> {
         }
     }
 }
+
+#[cfg(test)]
+mod test {
+
+    use super::*;
+    use crate::{client::SocketCallbacks, manager::EventListener, socket::Socket};
+    use crate::client::test_shared::*;
+    use core::net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4};
+    use embedded_nal::TcpClientStack;
+
+    #[test]
+    fn test_tcp_socket_open() {
+        let mut client = make_test_client();
+        let tcp_socket = client.socket();
+        assert!(tcp_socket.is_ok());
+    }
+
+    #[test]
+    fn test_tcp_connect() {
+        let mut client = make_test_client();
+        let mut tcp_socket = client.socket().unwrap();
+
+        let mut my_debug = |callbacks: &mut SocketCallbacks| {
+            callbacks.on_connect( Socket::new(0, 0), SocketError::NoError);
+        };
+
+        client.debug_callback = Some(&mut my_debug);
+        let socket_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 80);
+
+        let result = client.connect(&mut tcp_socket, socket_addr);
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_tcp_send() {
+        let mut client = make_test_client();
+        let mut tcp_socket = client.socket().unwrap();
+        let packet = "Hello, World";
+
+        let mut my_debug = |callbacks: &mut SocketCallbacks| {
+            callbacks.on_send( Socket::new(0, 0), packet.len() as i16);
+        };
+
+        client.debug_callback = Some(&mut my_debug);
+        
+        let result = client.send(&mut tcp_socket, packet.as_bytes());
+
+        assert_eq!(result.ok(), Some(packet.len()));
+    }
+
+    #[test]
+    fn test_tcp_receive() {
+        let mut client = make_test_client();
+        let mut tcp_socket = client.socket().unwrap();
+        let socket_addr = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 80);
+        let mut recv_buff = [0u8; 32];
+        let test_data = "Hello, World";
+
+        let mut my_debug = |callbacks: &mut SocketCallbacks| {
+            callbacks.on_recv( Socket::new(0, 0), socket_addr, test_data.as_bytes(), SocketError::NoError);
+        };
+
+        client.debug_callback = Some(&mut my_debug);
+        
+        let result = nb::block!(client.receive(&mut tcp_socket, &mut recv_buff));
+
+        assert_eq!(result.ok(), Some(test_data.len()));
+    }
+
+    #[test]
+    fn test_tcp_close() {
+        let mut client = make_test_client();
+        let tcp_socket = client.socket().unwrap();
+
+        let result = client.close(tcp_socket);
+
+        assert!(result.is_ok());
+    }
+}
