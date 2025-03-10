@@ -84,6 +84,18 @@ mod tests {
         assert_eq!(result.err(), Some(StackError::DnsTimeout.into()));
     }
     #[test]
+    fn test_get_host_by_name_failed() {
+        let mut delay = |_| {};
+        let mut client = make_test_client(&mut delay);
+        let mut my_debug = |callbacks: &mut SocketCallbacks| {
+            callbacks.on_resolve(Ipv4Addr::new(0, 0, 0, 0), "");
+        };
+        client.debug_callback = Some(&mut my_debug);
+        let result = nb::block!(client.get_host_by_name("nonexistent.com", AddrType::IPv4));
+        assert_eq!(result.err(), Some(StackError::DnsFailed.into()));
+    }
+
+    #[test]
     #[should_panic]
     fn test_get_host_by_name_unsupported_addr_type() {
         let mut delay = |_| {};
