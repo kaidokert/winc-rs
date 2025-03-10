@@ -76,7 +76,7 @@ impl<X: Xfer> WincClient<'_, X> {
                 Err(nb::Error::WouldBlock)
             }
             WifiModuleState::ConnectingToAp => {
-                (self.delay)(1); // absolute minimum delay to make timeout possible
+                self.delay(1); // absolute minimum delay to make timeout possible
                 self.dispatch_events()?;
                 self.operation_countdown -= 1;
                 if self.operation_countdown == 0 {
@@ -310,14 +310,12 @@ mod tests {
 
     #[test]
     fn test_heartbeat() {
-        let mut delay = |_| {};
-        assert_eq!(make_test_client(&mut delay).heartbeat(), Ok(()));
+        assert_eq!(make_test_client().heartbeat(), Ok(()));
     }
 
     #[test]
     fn test_start_wifi_module() {
-        let mut delay = |_| {};
-        let mut client = make_test_client(&mut delay);
+        let mut client = make_test_client();
         let result = nb::block!(client.start_wifi_module());
         assert_eq!(
             result,
@@ -327,23 +325,20 @@ mod tests {
 
     #[test]
     fn test_connect_to_saved_ap_invalid_state() {
-        let mut delay = |_| {};
-        let mut client = make_test_client(&mut delay);
+        let mut client = make_test_client();
         let result = nb::block!(client.connect_to_saved_ap());
         assert_eq!(result, Err(StackError::InvalidState));
     }
     #[test]
     fn test_connect_to_saved_ap_timeout() {
-        let mut delay = |_| {};
-        let mut client = make_test_client(&mut delay);
+        let mut client = make_test_client();
         client.callbacks.state = WifiModuleState::Started;
         let result = nb::block!(client.connect_to_saved_ap());
         assert_eq!(result, Err(StackError::GeneralTimeout));
     }
     #[test]
     fn test_connect_to_saved_ap_success() {
-        let mut delay = |_| {};
-        let mut client = make_test_client(&mut delay);
+        let mut client = make_test_client();
         client.callbacks.state = WifiModuleState::Started;
         let mut my_debug = |callbacks: &mut SocketCallbacks| {
             callbacks.on_connstate_changed(WifiConnState::Connected, WifiConnError::Unhandled);
@@ -354,8 +349,7 @@ mod tests {
     }
     #[test]
     fn test_connect_to_saved_ap_invalid_credentials() {
-        let mut delay = |_| {};
-        let mut client = make_test_client(&mut delay);
+        let mut client = make_test_client();
         client.callbacks.state = WifiModuleState::Started;
         let mut my_debug = |callbacks: &mut SocketCallbacks| {
             callbacks.on_connstate_changed(WifiConnState::Disconnected, WifiConnError::AuthFail);
@@ -370,8 +364,7 @@ mod tests {
 
     #[test]
     fn test_connect_to_ap_success() {
-        let mut delay = |_| {};
-        let mut client = make_test_client(&mut delay);
+        let mut client = make_test_client();
         client.callbacks.state = WifiModuleState::Started;
         let mut my_debug = |callbacks: &mut SocketCallbacks| {
             callbacks.on_connstate_changed(WifiConnState::Connected, WifiConnError::Unhandled);
@@ -383,8 +376,7 @@ mod tests {
 
     #[test]
     fn test_scan_ok() {
-        let mut delay = |_| {};
-        let mut client = make_test_client(&mut delay);
+        let mut client = make_test_client();
         client.callbacks.state = WifiModuleState::Started;
         let mut my_debug = |callbacks: &mut SocketCallbacks| {
             callbacks.on_scan_done(5, WifiConnError::Unhandled);
@@ -396,8 +388,7 @@ mod tests {
 
     #[test]
     fn test_get_scan_result_ok() {
-        let mut delay = |_| {};
-        let mut client = make_test_client(&mut delay);
+        let mut client = make_test_client();
         client.callbacks.state = WifiModuleState::Started;
         let mut my_debug = |callbacks: &mut SocketCallbacks| {
             callbacks.on_scan_result(ScanResult {
@@ -416,8 +407,7 @@ mod tests {
 
     #[test]
     fn test_get_current_rssi_ok() {
-        let mut delay = |_| {};
-        let mut client = make_test_client(&mut delay);
+        let mut client = make_test_client();
         client.callbacks.state = WifiModuleState::Started;
         let mut my_debug = |callbacks: &mut SocketCallbacks| {
             callbacks.on_rssi(0);
@@ -429,8 +419,7 @@ mod tests {
 
     #[test]
     fn test_get_connection_info_ok() {
-        let mut delay = |_| {};
-        let mut client = make_test_client(&mut delay);
+        let mut client = make_test_client();
         client.callbacks.state = WifiModuleState::Started;
         let mut my_debug = |callbacks: &mut SocketCallbacks| {
             callbacks.on_connection_info(ConnectionInfo {
@@ -448,8 +437,7 @@ mod tests {
 
     #[test]
     fn test_get_firmware_version_ok() {
-        let mut delay = |_| {};
-        let mut client = make_test_client(&mut delay);
+        let mut client = make_test_client();
         client.callbacks.state = WifiModuleState::Started;
         let result = client.get_firmware_version();
         assert_eq!(result.unwrap().chip_id, 0);
@@ -457,8 +445,7 @@ mod tests {
 
     #[test]
     fn test_send_ping_ok() {
-        let mut delay = |_| {};
-        let mut client = make_test_client(&mut delay);
+        let mut client = make_test_client();
         client.callbacks.state = WifiModuleState::Started;
         let mut my_debug = |callbacks: &mut SocketCallbacks| {
             callbacks.on_ping(

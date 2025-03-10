@@ -10,6 +10,7 @@ use super::Xfer;
 
 use crate::debug;
 use crate::manager::SocketError;
+use crate::stack::socket_callbacks::UDP_SOCK_OFFSET;
 use embedded_nal::nb;
 
 impl<X: Xfer> UdpClientStack for WincClient<'_, X> {
@@ -40,8 +41,9 @@ impl<X: Xfer> UdpClientStack for WincClient<'_, X> {
         match remote {
             core::net::SocketAddr::V4(addr) => {
                 debug!("<> Connect handle is {:?}", socket.0);
-                let (_sock, _op) = self.callbacks.udp_sockets.get(*socket).unwrap();
-                self.last_send_addr = Some(addr);
+                let (sock, _op) = self.callbacks.udp_sockets.get(*socket).unwrap();
+                self.callbacks.udp_socket_connect_addr[sock.v as usize - UDP_SOCK_OFFSET] =
+                    Some(addr);
             }
             core::net::SocketAddr::V6(_) => unimplemented!("IPv6 not supported"),
         }
@@ -60,7 +62,9 @@ impl<X: Xfer> UdpClientStack for WincClient<'_, X> {
             *op = ClientSocketOp::SendTo(buffer.len() as i16);
             let op = *op;
             debug!("<> Sending socket udp send_send to {:?}", sock);
-            if let Some(addr) = self.last_send_addr {
+            if let Some(addr) =
+                self.callbacks.udp_socket_connect_addr[sock.v as usize - UDP_SOCK_OFFSET]
+            {
                 self.manager
                     .send_sendto(*sock, addr, buffer)
                     .map_err(StackError::SendSendFailed)?;
@@ -80,6 +84,7 @@ impl<X: Xfer> UdpClientStack for WincClient<'_, X> {
     ) -> nb::Result<(usize, core::net::SocketAddr), Self::Error> {
         self.dispatch_events()?;
         let (sock, op) = self.callbacks.udp_sockets.get(*socket).unwrap();
+        let sock_id = sock.v;
         *op = ClientSocketOp::RecvFrom;
         let op = *op;
         let timeout = Self::RECV_TIMEOUT;
@@ -98,8 +103,10 @@ impl<X: Xfer> UdpClientStack for WincClient<'_, X> {
         {
             let dest_slice = &mut buffer[..recv_len];
             dest_slice.copy_from_slice(&self.callbacks.recv_buffer[..recv_len]);
-            let f = self.last_send_addr.unwrap();
-            Ok((recv_len, core::net::SocketAddr::V4(f)))
+            // Todo: this is hackish, there should be a cleaner way to pass this up
+            let recv_addr =
+                self.callbacks.udp_sockets_addr[sock_id as usize - UDP_SOCK_OFFSET].unwrap();
+            Ok((recv_len, core::net::SocketAddr::V4(recv_addr)))
         } else {
             Err(nb::Error::Other(StackError::Unexpected))
         }
@@ -109,6 +116,7 @@ impl<X: Xfer> UdpClientStack for WincClient<'_, X> {
     fn close(&mut self, socket: Self::UdpSocket) -> Result<(), Self::Error> {
         self.dispatch_events()?;
         let (sock, _op) = self.callbacks.udp_sockets.get(socket).unwrap();
+        let sock_id = sock.v;
         self.manager
             .send_close(*sock)
             .map_err(StackError::SendCloseFailed)?;
@@ -117,6 +125,9 @@ impl<X: Xfer> UdpClientStack for WincClient<'_, X> {
             .get(socket)
             .ok_or(StackError::CloseFailed)?;
         self.callbacks.udp_sockets.remove(socket);
+        // clear recv and send addresses
+        self.callbacks.udp_sockets_addr[sock_id as usize - UDP_SOCK_OFFSET] = None;
+        self.callbacks.udp_socket_connect_addr[sock_id as usize - UDP_SOCK_OFFSET] = None;
         Ok(())
     }
 }

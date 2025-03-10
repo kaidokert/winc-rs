@@ -24,7 +24,6 @@ fn program() -> Result<(), StackError> {
         let mut cnt = create_countdowns(&delay_tick);
 
         let mut delay_ms = delay_fn(&mut cnt.0);
-        let mut delay_ms2 = delay_fn(&mut cnt.1);
 
         let ssid = option_env!("TEST_SSID").unwrap_or(DEFAULT_TEST_SSID);
         let password = option_env!("TEST_PASSWORD").unwrap_or(DEFAULT_TEST_PASSWORD);
@@ -33,7 +32,7 @@ fn program() -> Result<(), StackError> {
             ssid,
             password
         );
-        let mut stack = WincClient::new(SpiStream::new(ini.cs, ini.spi), &mut delay_ms2);
+        let mut stack = WincClient::new(SpiStream::new(ini.cs, ini.spi));
 
         let mut v = 0;
         loop {

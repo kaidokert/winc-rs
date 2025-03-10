@@ -105,10 +105,9 @@ where
         let mut cnt = create_countdowns(&ini.delay_tick);
 
         let mut delay_ms = delay_fn(&mut cnt.0);
-        let mut delay_ms2 = delay_fn(&mut cnt.1);
 
         defmt::info!("Connecting to saved network ..",);
-        let mut stack = WincClient::new(SpiStream::new(ini.cs, ini.spi), &mut delay_ms2);
+        let mut stack = WincClient::new(SpiStream::new(ini.cs, ini.spi));
 
         let mut v = 0;
         loop {

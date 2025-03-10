@@ -69,6 +69,10 @@ impl<X: Xfer> ChipAccess<X> {
         self.verify = false;
         self.check_crc = false;
     }
+    // Todo: remove this
+    pub fn delay(&mut self, delay: u32) {
+        self.xfer.delay(delay);
+    }
 
     fn protocol_verify(
         &mut self,

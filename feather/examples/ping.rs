@@ -26,11 +26,10 @@ fn program() -> Result<(), StackError> {
         let red_led = &mut ini.red_led;
 
         let mut cnt = create_countdowns(&ini.delay_tick);
-        let mut delay1 = delay_fn(&mut cnt.0);
         let mut delay_ms = delay_fn(&mut cnt.1);
 
         defmt::info!("Connecting to saved network ..",);
-        let mut stack = WincClient::new(SpiStream::new(ini.cs, ini.spi), &mut delay1);
+        let mut stack = WincClient::new(SpiStream::new(ini.cs, ini.spi));
 
         let mut v = 0;
         loop {

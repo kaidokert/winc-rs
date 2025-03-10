@@ -67,8 +67,7 @@ mod tests {
 
     #[test]
     fn test_get_host_by_name_success() {
-        let mut delay = |_| {};
-        let mut client = make_test_client(&mut delay);
+        let mut client = make_test_client();
         let mut my_debug = |callbacks: &mut SocketCallbacks| {
             callbacks.on_resolve(Ipv4Addr::new(127, 0, 0, 1), "");
         };
@@ -78,15 +77,13 @@ mod tests {
     }
     #[test]
     fn test_get_host_by_name_timeout() {
-        let mut delay = |_| {};
-        let mut client = make_test_client(&mut delay);
+        let mut client = make_test_client();
         let result = nb::block!(client.get_host_by_name("example.com", AddrType::IPv4));
         assert_eq!(result.err(), Some(StackError::DnsTimeout.into()));
     }
     #[test]
     fn test_get_host_by_name_failed() {
-        let mut delay = |_| {};
-        let mut client = make_test_client(&mut delay);
+        let mut client = make_test_client();
         let mut my_debug = |callbacks: &mut SocketCallbacks| {
             callbacks.on_resolve(Ipv4Addr::new(0, 0, 0, 0), "");
         };
@@ -98,16 +95,14 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_get_host_by_name_unsupported_addr_type() {
-        let mut delay = |_| {};
-        let mut client = make_test_client(&mut delay);
+        let mut client = make_test_client();
         let _ = client.get_host_by_name("example.com", AddrType::IPv6);
     }
 
     #[test]
     #[should_panic]
     fn test_get_host_by_address() {
-        let mut delay = |_| {};
-        let mut client = make_test_client(&mut delay);
+        let mut client = make_test_client();
         let _ = client.get_host_by_address(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), &mut [0; 4]);
     }
 }

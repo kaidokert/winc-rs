@@ -94,12 +94,18 @@ impl ConnectionState {
     }
 }
 
+pub(crate) const UDP_SOCK_OFFSET: usize = 7;
+pub(crate) const MAX_UDP_SOCKETS: usize = 4;
+
 pub(crate) struct SocketCallbacks {
     // #define TCP_SOCK_MAX										(7)
     // indexes 0-6
-    pub tcp_sockets: SockHolder<7, 0>,
+    pub tcp_sockets: SockHolder<UDP_SOCK_OFFSET, 0>,
     // #define UDP_SOCK_MAX										4
-    pub udp_sockets: SockHolder<4, 7>,
+    pub udp_sockets: SockHolder<MAX_UDP_SOCKETS, UDP_SOCK_OFFSET>,
+    // Needed to keep track of connect() and recvfrom address
+    pub udp_sockets_addr: [Option<core::net::SocketAddrV4>; MAX_UDP_SOCKETS],
+    pub udp_socket_connect_addr: [Option<core::net::SocketAddrV4>; MAX_UDP_SOCKETS],
     pub recv_buffer: [u8; SOCKET_BUFFER_MAX_LENGTH],
 
     // All this should be moved into an enum rather, these are response
@@ -107,7 +113,7 @@ pub(crate) struct SocketCallbacks {
     pub recv_len: usize,
     // Todo: Maybe per socket ?
     pub last_error: crate::manager::SocketError,
-    pub last_recv_addr: Option<core::net::SocketAddrV4>,
+    pub last_accept_addr: Option<core::net::SocketAddrV4>,
     pub dns_resolved_addr: Option<Option<core::net::Ipv4Addr>>,
     pub last_accepted_socket: Option<Socket>,
     pub connection_state: ConnectionState,
@@ -134,10 +140,12 @@ impl SocketCallbacks {
         Self {
             tcp_sockets: SockHolder::new(),
             udp_sockets: SockHolder::new(),
+            udp_sockets_addr: [None; MAX_UDP_SOCKETS],
+            udp_socket_connect_addr: [None; MAX_UDP_SOCKETS],
             recv_buffer: [0; SOCKET_BUFFER_MAX_LENGTH],
             recv_len: 0,
             last_error: crate::manager::SocketError::NoError,
-            last_recv_addr: None,
+            last_accept_addr: None,
             dns_resolved_addr: None,
             last_accepted_socket: None,
             connection_state: ConnectionState::new(),
@@ -145,12 +153,13 @@ impl SocketCallbacks {
         }
     }
     pub fn resolve(&mut self, socket: Socket) -> Option<&mut (Socket, ClientSocketOp)> {
-        if socket.v < 7 {
+        if socket.v < UDP_SOCK_OFFSET as u8 {
             debug!("resolving tcp: {:?}", socket.v);
             self.tcp_sockets.get(Handle(socket.v))
         } else {
             debug!("resolving udp: {:?}", socket.v);
-            self.udp_sockets.get(Handle(socket.v - 7))
+            self.udp_sockets
+                .get(Handle(socket.v - UDP_SOCK_OFFSET as u8))
         }
     }
 }
@@ -397,7 +406,8 @@ impl EventListener for SocketCallbacks {
         if let Some((s, op)) = self.resolve(socket) {
             if *op == ClientSocketOp::RecvFrom {
                 debug!(
-                    "on_recvfrom: socket:{:?} address:{:?} data:{:?} error:{:?}",
+                    "on_recvfrom: raw:{:?} socket:{:?} address:{:?} data:{:?} error:{:?}",
+                    socket,
                     s,
                     Ipv4AddrFormatWrapper::new(address.ip()),
                     data,
@@ -428,7 +438,7 @@ impl EventListener for SocketCallbacks {
             self.recv_buffer[..data.len()].copy_from_slice(data);
             self.recv_len = data.len();
             self.last_error = err;
-            self.last_recv_addr = Some(address);
+            self.udp_sockets_addr[socket.v as usize - UDP_SOCK_OFFSET].replace(address);
         }
     }
     fn on_bind(&mut self, sock: Socket, err: crate::manager::SocketError) {
@@ -480,7 +490,7 @@ impl EventListener for SocketCallbacks {
             if *op == ClientSocketOp::Accept {
                 *op = ClientSocketOp::None;
                 self.last_error = SocketError::NoError;
-                self.last_recv_addr = Some(address);
+                self.last_accept_addr = Some(address);
                 self.last_accepted_socket = Some(accepted_socket);
             } else {
                 error!(

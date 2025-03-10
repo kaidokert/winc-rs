@@ -55,9 +55,8 @@ pub fn connect_and_run(
         let red_led = &mut ini.red_led;
 
         let mut delay_ms = delay_fn(&mut cnt.0);
-        let mut delay_ms2 = delay_fn(&mut cnt.1);
 
-        let mut stack = WincClient::new(SpiStream::new(ini.cs, ini.spi), &mut delay_ms2);
+        let mut stack = WincClient::new(SpiStream::new(ini.cs, ini.spi));
 
         let mut v = 0;
         loop {

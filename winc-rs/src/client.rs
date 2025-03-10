@@ -28,20 +28,18 @@ pub enum GenResult {
 /// network connections
 pub struct WincClient<'a, X: Xfer> {
     manager: Manager<X>,
-    delay: &'a mut dyn FnMut(u32),
     recv_timeout: u32,
     poll_loop_delay: u32,
     callbacks: SocketCallbacks,
     next_session_id: u16,
-    // TODO: bug: Lets change this to be per socket, or per UDP socket only
-    last_send_addr: Option<core::net::SocketAddrV4>,
     boot: Option<crate::manager::BootState>,
     operation_countdown: u32,
+    phantom: core::marker::PhantomData<&'a ()>,
     #[cfg(test)]
     debug_callback: Option<&'a mut dyn FnMut(&mut SocketCallbacks)>,
 }
 
-impl<'a, X: Xfer> WincClient<'a, X> {
+impl<X: Xfer> WincClient<'_, X> {
     // Max send frame length
     const MAX_SEND_LENGTH: usize = 1400;
 
@@ -60,25 +58,27 @@ impl<'a, X: Xfer> WincClient<'a, X> {
     ///
     /// * `transfer` - The transfer implementation to use for client,
     ///             typically a struct wrapping SPI communication.
-    /// * `delay` - A delay function. Currently required - a closure
-    ///             that takes millisconds as an arg.
     ///
     ///  See [Xfer] for details how to implement a transfer struct.
-    pub fn new(transfer: X, delay: &'a mut impl FnMut(u32)) -> Self {
+    pub fn new(transfer: X) -> Self {
         let manager = Manager::from_xfer(transfer);
         Self {
             manager,
             callbacks: SocketCallbacks::new(),
-            delay,
             recv_timeout: Self::RECV_TIMEOUT,
             poll_loop_delay: Self::POLL_LOOP_DELAY,
             next_session_id: 0,
-            last_send_addr: None,
             boot: None,
             operation_countdown: 0,
+            phantom: core::marker::PhantomData,
             #[cfg(test)]
             debug_callback: None,
         }
+    }
+    // Todo: remove this
+    fn delay(&mut self, delay: u32) {
+        // delegate to manager->chip->delay
+        self.manager.delay(delay);
     }
     fn get_next_session_id(&mut self) -> u16 {
         let ret = self.next_session_id;
@@ -115,7 +115,7 @@ impl<'a, X: Xfer> WincClient<'a, X> {
                 return result;
             }
 
-            (self.delay)(self.poll_loop_delay);
+            self.delay(self.poll_loop_delay);
             self.dispatch_events()?;
             timeout -= self.poll_loop_delay as i32;
             elapsed += self.poll_loop_delay;
@@ -129,7 +129,7 @@ impl<'a, X: Xfer> WincClient<'a, X> {
         timeout: u32,
         tcp: bool,
     ) -> Result<GenResult, StackError> {
-        self.callbacks.last_recv_addr = None;
+        self.callbacks.last_accept_addr = None;
         self.callbacks.last_error = SocketError::NoError;
 
         debug!("===>Waiting for op ack for {:?}", expect_op);
@@ -148,7 +148,7 @@ impl<'a, X: Xfer> WincClient<'a, X> {
 
                 if let Some(accepted_socket) = client.callbacks.last_accepted_socket.take() {
                     return Some(Ok(GenResult::Accept(
-                        client.callbacks.last_recv_addr.unwrap(),
+                        client.callbacks.last_accept_addr.unwrap(),
                         accepted_socket,
                     )));
                 }
@@ -156,7 +156,6 @@ impl<'a, X: Xfer> WincClient<'a, X> {
                 if client.callbacks.last_error != SocketError::NoError {
                     return Some(Err(StackError::OpFailed(client.callbacks.last_error)));
                 }
-
                 return Some(Ok(GenResult::Len(client.callbacks.recv_len)));
             }
             None
@@ -197,8 +196,8 @@ mod test_shared {
         }
     }
 
-    pub(crate) fn make_test_client(delay: &mut impl FnMut(u32)) -> WincClient<MockTransfer> {
-        let mut client = WincClient::new(MockTransfer::default(), delay);
+    pub(crate) fn make_test_client<'a>() -> WincClient<'a, MockTransfer> {
+        let mut client = WincClient::new(MockTransfer::default());
         client.manager.set_unit_test_mode();
         client
     }
