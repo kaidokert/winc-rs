@@ -17,6 +17,7 @@ pub struct SpiStream<CS: AnyPin, Spi: SpiBus> {
     cs: Option<CS>,
     spi: Spi,
     wait_cycles: u32,
+    interrupts_enabled: bool,
 }
 
 const TRANSFER_SIZE: usize = 256;
@@ -27,7 +28,11 @@ impl<CS: AnyPin, Spi: SpiBus> SpiStream<CS, Spi> {
             cs: Some(cs),
             spi,
             wait_cycles: DEFAULT_WAIT_CYCLES,
+            interrupts_enabled: false,
         }
+    }
+    pub fn enable_interrupts(&mut self) {
+        self.interrupts_enabled = true;
     }
     fn set_wait_cycles(&mut self, wait_cycles: u32) {
         self.wait_cycles = wait_cycles;
@@ -82,5 +87,10 @@ impl<CS: AnyPin, Spi: SpiBus> Transfer for SpiStream<CS, Spi> {
     }
     fn switch_to_high_speed(&mut self) {
         self.set_wait_cycles(FAST_WAIT_CYCLES);
+    }
+    fn wait_for_interrupt(&mut self) {
+        if self.interrupts_enabled {
+            cortex_m::asm::wfi();
+        }
     }
 }

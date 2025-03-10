@@ -80,10 +80,23 @@ impl<'a, X: Xfer> WincClient<'a, X> {
             debug_callback: None,
         }
     }
+    pub fn get_debug_info(&mut self) -> crate::manager::DebugInfo {
+        self.manager.debug_info.clone()
+    }
     fn get_next_session_id(&mut self) -> u16 {
         let ret = self.next_session_id;
         self.next_session_id += 1;
         ret
+    }
+    fn dispatch_events_may_wait(&mut self) -> Result<(), StackError> {
+        #[cfg(test)]
+        if let Some(callback) = &mut self.debug_callback {
+            callback(&mut self.callbacks);
+        }
+        self.manager.may_wait_for_interrupt();
+        self.manager
+            .dispatch_events_new(&mut self.callbacks)
+            .map_err(StackError::DispatchError)
     }
     fn dispatch_events(&mut self) -> Result<(), StackError> {
         #[cfg(test)]
