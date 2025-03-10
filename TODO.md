@@ -6,7 +6,7 @@
     - [x] Scan
     - [x] Connect with saved credentials
 - [x] Fix the module start wait
-- Clean up data passing in client events
+- [ ] Clean up data passing in client events
     - Maybe get rid of EventListener entirely
 - [x] Refactor dispatch_events to be internal, don't expose to clients
 - [x] Clippy clean
@@ -32,4 +32,4 @@
    [ ] Figure out where the speed bottleneck is and try increase
    [ ] Add multi-stream test mode ( up to 7 TCP, 3 UDP sockets )
 - [ ] Make it work with Arduino/Adafruit bootloader ( at 8 kilobyte start address )
-- [ ] Implement an async version of this
+- [ ] Implement an async version of this - WIP, initial demo added
