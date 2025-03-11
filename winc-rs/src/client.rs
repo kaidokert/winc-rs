@@ -16,6 +16,7 @@ pub use crate::stack::socket_callbacks::ClientSocketOp;
 use crate::stack::socket_callbacks::SocketCallbacks;
 pub use crate::stack::socket_callbacks::{Handle, PingResult};
 
+// Todo: Delete this and replace with per-socket enum values in ClientSocketOp
 pub enum GenResult {
     Len(usize),
 }
