@@ -49,21 +49,45 @@ impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {
         socket: &mut <Self as TcpClientStack>::TcpSocket,
         remote: core::net::SocketAddr,
     ) -> Result<(), nb::Error<<Self as TcpClientStack>::Error>> {
-        self.dispatch_events()?;
         match remote {
             core::net::SocketAddr::V4(addr) => {
                 let (sock, op) = self.callbacks.tcp_sockets.get(*socket).unwrap();
-                *op = ClientSocketOp::Connect;
-                let op = *op;
-                debug!("<> Sending send_socket_connect to {:?}", sock);
-                self.manager
-                    .send_socket_connect(*sock, addr)
-                    .map_err(StackError::ConnectSendFailed)?;
-                self.wait_for_op_ack(*socket, op, Self::CONNECT_TIMEOUT, true)?;
+                let some_res = match op {
+                    ClientSocketOp::None | ClientSocketOp::New => {
+                        *op = ClientSocketOp::Connect((Self::CONNECT_TIMEOUT, None));
+                        debug!("<> Sending send_socket_connect to {:?}", sock);
+                        self.manager
+                            .send_socket_connect(*sock, addr)
+                            .map_err(StackError::ConnectSendFailed)?;
+                        None
+                    }
+                    ClientSocketOp::Connect((_, Some(connect_result))) => {
+                        if connect_result.error == SocketError::NoError {
+                            return Ok(());
+                        }
+                        Some(StackError::OpFailed(connect_result.error))
+                    }
+                    ClientSocketOp::Connect((timeout, None)) => {
+                        *timeout -= 1;
+                        if *timeout == 0 {
+                            Some(StackError::OpFailed(SocketError::Timeout))
+                        } else {
+                            self.delay(self.poll_loop_delay);
+                            None
+                        }
+                    }
+                    _ => Some(StackError::Unexpected),
+                };
+                match some_res {
+                    Some(err) => Err(nb::Error::Other(err)),
+                    None => {
+                        self.dispatch_events()?;
+                        Err(nb::Error::WouldBlock)
+                    }
+                }
             }
             core::net::SocketAddr::V6(_) => unimplemented!("IPv6 not supported"),
         }
-        Ok(())
     }
     fn send(
         &mut self,

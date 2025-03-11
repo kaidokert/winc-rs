@@ -163,7 +163,7 @@ impl<X: Xfer> WincClient<'_, X> {
         .map_err(|e| {
             if matches!(e, StackError::GeneralTimeout) {
                 match expect_op {
-                    ClientSocketOp::Connect => StackError::ConnectTimeout,
+                    ClientSocketOp::Connect(_) => StackError::ConnectTimeout,
                     ClientSocketOp::Send(_) => StackError::SendTimeout,
                     ClientSocketOp::Recv => StackError::RecvTimeout,
                     _ => StackError::GeneralTimeout,

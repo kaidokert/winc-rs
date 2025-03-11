@@ -110,14 +110,24 @@ pub(crate) struct SocketCallbacks {
 
     // All this should be moved into an enum rather, these are response
     // callbacks, mutually exclusive
+    // Todo: make this per socket
     pub recv_len: usize,
-    // Todo: Maybe per socket ?
+    // Todo: Make this per socket
     pub last_error: crate::manager::SocketError,
+    // This is also per socket
     pub last_accept_addr: Option<core::net::SocketAddrV4>,
-    pub dns_resolved_addr: Option<Option<core::net::Ipv4Addr>>,
     pub last_accepted_socket: Option<Socket>,
+
+    // This is global
+    pub dns_resolved_addr: Option<Option<core::net::Ipv4Addr>>,
     pub connection_state: ConnectionState,
     pub state: WifiModuleState,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub(crate) struct ConnectResult {
+    pub error: SocketError,
 }
 
 #[derive(PartialEq, Clone, Copy, Debug)]
@@ -125,7 +135,7 @@ pub(crate) struct SocketCallbacks {
 pub enum ClientSocketOp {
     None,
     New,
-    Connect,
+    Connect((u32, Option<ConnectResult>)),
     Send(i16),
     SendTo(i16),
     Recv,
@@ -272,12 +282,10 @@ impl EventListener for SocketCallbacks {
     // todo: Consolidate the error cases to match statements below
     fn on_connect(&mut self, socket: Socket, err: crate::manager::SocketError) {
         debug!("on_connect: socket {:?}", socket);
-
         if let Some((s, op)) = self.resolve(socket) {
-            if *op == ClientSocketOp::Connect {
+            if let ClientSocketOp::Connect((_, option)) = op {
                 debug!("on_connect: socket:{:?} error:{:?}", s, err);
-                *op = ClientSocketOp::None;
-                self.last_error = err;
+                option.replace(ConnectResult { error: err });
             } else {
                 error!(
                     "UNKNOWN STATE on_connect (x): socket:{:?} error:{:?} state:{:?}",
