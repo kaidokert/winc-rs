@@ -199,14 +199,24 @@ impl<X: Xfer> TcpFullStack for WincClient<'_, X> {
     }
 
     fn listen(&mut self, socket: &mut Self::TcpSocket) -> Result<(), Self::Error> {
-        self.dispatch_events()?;
         let (sock, op) = self.callbacks.tcp_sockets.get(*socket).unwrap();
-        *op = ClientSocketOp::Listen;
-        let op = *op;
-        debug!("<> Sending socket listen to {:?}", sock);
+        *op = ClientSocketOp::Listen(None);
+        debug!("<> Sending TCP socket listen to {:?}", sock);
         self.manager.send_listen(*sock, Self::TCP_SOCKET_BACKLOG)?;
-        self.wait_for_op_ack(*socket, op, Self::LISTEN_TIMEOUT, true)?;
-        Ok(())
+        self.wait_with_timeout(Self::LISTEN_TIMEOUT, |client, _| {
+            let (_, op) = client.callbacks.tcp_sockets.get(*socket).unwrap();
+            let res = match op {
+                ClientSocketOp::Listen(Some(listen_result)) => match listen_result.error {
+                    SocketError::NoError => Some(Ok(())),
+                    _ => Some(Err(StackError::OpFailed(listen_result.error))),
+                },
+                _ => None,
+            };
+            if res.is_some() {
+                *op = ClientSocketOp::None;
+            }
+            res
+        })
     }
 
     // This is a blocking call, return WouldBlock if no connection has been accepted

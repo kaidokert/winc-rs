@@ -151,6 +151,7 @@ impl defmt::Format for AcceptResult {
     }
 }
 
+// todo: add result structs to Recvs, and Sends as well.
 #[derive(PartialEq, Clone, Copy, Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum ClientSocketOp {
@@ -162,7 +163,7 @@ pub enum ClientSocketOp {
     Recv,
     RecvFrom,
     Bind(Option<BindListenResult>),
-    Listen,
+    Listen(Option<BindListenResult>),
     Accept(Option<AcceptResult>),
 }
 
@@ -299,22 +300,20 @@ impl EventListener for SocketCallbacks {
     }
 
     // todo: Consolidate the error cases to match statements below
-    fn on_connect(&mut self, socket: Socket, err: crate::manager::SocketError) {
+    fn on_connect(&mut self, socket: Socket, err: SocketError) {
         debug!("on_connect: socket {:?}", socket);
-        if let Some((s, op)) = self.resolve(socket) {
-            if let ClientSocketOp::Connect((_, option)) = op {
+        match self.resolve(socket) {
+            Some((_, ClientSocketOp::Connect((_, option)))) => {
                 option.replace(ConnectResult { error: err });
-            } else {
-                error!(
-                    "UNKNOWN STATE on_connect (x): socket:{:?} error:{:?} state:{:?}",
-                    s, err, *op
-                );
             }
-        } else {
-            error!(
+            Some((s, op)) => error!(
+                "UNKNOWN STATE on_connect (x): socket:{:?} error:{:?} state:{:?}",
+                s, err, op
+            ),
+            None => error!(
                 "on_connect (x): COULD NOT FIND SOCKET socket:{:?} error:{:?}",
                 socket, err
-            );
+            ),
         }
     }
     fn on_send_to(&mut self, socket: Socket, len: i16) {
@@ -467,35 +466,36 @@ impl EventListener for SocketCallbacks {
             self.udp_sockets_addr[socket.v as usize - UDP_SOCK_OFFSET].replace(address);
         }
     }
-    fn on_bind(&mut self, sock: Socket, err: crate::manager::SocketError) {
+    fn on_bind(&mut self, sock: Socket, err: SocketError) {
         debug!("on_bind: socket {:?}", sock);
-        if let Some((s, op)) = self.resolve(sock) {
-            if let ClientSocketOp::Bind(option) = op {
+        match self.resolve(sock) {
+            Some((_, ClientSocketOp::Bind(option))) => {
                 option.replace(BindListenResult { error: err });
-            } else {
-                error!(
-                    "UNKNOWN on_bind: socket:{:?} error:{:?} state:{:?}",
-                    s, err, *op
-                );
             }
+            Some((s, op)) => error!(
+                "UNKNOWN on_bind: socket:{:?} error:{:?} state:{:?}",
+                s, err, op
+            ),
+            None => error!("UNKNOWN socket on_bind: socket:{:?} error:{:?}", sock, err),
         }
     }
-    fn on_listen(&mut self, sock: Socket, err: crate::manager::SocketError) {
+    fn on_listen(&mut self, sock: Socket, err: SocketError) {
         debug!("on_listen: socket {:?}", sock);
-        if let Some((s, op)) = self.resolve(sock) {
-            if *op == ClientSocketOp::Listen {
-                *op = ClientSocketOp::None;
-                self.last_error = err;
-            } else {
-                error!(
-                    "UNKNOWN on_listen: socket:{:?} error:{:?} state:{:?}",
-                    s, err, *op
-                );
+        match self.resolve(sock) {
+            Some((_, ClientSocketOp::Listen(option))) => {
+                option.replace(BindListenResult { error: err });
             }
+            Some((s, op)) => error!(
+                "UNKNOWN on_listen: socket:{:?} error:{:?} state:{:?}",
+                s, err, op
+            ),
+            None => error!(
+                "UNKNOWN socket on_listen: socket:{:?} error:{:?}",
+                sock, err
+            ),
         }
     }
 
-    // This is different, no error being passed
     fn on_accept(
         &mut self,
         address: core::net::SocketAddrV4,
@@ -511,30 +511,28 @@ impl EventListener for SocketCallbacks {
             accepted_socket
         );
 
-        if let Some((_s, op)) = self.resolve(listen_socket) {
-            if let ClientSocketOp::Accept(option) = op {
+        match self.resolve(listen_socket) {
+            Some((_, ClientSocketOp::Accept(option))) => {
                 option.replace(AcceptResult {
                     accept_addr: address,
                     accepted_socket,
                 });
-            } else {
-                error!(
-                    "Socket was NOT in accept : address:{:?} port:{:?} listen_socket:{:?} accepted_socket:{:?}
-                    actual state:{:?}",
+            }
+            Some((_, op)) => error!(
+                "Socket was NOT in accept: address:{:?} port:{:?} listen_socket:{:?} accepted_socket:{:?} actual state:{:?}",
                 Ipv4AddrFormatWrapper::new(address.ip()),
                 address.port(),
                 listen_socket,
                 accepted_socket,
-                *op);
-            }
-        } else {
-            error!(
+                op
+            ),
+            None => error!(
                 "UNKNOWN socket on_accept: address:{:?} port:{:?} listen_socket:{:?} accepted_socket:{:?}",
                 Ipv4AddrFormatWrapper::new(address.ip()),
                 address.port(),
                 listen_socket,
                 accepted_socket
-            );
-        };
+            ),
+        }
     }
 }
