@@ -18,7 +18,7 @@ pub use crate::stack::socket_callbacks::{Handle, PingResult};
 
 // Todo: Delete this and replace with per-socket enum values in ClientSocketOp
 pub enum GenResult {
-    Len(usize),
+    Len(()),
 }
 
 /// Client for the WincWifi chip.
@@ -27,7 +27,6 @@ pub enum GenResult {
 /// network connections
 pub struct WincClient<'a, X: Xfer> {
     manager: Manager<X>,
-    recv_timeout: u32,
     poll_loop_delay: u32,
     callbacks: SocketCallbacks,
     next_session_id: u16,
@@ -63,7 +62,6 @@ impl<X: Xfer> WincClient<'_, X> {
         Self {
             manager,
             callbacks: SocketCallbacks::new(),
-            recv_timeout: Self::RECV_TIMEOUT,
             poll_loop_delay: Self::POLL_LOOP_DELAY,
             next_session_id: 0,
             boot: None,
@@ -146,7 +144,7 @@ impl<X: Xfer> WincClient<'_, X> {
                 if client.callbacks.last_error != SocketError::NoError {
                     return Some(Err(StackError::OpFailed(client.callbacks.last_error)));
                 }
-                return Some(Ok(GenResult::Len(client.callbacks.recv_len)));
+                return Some(Ok(GenResult::Len(())));
             }
             None
         })

@@ -131,9 +131,6 @@ impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {
         socket: &mut <Self as TcpClientStack>::TcpSocket,
         data: &mut [u8],
     ) -> Result<usize, nb::Error<<Self as TcpClientStack>::Error>> {
-        debug!("Receiving on socket {:?}", socket);
-        self.dispatch_events()?;
-        debug!("Receiving on socket {:?}", socket);
         let (sock, op) = self.callbacks.tcp_sockets.get(*socket).unwrap();
         let res = match op {
             ClientSocketOp::None | ClientSocketOp::New => {
@@ -172,9 +169,9 @@ impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {
                 *op = ClientSocketOp::None;
                 Err(nb::Error::Other(err))
             }
-            Ok(recv_len) => {
+            Ok(result) => {
                 *op = ClientSocketOp::None;
-                Ok(recv_len)
+                Ok(result)
             }
         }
     }
