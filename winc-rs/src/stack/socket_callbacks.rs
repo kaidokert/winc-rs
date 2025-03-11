@@ -128,6 +128,12 @@ pub(crate) struct ConnectResult {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub(crate) struct BindListenResult {
+    pub error: SocketError,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct AcceptResult {
     pub accept_addr: core::net::SocketAddrV4,
     pub accepted_socket: Socket,
@@ -155,7 +161,7 @@ pub enum ClientSocketOp {
     SendTo(i16),
     Recv,
     RecvFrom,
-    Bind,
+    Bind(Option<BindListenResult>),
     Listen,
     Accept(Option<AcceptResult>),
 }
@@ -464,9 +470,8 @@ impl EventListener for SocketCallbacks {
     fn on_bind(&mut self, sock: Socket, err: crate::manager::SocketError) {
         debug!("on_bind: socket {:?}", sock);
         if let Some((s, op)) = self.resolve(sock) {
-            if *op == ClientSocketOp::Bind {
-                *op = ClientSocketOp::None;
-                self.last_error = err;
+            if let ClientSocketOp::Bind(option) = op {
+                option.replace(BindListenResult { error: err });
             } else {
                 error!(
                     "UNKNOWN on_bind: socket:{:?} error:{:?} state:{:?}",

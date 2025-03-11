@@ -135,13 +135,25 @@ impl<X: Xfer> UdpFullStack for WincClient<'_, X> {
         let server_addr =
             core::net::SocketAddrV4::new(core::net::Ipv4Addr::new(0, 0, 0, 0), local_port);
         let (sock, op) = self.callbacks.udp_sockets.get(*socket).unwrap();
-        *op = ClientSocketOp::Bind;
-        let op = *op;
+        *op = ClientSocketOp::Bind(None);
+        debug!("<> Sending UDP socket bind to {:?}", sock);
         self.manager
             .send_bind(*sock, server_addr)
             .map_err(StackError::BindFailed)?;
-        self.wait_for_op_ack(*socket, op, Self::BIND_TIMEOUT, false)?;
-        Ok(())
+        self.wait_with_timeout(Self::BIND_TIMEOUT, |client, _| {
+            let (_, op) = client.callbacks.udp_sockets.get(*socket).unwrap();
+            let res = match op {
+                ClientSocketOp::Bind(Some(bind_result)) => match bind_result.error {
+                    SocketError::NoError => Some(Ok(())),
+                    _ => Some(Err(StackError::OpFailed(bind_result.error))),
+                },
+                _ => None,
+            };
+            if res.is_some() {
+                *op = ClientSocketOp::None;
+            }
+            res
+        })
     }
 
     fn send_to(

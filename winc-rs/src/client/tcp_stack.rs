@@ -173,20 +173,29 @@ impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {
 
 impl<X: Xfer> TcpFullStack for WincClient<'_, X> {
     fn bind(&mut self, socket: &mut Self::TcpSocket, local_port: u16) -> Result<(), Self::Error> {
-        self.dispatch_events()?;
-        let (sock, op) = self.callbacks.tcp_sockets.get(*socket).unwrap();
-        *op = ClientSocketOp::Bind;
-        let op = *op;
-        debug!("<> Sending socket bind to {:?}", sock);
-
+        // Local server ports needs to be bound to 0.0.0.0
         let server_addr =
             core::net::SocketAddrV4::new(core::net::Ipv4Addr::new(0, 0, 0, 0), local_port);
-
+        let (sock, op) = self.callbacks.tcp_sockets.get(*socket).unwrap();
+        *op = ClientSocketOp::Bind(None);
+        debug!("<> Sending TCP socket bind to {:?}", sock);
         self.manager
             .send_bind(*sock, server_addr)
             .map_err(StackError::BindFailed)?;
-        self.wait_for_op_ack(*socket, op, Self::BIND_TIMEOUT, true)?;
-        Ok(())
+        self.wait_with_timeout(Self::BIND_TIMEOUT, |client, _| {
+            let (_, op) = client.callbacks.tcp_sockets.get(*socket).unwrap();
+            let res = match op {
+                ClientSocketOp::Bind(Some(bind_result)) => match bind_result.error {
+                    SocketError::NoError => Some(Ok(())),
+                    _ => Some(Err(StackError::OpFailed(bind_result.error))),
+                },
+                _ => None,
+            };
+            if res.is_some() {
+                *op = ClientSocketOp::None;
+            }
+            res
+        })
     }
 
     fn listen(&mut self, socket: &mut Self::TcpSocket) -> Result<(), Self::Error> {
@@ -213,7 +222,7 @@ impl<X: Xfer> TcpFullStack for WincClient<'_, X> {
                 Err(StackError::Dispatch)
             }
             ClientSocketOp::Accept(Some(accept_result)) => {
-                debug!("Accept result: {:?}", accept_result);
+                debug!("Accept result: {:?} on socket {:?}", accept_result, socket);
                 Ok(*accept_result)
             }
             ClientSocketOp::Accept(None) => Err(StackError::CallDelay),
