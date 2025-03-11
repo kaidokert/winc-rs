@@ -92,24 +92,20 @@ impl<X: Xfer> UdpClientStack for WincClient<'_, X> {
         self.manager
             .send_recvfrom(*sock, timeout)
             .map_err(StackError::ReceiveFailed)?;
-        if let GenResult::Len(recv_len) =
+        let GenResult::Len(recv_len) =
             match self.wait_for_op_ack(*socket, op, self.recv_timeout, false) {
                 Ok(result) => result,
                 Err(StackError::OpFailed(SocketError::Timeout)) => {
                     return Err(nb::Error::WouldBlock)
                 }
                 Err(e) => return Err(nb::Error::Other(e)),
-            }
-        {
-            let dest_slice = &mut buffer[..recv_len];
-            dest_slice.copy_from_slice(&self.callbacks.recv_buffer[..recv_len]);
-            // Todo: this is hackish, there should be a cleaner way to pass this up
-            let recv_addr =
-                self.callbacks.udp_sockets_addr[sock_id as usize - UDP_SOCK_OFFSET].unwrap();
-            Ok((recv_len, core::net::SocketAddr::V4(recv_addr)))
-        } else {
-            Err(nb::Error::Other(StackError::Unexpected))
-        }
+            };
+        let dest_slice = &mut buffer[..recv_len];
+        dest_slice.copy_from_slice(&self.callbacks.recv_buffer[..recv_len]);
+        // Todo: this is hackish, there should be a cleaner way to pass this up
+        let recv_addr =
+            self.callbacks.udp_sockets_addr[sock_id as usize - UDP_SOCK_OFFSET].unwrap();
+        Ok((recv_len, core::net::SocketAddr::V4(recv_addr)))
     }
 
     // Not a blocking call

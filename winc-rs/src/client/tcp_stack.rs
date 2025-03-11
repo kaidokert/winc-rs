@@ -8,9 +8,8 @@ use super::WincClient;
 
 use super::Xfer;
 use crate::client::GenResult;
+use crate::debug;
 use crate::manager::SocketError;
-use crate::Ipv4AddrFormatWrapper;
-use crate::{debug, error};
 use embedded_nal::nb;
 
 impl<X: Xfer> WincClient<'_, X> {
@@ -52,37 +51,50 @@ impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {
         match remote {
             core::net::SocketAddr::V4(addr) => {
                 let (sock, op) = self.callbacks.tcp_sockets.get(*socket).unwrap();
-                let some_res = match op {
+                let res = match op {
                     ClientSocketOp::None | ClientSocketOp::New => {
                         *op = ClientSocketOp::Connect((Self::CONNECT_TIMEOUT, None));
                         debug!("<> Sending send_socket_connect to {:?}", sock);
                         self.manager
                             .send_socket_connect(*sock, addr)
                             .map_err(StackError::ConnectSendFailed)?;
-                        None
+                        Err(StackError::Dispatch)
                     }
                     ClientSocketOp::Connect((_, Some(connect_result))) => {
+                        debug!("Connect result: {:?}", connect_result);
                         if connect_result.error == SocketError::NoError {
-                            return Ok(());
+                            Ok(())
+                        } else {
+                            Err(StackError::OpFailed(connect_result.error))
                         }
-                        Some(StackError::OpFailed(connect_result.error))
                     }
                     ClientSocketOp::Connect((timeout, None)) => {
                         *timeout -= 1;
                         if *timeout == 0 {
-                            Some(StackError::OpFailed(SocketError::Timeout))
+                            Err(StackError::OpFailed(SocketError::Timeout))
                         } else {
-                            self.delay(self.poll_loop_delay);
-                            None
+                            Err(StackError::CallDelay)
                         }
                     }
-                    _ => Some(StackError::Unexpected),
+                    _ => Err(StackError::Unexpected),
                 };
-                match some_res {
-                    Some(err) => Err(nb::Error::Other(err)),
-                    None => {
+                match res {
+                    Err(StackError::Dispatch) => {
                         self.dispatch_events()?;
                         Err(nb::Error::WouldBlock)
+                    }
+                    Err(StackError::CallDelay) => {
+                        self.delay(self.poll_loop_delay);
+                        self.dispatch_events()?;
+                        Err(nb::Error::WouldBlock)
+                    }
+                    Err(err) => {
+                        *op = ClientSocketOp::None;
+                        Err(nb::Error::Other(err))
+                    }
+                    Ok(_) => {
+                        *op = ClientSocketOp::None;
+                        Ok(())
                     }
                 }
             }
@@ -131,21 +143,17 @@ impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {
         self.manager
             .send_recv(*sock, timeout)
             .map_err(|x| nb::Error::Other(StackError::ReceiveFailed(x)))?;
-        if let GenResult::Len(recv_len) =
+        let GenResult::Len(recv_len) =
             match self.wait_for_op_ack(*socket, op, self.recv_timeout, true) {
                 Ok(result) => result,
                 Err(StackError::OpFailed(SocketError::Timeout)) => {
                     return Err(nb::Error::WouldBlock)
                 }
                 Err(e) => return Err(nb::Error::Other(e)),
-            }
-        {
-            let dest_slice = &mut data[..recv_len];
-            dest_slice.copy_from_slice(&self.callbacks.recv_buffer[..recv_len]);
-            Ok(recv_len)
-        } else {
-            Err(nb::Error::Other(StackError::Unexpected))
-        }
+            };
+        let dest_slice = &mut data[..recv_len];
+        dest_slice.copy_from_slice(&self.callbacks.recv_buffer[..recv_len]);
+        Ok(recv_len)
     }
     fn close(&mut self, socket: <Self as TcpClientStack>::TcpSocket) -> Result<(), Self::Error> {
         debug!("Closing socket {:?}", socket);
@@ -197,36 +205,43 @@ impl<X: Xfer> TcpFullStack for WincClient<'_, X> {
         &mut self,
         socket: &mut Self::TcpSocket,
     ) -> nb::Result<(Self::TcpSocket, core::net::SocketAddr), Self::Error> {
-        debug!("<> accept called on socket {:?}", socket);
-        self.dispatch_events()?;
-        let (sock, op) = self.callbacks.tcp_sockets.get(*socket).unwrap();
-        debug!("<> Waiting for accept to socket {:?}", sock);
-        *op = ClientSocketOp::Accept;
-        let op = *op;
-        // this needs to catch Err(StackError::GeneralTimeout) and map it to WouldBlock
-        let res = match self.wait_for_op_ack(*socket, op, Self::ACCEPT_TIMEOUT, true) {
-            Ok(res) => res,
-            Err(StackError::GeneralTimeout) => return Err(nb::Error::WouldBlock),
-            Err(e) => return Err(nb::Error::Other(e)),
+        let (_, op) = self.callbacks.tcp_sockets.get(*socket).unwrap();
+        let res = match op {
+            ClientSocketOp::None | ClientSocketOp::New => {
+                debug!("<> accept called on socket {:?}", socket);
+                *op = ClientSocketOp::Accept(None);
+                Err(StackError::Dispatch)
+            }
+            ClientSocketOp::Accept(Some(accept_result)) => {
+                debug!("Accept result: {:?}", accept_result);
+                Ok(*accept_result)
+            }
+            ClientSocketOp::Accept(None) => Err(StackError::CallDelay),
+            _ => Err(StackError::Unexpected),
         };
         match res {
-            GenResult::Accept(addr, accepted_socket) => {
-                debug!(
-                    "Accept result: socket {:?} addr {:?} port {}",
-                    accepted_socket,
-                    Ipv4AddrFormatWrapper::new(addr.ip()),
-                    addr.port(),
-                );
+            Err(StackError::Dispatch) => {
+                self.dispatch_events()?;
+                Err(nb::Error::WouldBlock)
+            }
+            Err(StackError::CallDelay) => {
+                self.delay(self.poll_loop_delay);
+                self.dispatch_events()?;
+                Err(nb::Error::WouldBlock)
+            }
+            Err(err) => {
+                *op = ClientSocketOp::None;
+                Err(nb::Error::Other(err))
+            }
+            Ok(accept_result) => {
+                *op = ClientSocketOp::None;
+                let accepted_socket = accept_result.accepted_socket;
                 let handle = self
                     .callbacks
                     .tcp_sockets
                     .put(Handle(accepted_socket.v), accepted_socket.s)
                     .ok_or(StackError::SocketAlreadyInUse)?;
-                Ok((handle, core::net::SocketAddr::V4(addr)))
-            }
-            _ => {
-                error!("<> Accept failed, we got unexpected");
-                Err(nb::Error::Other(StackError::Unexpected))
+                Ok((handle, core::net::SocketAddr::V4(accept_result.accept_addr)))
             }
         }
     }

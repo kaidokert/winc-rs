@@ -114,9 +114,6 @@ pub(crate) struct SocketCallbacks {
     pub recv_len: usize,
     // Todo: Make this per socket
     pub last_error: crate::manager::SocketError,
-    // This is also per socket
-    pub last_accept_addr: Option<core::net::SocketAddrV4>,
-    pub last_accepted_socket: Option<Socket>,
 
     // This is global
     pub dns_resolved_addr: Option<Option<core::net::Ipv4Addr>>,
@@ -128,6 +125,24 @@ pub(crate) struct SocketCallbacks {
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub(crate) struct ConnectResult {
     pub error: SocketError,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct AcceptResult {
+    pub accept_addr: core::net::SocketAddrV4,
+    pub accepted_socket: Socket,
+}
+#[cfg(feature = "defmt")]
+impl defmt::Format for AcceptResult {
+    fn format(&self, f: defmt::Formatter) {
+        defmt::write!(
+            f,
+            "accept_addr: {:?}, port: {}, accepted_socket: {:?}",
+            Ipv4AddrFormatWrapper::new(self.accept_addr.ip()),
+            self.accept_addr.port(),
+            self.accepted_socket
+        );
+    }
 }
 
 #[derive(PartialEq, Clone, Copy, Debug)]
@@ -142,7 +157,7 @@ pub enum ClientSocketOp {
     RecvFrom,
     Bind,
     Listen,
-    Accept,
+    Accept(Option<AcceptResult>),
 }
 
 impl SocketCallbacks {
@@ -155,9 +170,7 @@ impl SocketCallbacks {
             recv_buffer: [0; SOCKET_BUFFER_MAX_LENGTH],
             recv_len: 0,
             last_error: crate::manager::SocketError::NoError,
-            last_accept_addr: None,
             dns_resolved_addr: None,
-            last_accepted_socket: None,
             connection_state: ConnectionState::new(),
             state: WifiModuleState::Reset,
         }
@@ -284,7 +297,6 @@ impl EventListener for SocketCallbacks {
         debug!("on_connect: socket {:?}", socket);
         if let Some((s, op)) = self.resolve(socket) {
             if let ClientSocketOp::Connect((_, option)) = op {
-                debug!("on_connect: socket:{:?} error:{:?}", s, err);
                 option.replace(ConnectResult { error: err });
             } else {
                 error!(
@@ -495,11 +507,11 @@ impl EventListener for SocketCallbacks {
         );
 
         if let Some((_s, op)) = self.resolve(listen_socket) {
-            if *op == ClientSocketOp::Accept {
-                *op = ClientSocketOp::None;
-                self.last_error = SocketError::NoError;
-                self.last_accept_addr = Some(address);
-                self.last_accepted_socket = Some(accepted_socket);
+            if let ClientSocketOp::Accept(option) = op {
+                option.replace(AcceptResult {
+                    accept_addr: address,
+                    accepted_socket,
+                });
             } else {
                 error!(
                     "Socket was NOT in accept : address:{:?} port:{:?} listen_socket:{:?} accepted_socket:{:?}

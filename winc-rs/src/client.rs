@@ -1,5 +1,4 @@
 use crate::manager::Manager;
-use crate::socket::Socket;
 use crate::transfer::Xfer;
 
 use crate::manager::SocketError;
@@ -19,7 +18,6 @@ pub use crate::stack::socket_callbacks::{Handle, PingResult};
 
 pub enum GenResult {
     Len(usize),
-    Accept(core::net::SocketAddrV4, Socket),
 }
 
 /// Client for the WincWifi chip.
@@ -45,7 +43,6 @@ impl<X: Xfer> WincClient<'_, X> {
 
     const TCP_SOCKET_BACKLOG: u8 = 4;
     const LISTEN_TIMEOUT: u32 = 100;
-    const ACCEPT_TIMEOUT: u32 = 100;
     const BIND_TIMEOUT: u32 = 100;
     const SEND_TIMEOUT: u32 = 1000;
     const RECV_TIMEOUT: u32 = 1000;
@@ -129,7 +126,6 @@ impl<X: Xfer> WincClient<'_, X> {
         timeout: u32,
         tcp: bool,
     ) -> Result<GenResult, StackError> {
-        self.callbacks.last_accept_addr = None;
         self.callbacks.last_error = SocketError::NoError;
 
         debug!("===>Waiting for op ack for {:?}", expect_op);
@@ -146,13 +142,6 @@ impl<X: Xfer> WincClient<'_, X> {
                     expect_op, client.callbacks.recv_len, elapsed
                 );
 
-                if let Some(accepted_socket) = client.callbacks.last_accepted_socket.take() {
-                    return Some(Ok(GenResult::Accept(
-                        client.callbacks.last_accept_addr.unwrap(),
-                        accepted_socket,
-                    )));
-                }
-
                 if client.callbacks.last_error != SocketError::NoError {
                     return Some(Err(StackError::OpFailed(client.callbacks.last_error)));
                 }
@@ -163,7 +152,6 @@ impl<X: Xfer> WincClient<'_, X> {
         .map_err(|e| {
             if matches!(e, StackError::GeneralTimeout) {
                 match expect_op {
-                    ClientSocketOp::Connect(_) => StackError::ConnectTimeout,
                     ClientSocketOp::Send(_) => StackError::SendTimeout,
                     ClientSocketOp::Recv => StackError::RecvTimeout,
                     _ => StackError::GeneralTimeout,
