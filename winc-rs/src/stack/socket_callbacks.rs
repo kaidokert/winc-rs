@@ -128,6 +128,25 @@ pub(crate) struct ConnectResult {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct RecvResult {
+    pub recv_len: usize,
+    pub from_addr: core::net::SocketAddrV4,
+    pub error: SocketError,
+}
+#[cfg(feature = "defmt")]
+impl defmt::Format for RecvResult {
+    fn format(&self, f: defmt::Formatter) {
+        defmt::write!(
+            f,
+            "recv_len: {}, from_addr: {:?}, error: {}",
+            self.recv_len,
+            Ipv4AddrFormatWrapper::new(self.from_addr.ip()),
+            self.error
+        );
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub(crate) struct BindListenResult {
     pub error: SocketError,
@@ -160,7 +179,7 @@ pub enum ClientSocketOp {
     Connect((u32, Option<ConnectResult>)),
     Send(i16),
     SendTo(i16),
-    Recv,
+    Recv(Option<RecvResult>),
     RecvFrom,
     Bind(Option<BindListenResult>),
     Listen(Option<BindListenResult>),
@@ -379,9 +398,8 @@ impl EventListener for SocketCallbacks {
         err: crate::manager::SocketError,
     ) {
         debug!("on_recv: socket {:?}", socket);
-        let mut found = false;
-        if let Some((s, op)) = self.resolve(socket) {
-            if *op == ClientSocketOp::Recv {
+        match self.resolve(socket) {
+            Some((s, ClientSocketOp::Recv(option))) => {
                 debug!(
                     "on_recv: socket:{:?} address:{:?} data:{:?} len:{:?} error:{:?}",
                     s,
@@ -390,33 +408,27 @@ impl EventListener for SocketCallbacks {
                     data.len(),
                     err
                 );
-                *op = ClientSocketOp::None;
-                found = true;
-            } else {
-                error!(
-                    "UNKNOWN on_recv: socket:{:?} address:{:?} port:{:?} data:{:?} len:{:?} error:{:?}",
-                    socket,
-                    Ipv4AddrFormatWrapper::new(address.ip()),
-                    address.port(),
-                    data,
-                    data.len(),
-                    err
-                );
+                option.replace(RecvResult {
+                    recv_len: data.len(),
+                    from_addr: address,
+                    error: err,
+                });
+                self.recv_buffer[..data.len()].copy_from_slice(data);
             }
-        } else {
-            error!(
-                "UNKNOWN on_recv: socket:{:?} address:{:?} port:{:?} data:{:?} error:{:?}",
+            Some((_, op)) => error!(
+                "Socket NOT in recv: socket:{:?} address:{:?} data:{:?} error:{:?} actual state:{:?}",
                 socket,
                 Ipv4AddrFormatWrapper::new(address.ip()),
-                address.port(),
+                data,
+                err, op
+            ),
+            None => error!(
+                "UNKNOWN on_recv: socket:{:?} address:{:?} data:{:?} error:{:?}",
+                socket,
+                Ipv4AddrFormatWrapper::new(address.ip()),
                 data,
                 err
-            );
-        }
-        if found {
-            self.recv_buffer[..data.len()].copy_from_slice(data);
-            self.recv_len = data.len();
-            self.last_error = err;
+            ),
         }
     }
     fn on_recvfrom(

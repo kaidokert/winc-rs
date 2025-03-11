@@ -154,7 +154,7 @@ impl<X: Xfer> WincClient<'_, X> {
             if matches!(e, StackError::GeneralTimeout) {
                 match expect_op {
                     ClientSocketOp::Send(_) => StackError::SendTimeout,
-                    ClientSocketOp::Recv => StackError::RecvTimeout,
+                    ClientSocketOp::Recv(_) => StackError::RecvTimeout,
                     _ => StackError::GeneralTimeout,
                 }
             } else {
