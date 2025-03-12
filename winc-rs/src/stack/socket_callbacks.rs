@@ -127,6 +127,15 @@ pub(crate) struct ConnectResult {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub(crate) struct SendRequest {
+    pub offset: usize,
+    pub grand_total_sent: i16,
+    pub total_sent: i16,
+    pub remaining: i16,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct RecvResult {
     pub recv_len: usize,
     pub from_addr: core::net::SocketAddrV4,
@@ -176,7 +185,9 @@ pub enum ClientSocketOp {
     None,
     New,
     Connect((u32, Option<ConnectResult>)),
-    Send(i16),
+    // Request tracking offset and remaining, final value
+    // is whatever is returned by callback
+    Send(SendRequest, Option<i16>),
     SendTo(i16),
     Recv(Option<RecvResult>),
     RecvFrom(Option<RecvResult>),
@@ -362,30 +373,25 @@ impl EventListener for SocketCallbacks {
     }
     fn on_send(&mut self, socket: Socket, len: i16) {
         debug!("on_send: socket {:?} len:{}", socket, len);
-
-        if let Some((s, op)) = self.resolve(socket) {
-            match op {
-                ClientSocketOp::Send(req_len) => {
-                    if len >= *req_len {
-                        debug!("FIN: on_send: socket:{:?} length:{:?}", socket, len);
-                        *op = ClientSocketOp::None;
-                    } else {
-                        debug!("CONT: on_send: socket:{:?} length:{:?}", socket, len);
-                        *req_len -= len;
-                    }
-                }
-                _ => {
-                    error!(
-                        "UNKNOWN STATE on_send (x): socket:{:?} len:{:?} state:{:?}",
-                        s, len, *op
-                    );
+        match self.resolve(socket) {
+            Some((s, ClientSocketOp::Send(req, option))) => {
+                req.total_sent += len;
+                req.remaining -= len;
+                if req.remaining <= 0 {
+                    debug!("FIN: on_send: socket:{:?} length:{:?}", s, len);
+                    option.replace(len);
+                } else {
+                    debug!("CONT: on_send: socket:{:?} length:{:?}", s, len);
                 }
             }
-        } else {
-            error!(
+            Some((s, op)) => error!(
+                "UNKNOWN STATE on_send (x): socket:{:?} len:{:?} state:{:?}",
+                s, len, *op
+            ),
+            None => error!(
                 "on_send (x): COULD NOT FIND SOCKET socket:{:?} len:{:?}",
                 socket, len
-            );
+            ),
         }
     }
     fn on_recv(

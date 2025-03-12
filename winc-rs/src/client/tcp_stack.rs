@@ -7,8 +7,9 @@ use super::StackError;
 use super::WincClient;
 
 use super::Xfer;
-use crate::debug;
 use crate::manager::SocketError;
+use crate::stack::socket_callbacks::SendRequest;
+use crate::{debug, info};
 use embedded_nal::nb;
 
 impl<X: Xfer> WincClient<'_, X> {
@@ -105,24 +106,82 @@ impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {
         socket: &mut <Self as TcpClientStack>::TcpSocket,
         data: &[u8],
     ) -> Result<usize, nb::Error<<Self as TcpClientStack>::Error>> {
-        self.dispatch_events()?;
-
-        // Send in chunks of up to 1400 bytes
-        let mut offset = 0;
-        while offset < data.len() {
-            let to_send = data[offset..].len().min(Self::MAX_SEND_LENGTH);
-            let (sock, op) = self.callbacks.tcp_sockets.get(*socket).unwrap();
-            *op = ClientSocketOp::Send(to_send as i16);
-
-            let op = *op;
-            debug!("<> Sending socket send_send to {:?} len:{}", sock, to_send);
-            self.manager
-                .send_send(*sock, &data[offset..offset + to_send])
-                .map_err(StackError::SendSendFailed)?;
-            self.wait_for_op_ack(*socket, op, Self::SEND_TIMEOUT, true)?;
-            offset += to_send;
+        let (sock, op) = self.callbacks.tcp_sockets.get(*socket).unwrap();
+        let res = match op {
+            ClientSocketOp::None | ClientSocketOp::New => {
+                debug!(
+                    "<> Sending socket send_send to {:?} len:{}",
+                    sock,
+                    data.len()
+                );
+                let to_send = data.len().min(Self::MAX_SEND_LENGTH);
+                let req = SendRequest {
+                    offset: 0,
+                    grand_total_sent: 0,
+                    total_sent: 0,
+                    remaining: to_send as i16,
+                };
+                info!(
+                    "Sending INITIAL send_send to {:?} len:{} req:{:?}",
+                    sock, to_send, req
+                );
+                *op = ClientSocketOp::Send(req, None);
+                self.manager
+                    .send_send(*sock, &data[..to_send])
+                    .map_err(StackError::SendSendFailed)?;
+                Err(StackError::Dispatch)
+            }
+            // We finished one send iteration
+            ClientSocketOp::Send(req, Some(len)) => {
+                let total_sent = req.total_sent;
+                let grand_total_sent = req.grand_total_sent;
+                let new_offset = req.offset + total_sent as usize;
+                // Now move to next chunk
+                if new_offset >= data.len() {
+                    info!("Finished off a send, returning len:{}", *len as usize);
+                    Ok(req.grand_total_sent as usize)
+                } else {
+                    let to_send = data[new_offset..].len().min(Self::MAX_SEND_LENGTH);
+                    let new_req = SendRequest {
+                        offset: new_offset,
+                        grand_total_sent: grand_total_sent + total_sent,
+                        total_sent: 0,
+                        remaining: to_send as i16,
+                    };
+                    info!(
+                        "Sending NEXT send_send to {:?} len:{} req:{:?}",
+                        sock, to_send, new_req
+                    );
+                    *op = ClientSocketOp::Send(new_req, None);
+                    self.manager
+                        .send_send(*sock, &data[new_offset..new_offset + to_send])
+                        .map_err(StackError::SendSendFailed)?;
+                    Err(StackError::Dispatch)
+                }
+            }
+            // We are sending data, wait
+            ClientSocketOp::Send(_, None) => Err(StackError::CallDelay),
+            _ => Err(StackError::Unexpected),
+        };
+        match res {
+            Err(StackError::Dispatch) => {
+                self.dispatch_events()?;
+                Err(nb::Error::WouldBlock)
+            }
+            Err(StackError::CallDelay) => {
+                self.delay(self.poll_loop_delay);
+                self.dispatch_events()?;
+                Err(nb::Error::WouldBlock)
+            }
+            Err(err) => {
+                *op = ClientSocketOp::None;
+                Err(nb::Error::Other(err))
+            }
+            Ok(res) => {
+                *op = ClientSocketOp::None;
+                Ok(res)
+            }
         }
-        Ok(data.len())
     }
 
     // Nb:: Blocking call, returns nb::Result when no data
