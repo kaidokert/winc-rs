@@ -122,7 +122,7 @@ impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {
                 let offset = req.offset + total_sent as usize;
                 // Now move to next chunk
                 if offset >= data.len() {
-                    crate::info!("Finished off a send, returning len:{}", grand_total_sent);
+                    debug!("Finished off a send, returning len:{}", grand_total_sent);
                     Ok(grand_total_sent as usize)
                 } else {
                     let to_send = data[offset..].len().min(Self::MAX_SEND_LENGTH);

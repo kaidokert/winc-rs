@@ -86,7 +86,7 @@ impl<X: Xfer> UdpClientStack for WincClient<'_, X> {
                 let offset = req.offset + total_sent as usize;
                 // Now move to next chunk
                 if offset >= data.len() {
-                    crate::info!("Finished off a send, returning len:{}", grand_total_sent);
+                    debug!("Finished off a send, returning len:{}", grand_total_sent);
                     Ok(())
                 } else {
                     let to_send = data[offset..].len().min(Self::MAX_SEND_LENGTH);
@@ -242,7 +242,7 @@ impl<X: Xfer> UdpFullStack for WincClient<'_, X> {
                 let offset = req.offset + total_sent as usize;
                 // Now move to next chunk
                 if offset >= data.len() {
-                    crate::info!("Finished off a send, total was len:{}", grand_total_sent);
+                    debug!("Finished off a send, total was len:{}", grand_total_sent);
                     Ok(())
                 } else {
                     let to_send = data[offset..].len().min(Self::MAX_SEND_LENGTH);
