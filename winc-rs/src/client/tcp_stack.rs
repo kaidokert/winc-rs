@@ -7,10 +7,12 @@ use super::StackError;
 use super::WincClient;
 
 use super::Xfer;
+use crate::debug;
 use crate::manager::SocketError;
 use crate::stack::socket_callbacks::SendRequest;
-use crate::{debug, info};
 use embedded_nal::nb;
+
+use crate::handle_result;
 
 impl<X: Xfer> WincClient<'_, X> {
     /// Todo: actually implement this
@@ -78,25 +80,7 @@ impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {
                     }
                     _ => Err(StackError::Unexpected),
                 };
-                match res {
-                    Err(StackError::Dispatch) => {
-                        self.dispatch_events()?;
-                        Err(nb::Error::WouldBlock)
-                    }
-                    Err(StackError::CallDelay) => {
-                        self.delay(self.poll_loop_delay);
-                        self.dispatch_events()?;
-                        Err(nb::Error::WouldBlock)
-                    }
-                    Err(err) => {
-                        *op = ClientSocketOp::None;
-                        Err(nb::Error::Other(err))
-                    }
-                    Ok(_) => {
-                        *op = ClientSocketOp::None;
-                        Ok(())
-                    }
-                }
+                handle_result!(self, op, res)
             }
             core::net::SocketAddr::V6(_) => unimplemented!("IPv6 not supported"),
         }
@@ -121,7 +105,7 @@ impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {
                     total_sent: 0,
                     remaining: to_send as i16,
                 };
-                info!(
+                debug!(
                     "Sending INITIAL send_send to {:?} len:{} req:{:?}",
                     sock, to_send, req
                 );
@@ -138,7 +122,7 @@ impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {
                 let new_offset = req.offset + total_sent as usize;
                 // Now move to next chunk
                 if new_offset >= data.len() {
-                    info!("Finished off a send, returning len:{}", *len as usize);
+                    debug!("Finished off a send, returning len:{}", *len as usize);
                     Ok(req.grand_total_sent as usize)
                 } else {
                     let to_send = data[new_offset..].len().min(Self::MAX_SEND_LENGTH);
@@ -148,7 +132,7 @@ impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {
                         total_sent: 0,
                         remaining: to_send as i16,
                     };
-                    info!(
+                    debug!(
                         "Sending NEXT send_send to {:?} len:{} req:{:?}",
                         sock, to_send, new_req
                     );
@@ -163,25 +147,7 @@ impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {
             ClientSocketOp::Send(_, None) => Err(StackError::CallDelay),
             _ => Err(StackError::Unexpected),
         };
-        match res {
-            Err(StackError::Dispatch) => {
-                self.dispatch_events()?;
-                Err(nb::Error::WouldBlock)
-            }
-            Err(StackError::CallDelay) => {
-                self.delay(self.poll_loop_delay);
-                self.dispatch_events()?;
-                Err(nb::Error::WouldBlock)
-            }
-            Err(err) => {
-                *op = ClientSocketOp::None;
-                Err(nb::Error::Other(err))
-            }
-            Ok(res) => {
-                *op = ClientSocketOp::None;
-                Ok(res)
-            }
-        }
+        handle_result!(self, op, res)
     }
 
     // Nb:: Blocking call, returns nb::Result when no data
@@ -202,37 +168,24 @@ impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {
             }
             ClientSocketOp::Recv(Some(recv_result)) => {
                 debug!("Recv result: {:?}", recv_result);
-                if recv_result.error == SocketError::NoError {
-                    let recv_len = recv_result.recv_len;
-                    let dest_slice = &mut data[..recv_len];
-                    dest_slice.copy_from_slice(&self.callbacks.recv_buffer[..recv_len]);
-                    Ok(recv_result.recv_len)
-                } else {
-                    Err(StackError::OpFailed(recv_result.error))
+                match recv_result.error {
+                    SocketError::NoError => {
+                        let recv_len = recv_result.recv_len;
+                        let dest_slice = &mut data[..recv_len];
+                        dest_slice.copy_from_slice(&self.callbacks.recv_buffer[..recv_len]);
+                        Ok(recv_result.recv_len)
+                    }
+                    SocketError::Timeout => {
+                        // Timeouts just get turned into a further wait
+                        Err(StackError::CallDelay)
+                    }
+                    _ => Err(StackError::OpFailed(recv_result.error)),
                 }
             }
             ClientSocketOp::Recv(None) => Err(StackError::CallDelay),
             _ => Err(StackError::Unexpected),
         };
-        match res {
-            Err(StackError::Dispatch) => {
-                self.dispatch_events()?;
-                Err(nb::Error::WouldBlock)
-            }
-            Err(StackError::CallDelay) => {
-                self.delay(self.poll_loop_delay);
-                self.dispatch_events()?;
-                Err(nb::Error::WouldBlock)
-            }
-            Err(err) => {
-                *op = ClientSocketOp::None;
-                Err(nb::Error::Other(err))
-            }
-            Ok(result) => {
-                *op = ClientSocketOp::None;
-                Ok(result)
-            }
-        }
+        handle_result!(self, op, res)
     }
     fn close(&mut self, socket: <Self as TcpClientStack>::TcpSocket) -> Result<(), Self::Error> {
         debug!("Closing socket {:?}", socket);
@@ -317,6 +270,8 @@ impl<X: Xfer> TcpFullStack for WincClient<'_, X> {
             ClientSocketOp::Accept(None) => Err(StackError::CallDelay),
             _ => Err(StackError::Unexpected),
         };
+        // Cant use this here, as there's more to do than just return the result
+        //handle_result!(self, op, res)
         match res {
             Err(StackError::Dispatch) => {
                 self.dispatch_events()?;

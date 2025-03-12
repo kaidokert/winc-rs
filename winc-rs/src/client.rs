@@ -1,10 +1,6 @@
 use crate::manager::Manager;
 use crate::transfer::Xfer;
 
-use crate::manager::SocketError;
-
-use crate::debug;
-
 mod dns;
 mod tcp_stack;
 mod udp_stack;
@@ -16,9 +12,29 @@ pub use crate::stack::socket_callbacks::ClientSocketOp;
 use crate::stack::socket_callbacks::SocketCallbacks;
 pub use crate::stack::socket_callbacks::{Handle, PingResult};
 
-// Todo: Delete this and replace with per-socket enum values in ClientSocketOp
-pub enum GenResult {
-    Len(()),
+#[macro_export]
+macro_rules! handle_result {
+    ($self:expr, $op:expr, $res:expr) => {
+        match $res {
+            Err(StackError::Dispatch) => {
+                $self.dispatch_events()?;
+                Err(nb::Error::WouldBlock)
+            }
+            Err(StackError::CallDelay) => {
+                $self.delay($self.poll_loop_delay);
+                $self.dispatch_events()?;
+                Err(nb::Error::WouldBlock)
+            }
+            Err(err) => {
+                *$op = ClientSocketOp::None;
+                Err(nb::Error::Other(err))
+            }
+            Ok(result) => {
+                *$op = ClientSocketOp::None;
+                Ok(result)
+            }
+        }
+    };
 }
 
 /// Client for the WincWifi chip.
@@ -44,8 +60,9 @@ impl<X: Xfer> WincClient<'_, X> {
     const TCP_SOCKET_BACKLOG: u8 = 4;
     const LISTEN_TIMEOUT: u32 = 100;
     const BIND_TIMEOUT: u32 = 100;
-    const SEND_TIMEOUT: u32 = 1000;
-    const RECV_TIMEOUT: u32 = 1000;
+    // This only impacts for interval for loops, but doesn't actually
+    // cause timeouts, as all calls are non-blocking.
+    const RECV_TIMEOUT: u32 = 10_000;
     const CONNECT_TIMEOUT: u32 = 1000;
     const DNS_TIMEOUT: u32 = 1000;
     const POLL_LOOP_DELAY: u32 = 10;
@@ -116,48 +133,6 @@ impl<X: Xfer> WincClient<'_, X> {
             timeout -= self.poll_loop_delay as i32;
             elapsed += self.poll_loop_delay;
         }
-    }
-
-    fn wait_for_op_ack(
-        &mut self,
-        handle: Handle,
-        expect_op: ClientSocketOp,
-        timeout: u32,
-        tcp: bool,
-    ) -> Result<GenResult, StackError> {
-        self.callbacks.last_error = SocketError::NoError;
-
-        debug!("===>Waiting for op ack for {:?}", expect_op);
-
-        self.wait_with_timeout(timeout, |client, elapsed| {
-            let (_sock, op) = match tcp {
-                true => client.callbacks.tcp_sockets.get(handle).unwrap(),
-                false => client.callbacks.udp_sockets.get(handle).unwrap(),
-            };
-
-            if *op == ClientSocketOp::None {
-                debug!(
-                    "<===Ack received for {:?}, recv_len:{:?}, elapsed:{}ms",
-                    expect_op, client.callbacks.recv_len, elapsed
-                );
-
-                if client.callbacks.last_error != SocketError::NoError {
-                    return Some(Err(StackError::OpFailed(client.callbacks.last_error)));
-                }
-                return Some(Ok(GenResult::Len(())));
-            }
-            None
-        })
-        .map_err(|e| {
-            if matches!(e, StackError::GeneralTimeout) {
-                match expect_op {
-                    ClientSocketOp::Send(_, _) => StackError::SendTimeout,
-                    _ => StackError::GeneralTimeout,
-                }
-            } else {
-                e
-            }
-        })
     }
 }
 

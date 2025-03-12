@@ -107,13 +107,6 @@ pub(crate) struct SocketCallbacks {
     pub udp_socket_connect_addr: [Option<core::net::SocketAddrV4>; MAX_UDP_SOCKETS],
     pub recv_buffer: [u8; SOCKET_BUFFER_MAX_LENGTH],
 
-    // All this should be moved into an enum rather, these are response
-    // callbacks, mutually exclusive
-    // Todo: make this per socket
-    pub recv_len: usize,
-    // Todo: Make this per socket
-    pub last_error: crate::manager::SocketError,
-
     // This is global
     pub dns_resolved_addr: Option<Option<core::net::Ipv4Addr>>,
     pub connection_state: ConnectionState,
@@ -188,7 +181,7 @@ pub enum ClientSocketOp {
     // Request tracking offset and remaining, final value
     // is whatever is returned by callback
     Send(SendRequest, Option<i16>),
-    SendTo(i16),
+    SendTo(SendRequest, Option<i16>),
     Recv(Option<RecvResult>),
     RecvFrom(Option<RecvResult>),
     Bind(Option<BindListenResult>),
@@ -203,8 +196,6 @@ impl SocketCallbacks {
             udp_sockets: SockHolder::new(),
             udp_socket_connect_addr: [None; MAX_UDP_SOCKETS],
             recv_buffer: [0; SOCKET_BUFFER_MAX_LENGTH],
-            recv_len: 0,
-            last_error: crate::manager::SocketError::NoError,
             dns_resolved_addr: None,
             connection_state: ConnectionState::new(),
             state: WifiModuleState::Reset,
@@ -346,29 +337,25 @@ impl EventListener for SocketCallbacks {
     }
     fn on_send_to(&mut self, socket: Socket, len: i16) {
         debug!("on_send_to: socket:{:?} length:{:?}", socket, len);
-        if let Some((s, op)) = self.resolve(socket) {
-            match op {
-                ClientSocketOp::SendTo(req_len) => {
-                    if len >= *req_len {
-                        debug!("FIN: on_send_to: socket:{:?} length:{:?}", socket, len);
-                        *op = ClientSocketOp::None;
-                    } else {
-                        debug!("CONT: on_send_to: socket:{:?} length:{:?}", socket, len);
-                        *req_len -= len;
-                    }
-                }
-                _ => {
-                    error!(
-                        "UNKNOWN STATE on_send_to (x): socket:{:?} len:{:?} state:{:?}",
-                        s, len, *op
-                    );
+        match self.resolve(socket) {
+            Some((s, ClientSocketOp::SendTo(req, option))) => {
+                req.total_sent += len;
+                req.remaining -= len;
+                if req.remaining <= 0 {
+                    debug!("FIN: on_send: socket:{:?} length:{:?}", s, len);
+                    option.replace(len);
+                } else {
+                    debug!("CONT: on_send: socket:{:?} length:{:?}", s, len);
                 }
             }
-        } else {
-            error!(
-                "UNKNOWN STATE on_send_to (x): socket:{:?} len:{:?}",
+            Some((s, op)) => error!(
+                "UNKNOWN STATE on_send (x): socket:{:?} len:{:?} state:{:?}",
+                s, len, *op
+            ),
+            None => error!(
+                "on_send (x): COULD NOT FIND SOCKET socket:{:?} len:{:?}",
                 socket, len
-            );
+            ),
         }
     }
     fn on_send(&mut self, socket: Socket, len: i16) {
