@@ -12,6 +12,8 @@ pub use crate::stack::socket_callbacks::ClientSocketOp;
 use crate::stack::socket_callbacks::SocketCallbacks;
 pub use crate::stack::socket_callbacks::{Handle, PingResult};
 
+// Todo: try and figure out a non-macro way to structure
+// the code in tcp and udp implementations
 #[macro_export]
 macro_rules! handle_result {
     ($self:expr, $op:expr, $res:expr) => {
