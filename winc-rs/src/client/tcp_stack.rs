@@ -116,19 +116,19 @@ impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {
                 Err(StackError::Dispatch)
             }
             // We finished one send iteration
-            ClientSocketOp::Send(req, Some(len)) => {
+            ClientSocketOp::Send(req, Some(_len)) => {
                 let total_sent = req.total_sent;
-                let grand_total_sent = req.grand_total_sent;
-                let new_offset = req.offset + total_sent as usize;
+                let grand_total_sent = req.grand_total_sent + total_sent;
+                let offset = req.offset + total_sent as usize;
                 // Now move to next chunk
-                if new_offset >= data.len() {
-                    debug!("Finished off a send, returning len:{}", *len as usize);
-                    Ok(req.grand_total_sent as usize)
+                if offset >= data.len() {
+                    crate::info!("Finished off a send, returning len:{}", grand_total_sent);
+                    Ok(grand_total_sent as usize)
                 } else {
-                    let to_send = data[new_offset..].len().min(Self::MAX_SEND_LENGTH);
+                    let to_send = data[offset..].len().min(Self::MAX_SEND_LENGTH);
                     let new_req = SendRequest {
-                        offset: new_offset,
-                        grand_total_sent: grand_total_sent + total_sent,
+                        offset,
+                        grand_total_sent,
                         total_sent: 0,
                         remaining: to_send as i16,
                     };
@@ -138,7 +138,7 @@ impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {
                     );
                     *op = ClientSocketOp::Send(new_req, None);
                     self.manager
-                        .send_send(*sock, &data[new_offset..new_offset + to_send])
+                        .send_send(*sock, &data[offset..offset + to_send])
                         .map_err(StackError::SendSendFailed)?;
                     Err(StackError::Dispatch)
                 }
@@ -151,6 +151,9 @@ impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {
     }
 
     // Nb:: Blocking call, returns nb::Result when no data
+    // Todo: Bug: If a caller passes us a very large buffer that is larger than
+    // max receive buffer, this should loop through serveral packets with
+    // an offset - like send does.
     fn receive(
         &mut self,
         socket: &mut <Self as TcpClientStack>::TcpSocket,
@@ -308,6 +311,7 @@ mod test {
     use crate::{client::SocketCallbacks, manager::EventListener, socket::Socket};
     use core::net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4};
     use embedded_nal::{TcpClientStack, TcpFullStack};
+    use test_log::test;
 
     #[test]
     fn test_tcp_socket_open() {

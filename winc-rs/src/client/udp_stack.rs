@@ -80,19 +80,19 @@ impl<X: Xfer> UdpClientStack for WincClient<'_, X> {
                     .map_err(StackError::SendSendFailed)?;
                 Err(StackError::Dispatch)
             }
-            ClientSocketOp::SendTo(req, Some(len)) => {
+            ClientSocketOp::SendTo(req, Some(_len)) => {
                 let total_sent = req.total_sent;
-                let grand_total_sent = req.grand_total_sent;
-                let new_offset = req.offset + total_sent as usize;
+                let grand_total_sent = req.grand_total_sent + total_sent;
+                let offset = req.offset + total_sent as usize;
                 // Now move to next chunk
-                if new_offset >= data.len() {
-                    debug!("Finished off a send, returning len:{}", *len as usize);
+                if offset >= data.len() {
+                    crate::info!("Finished off a send, returning len:{}", grand_total_sent);
                     Ok(())
                 } else {
-                    let to_send = data[new_offset..].len().min(Self::MAX_SEND_LENGTH);
+                    let to_send = data[offset..].len().min(Self::MAX_SEND_LENGTH);
                     let new_req = SendRequest {
-                        offset: new_offset,
-                        grand_total_sent: grand_total_sent + total_sent,
+                        offset,
+                        grand_total_sent,
                         total_sent: 0,
                         remaining: to_send as i16,
                     };
@@ -102,7 +102,7 @@ impl<X: Xfer> UdpClientStack for WincClient<'_, X> {
                     );
                     *op = ClientSocketOp::SendTo(new_req, None);
                     self.manager
-                        .send_sendto(*sock, addr, &data[..to_send])
+                        .send_sendto(*sock, addr, &data[offset..offset + to_send])
                         .map_err(StackError::SendSendFailed)?;
                     Err(StackError::Dispatch)
                 }
@@ -113,6 +113,9 @@ impl<X: Xfer> UdpClientStack for WincClient<'_, X> {
         handle_result!(self, op, res)
     }
 
+    // Todo: Bug: If a caller passes us a very large buffer that is larger than
+    // max receive buffer, this should loop through serveral packets with
+    // an offset - like send does.
     fn receive(
         &mut self,
         socket: &mut Self::UdpSocket,
@@ -233,19 +236,19 @@ impl<X: Xfer> UdpFullStack for WincClient<'_, X> {
                     .map_err(StackError::SendSendFailed)?;
                 Err(StackError::Dispatch)
             }
-            ClientSocketOp::SendTo(req, Some(len)) => {
+            ClientSocketOp::SendTo(req, Some(_len)) => {
                 let total_sent = req.total_sent;
-                let grand_total_sent = req.grand_total_sent;
-                let new_offset = req.offset + total_sent as usize;
+                let grand_total_sent = req.grand_total_sent + total_sent;
+                let offset = req.offset + total_sent as usize;
                 // Now move to next chunk
-                if new_offset >= data.len() {
-                    debug!("Finished off a send, returning len:{}", *len as usize);
+                if offset >= data.len() {
+                    crate::info!("Finished off a send, total was len:{}", grand_total_sent);
                     Ok(())
                 } else {
-                    let to_send = data[new_offset..].len().min(Self::MAX_SEND_LENGTH);
+                    let to_send = data[offset..].len().min(Self::MAX_SEND_LENGTH);
                     let new_req = SendRequest {
-                        offset: new_offset,
-                        grand_total_sent: grand_total_sent + total_sent,
+                        offset,
+                        grand_total_sent,
                         total_sent: 0,
                         remaining: to_send as i16,
                     };
@@ -255,7 +258,7 @@ impl<X: Xfer> UdpFullStack for WincClient<'_, X> {
                     );
                     *op = ClientSocketOp::SendTo(new_req, None);
                     self.manager
-                        .send_sendto(*sock, addr, &data[..to_send])
+                        .send_sendto(*sock, addr, &data[offset..offset + to_send])
                         .map_err(StackError::SendSendFailed)?;
                     Err(StackError::Dispatch)
                 }
