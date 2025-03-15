@@ -73,6 +73,9 @@ impl<X: Xfer> ChipAccess<X> {
     pub fn delay_us(&mut self, delay: u32) {
         self.xfer.delay_us(delay);
     }
+    pub fn delay_us(&mut self, delay: u32) {
+        self.xfer.delay_us(delay);
+    }
 
     fn protocol_verify(
         &mut self,

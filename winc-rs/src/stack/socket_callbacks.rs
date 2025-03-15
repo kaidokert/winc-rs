@@ -516,6 +516,7 @@ impl EventListener for SocketCallbacks {
                     accepted_socket,
                 });
             }
+            // Todo here: If it was in None state, move it to accept backlog
             Some((_, op)) => error!(
                 "Socket was NOT in accept: address:{:?} port:{:?} listen_socket:{:?} accepted_socket:{:?} actual state:{:?}",
                 Ipv4AddrFormatWrapper::new(address.ip()),

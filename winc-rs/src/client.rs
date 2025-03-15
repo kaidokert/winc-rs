@@ -94,6 +94,9 @@ impl<X: Xfer> WincClient<'_, X> {
     fn delay_us(&mut self, delay: u32) {
         self.manager.delay_us(delay)
     }
+    fn delay_us(&mut self, delay: u32) {
+        self.manager.delay_us(delay)
+    }
     fn get_next_session_id(&mut self) -> u16 {
         let ret = self.next_session_id;
         self.next_session_id += 1;

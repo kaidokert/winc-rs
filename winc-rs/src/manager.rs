@@ -177,6 +177,9 @@ impl<X: Xfer> Manager<X> {
     pub fn delay_us(&mut self, delay: u32) {
         self.chip.delay_us(delay);
     }
+    pub fn delay_us(&mut self, delay: u32) {
+        self.chip.delay_us(delay);
+    }
 
     pub fn set_crc_state(&mut self, value: bool) {
         self.chip.crc = value;
