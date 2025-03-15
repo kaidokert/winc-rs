@@ -86,4 +86,7 @@ impl<CS: AnyPin, Spi: SpiBus> Transfer for SpiStream<CS, Spi> {
     fn delay(&mut self, delay: u32) {
         cortex_m::asm::delay(delay * 100_000);
     }
+    fn delay_us(&mut self, delay: u32) {
+        cortex_m::asm::delay(delay * 100);
+    }
 }

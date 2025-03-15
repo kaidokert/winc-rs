@@ -242,6 +242,7 @@ impl<X: Xfer> TcpFullStack for WincClient<'_, X> {
             let (_, op) = client.callbacks.tcp_sockets.get(*socket).unwrap();
             let res = match op {
                 ClientSocketOp::Listen(Some(listen_result)) => match listen_result.error {
+                    // todo: here we have to mark successfully listening sockets, to deal with accept backlog
                     SocketError::NoError => Some(Ok(())),
                     _ => Some(Err(StackError::OpFailed(listen_result.error))),
                 },
@@ -281,7 +282,7 @@ impl<X: Xfer> TcpFullStack for WincClient<'_, X> {
                 Err(nb::Error::WouldBlock)
             }
             Err(StackError::CallDelay) => {
-                self.delay(self.poll_loop_delay);
+                self.delay_us(self.poll_loop_delay_us);
                 self.dispatch_events()?;
                 Err(nb::Error::WouldBlock)
             }

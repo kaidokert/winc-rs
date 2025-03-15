@@ -76,7 +76,7 @@ impl<X: Xfer> WincClient<'_, X> {
                 Err(nb::Error::WouldBlock)
             }
             WifiModuleState::ConnectingToAp => {
-                self.delay(1); // absolute minimum delay to make timeout possible
+                self.delay(self.poll_loop_delay); // absolute minimum delay to make timeout possible
                 self.dispatch_events()?;
                 self.operation_countdown -= 1;
                 if self.operation_countdown == 0 {

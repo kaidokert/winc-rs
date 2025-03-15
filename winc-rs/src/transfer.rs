@@ -34,6 +34,8 @@ pub trait Xfer {
     /// Optional delay, roughly in milliseconds
     /// Note/TODO: This will be deprecated
     fn delay(&mut self, _delay: u32) {}
+    /// Optional delay, roughly in microseconds
+    fn delay_us(&mut self, _delay: u32) {}
 }
 
 // Blanket implementation

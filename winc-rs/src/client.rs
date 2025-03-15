@@ -46,6 +46,7 @@ macro_rules! handle_result {
 pub struct WincClient<'a, X: Xfer> {
     manager: Manager<X>,
     poll_loop_delay: u32,
+    poll_loop_delay_us: u32,
     callbacks: SocketCallbacks,
     next_session_id: u16,
     boot: Option<crate::manager::BootState>,
@@ -67,7 +68,8 @@ impl<X: Xfer> WincClient<'_, X> {
     const RECV_TIMEOUT: u32 = 10_000;
     const CONNECT_TIMEOUT: u32 = 1000;
     const DNS_TIMEOUT: u32 = 1000;
-    const POLL_LOOP_DELAY: u32 = 10;
+    const POLL_LOOP_DELAY: u32 = 1;
+    const POLL_LOOP_DELAY_US: u32 = 100;
     /// Create a new WincClient..
     ///
     /// # Arguments
@@ -82,6 +84,7 @@ impl<X: Xfer> WincClient<'_, X> {
             manager,
             callbacks: SocketCallbacks::new(),
             poll_loop_delay: Self::POLL_LOOP_DELAY,
+            poll_loop_delay_us: Self::POLL_LOOP_DELAY_US,
             next_session_id: 0,
             boot: None,
             operation_countdown: 0,
@@ -94,6 +97,9 @@ impl<X: Xfer> WincClient<'_, X> {
     fn delay(&mut self, delay: u32) {
         // delegate to manager->chip->delay
         self.manager.delay(delay);
+    }
+    fn delay_us(&mut self, delay: u32) {
+        self.manager.delay_us(delay)
     }
     fn get_next_session_id(&mut self) -> u16 {
         let ret = self.next_session_id;
