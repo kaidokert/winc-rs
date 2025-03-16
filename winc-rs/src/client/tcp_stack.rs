@@ -9,6 +9,7 @@ use super::WincClient;
 use super::Xfer;
 use crate::debug;
 use crate::manager::SocketError;
+use crate::stack::sock_holder::SocketStore;
 use crate::stack::socket_callbacks::SendRequest;
 use embedded_nal::nb;
 

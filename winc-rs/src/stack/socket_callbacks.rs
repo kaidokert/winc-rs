@@ -12,6 +12,8 @@ use crate::Ipv4AddrFormatWrapper;
 use super::SockHolder;
 use crate::manager::{PingError, ScanResult, SOCKET_BUFFER_MAX_LENGTH};
 
+use crate::stack::sock_holder::SocketStore;
+
 /// Opaque handle to a socket. Returned by socket APIs
 #[derive(Clone, Copy, PartialEq, Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
