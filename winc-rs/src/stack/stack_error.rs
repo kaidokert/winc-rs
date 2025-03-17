@@ -41,6 +41,8 @@ pub enum StackError {
     CallDelay,
     /// Dispatch event
     Dispatch,
+    // Continue
+    ContinueOperation,
     /// Not found
     SocketNotFound,
 }

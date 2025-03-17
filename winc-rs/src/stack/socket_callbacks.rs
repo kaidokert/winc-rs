@@ -184,7 +184,7 @@ pub enum AsyncState {
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum AsyncOp {
     Connect(Option<ConnectResult>),
-    Send,
+    Send(SendRequest, Option<i16>),
     Recv,
 }
 
@@ -194,10 +194,6 @@ pub enum AsyncOp {
 pub enum ClientSocketOp {
     None,
     New,
-    Connect((u32, Option<ConnectResult>)),
-    // Request tracking offset and remaining, final value
-    // is whatever is returned by callback
-    Send(SendRequest, Option<i16>),
     SendTo(SendRequest, Option<i16>),
     Recv(Option<RecvResult>),
     RecvFrom(Option<RecvResult>),
@@ -340,9 +336,6 @@ impl EventListener for SocketCallbacks {
     fn on_connect(&mut self, socket: Socket, err: SocketError) {
         debug!("on_connect: socket {:?}", socket);
         match self.resolve(socket) {
-            Some((_, ClientSocketOp::Connect((_, option)))) => {
-                option.replace(ConnectResult { error: err });
-            }
             Some((
                 _,
                 ClientSocketOp::AsyncOp(
@@ -389,12 +382,13 @@ impl EventListener for SocketCallbacks {
     fn on_send(&mut self, socket: Socket, len: i16) {
         debug!("on_send: socket {:?} len:{}", socket, len);
         match self.resolve(socket) {
-            Some((s, ClientSocketOp::Send(req, option))) => {
+            Some((s, ClientSocketOp::AsyncOp(AsyncOp::Send(req, option), asyncstate))) => {
                 req.total_sent += len;
                 req.remaining -= len;
                 if req.remaining <= 0 {
                     debug!("FIN: on_send: socket:{:?} length:{:?}", s, len);
                     option.replace(len);
+                    *asyncstate = AsyncState::Done;
                 } else {
                     debug!("CONT: on_send: socket:{:?} length:{:?}", s, len);
                 }

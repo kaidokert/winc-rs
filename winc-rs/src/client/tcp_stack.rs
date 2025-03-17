@@ -49,7 +49,7 @@ impl<X: Xfer> WincClient<'_, X> {
         poll_delay: u32,
         matcher: impl Fn(&AsyncOp) -> bool,
         init_callback: impl FnOnce(&Socket, &mut Manager<X>) -> Result<ClientSocketOp, StackError>,
-        complete_callback: impl FnOnce(&mut AsyncOp) -> Result<T, StackError>,
+        complete_callback: impl FnOnce(&Socket, &mut Manager<X>, &mut AsyncOp) -> Result<T, StackError>,
     ) -> Result<T, nb::Error<StackError>> {
         let (sock, op) = callbacks
             .tcp_sockets
@@ -64,7 +64,7 @@ impl<X: Xfer> WincClient<'_, X> {
                 Err(nb::Error::WouldBlock)
             }
             ClientSocketOp::AsyncOp(asyncop, AsyncState::Pending(None)) if matcher(asyncop) => {
-                manager.delay(poll_delay);
+                manager.delay_us(poll_delay);
                 manager
                     .dispatch_events_new(callbacks)
                     .map_err(StackError::DispatchError)?;
@@ -78,7 +78,7 @@ impl<X: Xfer> WincClient<'_, X> {
                     Err(nb::Error::Other(StackError::OpFailed(SocketError::Timeout)))
                 } else {
                     *timeout -= 1;
-                    manager.delay(poll_delay);
+                    manager.delay_us(poll_delay);
                     manager
                         .dispatch_events_new(callbacks)
                         .map_err(StackError::DispatchError)?;
@@ -87,158 +87,19 @@ impl<X: Xfer> WincClient<'_, X> {
             }
             ClientSocketOp::AsyncOp(asyncop, AsyncState::Done) if matcher(asyncop) => {
                 info!("Generic op complete: {:?}", asyncop);
-                let res = complete_callback(asyncop);
-                *op = ClientSocketOp::None;
-                res.map_err(nb::Error::Other)
+                let res = complete_callback(sock, manager, asyncop);
+                if let Err(StackError::ContinueOperation) = res {
+                    *op = ClientSocketOp::AsyncOp(*asyncop, AsyncState::Pending(None));
+                    Err(nb::Error::WouldBlock)
+                } else {
+                    *op = ClientSocketOp::None;
+                    res.map_err(nb::Error::Other)
+                }
             }
             _ => {
                 unimplemented!("Unexpected async state: {:?}", op);
             }
         }
-    }
-
-    fn new_connect(
-        &mut self,
-        socket: &mut <Self as TcpClientStack>::TcpSocket,
-        remote: core::net::SocketAddr,
-    ) -> Result<(), nb::Error<<Self as TcpClientStack>::Error>> {
-        let res = match remote {
-            core::net::SocketAddr::V4(addr) => Self::generic_op(
-                socket,
-                &mut self.callbacks,
-                &mut self.manager,
-                self.poll_loop_delay,
-                |op| matches!(op, AsyncOp::Connect(_)),
-                |sock, manager| -> Result<ClientSocketOp, StackError> {
-                    info!("<> Sending send_socket_connect to {:?}", sock);
-                    manager.send_socket_connect(*sock, addr)?;
-                    Ok(ClientSocketOp::AsyncOp(
-                        AsyncOp::Connect(None),
-                        AsyncState::Pending(Some(Self::CONNECT_TIMEOUT)),
-                    ))
-                },
-                |asyncop| {
-                    if let AsyncOp::Connect(Some(connect_result)) = asyncop {
-                        if connect_result.error == SocketError::NoError {
-                            Ok(())
-                        } else {
-                            Err(StackError::OpFailed(connect_result.error))
-                        }
-                    } else {
-                        Err(StackError::Unexpected)
-                    }
-                },
-            ),
-            core::net::SocketAddr::V6(_) => unimplemented!("IPv6 not supported"),
-        };
-        self.debughook();
-        res
-    }
-
-    fn old_connect(
-        &mut self,
-        socket: &mut <Self as TcpClientStack>::TcpSocket,
-        remote: core::net::SocketAddr,
-    ) -> Result<(), nb::Error<<Self as TcpClientStack>::Error>> {
-        match remote {
-            core::net::SocketAddr::V4(addr) => {
-                let (sock, op) = self.callbacks.tcp_sockets.get(*socket).unwrap();
-                let res = match op {
-                    ClientSocketOp::None | ClientSocketOp::New => {
-                        *op = ClientSocketOp::Connect((Self::CONNECT_TIMEOUT, None));
-                        debug!("<> Sending send_socket_connect to {:?}", sock);
-                        self.manager
-                            .send_socket_connect(*sock, addr)
-                            .map_err(StackError::ConnectSendFailed)?;
-                        Err(StackError::Dispatch)
-                    }
-                    ClientSocketOp::Connect((_, Some(connect_result))) => {
-                        debug!("Connect result: {:?}", connect_result);
-                        if connect_result.error == SocketError::NoError {
-                            Ok(())
-                        } else {
-                            Err(StackError::OpFailed(connect_result.error))
-                        }
-                    }
-                    ClientSocketOp::Connect((timeout, None)) => {
-                        *timeout -= 1;
-                        if *timeout == 0 {
-                            Err(StackError::OpFailed(SocketError::Timeout))
-                        } else {
-                            Err(StackError::CallDelay)
-                        }
-                    }
-                    _ => Err(StackError::Unexpected),
-                };
-                handle_result!(self, op, res)
-            }
-            core::net::SocketAddr::V6(_) => unimplemented!("IPv6 not supported"),
-        }
-    }
-
-    fn old_send(
-        &mut self,
-        socket: &mut <Self as TcpClientStack>::TcpSocket,
-        data: &[u8],
-    ) -> Result<usize, nb::Error<<Self as TcpClientStack>::Error>> {
-        let (sock, op) = self.callbacks.tcp_sockets.get(*socket).unwrap();
-        let res = match op {
-            ClientSocketOp::None | ClientSocketOp::New => {
-                debug!(
-                    "<> Sending socket send_send to {:?} len:{}",
-                    sock,
-                    data.len()
-                );
-                let to_send = data.len().min(Self::MAX_SEND_LENGTH);
-                let req = SendRequest {
-                    offset: 0,
-                    grand_total_sent: 0,
-                    total_sent: 0,
-                    remaining: to_send as i16,
-                };
-                debug!(
-                    "Sending INITIAL send_send to {:?} len:{} req:{:?}",
-                    sock, to_send, req
-                );
-                *op = ClientSocketOp::Send(req, None);
-                self.manager
-                    .send_send(*sock, &data[..to_send])
-                    .map_err(StackError::SendSendFailed)?;
-                Err(StackError::Dispatch)
-            }
-            // We finished one send iteration
-            ClientSocketOp::Send(req, Some(_len)) => {
-                let total_sent = req.total_sent;
-                let grand_total_sent = req.grand_total_sent + total_sent;
-                let offset = req.offset + total_sent as usize;
-                // Now move to next chunk
-                if offset >= data.len() {
-                    debug!("Finished off a send, returning len:{}", grand_total_sent);
-                    Ok(grand_total_sent as usize)
-                } else {
-                    let to_send = data[offset..].len().min(Self::MAX_SEND_LENGTH);
-                    let new_req = SendRequest {
-                        offset,
-                        grand_total_sent,
-                        total_sent: 0,
-                        remaining: to_send as i16,
-                    };
-                    debug!(
-                        "Sending NEXT send_send to {:?} len:{} req:{:?}",
-                        sock, to_send, new_req
-                    );
-                    *op = ClientSocketOp::Send(new_req, None);
-                    self.manager
-                        .send_send(*sock, &data[offset..offset + to_send])
-                        .map_err(StackError::SendSendFailed)?;
-                    Err(StackError::Dispatch)
-                }
-            }
-            // We are sending data, wait
-            ClientSocketOp::Send(_, None) => Err(StackError::CallDelay),
-            _ => Err(StackError::Unexpected),
-        };
-        handle_result!(self, op, res)
     }
 }
 
@@ -262,14 +123,97 @@ impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {
         socket: &mut <Self as TcpClientStack>::TcpSocket,
         remote: core::net::SocketAddr,
     ) -> Result<(), nb::Error<<Self as TcpClientStack>::Error>> {
-        Self::new_connect(self, socket, remote)
+        let res = match remote {
+            core::net::SocketAddr::V4(addr) => Self::generic_op(
+                socket,
+                &mut self.callbacks,
+                &mut self.manager,
+                self.poll_loop_delay_us,
+                |op| matches!(op, AsyncOp::Connect(..)),
+                |sock, manager| -> Result<ClientSocketOp, StackError> {
+                    info!("<> Sending send_socket_connect to {:?}", sock);
+                    manager.send_socket_connect(*sock, addr)?;
+                    Ok(ClientSocketOp::AsyncOp(
+                        AsyncOp::Connect(None),
+                        AsyncState::Pending(Some(Self::CONNECT_TIMEOUT)),
+                    ))
+                },
+                |_, _, asyncop| {
+                    if let AsyncOp::Connect(Some(connect_result)) = asyncop {
+                        if connect_result.error == SocketError::NoError {
+                            Ok(())
+                        } else {
+                            Err(StackError::OpFailed(connect_result.error))
+                        }
+                    } else {
+                        Err(StackError::Unexpected)
+                    }
+                },
+            ),
+            core::net::SocketAddr::V6(_) => unimplemented!("IPv6 not supported"),
+        };
+        self.debughook();
+        res
     }
     fn send(
         &mut self,
         socket: &mut <Self as TcpClientStack>::TcpSocket,
         data: &[u8],
     ) -> Result<usize, nb::Error<<Self as TcpClientStack>::Error>> {
-        Self::old_send(self, socket, data)
+        let res = Self::generic_op(
+            socket,
+            &mut self.callbacks,
+            &mut self.manager,
+            self.poll_loop_delay_us,
+            |op| matches!(op, AsyncOp::Send(..)),
+            |sock, manager| -> Result<ClientSocketOp, StackError> {
+                info!(
+                    "<> Sending socket send_send to {:?} len:{}",
+                    sock,
+                    data.len()
+                );
+                let to_send = data.len().min(Self::MAX_SEND_LENGTH);
+                let req = SendRequest {
+                    offset: 0,
+                    grand_total_sent: 0,
+                    total_sent: 0,
+                    remaining: to_send as i16,
+                };
+                manager.send_send(*sock, &data[..to_send])?;
+                Ok(ClientSocketOp::AsyncOp(
+                    AsyncOp::Send(req, None),
+                    AsyncState::Pending(None),
+                ))
+            },
+            |sock, manager, asyncop| {
+                if let AsyncOp::Send(req, Some(_len)) = asyncop {
+                    let total_sent = req.total_sent;
+                    let grand_total_sent = req.grand_total_sent + total_sent;
+                    let offset = req.offset + total_sent as usize;
+                    if offset >= data.len() {
+                        info!("Finished off a send, returning len:{}", grand_total_sent);
+                        Ok(grand_total_sent as usize)
+                    } else {
+                        let to_send = data[offset..].len().min(Self::MAX_SEND_LENGTH);
+                        let new_req = SendRequest {
+                            offset,
+                            grand_total_sent,
+                            total_sent: 0,
+                            remaining: to_send as i16,
+                        };
+                        *asyncop = AsyncOp::Send(new_req, None);
+                        manager
+                            .send_send(*sock, &data[offset..offset + to_send])
+                            .map_err(StackError::SendSendFailed)?;
+                        Err(StackError::ContinueOperation)
+                    }
+                } else {
+                    Err(StackError::Unexpected)
+                }
+            },
+        );
+        self.debughook();
+        res
     }
 
     // Nb:: Blocking call, returns nb::Result when no data
