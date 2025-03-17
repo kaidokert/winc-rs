@@ -183,7 +183,7 @@ pub enum AsyncState {
 pub enum AsyncOp {
     Connect(Option<ConnectResult>),
     Send(SendRequest, Option<i16>),
-    Recv,
+    Recv(Option<RecvResult>),
 }
 
 // todo: add result structs to Recvs, and Sends as well.
@@ -193,7 +193,6 @@ pub enum ClientSocketOp {
     None,
     New,
     SendTo(SendRequest, Option<i16>),
-    Recv(Option<RecvResult>),
     RecvFrom(Option<RecvResult>),
     Bind(Option<BindListenResult>),
     Listen(Option<BindListenResult>),
@@ -410,7 +409,7 @@ impl EventListener for SocketCallbacks {
     ) {
         debug!("on_recv: socket {:?}", socket);
         match self.resolve(socket) {
-            Some((s, ClientSocketOp::Recv(option))) => {
+            Some((s, ClientSocketOp::AsyncOp(AsyncOp::Recv(option), asyncstate))) => {
                 debug!(
                     "on_recv: socket:{:?} address:{:?} data:{:?} len:{:?} error:{:?}",
                     s,
@@ -424,6 +423,7 @@ impl EventListener for SocketCallbacks {
                     from_addr: address,
                     error: err,
                 });
+                *asyncstate = AsyncState::Done;
                 self.recv_buffer[..data.len()].copy_from_slice(data);
             }
             Some((_, op)) => error!(

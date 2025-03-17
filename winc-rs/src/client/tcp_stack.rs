@@ -17,8 +17,6 @@ use crate::stack::socket_callbacks::SocketCallbacks;
 use crate::{debug, info};
 use embedded_nal::nb;
 
-use crate::handle_result;
-
 impl<X: Xfer> WincClient<'_, X> {
     /// Todo: actually implement this
     pub fn set_socket_option(
@@ -48,7 +46,12 @@ impl<X: Xfer> WincClient<'_, X> {
         poll_delay: u32,
         matcher: impl Fn(&AsyncOp) -> bool,
         init_callback: impl FnOnce(&Socket, &mut Manager<X>) -> Result<ClientSocketOp, StackError>,
-        complete_callback: impl FnOnce(&Socket, &mut Manager<X>, &mut AsyncOp) -> Result<T, StackError>,
+        complete_callback: impl FnOnce(
+            &Socket,
+            &mut Manager<X>,
+            &[u8],
+            &mut AsyncOp,
+        ) -> Result<T, StackError>,
     ) -> Result<T, nb::Error<StackError>> {
         let (sock, op) = callbacks
             .tcp_sockets
@@ -72,7 +75,6 @@ impl<X: Xfer> WincClient<'_, X> {
             ClientSocketOp::AsyncOp(asyncop, AsyncState::Pending(Some(timeout)))
                 if matcher(asyncop) =>
             {
-                info!("Generic op pending: {:?} timeout: {:?}", asyncop, timeout);
                 if *timeout == 0 {
                     Err(nb::Error::Other(StackError::OpFailed(SocketError::Timeout)))
                 } else {
@@ -85,8 +87,7 @@ impl<X: Xfer> WincClient<'_, X> {
                 }
             }
             ClientSocketOp::AsyncOp(asyncop, AsyncState::Done) if matcher(asyncop) => {
-                info!("Generic op complete: {:?}", asyncop);
-                let res = complete_callback(sock, manager, asyncop);
+                let res = complete_callback(sock, manager, &callbacks.recv_buffer, asyncop);
                 if let Err(StackError::ContinueOperation) = res {
                     *op = ClientSocketOp::AsyncOp(*asyncop, AsyncState::Pending(None));
                     Err(nb::Error::WouldBlock)
@@ -137,7 +138,7 @@ impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {
                         AsyncState::Pending(Some(Self::CONNECT_TIMEOUT)),
                     ))
                 },
-                |_, _, asyncop| {
+                |_, _, _, asyncop| {
                     if let AsyncOp::Connect(Some(connect_result)) = asyncop {
                         if connect_result.error == SocketError::NoError {
                             Ok(())
@@ -166,7 +167,7 @@ impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {
             self.poll_loop_delay_us,
             |op| matches!(op, AsyncOp::Send(..)),
             |sock, manager| -> Result<ClientSocketOp, StackError> {
-                info!(
+                debug!(
                     "<> Sending socket send_send to {:?} len:{}",
                     sock,
                     data.len()
@@ -184,13 +185,12 @@ impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {
                     AsyncState::Pending(None),
                 ))
             },
-            |sock, manager, asyncop| {
+            |sock, manager, _, asyncop| {
                 if let AsyncOp::Send(req, Some(_len)) = asyncop {
                     let total_sent = req.total_sent;
                     let grand_total_sent = req.grand_total_sent + total_sent;
                     let offset = req.offset + total_sent as usize;
                     if offset >= data.len() {
-                        info!("Finished off a send, returning len:{}", grand_total_sent);
                         Ok(grand_total_sent as usize)
                     } else {
                         let to_send = data[offset..].len().min(Self::MAX_SEND_LENGTH);
@@ -224,36 +224,46 @@ impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {
         socket: &mut <Self as TcpClientStack>::TcpSocket,
         data: &mut [u8],
     ) -> Result<usize, nb::Error<<Self as TcpClientStack>::Error>> {
-        let (sock, op) = self.callbacks.tcp_sockets.get(*socket).unwrap();
-        let res = match op {
-            ClientSocketOp::None | ClientSocketOp::New => {
-                *op = ClientSocketOp::Recv(None);
-                debug!("<> Sending socket send_recv to {:?}", sock);
-                self.manager
-                    .send_recv(*sock, Self::RECV_TIMEOUT)
-                    .map_err(|x| nb::Error::Other(StackError::ReceiveFailed(x)))?;
-                Err(StackError::Dispatch)
-            }
-            ClientSocketOp::Recv(Some(recv_result)) => {
-                debug!("Recv result: {:?}", recv_result);
-                match recv_result.error {
-                    SocketError::NoError => {
-                        let recv_len = recv_result.recv_len;
-                        let dest_slice = &mut data[..recv_len];
-                        dest_slice.copy_from_slice(&self.callbacks.recv_buffer[..recv_len]);
-                        Ok(recv_result.recv_len)
+        let res = Self::generic_op(
+            socket,
+            &mut self.callbacks,
+            &mut self.manager,
+            self.poll_loop_delay_us,
+            |op| matches!(op, AsyncOp::Recv(..)),
+            |sock, manager| -> Result<ClientSocketOp, StackError> {
+                info!("<> Sending socket send_recv to {:?}", sock);
+                manager.send_recv(*sock, Self::RECV_TIMEOUT)?;
+                Ok(ClientSocketOp::AsyncOp(
+                    AsyncOp::Recv(None),
+                    AsyncState::Pending(None),
+                ))
+            },
+            |_, _, recv_buffer, asyncop| {
+                if let AsyncOp::Recv(Some(recv_result)) = asyncop {
+                    match recv_result.error {
+                        SocketError::NoError => {
+                            let recv_len = recv_result.recv_len;
+                            let dest_slice = &mut data[..recv_len];
+                            dest_slice.copy_from_slice(&recv_buffer[..recv_len]);
+                            Ok(recv_result.recv_len)
+                        }
+                        SocketError::Timeout => {
+                            info!("Timeout on receive");
+                            // Timeouts just get turned into a further wait
+                            Err(StackError::ContinueOperation)
+                        }
+                        _ => {
+                            info!("Error in receive: {:?}", recv_result.error);
+                            Err(StackError::OpFailed(recv_result.error))
+                        }
                     }
-                    SocketError::Timeout => {
-                        // Timeouts just get turned into a further wait
-                        Err(StackError::CallDelay)
-                    }
-                    _ => Err(StackError::OpFailed(recv_result.error)),
+                } else {
+                    Err(StackError::Unexpected)
                 }
-            }
-            ClientSocketOp::Recv(None) => Err(StackError::CallDelay),
-            _ => Err(StackError::Unexpected),
-        };
-        handle_result!(self, op, res)
+            },
+        );
+        self.debughook();
+        res
     }
     fn close(&mut self, socket: <Self as TcpClientStack>::TcpSocket) -> Result<(), Self::Error> {
         debug!("Closing socket {:?}", socket);
@@ -466,6 +476,7 @@ mod test {
         let result = nb::block!(client.receive(&mut tcp_socket, &mut recv_buff));
 
         assert_eq!(result.ok(), Some(test_data.len()));
+        assert_eq!(&recv_buff[..test_data.len()], test_data.as_bytes());
     }
 
     #[test]
