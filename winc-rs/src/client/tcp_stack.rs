@@ -10,7 +10,6 @@ use super::Xfer;
 use crate::manager::Manager;
 use crate::manager::SocketError;
 use crate::socket::Socket;
-use crate::stack::sock_holder::SocketStore;
 use crate::stack::socket_callbacks::AsyncOp;
 use crate::stack::socket_callbacks::AsyncState;
 use crate::stack::socket_callbacks::SendRequest;
