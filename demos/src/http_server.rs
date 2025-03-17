@@ -218,11 +218,9 @@ where
             }
             Err(e) => {
                 error!("-----Error parsing request: {:?}-----", WrapError(e));
-                continue;
             }
             Ok(httparse::Status::Partial) => {
                 error!("-----Request parsed, but not complete-----");
-                continue;
             }
         }
 

@@ -134,7 +134,7 @@ where
     let block_len = my_confg.transmit_block_len;
 
     assert!(block_len <= MAX_BLOCK_LEN);
-    info!("Congig: full_len: {} block_size: {}", full_len, block_len);
+    info!("Config: full_len: {} block_size: {}", full_len, block_len);
 
     let mut control_socket = stack.socket()?;
     let remote = SocketAddr::new(IpAddr::V4(server_addr), port.unwrap_or(DEFAULT_PORT));
