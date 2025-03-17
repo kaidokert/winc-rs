@@ -13,6 +13,7 @@ use crate::stack::socket_callbacks::SendRequest;
 use embedded_nal::nb;
 
 use crate::handle_result;
+use crate::stack::sock_holder::SocketStore;
 
 impl<X: Xfer> WincClient<'_, X> {
     /// Todo: actually implement this

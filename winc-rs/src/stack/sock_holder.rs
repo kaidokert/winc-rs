@@ -21,7 +21,17 @@ impl<const N: usize, const BASE: usize> SockHolder<N, BASE> {
     fn len(&self) -> usize {
         self.sockets.iter().filter(|a| a.is_some()).count()
     }
-    pub fn add(&mut self, session_id: u16) -> Option<Handle> {
+}
+
+pub(crate) trait SocketStore {
+    fn add(&mut self, session_id: u16) -> Option<Handle>;
+    fn remove(&mut self, handle: Handle);
+    fn get(&mut self, handle: Handle) -> Option<&mut (Socket, ClientSocketOp)>;
+    fn put(&mut self, handle: Handle, session_id: u16) -> Option<Handle>;
+}
+
+impl<const N: usize, const BASE: usize> SocketStore for SockHolder<N, BASE> {
+    fn add(&mut self, session_id: u16) -> Option<Handle> {
         if self.len() >= N {
             return None;
         }
@@ -34,10 +44,10 @@ impl<const N: usize, const BASE: usize> SockHolder<N, BASE> {
         }
         None
     }
-    pub fn remove(&mut self, handle: Handle) {
+    fn remove(&mut self, handle: Handle) {
         self.sockets[handle.0 as usize] = None;
     }
-    pub fn put(&mut self, handle: Handle, session_id: u16) -> Option<Handle> {
+    fn put(&mut self, handle: Handle, session_id: u16) -> Option<Handle> {
         if self.len() >= N {
             return None;
         }
@@ -49,8 +59,7 @@ impl<const N: usize, const BASE: usize> SockHolder<N, BASE> {
             Some((Socket::new(handle.0, session_id), ClientSocketOp::New));
         Some(handle)
     }
-
-    pub fn get(&mut self, handle: Handle) -> Option<&mut (Socket, ClientSocketOp)> {
+    fn get(&mut self, handle: Handle) -> Option<&mut (Socket, ClientSocketOp)> {
         self.sockets[handle.0 as usize].as_mut()
     }
 }
