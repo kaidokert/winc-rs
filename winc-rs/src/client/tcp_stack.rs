@@ -14,6 +14,8 @@ use crate::stack::socket_callbacks::SendRequest;
 use crate::{debug, info};
 use embedded_nal::nb;
 
+use crate::stack::sock_holder::SocketStore;
+
 impl<X: Xfer> WincClient<'_, X> {
     /// Todo: actually implement this
     pub fn set_socket_option(

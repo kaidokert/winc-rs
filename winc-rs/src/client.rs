@@ -19,6 +19,8 @@ use crate::stack::socket_callbacks::AsyncState;
 
 use embedded_nal::nb;
 
+use crate::stack::sock_holder::SocketStore;
+
 // Todo: try and figure out a non-macro way to structure
 // the code in tcp and udp implementations
 #[macro_export]
