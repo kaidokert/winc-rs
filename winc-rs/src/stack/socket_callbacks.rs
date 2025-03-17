@@ -173,6 +173,21 @@ impl defmt::Format for AcceptResult {
     }
 }
 
+#[derive(PartialEq, Clone, Copy, Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub enum AsyncState {
+    Pending(Option<u32>),
+    Done,
+}
+
+#[derive(PartialEq, Clone, Copy, Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub enum AsyncOp {
+    Connect(Option<ConnectResult>),
+    Send,
+    Recv,
+}
+
 // todo: add result structs to Recvs, and Sends as well.
 #[derive(PartialEq, Clone, Copy, Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
@@ -189,6 +204,7 @@ pub enum ClientSocketOp {
     Bind(Option<BindListenResult>),
     Listen(Option<BindListenResult>),
     Accept(Option<AcceptResult>),
+    AsyncOp(AsyncOp, AsyncState),
 }
 
 impl SocketCallbacks {
@@ -326,6 +342,16 @@ impl EventListener for SocketCallbacks {
         match self.resolve(socket) {
             Some((_, ClientSocketOp::Connect((_, option)))) => {
                 option.replace(ConnectResult { error: err });
+            }
+            Some((
+                _,
+                ClientSocketOp::AsyncOp(
+                    AsyncOp::Connect(option),
+                    asyncstate @ AsyncState::Pending(_),
+                ),
+            )) => {
+                option.replace(ConnectResult { error: err });
+                *asyncstate = AsyncState::Done;
             }
             Some((s, op)) => error!(
                 "UNKNOWN STATE on_connect (x): socket:{:?} error:{:?} state:{:?}",

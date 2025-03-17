@@ -7,10 +7,15 @@ use super::StackError;
 use super::WincClient;
 
 use super::Xfer;
-use crate::debug;
+use crate::manager::Manager;
 use crate::manager::SocketError;
+use crate::socket::Socket;
 use crate::stack::sock_holder::SocketStore;
+use crate::stack::socket_callbacks::AsyncOp;
+use crate::stack::socket_callbacks::AsyncState;
 use crate::stack::socket_callbacks::SendRequest;
+use crate::stack::socket_callbacks::SocketCallbacks;
+use crate::{debug, info};
 use embedded_nal::nb;
 
 use crate::handle_result;
@@ -29,24 +34,108 @@ impl<X: Xfer> WincClient<'_, X> {
             .map_err(StackError::WincWifiFail)?;
         Ok(())
     }
-}
 
-impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {
-    type TcpSocket = Handle;
-    type Error = StackError;
-    fn socket(
-        &mut self,
-    ) -> Result<<Self as TcpClientStack>::TcpSocket, <Self as TcpClientStack>::Error> {
-        self.dispatch_events()?;
-        let s = self.get_next_session_id();
-        let handle = self
-            .callbacks
-            .tcp_sockets
-            .add(s)
-            .ok_or(StackError::OutOfSockets)?;
-        Ok(handle)
+    fn debughook(&mut self) {
+        #[cfg(test)]
+        if let Some(callback) = &mut self.debug_callback {
+            callback(&mut self.callbacks);
+        }
     }
-    fn connect(
+
+    fn generic_op<T>(
+        socket: &Handle,
+        callbacks: &mut SocketCallbacks,
+        manager: &mut Manager<X>,
+        poll_delay: u32,
+        matcher: impl Fn(&AsyncOp) -> bool,
+        init_callback: impl FnOnce(&Socket, &mut Manager<X>) -> Result<ClientSocketOp, StackError>,
+        complete_callback: impl FnOnce(&mut AsyncOp) -> Result<T, StackError>,
+    ) -> Result<T, nb::Error<StackError>> {
+        let (sock, op) = callbacks
+            .tcp_sockets
+            .get(*socket)
+            .ok_or(StackError::SocketNotFound)?;
+        match op {
+            ClientSocketOp::None | ClientSocketOp::New => {
+                *op = init_callback(sock, manager)?;
+                manager
+                    .dispatch_events_new(callbacks)
+                    .map_err(StackError::DispatchError)?;
+                Err(nb::Error::WouldBlock)
+            }
+            ClientSocketOp::AsyncOp(asyncop, AsyncState::Pending(None)) if matcher(asyncop) => {
+                manager.delay(poll_delay);
+                manager
+                    .dispatch_events_new(callbacks)
+                    .map_err(StackError::DispatchError)?;
+                Err(nb::Error::WouldBlock)
+            }
+            ClientSocketOp::AsyncOp(asyncop, AsyncState::Pending(Some(timeout)))
+                if matcher(asyncop) =>
+            {
+                info!("Generic op pending: {:?} timeout: {:?}", asyncop, timeout);
+                if *timeout == 0 {
+                    Err(nb::Error::Other(StackError::OpFailed(SocketError::Timeout)))
+                } else {
+                    *timeout -= 1;
+                    manager.delay(poll_delay);
+                    manager
+                        .dispatch_events_new(callbacks)
+                        .map_err(StackError::DispatchError)?;
+                    Err(nb::Error::WouldBlock)
+                }
+            }
+            ClientSocketOp::AsyncOp(asyncop, AsyncState::Done) if matcher(asyncop) => {
+                info!("Generic op complete: {:?}", asyncop);
+                let res = complete_callback(asyncop);
+                *op = ClientSocketOp::None;
+                res.map_err(nb::Error::Other)
+            }
+            _ => {
+                unimplemented!("Unexpected async state: {:?}", op);
+            }
+        }
+    }
+
+    fn new_connect(
+        &mut self,
+        socket: &mut <Self as TcpClientStack>::TcpSocket,
+        remote: core::net::SocketAddr,
+    ) -> Result<(), nb::Error<<Self as TcpClientStack>::Error>> {
+        let res = match remote {
+            core::net::SocketAddr::V4(addr) => Self::generic_op(
+                socket,
+                &mut self.callbacks,
+                &mut self.manager,
+                self.poll_loop_delay,
+                |op| matches!(op, AsyncOp::Connect(_)),
+                |sock, manager| -> Result<ClientSocketOp, StackError> {
+                    info!("<> Sending send_socket_connect to {:?}", sock);
+                    manager.send_socket_connect(*sock, addr)?;
+                    Ok(ClientSocketOp::AsyncOp(
+                        AsyncOp::Connect(None),
+                        AsyncState::Pending(Some(Self::CONNECT_TIMEOUT)),
+                    ))
+                },
+                |asyncop| {
+                    if let AsyncOp::Connect(Some(connect_result)) = asyncop {
+                        if connect_result.error == SocketError::NoError {
+                            Ok(())
+                        } else {
+                            Err(StackError::OpFailed(connect_result.error))
+                        }
+                    } else {
+                        Err(StackError::Unexpected)
+                    }
+                },
+            ),
+            core::net::SocketAddr::V6(_) => unimplemented!("IPv6 not supported"),
+        };
+        self.debughook();
+        res
+    }
+
+    fn old_connect(
         &mut self,
         socket: &mut <Self as TcpClientStack>::TcpSocket,
         remote: core::net::SocketAddr,
@@ -86,7 +175,8 @@ impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {
             core::net::SocketAddr::V6(_) => unimplemented!("IPv6 not supported"),
         }
     }
-    fn send(
+
+    fn old_send(
         &mut self,
         socket: &mut <Self as TcpClientStack>::TcpSocket,
         data: &[u8],
@@ -149,6 +239,37 @@ impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {
             _ => Err(StackError::Unexpected),
         };
         handle_result!(self, op, res)
+    }
+}
+
+impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {
+    type TcpSocket = Handle;
+    type Error = StackError;
+    fn socket(
+        &mut self,
+    ) -> Result<<Self as TcpClientStack>::TcpSocket, <Self as TcpClientStack>::Error> {
+        self.dispatch_events()?;
+        let s = self.get_next_session_id();
+        let handle = self
+            .callbacks
+            .tcp_sockets
+            .add(s)
+            .ok_or(StackError::OutOfSockets)?;
+        Ok(handle)
+    }
+    fn connect(
+        &mut self,
+        socket: &mut <Self as TcpClientStack>::TcpSocket,
+        remote: core::net::SocketAddr,
+    ) -> Result<(), nb::Error<<Self as TcpClientStack>::Error>> {
+        Self::new_connect(self, socket, remote)
+    }
+    fn send(
+        &mut self,
+        socket: &mut <Self as TcpClientStack>::TcpSocket,
+        data: &[u8],
+    ) -> Result<usize, nb::Error<<Self as TcpClientStack>::Error>> {
+        Self::old_send(self, socket, data)
     }
 
     // Nb:: Blocking call, returns nb::Result when no data
@@ -352,15 +473,15 @@ mod test {
         let socket_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 80);
 
         while counter != 5 {
-            let result = nb::block!(client.connect(&mut tcp_socket, socket_addr));
-            assert!(result.is_err());
+            let result = client.connect(&mut tcp_socket, socket_addr);
+            assert!(matches!(result, Err(nb::Error::WouldBlock)));
             counter += 1;
         }
 
         client.debug_callback = Some(&mut my_debug);
 
         let result = nb::block!(client.connect(&mut tcp_socket, socket_addr));
-        assert!(result.is_ok());
+        assert_eq!(result, Ok(()));
     }
 
     #[test]

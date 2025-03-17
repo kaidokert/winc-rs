@@ -41,6 +41,8 @@ pub enum StackError {
     CallDelay,
     /// Dispatch event
     Dispatch,
+    /// Not found
+    SocketNotFound,
 }
 
 impl From<core::convert::Infallible> for StackError {
