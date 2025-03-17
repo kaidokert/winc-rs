@@ -174,8 +174,8 @@ impl<X: Xfer> Manager<X> {
         self.chip.set_unit_test_mode();
     }
     // Todo: remove this
-    pub fn delay(&mut self, delay: u32) {
-        self.chip.delay(delay);
+    pub fn delay_us(&mut self, delay: u32) {
+        self.chip.delay_us(delay);
     }
 
     pub fn set_crc_state(&mut self, value: bool) {

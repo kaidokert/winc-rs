@@ -31,9 +31,9 @@ pub trait Xfer {
     /// Optionally reduce bus wait times after initialization.
     /// This speeds up the overall communications
     fn switch_to_high_speed(&mut self) {}
-    /// Optional delay, roughly in milliseconds
+    /// Optional delay, roughly in microseconds
     /// Note/TODO: This will be deprecated
-    fn delay(&mut self, _delay: u32) {}
+    fn delay_us(&mut self, _delay: u32) {}
 }
 
 // Blanket implementation

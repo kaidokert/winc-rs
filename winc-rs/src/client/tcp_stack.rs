@@ -281,7 +281,7 @@ impl<X: Xfer> TcpFullStack for WincClient<'_, X> {
                 Err(nb::Error::WouldBlock)
             }
             Err(StackError::CallDelay) => {
-                self.delay(self.poll_loop_delay);
+                self.delay_us(self.poll_loop_delay_us);
                 self.dispatch_events()?;
                 Err(nb::Error::WouldBlock)
             }

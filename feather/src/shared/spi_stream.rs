@@ -83,7 +83,7 @@ impl<CS: AnyPin, Spi: SpiBus> Transfer for SpiStream<CS, Spi> {
     fn switch_to_high_speed(&mut self) {
         self.set_wait_cycles(FAST_WAIT_CYCLES);
     }
-    fn delay(&mut self, delay: u32) {
-        cortex_m::asm::delay(delay * 100_000);
+    fn delay_us(&mut self, delay: u32) {
+        cortex_m::asm::delay(delay * 100);
     }
 }
