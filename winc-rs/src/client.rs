@@ -123,8 +123,9 @@ impl<X: Xfer> WincClient<'_, X> {
     }
 
     // Todo: Too many arguments: poll delay should be removable
+    // General async op state machine, with closures for init and complete
     #[allow(clippy::too_many_arguments)]
-    fn generic_op<T>(
+    fn async_op<T>(
         tcp: bool,
         socket: &Handle,
         callbacks: &mut SocketCallbacks,
@@ -154,21 +155,21 @@ impl<X: Xfer> WincClient<'_, X> {
                     .map_err(StackError::DispatchError)?;
                 Err(nb::Error::WouldBlock)
             }
-            ClientSocketOp::AsyncOp(asyncop, AsyncState::Pending(None)) if matcher(asyncop) => {
-                manager.delay_us(poll_delay);
-                manager
-                    .dispatch_events_new(callbacks)
-                    .map_err(StackError::DispatchError)?;
-                Err(nb::Error::WouldBlock)
-            }
-            ClientSocketOp::AsyncOp(asyncop, AsyncState::Pending(Some(timeout)))
+            ClientSocketOp::AsyncOp(asyncop, AsyncState::Pending(timeout_option))
                 if matcher(asyncop) =>
             {
-                if *timeout == 0 {
-                    Err(nb::Error::Other(StackError::OpFailed(SocketError::Timeout)))
-                } else {
+                manager.delay_us(poll_delay);
+                if let Some(timeout) = timeout_option {
                     *timeout -= 1;
-                    manager.delay_us(poll_delay);
+                    if *timeout == 0 {
+                        Err(nb::Error::Other(StackError::OpFailed(SocketError::Timeout)))
+                    } else {
+                        manager
+                            .dispatch_events_new(callbacks)
+                            .map_err(StackError::DispatchError)?;
+                        Err(nb::Error::WouldBlock)
+                    }
+                } else {
                     manager
                         .dispatch_events_new(callbacks)
                         .map_err(StackError::DispatchError)?;

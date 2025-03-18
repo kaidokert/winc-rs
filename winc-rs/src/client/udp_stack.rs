@@ -25,7 +25,7 @@ impl<X: Xfer> WincClient<'_, X> {
         addr: SocketAddrV4,
         data: &[u8],
     ) -> nb::Result<(), StackError> {
-        let res = Self::generic_op(
+        let res = Self::async_op(
             false,
             socket,
             &mut self.callbacks,
@@ -47,7 +47,9 @@ impl<X: Xfer> WincClient<'_, X> {
                     data.len(),
                     req
                 );
-                manager.send_sendto(*sock, addr, &data[..to_send])?;
+                manager
+                    .send_sendto(*sock, addr, &data[..to_send])
+                    .map_err(StackError::SendSendFailed)?;
                 Ok(ClientSocketOp::AsyncOp(
                     AsyncOp::SendTo(req, None),
                     AsyncState::Pending(None),
@@ -69,7 +71,9 @@ impl<X: Xfer> WincClient<'_, X> {
                             remaining: to_send as i16,
                         };
                         *asyncop = AsyncOp::SendTo(new_req, None);
-                        manager.send_sendto(*sock, addr, &data[offset..offset + to_send])?;
+                        manager
+                            .send_sendto(*sock, addr, &data[offset..offset + to_send])
+                            .map_err(StackError::SendSendFailed)?;
                         Err(StackError::ContinueOperation)
                     }
                 } else {
@@ -141,7 +145,7 @@ impl<X: Xfer> UdpClientStack for WincClient<'_, X> {
         socket: &mut Self::UdpSocket,
         buffer: &mut [u8],
     ) -> nb::Result<(usize, core::net::SocketAddr), Self::Error> {
-        let res = Self::generic_op(
+        let res = Self::async_op(
             false,
             socket,
             &mut self.callbacks,
@@ -150,7 +154,9 @@ impl<X: Xfer> UdpClientStack for WincClient<'_, X> {
             |op| matches!(op, AsyncOp::RecvFrom(..)),
             |sock, manager| -> Result<ClientSocketOp, StackError> {
                 debug!("<> Sending udp socket send_recv to {:?}", sock);
-                manager.send_recvfrom(*sock, Self::RECV_TIMEOUT)?;
+                manager
+                    .send_recvfrom(*sock, Self::RECV_TIMEOUT)
+                    .map_err(StackError::ReceiveFailed)?;
                 Ok(ClientSocketOp::AsyncOp(
                     AsyncOp::RecvFrom(None),
                     AsyncState::Pending(None),

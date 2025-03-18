@@ -52,7 +52,7 @@ impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {
         remote: core::net::SocketAddr,
     ) -> Result<(), nb::Error<<Self as TcpClientStack>::Error>> {
         let res = match remote {
-            core::net::SocketAddr::V4(addr) => Self::generic_op(
+            core::net::SocketAddr::V4(addr) => Self::async_op(
                 true,
                 socket,
                 &mut self.callbacks,
@@ -61,7 +61,9 @@ impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {
                 |op| matches!(op, AsyncOp::Connect(..)),
                 |sock, manager| -> Result<ClientSocketOp, StackError> {
                     debug!("<> Sending send_socket_connect to {:?}", sock);
-                    manager.send_socket_connect(*sock, addr)?;
+                    manager
+                        .send_socket_connect(*sock, addr)
+                        .map_err(StackError::ConnectSendFailed)?;
                     Ok(ClientSocketOp::AsyncOp(
                         AsyncOp::Connect(None),
                         AsyncState::Pending(Some(Self::CONNECT_TIMEOUT)),
@@ -89,7 +91,7 @@ impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {
         socket: &mut <Self as TcpClientStack>::TcpSocket,
         data: &[u8],
     ) -> Result<usize, nb::Error<<Self as TcpClientStack>::Error>> {
-        let res = Self::generic_op(
+        let res = Self::async_op(
             true,
             socket,
             &mut self.callbacks,
@@ -111,7 +113,9 @@ impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {
                     data.len(),
                     req
                 );
-                manager.send_send(*sock, &data[..to_send])?;
+                manager
+                    .send_send(*sock, &data[..to_send])
+                    .map_err(StackError::SendSendFailed)?;
                 Ok(ClientSocketOp::AsyncOp(
                     AsyncOp::Send(req, None),
                     AsyncState::Pending(None),
@@ -156,7 +160,7 @@ impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {
         socket: &mut <Self as TcpClientStack>::TcpSocket,
         data: &mut [u8],
     ) -> Result<usize, nb::Error<<Self as TcpClientStack>::Error>> {
-        let res = Self::generic_op(
+        let res = Self::async_op(
             true,
             socket,
             &mut self.callbacks,
@@ -165,7 +169,9 @@ impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {
             |op| matches!(op, AsyncOp::Recv(..)),
             |sock, manager| -> Result<ClientSocketOp, StackError> {
                 debug!("<> Sending socket send_recv to {:?}", sock);
-                manager.send_recv(*sock, Self::RECV_TIMEOUT)?;
+                manager
+                    .send_recv(*sock, Self::RECV_TIMEOUT)
+                    .map_err(StackError::ReceiveFailed)?;
                 Ok(ClientSocketOp::AsyncOp(
                     AsyncOp::Recv(None),
                     AsyncState::Pending(None),
@@ -268,7 +274,7 @@ impl<X: Xfer> TcpFullStack for WincClient<'_, X> {
         &mut self,
         socket: &mut Handle,
     ) -> nb::Result<(Handle, core::net::SocketAddr), StackError> {
-        let res = Self::generic_op(
+        let res = Self::async_op(
             true,
             socket,
             &mut self.callbacks,
