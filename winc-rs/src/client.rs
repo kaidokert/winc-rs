@@ -82,7 +82,7 @@ impl<X: Xfer> WincClient<'_, X> {
         ret
     }
 
-    fn debughook(&mut self) {
+    fn test_hook(&mut self) {
         #[cfg(test)]
         if let Some(callback) = &mut self.debug_callback {
             callback(&mut self.callbacks);
@@ -90,7 +90,7 @@ impl<X: Xfer> WincClient<'_, X> {
     }
 
     fn dispatch_events(&mut self) -> Result<(), StackError> {
-        self.debughook();
+        self.test_hook();
         self.manager
             .dispatch_events_new(&mut self.callbacks)
             .map_err(StackError::DispatchError)

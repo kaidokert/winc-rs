@@ -78,7 +78,7 @@ impl<X: Xfer> WincClient<'_, X> {
                 }
             },
         );
-        self.debughook();
+        self.test_hook();
         res
     }
 
@@ -186,7 +186,7 @@ impl<X: Xfer> UdpClientStack for WincClient<'_, X> {
                 }
             },
         );
-        self.debughook();
+        self.test_hook();
         res
     }
 

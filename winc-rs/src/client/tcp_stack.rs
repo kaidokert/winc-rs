@@ -82,7 +82,7 @@ impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {
             ),
             core::net::SocketAddr::V6(_) => unimplemented!("IPv6 not supported"),
         };
-        self.debughook();
+        self.test_hook();
         res
     }
     fn send(
@@ -144,7 +144,7 @@ impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {
                 }
             },
         );
-        self.debughook();
+        self.test_hook();
         res
     }
 
@@ -196,7 +196,7 @@ impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {
                 }
             },
         );
-        self.debughook();
+        self.test_hook();
         res
     }
     fn close(&mut self, socket: <Self as TcpClientStack>::TcpSocket) -> Result<(), Self::Error> {
@@ -295,7 +295,7 @@ impl<X: Xfer> TcpFullStack for WincClient<'_, X> {
                 }
             },
         );
-        self.debughook();
+        self.test_hook();
         match res {
             Ok((raw_socket, addr)) => {
                 let handle = self
