@@ -189,6 +189,7 @@ impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {
                         SocketError::Timeout => {
                             debug!("Timeout on receive");
                             // Timeouts just get turned into a further wait
+                            // Todo: Maybe re-send the command ?
                             Err(StackError::ContinueOperation)
                         }
                         _ => {
