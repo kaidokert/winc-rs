@@ -28,13 +28,6 @@ impl<X: Xfer> WincClient<'_, X> {
             .map_err(StackError::WincWifiFail)?;
         Ok(())
     }
-
-    fn debughook(&mut self) {
-        #[cfg(test)]
-        if let Some(callback) = &mut self.debug_callback {
-            callback(&mut self.callbacks);
-        }
-    }
 }
 
 impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {

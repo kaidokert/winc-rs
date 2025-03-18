@@ -106,11 +106,16 @@ impl<X: Xfer> WincClient<'_, X> {
         self.next_session_id += 1;
         ret
     }
-    fn dispatch_events(&mut self) -> Result<(), StackError> {
+
+    fn debughook(&mut self) {
         #[cfg(test)]
         if let Some(callback) = &mut self.debug_callback {
             callback(&mut self.callbacks);
         }
+    }
+
+    fn dispatch_events(&mut self) -> Result<(), StackError> {
+        self.debughook();
         self.manager
             .dispatch_events_new(&mut self.callbacks)
             .map_err(StackError::DispatchError)
