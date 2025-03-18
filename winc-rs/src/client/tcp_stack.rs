@@ -7,11 +7,11 @@ use super::StackError;
 use super::WincClient;
 
 use super::Xfer;
+use crate::debug;
 use crate::manager::SocketError;
 use crate::stack::socket_callbacks::AsyncOp;
 use crate::stack::socket_callbacks::AsyncState;
 use crate::stack::socket_callbacks::SendRequest;
-use crate::{debug, info};
 use embedded_nal::nb;
 
 use crate::stack::sock_holder::SocketStore;
@@ -61,7 +61,7 @@ impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {
                 self.poll_loop_delay_us,
                 |op| matches!(op, AsyncOp::Connect(..)),
                 |sock, manager| -> Result<ClientSocketOp, StackError> {
-                    info!("<> Sending send_socket_connect to {:?}", sock);
+                    debug!("<> Sending send_socket_connect to {:?}", sock);
                     manager.send_socket_connect(*sock, addr)?;
                     Ok(ClientSocketOp::AsyncOp(
                         AsyncOp::Connect(None),

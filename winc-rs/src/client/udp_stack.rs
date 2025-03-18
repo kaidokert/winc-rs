@@ -9,12 +9,12 @@ use embedded_nal::UdpFullStack;
 
 use super::Xfer;
 
+use crate::debug;
 use crate::manager::SocketError;
 use crate::stack::socket_callbacks::AsyncOp;
 use crate::stack::socket_callbacks::AsyncState;
 use crate::stack::socket_callbacks::SendRequest;
 use crate::stack::socket_callbacks::UDP_SOCK_OFFSET;
-use crate::{debug, info};
 use embedded_nal::nb;
 
 use crate::stack::sock_holder::SocketStore;
@@ -41,7 +41,7 @@ impl<X: Xfer> WincClient<'_, X> {
                     total_sent: 0,
                     remaining: to_send as i16,
                 };
-                info!(
+                debug!(
                     "Sending INITIAL send_send to {:?} len:{}/{} req:{:?}",
                     sock,
                     to_send,
@@ -60,7 +60,6 @@ impl<X: Xfer> WincClient<'_, X> {
                     let grand_total_sent = req.grand_total_sent + total_sent;
                     let offset = req.offset + total_sent as usize;
                     if offset >= data.len() {
-                        info!("FIN: on_send_to: socket:{:?} ", sock);
                         Ok(())
                     } else {
                         let to_send = data[offset..].len().min(Self::MAX_SEND_LENGTH);
