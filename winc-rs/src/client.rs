@@ -1,4 +1,6 @@
 use crate::manager::Manager;
+use crate::manager::SocketError;
+use crate::socket::Socket;
 use crate::transfer::Xfer;
 
 mod dns;
@@ -11,6 +13,11 @@ pub use crate::stack::StackError;
 pub use crate::stack::socket_callbacks::ClientSocketOp;
 use crate::stack::socket_callbacks::SocketCallbacks;
 pub use crate::stack::socket_callbacks::{Handle, PingResult};
+
+use crate::stack::socket_callbacks::AsyncOp;
+use crate::stack::socket_callbacks::AsyncState;
+
+use embedded_nal::nb;
 
 // Todo: try and figure out a non-macro way to structure
 // the code in tcp and udp implementations
@@ -133,6 +140,69 @@ impl<X: Xfer> WincClient<'_, X> {
             self.dispatch_events()?;
             timeout -= self.poll_loop_delay_us as i32;
             elapsed += self.poll_loop_delay_us;
+        }
+    }
+
+    fn generic_op<T>(
+        socket: &Handle,
+        callbacks: &mut SocketCallbacks,
+        manager: &mut Manager<X>,
+        poll_delay: u32,
+        matcher: impl Fn(&AsyncOp) -> bool,
+        init_callback: impl FnOnce(&Socket, &mut Manager<X>) -> Result<ClientSocketOp, StackError>,
+        complete_callback: impl FnOnce(
+            &Socket,
+            &mut Manager<X>,
+            &[u8],
+            &mut AsyncOp,
+        ) -> Result<T, StackError>,
+    ) -> Result<T, nb::Error<StackError>> {
+        let (sock, op) = callbacks
+            .tcp_sockets
+            .get(*socket)
+            .ok_or(StackError::SocketNotFound)?;
+        match op {
+            ClientSocketOp::None | ClientSocketOp::New => {
+                *op = init_callback(sock, manager)?;
+                manager
+                    .dispatch_events_new(callbacks)
+                    .map_err(StackError::DispatchError)?;
+                Err(nb::Error::WouldBlock)
+            }
+            ClientSocketOp::AsyncOp(asyncop, AsyncState::Pending(None)) if matcher(asyncop) => {
+                manager.delay_us(poll_delay);
+                manager
+                    .dispatch_events_new(callbacks)
+                    .map_err(StackError::DispatchError)?;
+                Err(nb::Error::WouldBlock)
+            }
+            ClientSocketOp::AsyncOp(asyncop, AsyncState::Pending(Some(timeout)))
+                if matcher(asyncop) =>
+            {
+                if *timeout == 0 {
+                    Err(nb::Error::Other(StackError::OpFailed(SocketError::Timeout)))
+                } else {
+                    *timeout -= 1;
+                    manager.delay_us(poll_delay);
+                    manager
+                        .dispatch_events_new(callbacks)
+                        .map_err(StackError::DispatchError)?;
+                    Err(nb::Error::WouldBlock)
+                }
+            }
+            ClientSocketOp::AsyncOp(asyncop, AsyncState::Done) if matcher(asyncop) => {
+                let res = complete_callback(sock, manager, &callbacks.recv_buffer, asyncop);
+                if let Err(StackError::ContinueOperation) = res {
+                    *op = ClientSocketOp::AsyncOp(*asyncop, AsyncState::Pending(None));
+                    Err(nb::Error::WouldBlock)
+                } else {
+                    *op = ClientSocketOp::None;
+                    res.map_err(nb::Error::Other)
+                }
+            }
+            _ => {
+                unimplemented!("Unexpected async state: {:?}", op);
+            }
         }
     }
 }
