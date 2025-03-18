@@ -21,33 +21,6 @@ use embedded_nal::nb;
 
 use crate::stack::sock_holder::SocketStore;
 
-// Todo: try and figure out a non-macro way to structure
-// the code in tcp and udp implementations
-#[macro_export]
-macro_rules! handle_result {
-    ($self:expr, $op:expr, $res:expr) => {
-        match $res {
-            Err(StackError::Dispatch) => {
-                $self.dispatch_events()?;
-                Err(nb::Error::WouldBlock)
-            }
-            Err(StackError::CallDelay) => {
-                $self.delay_us($self.poll_loop_delay_us);
-                $self.dispatch_events()?;
-                Err(nb::Error::WouldBlock)
-            }
-            Err(err) => {
-                *$op = ClientSocketOp::None;
-                Err(nb::Error::Other(err))
-            }
-            Ok(result) => {
-                *$op = ClientSocketOp::None;
-                Ok(result)
-            }
-        }
-    };
-}
-
 /// Client for the WincWifi chip.
 ///
 /// This manages the state of the chip and

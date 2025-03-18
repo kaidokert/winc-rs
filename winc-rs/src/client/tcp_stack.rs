@@ -98,11 +98,6 @@ impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {
             self.poll_loop_delay_us,
             |op| matches!(op, AsyncOp::Send(..)),
             |sock, manager| -> Result<ClientSocketOp, StackError> {
-                debug!(
-                    "<> Sending socket send_send to {:?} len:{}",
-                    sock,
-                    data.len()
-                );
                 let to_send = data.len().min(Self::MAX_SEND_LENGTH);
                 let req = SendRequest {
                     offset: 0,
@@ -110,6 +105,13 @@ impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {
                     total_sent: 0,
                     remaining: to_send as i16,
                 };
+                debug!(
+                    "Sending INITIAL send_send to {:?} len:{}/{} req:{:?}",
+                    sock,
+                    to_send,
+                    data.len(),
+                    req
+                );
                 manager.send_send(*sock, &data[..to_send])?;
                 Ok(ClientSocketOp::AsyncOp(
                     AsyncOp::Send(req, None),

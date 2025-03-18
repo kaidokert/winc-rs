@@ -1,3 +1,5 @@
+use core::net::SocketAddrV4;
+
 use super::ClientSocketOp;
 use super::Handle;
 use super::StackError;
@@ -7,14 +9,82 @@ use embedded_nal::UdpFullStack;
 
 use super::Xfer;
 
-use crate::debug;
 use crate::manager::SocketError;
+use crate::stack::socket_callbacks::AsyncOp;
+use crate::stack::socket_callbacks::AsyncState;
 use crate::stack::socket_callbacks::SendRequest;
 use crate::stack::socket_callbacks::UDP_SOCK_OFFSET;
+use crate::{debug, info};
 use embedded_nal::nb;
 
-use crate::handle_result;
 use crate::stack::sock_holder::SocketStore;
+
+impl<X: Xfer> WincClient<'_, X> {
+    fn send_udp_inner(
+        &mut self,
+        socket: &mut Handle,
+        addr: SocketAddrV4,
+        data: &[u8],
+    ) -> nb::Result<(), StackError> {
+        let res = Self::generic_op(
+            false,
+            socket,
+            &mut self.callbacks,
+            &mut self.manager,
+            self.poll_loop_delay_us,
+            |op| matches!(op, AsyncOp::SendTo(..)),
+            |sock, manager| -> Result<ClientSocketOp, StackError> {
+                let to_send = data.len().min(Self::MAX_SEND_LENGTH);
+                let req = SendRequest {
+                    offset: 0,
+                    grand_total_sent: 0,
+                    total_sent: 0,
+                    remaining: to_send as i16,
+                };
+                info!(
+                    "Sending INITIAL send_send to {:?} len:{}/{} req:{:?}",
+                    sock,
+                    to_send,
+                    data.len(),
+                    req
+                );
+                manager.send_sendto(*sock, addr, &data[..to_send])?;
+                Ok(ClientSocketOp::AsyncOp(
+                    AsyncOp::SendTo(req, None),
+                    AsyncState::Pending(None),
+                ))
+            },
+            |sock, manager, _, asyncop| {
+                if let AsyncOp::SendTo(req, Some(_len)) = asyncop {
+                    let total_sent = req.total_sent;
+                    let grand_total_sent = req.grand_total_sent + total_sent;
+                    let offset = req.offset + total_sent as usize;
+                    if offset >= data.len() {
+                        info!("FIN: on_send_to: socket:{:?} ", sock);
+                        Ok(())
+                    } else {
+                        let to_send = data[offset..].len().min(Self::MAX_SEND_LENGTH);
+                        let new_req = SendRequest {
+                            offset,
+                            grand_total_sent,
+                            total_sent: 0,
+                            remaining: to_send as i16,
+                        };
+                        *asyncop = AsyncOp::SendTo(new_req, None);
+                        manager.send_sendto(*sock, addr, &data[offset..offset + to_send])?;
+                        Err(StackError::ContinueOperation)
+                    }
+                } else {
+                    Err(StackError::Unexpected)
+                }
+            },
+        );
+        self.debughook();
+        res
+    }
+
+    // Todo: consider consolidating this with TCP
+}
 
 impl<X: Xfer> UdpClientStack for WincClient<'_, X> {
     type UdpSocket = Handle;
@@ -54,66 +124,20 @@ impl<X: Xfer> UdpClientStack for WincClient<'_, X> {
     }
 
     fn send(&mut self, socket: &mut Self::UdpSocket, data: &[u8]) -> nb::Result<(), Self::Error> {
-        let (sock, op) = self.callbacks.udp_sockets.get(*socket).unwrap();
-        let addr = self.callbacks.udp_socket_connect_addr[sock.v as usize - UDP_SOCK_OFFSET]
-            .ok_or(StackError::Unexpected)?;
-        let res = match op {
-            ClientSocketOp::None | ClientSocketOp::New => {
-                debug!(
-                    "<> Sending socket udp send_send to {:?} len:{}",
-                    sock,
-                    data.len()
-                );
-                let to_send = data.len().min(Self::MAX_SEND_LENGTH);
-                let req = SendRequest {
-                    offset: 0,
-                    grand_total_sent: 0,
-                    total_sent: 0,
-                    remaining: to_send as i16,
-                };
-                debug!(
-                    "Sending INITIAL send_send to {:?} len:{} req:{:?}",
-                    sock, to_send, req
-                );
-                *op = ClientSocketOp::SendTo(req, None);
-                self.manager
-                    .send_sendto(*sock, addr, &data[..to_send])
-                    .map_err(StackError::SendSendFailed)?;
-                Err(StackError::Dispatch)
-            }
-            ClientSocketOp::SendTo(req, Some(_len)) => {
-                let total_sent = req.total_sent;
-                let grand_total_sent = req.grand_total_sent + total_sent;
-                let offset = req.offset + total_sent as usize;
-                // Now move to next chunk
-                if offset >= data.len() {
-                    debug!("Finished off a send, returning len:{}", grand_total_sent);
-                    Ok(())
-                } else {
-                    let to_send = data[offset..].len().min(Self::MAX_SEND_LENGTH);
-                    let new_req = SendRequest {
-                        offset,
-                        grand_total_sent,
-                        total_sent: 0,
-                        remaining: to_send as i16,
-                    };
-                    debug!(
-                        "Sending NEXT send_send to {:?} len:{} req:{:?}",
-                        sock, to_send, new_req
-                    );
-                    *op = ClientSocketOp::SendTo(new_req, None);
-                    self.manager
-                        .send_sendto(*sock, addr, &data[offset..offset + to_send])
-                        .map_err(StackError::SendSendFailed)?;
-                    Err(StackError::Dispatch)
-                }
-            }
-            ClientSocketOp::SendTo(_, None) => Err(StackError::CallDelay),
-            _ => Err(StackError::Unexpected),
+        let addr = {
+            // temporary borrow
+            let (sock, _op) = self
+                .callbacks
+                .udp_sockets
+                .get(*socket)
+                .ok_or(StackError::SocketNotFound)?;
+            self.callbacks.udp_socket_connect_addr[sock.v as usize - UDP_SOCK_OFFSET]
+                .ok_or(StackError::Unexpected)?
         };
-        handle_result!(self, op, res)
+        self.send_udp_inner(socket, addr, data)
     }
 
+    // Todo: consider consolidating this with TCP
     // Todo: Bug: If a caller passes us a very large buffer that is larger than
     // max receive buffer, this should loop through serveral packets with
     // an offset - like send does.
@@ -122,36 +146,49 @@ impl<X: Xfer> UdpClientStack for WincClient<'_, X> {
         socket: &mut Self::UdpSocket,
         buffer: &mut [u8],
     ) -> nb::Result<(usize, core::net::SocketAddr), Self::Error> {
-        let (sock, op) = self.callbacks.udp_sockets.get(*socket).unwrap();
-        let res = match op {
-            ClientSocketOp::None | ClientSocketOp::New => {
-                *op = ClientSocketOp::RecvFrom(None);
+        let res = Self::generic_op(
+            false,
+            socket,
+            &mut self.callbacks,
+            &mut self.manager,
+            self.poll_loop_delay_us,
+            |op| matches!(op, AsyncOp::RecvFrom(..)),
+            |sock, manager| -> Result<ClientSocketOp, StackError> {
                 debug!("<> Sending udp socket send_recv to {:?}", sock);
-                self.manager
-                    .send_recvfrom(*sock, Self::RECV_TIMEOUT)
-                    .map_err(StackError::ReceiveFailed)?;
-                Err(StackError::Dispatch)
-            }
-            ClientSocketOp::RecvFrom(Some(recv_result)) => {
-                debug!("Recv result: {:?}", recv_result);
-                match recv_result.error {
-                    SocketError::NoError => {
-                        let recv_len = recv_result.recv_len;
-                        let dest_slice = &mut buffer[..recv_len];
-                        dest_slice.copy_from_slice(&self.callbacks.recv_buffer[..recv_len]);
-                        Ok((
-                            recv_result.recv_len,
-                            core::net::SocketAddr::V4(recv_result.from_addr),
-                        ))
+                manager.send_recvfrom(*sock, Self::RECV_TIMEOUT)?;
+                Ok(ClientSocketOp::AsyncOp(
+                    AsyncOp::RecvFrom(None),
+                    AsyncState::Pending(None),
+                ))
+            },
+            |_, _, recv_buffer, asyncop| {
+                if let AsyncOp::RecvFrom(Some(recv_result)) = asyncop {
+                    match recv_result.error {
+                        SocketError::NoError => {
+                            let recv_len = recv_result.recv_len;
+                            let dest_slice = &mut buffer[..recv_len];
+                            dest_slice.copy_from_slice(&recv_buffer[..recv_len]);
+                            Ok((
+                                recv_result.recv_len,
+                                core::net::SocketAddr::V4(recv_result.from_addr),
+                            ))
+                        }
+                        SocketError::Timeout => {
+                            debug!("Timeout on receive");
+                            Err(StackError::ContinueOperation)
+                        }
+                        _ => {
+                            debug!("Error in receive: {:?}", recv_result.error);
+                            Err(StackError::OpFailed(recv_result.error))
+                        }
                     }
-                    SocketError::Timeout => Err(StackError::CallDelay),
-                    _ => Err(StackError::OpFailed(recv_result.error)),
+                } else {
+                    Err(StackError::Unexpected)
                 }
-            }
-            ClientSocketOp::RecvFrom(None) => Err(StackError::CallDelay),
-            _ => Err(StackError::Unexpected),
-        };
-        handle_result!(self, op, res)
+            },
+        );
+        self.debughook();
+        res
     }
 
     // Not a blocking call
@@ -209,64 +246,9 @@ impl<X: Xfer> UdpFullStack for WincClient<'_, X> {
         data: &[u8],
     ) -> nb::Result<(), Self::Error> {
         let addr = match remote {
-            core::net::SocketAddr::V4(addr) => {
-                debug!("<> Connect handle is {:?}", socket.0);
-                let (_sock, _op) = self.callbacks.udp_sockets.get(*socket).unwrap();
-                addr
-            }
+            core::net::SocketAddr::V4(addr) => addr,
             core::net::SocketAddr::V6(_) => unimplemented!("IPv6 not supported"),
         };
-        let (sock, op) = self.callbacks.udp_sockets.get(*socket).unwrap();
-        let res = match op {
-            ClientSocketOp::None | ClientSocketOp::New => {
-                debug!("<> Sending UDP send_to {:?} len:{}", sock, data.len());
-                let to_send = data.len().min(Self::MAX_SEND_LENGTH);
-                let req = SendRequest {
-                    offset: 0,
-                    grand_total_sent: 0,
-                    total_sent: 0,
-                    remaining: to_send as i16,
-                };
-                debug!(
-                    "Sending INITIAL send_send to {:?} len:{} req:{:?}",
-                    sock, to_send, req
-                );
-                *op = ClientSocketOp::SendTo(req, None);
-                self.manager
-                    .send_sendto(*sock, addr, &data[..to_send])
-                    .map_err(StackError::SendSendFailed)?;
-                Err(StackError::Dispatch)
-            }
-            ClientSocketOp::SendTo(req, Some(_len)) => {
-                let total_sent = req.total_sent;
-                let grand_total_sent = req.grand_total_sent + total_sent;
-                let offset = req.offset + total_sent as usize;
-                // Now move to next chunk
-                if offset >= data.len() {
-                    debug!("Finished off a send, total was len:{}", grand_total_sent);
-                    Ok(())
-                } else {
-                    let to_send = data[offset..].len().min(Self::MAX_SEND_LENGTH);
-                    let new_req = SendRequest {
-                        offset,
-                        grand_total_sent,
-                        total_sent: 0,
-                        remaining: to_send as i16,
-                    };
-                    debug!(
-                        "Sending NEXT send_send to {:?} len:{} req:{:?}",
-                        sock, to_send, new_req
-                    );
-                    *op = ClientSocketOp::SendTo(new_req, None);
-                    self.manager
-                        .send_sendto(*sock, addr, &data[offset..offset + to_send])
-                        .map_err(StackError::SendSendFailed)?;
-                    Err(StackError::Dispatch)
-                }
-            }
-            ClientSocketOp::SendTo(_, None) => Err(StackError::CallDelay),
-            _ => Err(StackError::Unexpected),
-        };
-        handle_result!(self, op, res)
+        self.send_udp_inner(socket, addr, data)
     }
 }

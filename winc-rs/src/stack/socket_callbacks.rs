@@ -185,7 +185,9 @@ pub enum AsyncState {
 pub enum AsyncOp {
     Connect(Option<ConnectResult>),
     Send(SendRequest, Option<i16>),
+    SendTo(SendRequest, Option<i16>),
     Recv(Option<RecvResult>),
+    RecvFrom(Option<RecvResult>),
     Accept(Option<AcceptResult>),
 }
 
@@ -195,8 +197,6 @@ pub enum AsyncOp {
 pub enum ClientSocketOp {
     None,
     New,
-    SendTo(SendRequest, Option<i16>),
-    RecvFrom(Option<RecvResult>),
     Bind(Option<BindListenResult>),
     Listen(Option<BindListenResult>),
     AsyncOp(AsyncOp, AsyncState),
@@ -358,18 +358,19 @@ impl EventListener for SocketCallbacks {
     fn on_send_to(&mut self, socket: Socket, len: i16) {
         debug!("on_send_to: socket:{:?} length:{:?}", socket, len);
         match self.resolve(socket) {
-            Some((s, ClientSocketOp::SendTo(req, option))) => {
+            Some((s, ClientSocketOp::AsyncOp(AsyncOp::SendTo(req, option), asyncstate))) => {
                 req.total_sent += len;
                 req.remaining -= len;
                 if req.remaining <= 0 {
-                    debug!("FIN: on_send: socket:{:?} length:{:?}", s, len);
+                    debug!("FIN: on_send_to: socket:{:?} length:{:?}", s, len);
                     option.replace(len);
+                    *asyncstate = AsyncState::Done;
                 } else {
-                    debug!("CONT: on_send: socket:{:?} length:{:?}", s, len);
+                    debug!("CONT: on_send_to: socket:{:?} length:{:?}", s, len);
                 }
             }
             Some((s, op)) => error!(
-                "UNKNOWN STATE on_send (x): socket:{:?} len:{:?} state:{:?}",
+                "UNKNOWN STATE on_send_to (x): socket:{:?} len:{:?} state:{:?}",
                 s, len, *op
             ),
             None => error!(
@@ -453,7 +454,7 @@ impl EventListener for SocketCallbacks {
     ) {
         debug!("on_recvfrom: socket {:?}", socket);
         match self.resolve(socket) {
-            Some((s, ClientSocketOp::RecvFrom(option))) => {
+            Some((s, ClientSocketOp::AsyncOp(AsyncOp::RecvFrom(option), asyncstate))) => {
                 debug!(
                     "on_recvfrom: raw:{:?} socket:{:?} address:{:?} data:{:?} error:{:?}",
                     socket,
@@ -467,6 +468,7 @@ impl EventListener for SocketCallbacks {
                     from_addr: address,
                     error: err,
                 });
+                *asyncstate = AsyncState::Done;
                 self.recv_buffer[..data.len()].copy_from_slice(data);
             }
             Some((_, op)) => error!(
