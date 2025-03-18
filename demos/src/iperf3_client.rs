@@ -18,6 +18,18 @@ pub enum Errors {
     JsonTooLarge,
 }
 
+#[cfg(not(feature = "defmt"))]
+pub trait TcpError: embedded_nal::TcpError {}
+
+#[cfg(not(feature = "defmt"))]
+impl<T> TcpError for T where T: embedded_nal::TcpError {}
+
+#[cfg(feature = "defmt")]
+pub trait TcpError: embedded_nal::TcpError + defmt::Format {}
+
+#[cfg(feature = "defmt")]
+impl<T> TcpError for T where T: embedded_nal::TcpError + defmt::Format {}
+
 impl<T> From<T> for Errors
 where
     T: embedded_nal::TcpError,
@@ -39,7 +51,7 @@ fn make_cookie(gen: &mut dyn rand_core::RngCore) -> [u8; 37] {
 fn read_control<T, S>(stack: &mut T, mut control_socket: &mut S, cmd: Cmds) -> Result<(), Errors>
 where
     T: TcpClientStack<TcpSocket = S> + ?Sized,
-    T::Error: embedded_nal::TcpError,
+    T::Error: TcpError,
 {
     let fx = cmd.clone() as u8;
     let mut read_cmd: [u8; 1] = [0];
@@ -56,7 +68,7 @@ where
 fn send_json<T, S>(stack: &mut T, mut control_socket: &mut S, out: &str) -> Result<usize, T::Error>
 where
     T: TcpClientStack<TcpSocket = S> + ?Sized,
-    T::Error: embedded_nal::TcpError,
+    T::Error: TcpError,
 {
     let jsonbytes = out.as_bytes();
     let jsonlen = (jsonbytes.len() as u32).to_be_bytes();
@@ -71,7 +83,7 @@ fn recv_json<'a, T, S>(
 ) -> Result<&'a str, Errors>
 where
     T: TcpClientStack<TcpSocket = S> + ?Sized,
-    T::Error: embedded_nal::TcpError,
+    T::Error: TcpError,
 {
     let mut jsonlen = [0; 4];
     block!(stack.receive(&mut control_socket, &mut jsonlen))?;
@@ -91,7 +103,7 @@ where
 fn send_cmd<T, S>(stack: &mut T, mut control_socket: &mut S, cmd: Cmds) -> Result<usize, T::Error>
 where
     T: TcpClientStack<TcpSocket = S> + ?Sized,
-    T::Error: embedded_nal::TcpError,
+    T::Error: TcpError,
 {
     let buf = [cmd as u8];
     block!(stack.send(&mut control_socket, &buf))
@@ -117,7 +129,7 @@ pub fn iperf3_client<const MAX_BLOCK_LEN: usize, T, S>(
 ) -> Result<(), Errors>
 where
     T: TcpClientStack<TcpSocket = S> + ?Sized,
-    T::Error: embedded_nal::TcpError,
+    T::Error: TcpError,
 {
     let my_confg = config.unwrap_or(TestConfig {
         conf: Conf::Bytes(1024_1000 * 20),
