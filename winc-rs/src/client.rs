@@ -150,7 +150,10 @@ impl<X: Xfer> WincClient<'_, X> {
         }
     }
 
+    // Todo: Too many arguments: poll delay should be removable
+    #[allow(clippy::too_many_arguments)]
     fn generic_op<T>(
+        tcp: bool,
         socket: &Handle,
         callbacks: &mut SocketCallbacks,
         manager: &mut Manager<X>,
@@ -164,10 +167,13 @@ impl<X: Xfer> WincClient<'_, X> {
             &mut AsyncOp,
         ) -> Result<T, StackError>,
     ) -> Result<T, nb::Error<StackError>> {
-        let (sock, op) = callbacks
-            .tcp_sockets
-            .get(*socket)
-            .ok_or(StackError::SocketNotFound)?;
+        let store: &mut dyn SocketStore = if tcp {
+            &mut callbacks.tcp_sockets
+        } else {
+            &mut callbacks.udp_sockets
+        };
+
+        let (sock, op) = store.get(*socket).ok_or(StackError::SocketNotFound)?;
         match op {
             ClientSocketOp::None | ClientSocketOp::New => {
                 *op = init_callback(sock, manager)?;

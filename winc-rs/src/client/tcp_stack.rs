@@ -54,6 +54,7 @@ impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {
     ) -> Result<(), nb::Error<<Self as TcpClientStack>::Error>> {
         let res = match remote {
             core::net::SocketAddr::V4(addr) => Self::generic_op(
+                true,
                 socket,
                 &mut self.callbacks,
                 &mut self.manager,
@@ -90,6 +91,7 @@ impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {
         data: &[u8],
     ) -> Result<usize, nb::Error<<Self as TcpClientStack>::Error>> {
         let res = Self::generic_op(
+            true,
             socket,
             &mut self.callbacks,
             &mut self.manager,
@@ -154,6 +156,7 @@ impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {
         data: &mut [u8],
     ) -> Result<usize, nb::Error<<Self as TcpClientStack>::Error>> {
         let res = Self::generic_op(
+            true,
             socket,
             &mut self.callbacks,
             &mut self.manager,
@@ -265,6 +268,7 @@ impl<X: Xfer> TcpFullStack for WincClient<'_, X> {
         socket: &mut Handle,
     ) -> nb::Result<(Handle, core::net::SocketAddr), StackError> {
         let res = Self::generic_op(
+            true,
             socket,
             &mut self.callbacks,
             &mut self.manager,
