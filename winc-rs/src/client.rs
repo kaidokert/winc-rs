@@ -14,8 +14,7 @@ pub use crate::stack::socket_callbacks::ClientSocketOp;
 use crate::stack::socket_callbacks::SocketCallbacks;
 pub use crate::stack::socket_callbacks::{Handle, PingResult};
 
-use crate::stack::socket_callbacks::AsyncOp;
-use crate::stack::socket_callbacks::AsyncState;
+use crate::stack::socket_callbacks::{AsyncOp, AsyncState};
 
 use embedded_nal::nb;
 

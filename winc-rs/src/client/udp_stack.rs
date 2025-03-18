@@ -11,10 +11,9 @@ use super::Xfer;
 
 use crate::debug;
 use crate::manager::SocketError;
-use crate::stack::socket_callbacks::AsyncOp;
-use crate::stack::socket_callbacks::AsyncState;
 use crate::stack::socket_callbacks::SendRequest;
 use crate::stack::socket_callbacks::UDP_SOCK_OFFSET;
+use crate::stack::socket_callbacks::{AsyncOp, AsyncState};
 use embedded_nal::nb;
 
 use crate::stack::sock_holder::SocketStore;
