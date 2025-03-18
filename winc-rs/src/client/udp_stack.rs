@@ -80,8 +80,6 @@ impl<X: Xfer> WincClient<'_, X> {
         self.test_hook();
         res
     }
-
-    // Todo: consider consolidating this with TCP
 }
 
 impl<X: Xfer> UdpClientStack for WincClient<'_, X> {
@@ -123,7 +121,6 @@ impl<X: Xfer> UdpClientStack for WincClient<'_, X> {
 
     fn send(&mut self, socket: &mut Self::UdpSocket, data: &[u8]) -> nb::Result<(), Self::Error> {
         let addr = {
-            // temporary borrow
             let (sock, _op) = self
                 .callbacks
                 .udp_sockets

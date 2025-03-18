@@ -191,7 +191,6 @@ pub enum AsyncOp {
     Accept(Option<AcceptResult>),
 }
 
-// todo: add result structs to Recvs, and Sends as well.
 #[derive(PartialEq, Clone, Copy, Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum ClientSocketOp {
@@ -358,7 +357,13 @@ impl EventListener for SocketCallbacks {
     fn on_send_to(&mut self, socket: Socket, len: i16) {
         debug!("on_send_to: socket:{:?} length:{:?}", socket, len);
         match self.resolve(socket) {
-            Some((s, ClientSocketOp::AsyncOp(AsyncOp::SendTo(req, option), asyncstate))) => {
+            Some((
+                s,
+                ClientSocketOp::AsyncOp(
+                    AsyncOp::SendTo(req, option),
+                    asyncstate @ AsyncState::Pending(_),
+                ),
+            )) => {
                 req.total_sent += len;
                 req.remaining -= len;
                 if req.remaining <= 0 {
@@ -382,7 +387,13 @@ impl EventListener for SocketCallbacks {
     fn on_send(&mut self, socket: Socket, len: i16) {
         debug!("on_send: socket {:?} len:{}", socket, len);
         match self.resolve(socket) {
-            Some((s, ClientSocketOp::AsyncOp(AsyncOp::Send(req, option), asyncstate))) => {
+            Some((
+                s,
+                ClientSocketOp::AsyncOp(
+                    AsyncOp::Send(req, option),
+                    asyncstate @ AsyncState::Pending(_),
+                ),
+            )) => {
                 req.total_sent += len;
                 req.remaining -= len;
                 if req.remaining <= 0 {
@@ -412,7 +423,9 @@ impl EventListener for SocketCallbacks {
     ) {
         debug!("on_recv: socket {:?}", socket);
         match self.resolve(socket) {
-            Some((s, ClientSocketOp::AsyncOp(AsyncOp::Recv(option), asyncstate))) => {
+            Some((s, ClientSocketOp::AsyncOp(
+                    AsyncOp::Recv(option),
+                    asyncstate @ AsyncState::Pending(_),))) => {
                 debug!(
                     "on_recv: socket:{:?} address:{:?} data:{:?} len:{:?} error:{:?}",
                     s,
@@ -454,7 +467,9 @@ impl EventListener for SocketCallbacks {
     ) {
         debug!("on_recvfrom: socket {:?}", socket);
         match self.resolve(socket) {
-            Some((s, ClientSocketOp::AsyncOp(AsyncOp::RecvFrom(option), asyncstate))) => {
+            Some((s, ClientSocketOp::AsyncOp(
+                    AsyncOp::RecvFrom(option),
+                    asyncstate @ AsyncState::Pending(_),))) => {
                 debug!(
                     "on_recvfrom: raw:{:?} socket:{:?} address:{:?} data:{:?} error:{:?}",
                     socket,
@@ -534,7 +549,9 @@ impl EventListener for SocketCallbacks {
         );
 
         match self.resolve(listen_socket) {
-            Some((s, ClientSocketOp::AsyncOp(AsyncOp::Accept(option), asyncstate))) => {
+            Some((s, ClientSocketOp::AsyncOp(
+                    AsyncOp::Accept(option),
+                    asyncstate @ AsyncState::Pending(_),))) => {
                 debug!("on_accept: socket:{:?} address:{:?} accepted_socket:{:?}", s, address, accepted_socket);
                 option.replace(AcceptResult {
                     accept_addr: address,
