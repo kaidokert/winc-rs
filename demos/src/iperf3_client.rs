@@ -55,11 +55,7 @@ where
 {
     let fx = cmd.clone() as u8;
     let mut read_cmd: [u8; 1] = [0];
-    let res = block!(stack.receive(&mut control_socket, &mut read_cmd));
-    if let Err(e) = res {
-        error!("Error in read_Control: {:?}", e);
-        return Err(Errors::TCP);
-    }
+    block!(stack.receive(&mut control_socket, &mut read_cmd))?;
     if fx == read_cmd[0] {
         debug!("Got {:?}", cmd);
     } else {
