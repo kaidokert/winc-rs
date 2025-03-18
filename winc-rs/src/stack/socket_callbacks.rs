@@ -552,7 +552,10 @@ impl EventListener for SocketCallbacks {
             Some((s, ClientSocketOp::AsyncOp(
                     AsyncOp::Accept(option),
                     asyncstate @ AsyncState::Pending(_),))) => {
-                debug!("on_accept: socket:{:?} address:{:?} accepted_socket:{:?}", s, address, accepted_socket);
+                debug!("on_accept: socket:{:?} port:{:?} address:{:?} accepted_socket:{:?}", s,
+                    Ipv4AddrFormatWrapper::new(address.ip()),
+                    address.port(),
+                    accepted_socket);
                 option.replace(AcceptResult {
                     accept_addr: address,
                     accepted_socket,
