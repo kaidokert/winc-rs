@@ -23,7 +23,7 @@ jobs:
 
       - name: Create benchmark results file
         run: |
-          echo '{"name": "custommetric", "unit": "kilobyte","value" : 20}' > benchmark_results.json
+          echo '[{"name": "custommetric", "unit": "kilobyte","value" : 20}]' > benchmark_results.json
           cat benchmark_results.json  # Debug: show what we created
 
       - name: Upload benchmark files
