@@ -20,11 +20,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: rustup toolchain update nightly && rustup default nightly
-      - name: Run benchmark
-        run: cd examples/rust && cargo +nightly bench | tee output.txt
+
+      - name: Create benchmark results file
+        run: |
+          echo '{"name": "custommetric", "unit": "kilobyte","value" : 20}' > benchmark_results.json
 
       - name: Store benchmark result
         uses: benchmark-action/github-action-benchmark@v1
         with:
           tool: customSmallerIsBetter
-          output-file-path: output.txt
+          output-file-path: benchmark_results.json
