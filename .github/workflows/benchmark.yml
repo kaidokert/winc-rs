@@ -22,7 +22,11 @@ jobs:
         run: sudo apt-get install -y jq
 
       - uses: actions/checkout@v4
-      - run: rustup toolchain update nightly && rustup default nightly
+      - uses: actions-rs/toolchain@v1
+        with:
+            toolchain: stable
+            target: thumbv6m-none-eabi
+            profile: minimal
 
       - name: Install cargo-bloat
         run: cargo install cargo-bloat
