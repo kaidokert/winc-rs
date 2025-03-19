@@ -1,0 +1,30 @@
+name: Benchmarks
+
+on:
+    push:
+      branches:
+        - '*'
+    pull_request:
+      branches:
+        - '*'
+
+
+permissions:
+  contents: write
+  deployments: write
+
+jobs:
+  benchmark:
+    name: Run Rust benchmark example
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup toolchain update nightly && rustup default nightly
+      - name: Run benchmark
+        run: cd examples/rust && cargo +nightly bench | tee output.txt
+
+      - name: Store benchmark result
+        uses: benchmark-action/github-action-benchmark@v1
+        with:
+          tool: customSmallerIsBetter
+          output-file-path: output.txt
