@@ -18,8 +18,34 @@ jobs:
     name: Run Rust benchmark example
     runs-on: ubuntu-latest
     steps:
+      - name: Install jq
+        run: sudo apt-get install -y jq
+
       - uses: actions/checkout@v4
       - run: rustup toolchain update nightly && rustup default nightly
+
+      - name: Install cargo-bloat
+        run: cargo install cargo-bloat
+
+      - name: Cargo bloat http_server
+        run: |
+            cargo bloat --release --example=http_server --message-format json > http_server.json
+
+      - name: Cargo bloat iperf3_client
+        run: |
+            cargo bloat --release --example=iperf3_client --features=iperf3 --message-format json > iperf3_client.json
+
+      - name: Make combined benchmark results
+        run: |
+            jq -s '[{
+                "name": "http_server",
+                "unit": "byte",
+                "value": (.[0]."text-section-size")
+                },{
+                "name" : "iperf3_client",
+                "unit": "byte",
+                "value": (.[1]."text-section-size")
+            }]' http_server.json iperf3_client.json > bench_combined.json
 
       - name: Create benchmark results file
         run: |
@@ -30,7 +56,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: benchmark-files
-          path: benchmark_results.json
+          path: '*.json'
         if: always()  # This ensures it runs even if later steps fail
 
       - name: Store benchmark result
