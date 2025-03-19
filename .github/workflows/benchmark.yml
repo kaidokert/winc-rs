@@ -28,10 +28,12 @@ jobs:
         run: cargo install cargo-bloat
 
       - name: Cargo bloat http_server
+        working-directory: feather
         run: |
             cargo bloat --release --example=http_server --message-format json > http_server.json
 
       - name: Cargo bloat iperf3_client
+        working-directory: feather
         run: |
             cargo bloat --release --example=iperf3_client --features=iperf3 --message-format json > iperf3_client.json
 
@@ -45,7 +47,7 @@ jobs:
                 "name" : "iperf3_client",
                 "unit": "byte",
                 "value": (.[1]."text-section-size")
-            }]' http_server.json iperf3_client.json > bench_combined.json
+            }]' feather/http_server.json feather/iperf3_client.json > bench_combined.json
 
       - name: Create benchmark results file
         run: |
