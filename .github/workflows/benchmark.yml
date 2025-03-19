@@ -52,12 +52,7 @@ jobs:
                 "name" : "iperf3_client",
                 "unit": "byte",
                 "value": (.[1]."text-section-size")
-            }]' feather/http_server.json feather/iperf3_client.json > bench_combined.json
-
-      - name: Create benchmark results file
-        run: |
-          echo '[{"name": "custommetric", "unit": "kilobyte","value" : 20}]' > benchmark_results.json
-          cat benchmark_results.json  # Debug: show what we created
+            }]' feather/http_server.json feather/iperf3_client.json > benchmark_results.json
 
       - name: Upload benchmark files
         uses: actions/upload-artifact@v4
