@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1742362769294,
+  "lastUpdate": 1742362770687,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -102,6 +102,35 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/kaidokert/winc-rs/pull/53/commits/3c7368b66eb925e978185cbe0242c250f0e670c6"
         },
         "date": 1742362769010,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "custommetric",
+            "value": 20,
+            "unit": "kilobyte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "kaidokert@gmail.com",
+            "name": "Kaido Kert",
+            "username": "kaidokert"
+          },
+          "committer": {
+            "email": "kaidokert@gmail.com",
+            "name": "Kaido Kert",
+            "username": "kaidokert"
+          },
+          "distinct": true,
+          "id": "3c7368b66eb925e978185cbe0242c250f0e670c6",
+          "message": "Missing fliplink",
+          "timestamp": "2025-03-18T22:38:23-07:00",
+          "tree_id": "bd35776bd42ef344e99a5ea061782d2ecf6e7c2d",
+          "url": "https://github.com/kaidokert/winc-rs/commit/3c7368b66eb925e978185cbe0242c250f0e670c6"
+        },
+        "date": 1742362770419,
         "tool": "customSmallerIsBetter",
         "benches": [
           {
