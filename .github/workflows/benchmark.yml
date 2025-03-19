@@ -38,3 +38,7 @@ jobs:
         with:
           tool: customSmallerIsBetter
           output-file-path: benchmark_results.json
+          # Access token to deploy GitHub Pages branch
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          # Push and deploy GitHub pages branch automatically
+          auto-push: true
