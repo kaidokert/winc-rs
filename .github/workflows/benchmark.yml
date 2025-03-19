@@ -27,7 +27,8 @@ jobs:
             toolchain: stable
             target: thumbv6m-none-eabi
             profile: minimal
-
+      - name: Install flip-link
+        run: cargo install flip-link
       - name: Install cargo-bloat
         run: cargo install cargo-bloat
 
