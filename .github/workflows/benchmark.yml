@@ -27,7 +27,7 @@ jobs:
           cat benchmark_results.json  # Debug: show what we created
 
       - name: Upload benchmark files
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: benchmark-files
           path: benchmark_results.json
