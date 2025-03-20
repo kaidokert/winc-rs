@@ -12,7 +12,7 @@ use super::Xfer;
 use crate::debug;
 use crate::manager::SocketError;
 use crate::stack::socket_callbacks::SendRequest;
-use crate::stack::socket_callbacks::UDP_SOCK_OFFSET;
+use crate::stack::socket_callbacks::NUM_TCP_SOCKETS;
 use crate::stack::socket_callbacks::{AsyncOp, AsyncState};
 use embedded_nal::nb;
 
@@ -115,7 +115,7 @@ impl<X: Xfer> UdpClientStack for WincClient<'_, X> {
             core::net::SocketAddr::V4(addr) => {
                 debug!("<> Connect handle is {:?}", socket.0);
                 let (sock, _op) = self.callbacks.udp_sockets.get(*socket).unwrap();
-                self.callbacks.udp_socket_connect_addr[sock.v as usize - UDP_SOCK_OFFSET] =
+                self.callbacks.udp_socket_connect_addr[sock.v as usize - NUM_TCP_SOCKETS] =
                     Some(addr);
             }
             core::net::SocketAddr::V6(_) => unimplemented!("IPv6 not supported"),
@@ -130,7 +130,7 @@ impl<X: Xfer> UdpClientStack for WincClient<'_, X> {
                 .udp_sockets
                 .get(*socket)
                 .ok_or(StackError::SocketNotFound)?;
-            self.callbacks.udp_socket_connect_addr[sock.v as usize - UDP_SOCK_OFFSET]
+            self.callbacks.udp_socket_connect_addr[sock.v as usize - NUM_TCP_SOCKETS]
                 .ok_or(StackError::Unexpected)?
         };
         self.send_udp_inner(socket, addr, data)
@@ -206,7 +206,7 @@ impl<X: Xfer> UdpClientStack for WincClient<'_, X> {
             .ok_or(StackError::CloseFailed)?;
         self.callbacks.udp_sockets.remove(socket);
         // clear send addresses
-        self.callbacks.udp_socket_connect_addr[sock_id as usize - UDP_SOCK_OFFSET] = None;
+        self.callbacks.udp_socket_connect_addr[sock_id as usize - NUM_TCP_SOCKETS] = None;
         Ok(())
     }
 }

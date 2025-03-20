@@ -96,15 +96,17 @@ impl ConnectionState {
     }
 }
 
-pub(crate) const UDP_SOCK_OFFSET: usize = 7;
+pub(crate) const NUM_TCP_SOCKETS: usize = 7;
 pub(crate) const MAX_UDP_SOCKETS: usize = 4;
 
 pub(crate) struct SocketCallbacks {
     // #define TCP_SOCK_MAX										(7)
     // indexes 0-6
-    pub tcp_sockets: SockHolder<UDP_SOCK_OFFSET, 0>,
+    pub tcp_sockets: SockHolder<NUM_TCP_SOCKETS, 0>,
     // #define UDP_SOCK_MAX										4
-    pub udp_sockets: SockHolder<MAX_UDP_SOCKETS, UDP_SOCK_OFFSET>,
+    pub udp_sockets: SockHolder<MAX_UDP_SOCKETS, NUM_TCP_SOCKETS>,
+    pub listening_sockets: [bool; NUM_TCP_SOCKETS],
+    pub accept_backlog: [Option<(Socket, core::net::SocketAddrV4)>; NUM_TCP_SOCKETS],
     // Needed to keep track of connect() and recvfrom address
     pub udp_socket_connect_addr: [Option<core::net::SocketAddrV4>; MAX_UDP_SOCKETS],
     pub recv_buffer: [u8; SOCKET_BUFFER_MAX_LENGTH],
@@ -206,6 +208,8 @@ impl SocketCallbacks {
         Self {
             tcp_sockets: SockHolder::new(),
             udp_sockets: SockHolder::new(),
+            listening_sockets: [false; NUM_TCP_SOCKETS],
+            accept_backlog: [None; NUM_TCP_SOCKETS],
             udp_socket_connect_addr: [None; MAX_UDP_SOCKETS],
             recv_buffer: [0; SOCKET_BUFFER_MAX_LENGTH],
             dns_resolved_addr: None,
@@ -214,13 +218,13 @@ impl SocketCallbacks {
         }
     }
     pub fn resolve(&mut self, socket: Socket) -> Option<&mut (Socket, ClientSocketOp)> {
-        if socket.v < UDP_SOCK_OFFSET as u8 {
+        if socket.v < NUM_TCP_SOCKETS as u8 {
             debug!("resolving tcp: {:?}", socket.v);
             self.tcp_sockets.get(Handle(socket.v))
         } else {
             debug!("resolving udp: {:?}", socket.v);
             self.udp_sockets
-                .get(Handle(socket.v - UDP_SOCK_OFFSET as u8))
+                .get(Handle(socket.v - NUM_TCP_SOCKETS as u8))
         }
     }
 }
@@ -547,6 +551,7 @@ impl EventListener for SocketCallbacks {
             listen_socket,
             accepted_socket
         );
+        let was_listening = self.listening_sockets[listen_socket.v as usize];
 
         match self.resolve(listen_socket) {
             Some((s, ClientSocketOp::AsyncOp(
@@ -563,14 +568,37 @@ impl EventListener for SocketCallbacks {
                 *asyncstate = AsyncState::Done;
             }
             // Todo here: If it was in None state, move it to accept backlog
-            Some((_, op)) => error!(
-                "Socket was NOT in accept: address:{:?} port:{:?} listen_socket:{:?} accepted_socket:{:?} actual state:{:?}",
-                Ipv4AddrFormatWrapper::new(address.ip()),
-                address.port(),
-                listen_socket,
-                accepted_socket,
-                op
-            ),
+            Some((_, op)) => {
+                info!(
+                    "Socket was NOT in accept: address:{:?} port:{:?} listen_socket:{:?} accepted_socket:{:?} actual state:{:?} listening:{:?}",
+                    Ipv4AddrFormatWrapper::new(address.ip()),
+                    address.port(),
+                    listen_socket,
+                    accepted_socket,
+                    op,
+                    was_listening
+                );
+
+                // If the socket was listening, we will mark it as backlogged new socket
+                // and put it in tcp sock store
+                if was_listening {
+                    let accept_socket_id = accepted_socket.v;
+                    let handle = self.tcp_sockets.put(
+                        Handle(accept_socket_id ),accepted_socket.s
+                    );
+                    if handle.is_some() {
+                        if self.accept_backlog[accept_socket_id as usize].is_none() {
+                            self.accept_backlog[accept_socket_id as usize] = Some((accepted_socket, address));
+                        } else {
+                            error!("Failed to put socket {:?} in tcp sock store, collision in accept backlog ?", accept_socket_id);
+                        }
+                    } else {
+                        error!("Failed to put socket in tcp sock store, collision in tcp sock store ?");
+                    }
+                } else {
+                    error!("Socket was not listening on {:?}", listen_socket);
+                }
+            } ,
             None => error!(
                 "UNKNOWN socket on_accept: address:{:?} port:{:?} listen_socket:{:?} accepted_socket:{:?}",
                 Ipv4AddrFormatWrapper::new(address.ip()),

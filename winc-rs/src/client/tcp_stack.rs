@@ -7,10 +7,10 @@ use super::StackError;
 use super::WincClient;
 
 use super::Xfer;
-use crate::debug;
 use crate::manager::SocketError;
 use crate::stack::socket_callbacks::SendRequest;
 use crate::stack::socket_callbacks::{AsyncOp, AsyncState};
+use crate::{debug, info};
 use embedded_nal::nb;
 
 use crate::stack::sock_holder::SocketStore;
@@ -209,6 +209,9 @@ impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {
         debug!("Closing socket {:?}", socket);
         self.dispatch_events()?;
         let (sock, _op) = self.callbacks.tcp_sockets.get(socket).unwrap();
+        let socket_id = sock.v as usize;
+        self.callbacks.listening_sockets[socket_id] = false;
+        self.callbacks.accept_backlog[socket_id] = None;
         self.manager
             .send_close(*sock)
             .map_err(StackError::SendCloseFailed)?;
@@ -250,10 +253,11 @@ impl<X: Xfer> TcpFullStack for WincClient<'_, X> {
 
     fn listen(&mut self, socket: &mut Self::TcpSocket) -> Result<(), Self::Error> {
         let (sock, op) = self.callbacks.tcp_sockets.get(*socket).unwrap();
+        let sock_index = sock.v as usize;
         *op = ClientSocketOp::Listen(None);
         debug!("<> Sending TCP socket listen to {:?}", sock);
         self.manager.send_listen(*sock, Self::TCP_SOCKET_BACKLOG)?;
-        self.wait_with_timeout(Self::LISTEN_TIMEOUT, |client, _| {
+        let res = self.wait_with_timeout(Self::LISTEN_TIMEOUT, |client, _| {
             let (_, op) = client.callbacks.tcp_sockets.get(*socket).unwrap();
             let res = match op {
                 ClientSocketOp::Listen(Some(listen_result)) => match listen_result.error {
@@ -267,7 +271,11 @@ impl<X: Xfer> TcpFullStack for WincClient<'_, X> {
                 *op = ClientSocketOp::None;
             }
             res
-        })
+        });
+        if res.is_ok() {
+            self.callbacks.listening_sockets[sock_index] = true;
+        }
+        res
     }
 
     // This is a blocking call, return WouldBlock if no connection has been accepted
@@ -275,6 +283,14 @@ impl<X: Xfer> TcpFullStack for WincClient<'_, X> {
         &mut self,
         socket: &mut Handle,
     ) -> nb::Result<(Handle, core::net::SocketAddr), StackError> {
+        // Check if anything is backlogged
+        for backlog in self.callbacks.accept_backlog.iter_mut() {
+            if let Some((accepted_socket, addr)) = backlog.take() {
+                info!("Accepting backlogged socket {:?}", accepted_socket);
+                return Ok((Handle(accepted_socket.v), core::net::SocketAddr::V4(addr)));
+            }
+        }
+
         let res = Self::async_op(
             true,
             socket,
