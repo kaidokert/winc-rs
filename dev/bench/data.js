@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1742454280793,
+  "lastUpdate": 1742509599187,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -225,6 +225,40 @@ window.BENCHMARK_DATA = {
           {
             "name": "iperf3_client",
             "value": 55740,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "142439476+umarbinzahid@users.noreply.github.com",
+            "name": "Umar Bin Zahid",
+            "username": "umarbinzahid"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "a374ad3ce007666cabb4f2b94ffafdfd6b172cc0",
+          "message": "Added instructions in development notes to set bootloader fuse (#55)\n\nThanks - I'll fix the failing check separately.",
+          "timestamp": "2025-03-20T15:25:34-07:00",
+          "tree_id": "b78be8ac807edefed7855dbc1542a4bcfac00073",
+          "url": "https://github.com/kaidokert/winc-rs/commit/a374ad3ce007666cabb4f2b94ffafdfd6b172cc0"
+        },
+        "date": 1742509598368,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 40872,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 55472,
             "unit": "byte"
           }
         ]
