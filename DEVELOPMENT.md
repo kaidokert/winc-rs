@@ -19,7 +19,7 @@
     - Demos are currently not compatible with it, SAMD bootloader support is on TODO list
     - Use a JTAG programmer to work with the board instead (J-link or other)
     - JTAG connection directions are in [bootloader updating instructions](https://learn.adafruit.com/how-to-program-samd-bootloaders?view=all#feather-m0-m4-wiring)
-    - After/before erasing the default bootloader, make sure the NVM control fuse for the bootloader (BOOTPROT) is also set to '0x00'; otherwise, the flash will stay locked for new programs. See instructions on the [Adafruit blog](https://learn.adafruit.com/how-to-program-samd-bootloaders/programming-the-bootloader-with-atmel-studio#un-set-bootloader-protection-fuse-3017004).
+    - After/before erasing the default bootloader, make sure the NVM control fuse for the bootloader (BOOTPROT) is also set to '0x00'; otherwise, the board's flash will stay locked. See instructions on the [Adafruit blog](https://learn.adafruit.com/how-to-program-samd-bootloaders/programming-the-bootloader-with-atmel-studio#un-set-bootloader-protection-fuse-3017004).
   - Development setup:
     - Install [`probe-rs`](https://probe.rs/)
     - Verify JTAG connection with `probe-rs list`
