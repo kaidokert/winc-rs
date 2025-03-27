@@ -259,11 +259,7 @@ mod test {
 
     use super::*;
     use crate::client::{self, test_shared::*};
-    use crate::{
-        client::SocketCallbacks,
-        manager::{EventListener, SOCKET_BUFFER_MAX_LENGTH},
-        socket::Socket,
-    };
+    use crate::{client::SocketCallbacks, manager::EventListener, socket::Socket};
     use core::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4};
     use embedded_nal::{UdpClientStack, UdpFullStack};
 
@@ -327,7 +323,7 @@ mod test {
         let _ipv4 = Ipv4Addr::new(127, 0, 0, 1);
         let socket_addr_v4 = SocketAddrV4::new(_ipv4, 80);
         let mut recv_buff = [0u8; 32];
-        let test_data = "1234".as_bytes();
+        let test_data = "Hello, World".as_bytes();
 
         // Connect to address
         let socket_addr = SocketAddr::new(IpAddr::V4(_ipv4), 80);
@@ -427,41 +423,5 @@ mod test {
         } else {
             assert!(false, "Expected Some value, but it returned None");
         }
-    }
-
-    #[test]
-    fn test_udp_check_max_rcv_buffer() {
-        let mut client = make_test_client();
-        let mut udp_socket = client.socket().unwrap();
-        let _ipv4 = Ipv4Addr::new(127, 0, 0, 1);
-        let socket_addr_v4 = SocketAddrV4::new(_ipv4, 80);
-        let mut recv_buff = [0u8; 32];
-        let test_data = "Hello, World".as_bytes();
-
-        // Connect to address
-        let socket_addr = SocketAddr::new(IpAddr::V4(_ipv4), 80);
-        let result = client.connect(&mut udp_socket, socket_addr);
-        assert!(result.is_ok());
-
-        // set callback
-        let mut my_debug = |callbacks: &mut SocketCallbacks| {
-            callbacks.on_recvfrom(
-                Socket::new(7, 0),
-                socket_addr_v4,
-                &test_data[..test_data.len().min(SOCKET_BUFFER_MAX_LENGTH)],
-                SocketError::NoError,
-            );
-        };
-
-        client.debug_callback = Some(&mut my_debug);
-
-        // call recieve
-        let result = client.receive(&mut udp_socket, &mut recv_buff);
-
-        assert_eq!(result.err(), Some(nb::Error::WouldBlock));
-        assert_eq!(
-            &client.callbacks.recv_buffer,
-            &test_data[..SOCKET_BUFFER_MAX_LENGTH]
-        );
     }
 }
