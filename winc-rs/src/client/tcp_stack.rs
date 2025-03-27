@@ -336,8 +336,12 @@ impl<X: Xfer> TcpFullStack for WincClient<'_, X> {
 mod test {
 
     use super::*;
-    use crate::client::test_shared::*;
-    use crate::{client::SocketCallbacks, manager::EventListener, socket::Socket};
+    use crate::client::{self, test_shared::*};
+    use crate::{
+        client::SocketCallbacks,
+        manager::{EventListener, SOCKET_BUFFER_MAX_LENGTH},
+        socket::Socket,
+    };
     use core::net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4};
     use embedded_nal::{TcpClientStack, TcpFullStack};
     use test_log::test;
@@ -397,7 +401,10 @@ mod test {
         let packet = "Hello, World";
 
         let mut my_debug = |callbacks: &mut SocketCallbacks| {
-            callbacks.on_send(Socket::new(0, 0), packet.len() as i16);
+            callbacks.on_send(
+                Socket::new(0, 0),
+                client::WincClient::<'_, MockTransfer>::MAX_SEND_LENGTH as i16,
+            );
         };
 
         client.debug_callback = Some(&mut my_debug);
@@ -413,13 +420,13 @@ mod test {
         let mut tcp_socket = client.socket().unwrap();
         let socket_addr = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 80);
         let mut recv_buff = [0u8; 32];
-        let test_data = "Hello, World";
+        let test_data = "Hello, World".as_bytes();
 
         let mut my_debug = |callbacks: &mut SocketCallbacks| {
             callbacks.on_recv(
                 Socket::new(0, 0),
                 socket_addr,
-                test_data.as_bytes(),
+                &test_data[..SOCKET_BUFFER_MAX_LENGTH],
                 SocketError::NoError,
             );
         };
@@ -428,8 +435,11 @@ mod test {
 
         let result = nb::block!(client.receive(&mut tcp_socket, &mut recv_buff));
 
-        assert_eq!(result.ok(), Some(test_data.len()));
-        assert_eq!(&recv_buff[..test_data.len()], test_data.as_bytes());
+        assert_eq!(result.ok(), Some(SOCKET_BUFFER_MAX_LENGTH));
+        assert_eq!(
+            &recv_buff[..SOCKET_BUFFER_MAX_LENGTH],
+            &test_data[..SOCKET_BUFFER_MAX_LENGTH]
+        );
     }
 
     #[test]
@@ -489,5 +499,60 @@ mod test {
         let result = nb::block!(client.accept(&mut tcp_socket));
 
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_tcp_check_max_send_buffer() {
+        let mut client = make_test_client();
+        let mut tcp_socket = client.socket().unwrap();
+        let packet = "Hello, World";
+        let socket = Socket::new(0, 0);
+        let valid_len: i16 = client::WincClient::<'_, MockTransfer>::MAX_SEND_LENGTH as i16;
+
+        let mut my_debug = |callbacks: &mut SocketCallbacks| {
+            callbacks.on_send(socket, valid_len);
+        };
+
+        client.debug_callback = Some(&mut my_debug);
+
+        let result = client.send(&mut tcp_socket, packet.as_bytes());
+
+        assert_eq!(result, Err(nb::Error::WouldBlock));
+
+        if let Some((_, ClientSocketOp::AsyncOp(AsyncOp::Send(req, _), _))) =
+            client.callbacks.resolve(socket)
+        {
+            assert!((req.total_sent == valid_len) && (req.remaining == 0 as i16));
+        } else {
+            assert!(false, "Expected Some value, but it returned None");
+        }
+    }
+
+    #[test]
+    fn test_tcp_check_max_rcv_buffer() {
+        let mut client = make_test_client();
+        let mut tcp_socket = client.socket().unwrap();
+        let socket_addr = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 80);
+        let mut recv_buff = [0u8; 32];
+        let test_data = "Hello, World".as_bytes();
+
+        let mut my_debug = |callbacks: &mut SocketCallbacks| {
+            callbacks.on_recv(
+                Socket::new(0, 0),
+                socket_addr,
+                &test_data[..test_data.len().min(SOCKET_BUFFER_MAX_LENGTH)],
+                SocketError::NoError,
+            );
+        };
+
+        client.debug_callback = Some(&mut my_debug);
+
+        let result = client.receive(&mut tcp_socket, &mut recv_buff);
+
+        assert_eq!(result.err(), Some(nb::Error::WouldBlock));
+        assert_eq!(
+            &client.callbacks.recv_buffer,
+            &test_data[..SOCKET_BUFFER_MAX_LENGTH]
+        );
     }
 }

@@ -38,6 +38,10 @@ pub struct WincClient<'a, X: Xfer> {
 
 impl<X: Xfer> WincClient<'_, X> {
     // Max send frame length
+    #[cfg(not(test))]
+    const MAX_SEND_LENGTH: usize = 1400;
+
+    #[cfg(test)]
     const MAX_SEND_LENGTH: usize = 1400;
 
     const TCP_SOCKET_BACKLOG: u8 = 4;

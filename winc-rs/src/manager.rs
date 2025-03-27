@@ -81,7 +81,11 @@ const ETHERNET_HEADER_LENGTH: usize = 14;
 const ETHERNET_HEADER_OFFSET: usize = 34;
 const IP_PACKET_OFFSET: usize = ETHERNET_HEADER_LENGTH + ETHERNET_HEADER_OFFSET; // - HIF_HEADER_OFFSET;
 
+#[cfg(not(test))]
 pub const SOCKET_BUFFER_MAX_LENGTH: usize = 1400;
+
+#[cfg(test)]
+pub const SOCKET_BUFFER_MAX_LENGTH: usize = 4;
 
 const HIF_SEND_RETRIES: usize = 1000;
 
