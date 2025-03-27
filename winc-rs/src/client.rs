@@ -42,7 +42,7 @@ impl<X: Xfer> WincClient<'_, X> {
     const MAX_SEND_LENGTH: usize = 1400;
 
     #[cfg(test)]
-    const MAX_SEND_LENGTH: usize = 1400;
+    const MAX_SEND_LENGTH: usize = 4;
 
     const TCP_SOCKET_BACKLOG: u8 = 4;
     const LISTEN_TIMEOUT: u32 = 100;

@@ -253,3 +253,215 @@ impl<X: Xfer> UdpFullStack for WincClient<'_, X> {
         self.send_udp_inner(socket, addr, data)
     }
 }
+
+#[cfg(test)]
+mod test {
+
+    use super::*;
+    use crate::client::{self, test_shared::*};
+    use crate::{
+        client::SocketCallbacks,
+        manager::{EventListener, SOCKET_BUFFER_MAX_LENGTH},
+        socket::Socket,
+    };
+    use core::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4};
+    use embedded_nal::{UdpClientStack, UdpFullStack};
+
+    #[test]
+    fn test_udp_socket_open() {
+        let mut client = make_test_client();
+        let udp_socket = client.socket();
+        assert!(udp_socket.is_ok());
+    }
+
+    #[test]
+    fn test_udp_connect() {
+        let mut client = make_test_client();
+        let mut udp_socket = client.socket().unwrap();
+
+        let socket_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 80);
+
+        let result = client.connect(&mut udp_socket, socket_addr);
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_udp_connect_v6_failure() {
+        let mut client = make_test_client();
+        let mut udp_socket = client.socket().unwrap();
+
+        let socket_addr = SocketAddr::new(IpAddr::V6(Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 0)), 80);
+
+        let _ = client.connect(&mut udp_socket, socket_addr);
+    }
+
+    #[test]
+    fn test_udp_send() {
+        let mut client = make_test_client();
+        let mut udp_socket = client.socket().unwrap();
+        let packet = "Hello, World";
+
+        // Connect to address
+        let socket_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 80);
+        let result = client.connect(&mut udp_socket, socket_addr);
+        assert!(result.is_ok());
+
+        // set callback
+        let mut my_debug = |callbacks: &mut SocketCallbacks| {
+            callbacks.on_send_to(Socket::new(7, 0), packet.len() as i16);
+        };
+        client.debug_callback = Some(&mut my_debug);
+
+        // call send
+        let result = nb::block!(client.send(&mut udp_socket, packet.as_bytes()));
+
+        assert_eq!(result.ok(), Some(()));
+    }
+
+    #[test]
+    fn test_udp_receive() {
+        let mut client = make_test_client();
+        let mut udp_socket = client.socket().unwrap();
+        let _ipv4 = Ipv4Addr::new(127, 0, 0, 1);
+        let socket_addr_v4 = SocketAddrV4::new(_ipv4, 80);
+        let mut recv_buff = [0u8; 32];
+        let test_data = "1234".as_bytes();
+
+        // Connect to address
+        let socket_addr = SocketAddr::new(IpAddr::V4(_ipv4), 80);
+        let result = client.connect(&mut udp_socket, socket_addr);
+        assert!(result.is_ok());
+
+        // set callback
+        let mut my_debug = |callbacks: &mut SocketCallbacks| {
+            callbacks.on_recvfrom(
+                Socket::new(7, 0),
+                socket_addr_v4,
+                &test_data,
+                SocketError::NoError,
+            );
+        };
+
+        client.debug_callback = Some(&mut my_debug);
+
+        // call recieve
+        let result = nb::block!(client.receive(&mut udp_socket, &mut recv_buff));
+
+        assert_eq!(result.ok(), Some((test_data.len(), socket_addr)));
+        assert_eq!(&recv_buff[..test_data.len()], test_data);
+    }
+
+    #[test]
+    fn test_udp_close() {
+        let mut client = make_test_client();
+        let udp_socket = client.socket().unwrap();
+
+        let result = client.close(udp_socket);
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_udp_bind() {
+        let mut client = make_test_client();
+        let mut udp_socket = client.socket().unwrap();
+
+        let mut my_debug = |callbacks: &mut SocketCallbacks| {
+            callbacks.on_bind(Socket::new(7, 0), SocketError::NoError);
+        };
+
+        client.debug_callback = Some(&mut my_debug);
+
+        let result = client.bind(&mut udp_socket, 8080);
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_udp_send_to() {
+        let mut client = make_test_client();
+        let mut udp_socket = client.socket().unwrap();
+        let packet = "Hello, World";
+        let socket_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 80);
+
+        let mut my_debug = |callbacks: &mut SocketCallbacks| {
+            callbacks.on_send_to(Socket::new(7, 0), packet.len() as i16);
+        };
+        client.debug_callback = Some(&mut my_debug);
+
+        let result = nb::block!(client.send_to(&mut udp_socket, socket_addr, packet.as_bytes()));
+
+        assert_eq!(result.ok(), Some(()));
+    }
+
+    #[test]
+    fn test_udp_check_max_send_buffer() {
+        let mut client = make_test_client();
+        let mut udp_socket = client.socket().unwrap();
+        let packet = "Hello, World";
+        let socket = Socket::new(7, 0);
+        let valid_len: i16 = client::WincClient::<'_, MockTransfer>::MAX_SEND_LENGTH as i16;
+
+        // Connect to address
+        let socket_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 80);
+        let result = client.connect(&mut udp_socket, socket_addr);
+        assert!(result.is_ok());
+
+        // set callback
+        let mut my_debug = |callbacks: &mut SocketCallbacks| {
+            callbacks.on_send_to(socket, valid_len);
+        };
+        client.debug_callback = Some(&mut my_debug);
+
+        // call send
+        let result = client.send(&mut udp_socket, packet.as_bytes());
+
+        assert_eq!(result, Err(nb::Error::WouldBlock));
+
+        if let Some((_, ClientSocketOp::AsyncOp(AsyncOp::SendTo(req, _), _))) =
+            client.callbacks.resolve(socket)
+        {
+            assert!((req.total_sent == valid_len) && (req.remaining == 0 as i16));
+        } else {
+            assert!(false, "Expected Some value, but it returned None");
+        }
+    }
+
+    #[test]
+    fn test_udp_check_max_rcv_buffer() {
+        let mut client = make_test_client();
+        let mut udp_socket = client.socket().unwrap();
+        let _ipv4 = Ipv4Addr::new(127, 0, 0, 1);
+        let socket_addr_v4 = SocketAddrV4::new(_ipv4, 80);
+        let mut recv_buff = [0u8; 32];
+        let test_data = "Hello, World".as_bytes();
+
+        // Connect to address
+        let socket_addr = SocketAddr::new(IpAddr::V4(_ipv4), 80);
+        let result = client.connect(&mut udp_socket, socket_addr);
+        assert!(result.is_ok());
+
+        // set callback
+        let mut my_debug = |callbacks: &mut SocketCallbacks| {
+            callbacks.on_recvfrom(
+                Socket::new(7, 0),
+                socket_addr_v4,
+                &test_data[..test_data.len().min(SOCKET_BUFFER_MAX_LENGTH)],
+                SocketError::NoError,
+            );
+        };
+
+        client.debug_callback = Some(&mut my_debug);
+
+        // call recieve
+        let result = client.receive(&mut udp_socket, &mut recv_buff);
+
+        assert_eq!(result.err(), Some(nb::Error::WouldBlock));
+        assert_eq!(
+            &client.callbacks.recv_buffer,
+            &test_data[..SOCKET_BUFFER_MAX_LENGTH]
+        );
+    }
+}

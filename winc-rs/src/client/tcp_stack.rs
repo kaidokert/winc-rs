@@ -420,13 +420,13 @@ mod test {
         let mut tcp_socket = client.socket().unwrap();
         let socket_addr = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 80);
         let mut recv_buff = [0u8; 32];
-        let test_data = "Hello, World".as_bytes();
+        let test_data = "1234".as_bytes();
 
         let mut my_debug = |callbacks: &mut SocketCallbacks| {
             callbacks.on_recv(
                 Socket::new(0, 0),
                 socket_addr,
-                &test_data[..SOCKET_BUFFER_MAX_LENGTH],
+                &test_data,
                 SocketError::NoError,
             );
         };
@@ -435,11 +435,8 @@ mod test {
 
         let result = nb::block!(client.receive(&mut tcp_socket, &mut recv_buff));
 
-        assert_eq!(result.ok(), Some(SOCKET_BUFFER_MAX_LENGTH));
-        assert_eq!(
-            &recv_buff[..SOCKET_BUFFER_MAX_LENGTH],
-            &test_data[..SOCKET_BUFFER_MAX_LENGTH]
-        );
+        assert_eq!(result.ok(), Some(test_data.len()));
+        assert_eq!(&recv_buff[..test_data.len()], test_data);
     }
 
     #[test]
