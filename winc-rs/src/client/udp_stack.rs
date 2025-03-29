@@ -342,7 +342,7 @@ mod test {
 
         client.debug_callback = Some(&mut my_debug);
 
-        // call recieve
+        // call receive
         let result = nb::block!(client.receive(&mut udp_socket, &mut recv_buff));
 
         assert_eq!(result.ok(), Some((test_data.len(), socket_addr)));
