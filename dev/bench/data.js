@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1742529444098,
+  "lastUpdate": 1743222767507,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -293,6 +293,40 @@ window.BENCHMARK_DATA = {
           {
             "name": "iperf3_client",
             "value": 55740,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "142439476+umarbinzahid@users.noreply.github.com",
+            "name": "Umar Bin Zahid",
+            "username": "umarbinzahid"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "4eab72c3d9bb3c5736814d00c93f4ea7ad624159",
+          "message": "Added Unit Test Cases for `Client` Module (#56)\n\n* Added TCP test cases to check the maximum receive and send buffer sizes.\n\n* Added UDP test cases.\n\n* Removed the test cases to check for long packets in the stack receive function, as the underlying functionality does not support it yet.",
+          "timestamp": "2025-03-28T21:31:47-07:00",
+          "tree_id": "7d9d6b31e08829e5f1133e3e379b30c0f12ab326",
+          "url": "https://github.com/kaidokert/winc-rs/commit/4eab72c3d9bb3c5736814d00c93f4ea7ad624159"
+        },
+        "date": 1743222766663,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 41292,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 55788,
             "unit": "byte"
           }
         ]
