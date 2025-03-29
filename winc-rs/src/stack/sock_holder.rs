@@ -100,7 +100,7 @@ mod tests {
 
     #[test]
     fn test_socket_placeholder() {
-        // Verify new socket is created on requested entry
+        // Verify a new socket is created for the requested entry
         let mut socks = SockHolder::<7, 0>::default();
         let opt_hdl = socks.put(Handle(1), 13);
 
@@ -108,14 +108,14 @@ mod tests {
         assert_eq!(socks.get(Handle(0)), None);
         assert_eq!(socks.get(Handle(2)), None);
 
-        // Verify socket index is already taken
+        // Verify if the socket index is already taken
         let mut socks = SockHolder::<7, 0>::default();
         let handle = socks.add(13);
         let opt_hdl = socks.put(handle.unwrap(), 13);
 
         assert_eq!(opt_hdl, None);
 
-        // Verify no space is available for new entry
+        // Verify no space is available for new entries
         let mut socks = SockHolder::<1, 0>::default();
         let _handle = socks.add(13);
         let opt_hdl = socks.put(Handle(1), 13);
