@@ -97,4 +97,29 @@ mod tests {
         assert_eq!(udp_sock.0, 0);
         assert_eq!(udp_sockets.get(udp_sock).unwrap().0.v, 7);
     }
+
+    #[test]
+    fn test_socket_placeholder() {
+        // Verify new socket is created on requested entry
+        let mut socks = SockHolder::<7, 0>::default();
+        let opt_hdl = socks.put(Handle(1), 13);
+
+        assert_eq!(opt_hdl.unwrap().0, 1);
+        assert_eq!(socks.get(Handle(0)), None);
+        assert_eq!(socks.get(Handle(2)), None);
+
+        // Verify socket index is already taken
+        let mut socks = SockHolder::<7, 0>::default();
+        let handle = socks.add(13);
+        let opt_hdl = socks.put(handle.unwrap(), 13);
+
+        assert_eq!(opt_hdl, None);
+
+        // Verify no space is available for new entry
+        let mut socks = SockHolder::<1, 0>::default();
+        let _handle = socks.add(13);
+        let opt_hdl = socks.put(Handle(1), 13);
+
+        assert_eq!(opt_hdl, None);
+    }
 }
