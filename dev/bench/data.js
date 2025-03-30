@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1743375005136,
+  "lastUpdate": 1743377668890,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -361,6 +361,40 @@ window.BENCHMARK_DATA = {
           {
             "name": "iperf3_client",
             "value": 55788,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "kaidokert@gmail.com",
+            "name": "Kaido Kert",
+            "username": "kaidokert"
+          },
+          "committer": {
+            "email": "kaidokert@gmail.com",
+            "name": "Kaido Kert",
+            "username": "kaidokert"
+          },
+          "distinct": true,
+          "id": "a24959b13e09dd9f38add60a2d0a3aafc4aafb5b",
+          "message": "Irq and sleep-wait debugging\nDump debuginfo\nIRQ investigation",
+          "timestamp": "2025-03-30T16:32:51-07:00",
+          "tree_id": "4df860895f6a60f886aa17a48e8cb319aa0c8d44",
+          "url": "https://github.com/kaidokert/winc-rs/commit/a24959b13e09dd9f38add60a2d0a3aafc4aafb5b"
+        },
+        "date": 1743377668559,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 41600,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 55976,
             "unit": "byte"
           }
         ]
