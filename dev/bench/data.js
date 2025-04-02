@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1743378878101,
+  "lastUpdate": 1743560289329,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -463,6 +463,40 @@ window.BENCHMARK_DATA = {
           {
             "name": "iperf3_client",
             "value": 55976,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "142439476+umarbinzahid@users.noreply.github.com",
+            "name": "Umar Bin Zahid",
+            "username": "umarbinzahid"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "d2d15518d0519846d57855deb30dd56aee29c7d5",
+          "message": "Added test coverage for `sock_holder.rs` (#57)\n\n* Improved test coverage for stack module.\n\n* comments improved\n\n* Divided into seperate test cases.",
+          "timestamp": "2025-04-01T19:17:03-07:00",
+          "tree_id": "3d1e6e7c80d5645350720b167634cda2c984458e",
+          "url": "https://github.com/kaidokert/winc-rs/commit/d2d15518d0519846d57855deb30dd56aee29c7d5"
+        },
+        "date": 1743560289072,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 41288,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 55744,
             "unit": "byte"
           }
         ]
