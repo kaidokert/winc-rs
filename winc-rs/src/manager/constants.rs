@@ -147,7 +147,7 @@ pub enum WifiRequest {
     GetSysTime = 0x1A,    // M2M_WIFI_REQ_GET_SYS_TIME + no params
     SendEthernetPacket = 0x1C, // M2M_WIFI_REQ_SEND_ETHERNET_PACKET + tstrM2MWifiTxPacketInfo + data
     SetMacMcast = 0x1E,   // M2M_WIFI_REQ_SET_MAC_MCAST + mac bytes + uint8 enable/disable
-    GetPrng = 0x1F,       // M2M_WIFI_REQ_GET_PRNG + tstrPrng
+    GetPrng = 0x1F | 0x80, // M2M_WIFI_REQ_GET_PRNG + M2M_REQ_DATA_PKT
     ScanSsidList = 0x21,  // M2M_WIFI_REQ_SCAN_SSID_LIST + tstrM2MScan + SSID list (count + strings)
     SetGains = 0x22,      // M2M_WIFI_REQ_SET_GAINS + tstrM2mWifiGainsParams
     PassiveScan = 0x23,   // M2M_WIFI_REQ_PASSIVE_SCAN + tstrM2MScan
