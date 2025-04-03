@@ -741,6 +741,18 @@ impl<X: Xfer> Manager<X> {
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
     }
 
+    pub fn send_prng(&mut self, data: &[u8]) -> Result<(), Error> {
+        self.write_hif_header(
+            HifGroup::Wifi(WifiResponse::GetPrng),
+            WifiRequest::GetPrng,
+            &((data.len()).to_le_bytes()),
+            false,
+        )?;
+        self.chip
+            .dma_block_write(self.not_a_reg_ctrl_4_dma + HIF_HEADER_OFFSET as u32, data)?;
+        self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
+    }
+
     pub fn dispatch_events_new<T: EventListener>(&mut self, listener: &mut T) -> Result<(), Error> {
         let res = self.is_interrupt_pending()?;
         if !res.0 {
