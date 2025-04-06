@@ -116,6 +116,8 @@ pub(crate) struct SocketCallbacks {
     pub dns_resolved_addr: Option<Option<core::net::Ipv4Addr>>,
     pub connection_state: ConnectionState,
     pub state: WifiModuleState,
+    // for prng
+    pub is_prng_event_rcvd: Option<Option<bool>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -216,6 +218,7 @@ impl SocketCallbacks {
             dns_resolved_addr: None,
             connection_state: ConnectionState::new(),
             state: WifiModuleState::Reset,
+            is_prng_event_rcvd: None,
         }
     }
     pub fn resolve(&mut self, socket: Socket) -> Option<&mut (Socket, ClientSocketOp)> {
@@ -611,5 +614,10 @@ impl EventListener for SocketCallbacks {
                 accepted_socket
             ),
         }
+    }
+
+    fn on_prng(&mut self, data: &[u8]) {
+        info!("Data Received: {:?}", data);
+        self.is_prng_event_rcvd = Some(Some(true));
     }
 }
