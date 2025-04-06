@@ -127,6 +127,7 @@ pub trait EventListener {
     fn on_send(&mut self, socket: Socket, len: i16);
     fn on_recv(&mut self, socket: Socket, address: SocketAddrV4, data: &[u8], err: SocketError);
     fn on_recvfrom(&mut self, socket: Socket, address: SocketAddrV4, data: &[u8], err: SocketError);
+    fn on_prng(&mut self, data: &[u8]);
 }
 
 pub struct Manager<X: Xfer> {
@@ -277,6 +278,7 @@ impl<X: Xfer> Manager<X> {
                     return Err(Error::FirmwareStart);
                 }
                 const FINISH_INIT: u32 = 0x02532636;
+                self.delay_us(2 * 1000); // 2 msec
                 let reg = self.chip.single_reg_read(Regs::NmiState.into())?;
                 if reg == FINISH_INIT {
                     state.stage = BootStage::FinishFirmwareBoot;
@@ -741,15 +743,16 @@ impl<X: Xfer> Manager<X> {
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
     }
 
-    pub fn send_prng(&mut self, data: &[u8]) -> Result<(), Error> {
+    pub fn send_prng(&mut self, data_addr: u32, data_size: u16) -> Result<(), Error> {
+        let req = write_prng_req(data_addr, data_size)?;
         self.write_hif_header(
             HifGroup::Wifi(WifiResponse::GetPrng),
             WifiRequest::GetPrng,
-            &((data.len()).to_le_bytes()),
+            &req,
             false,
         )?;
         self.chip
-            .dma_block_write(self.not_a_reg_ctrl_4_dma + HIF_HEADER_OFFSET as u32, data)?;
+            .dma_block_write(self.not_a_reg_ctrl_4_dma + HIF_HEADER_OFFSET as u32, &req)?;
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
     }
 
@@ -824,7 +827,9 @@ impl<X: Xfer> Manager<X> {
                     unimplemented!("Provisioning not yet supported")
                 }
                 WifiResponse::GetPrng => {
-                    unimplemented!("PRNG request not yet supported")
+                    let mut buffer = [0; 16];
+                    self.read_block(address, &mut buffer)?;
+                    listener.on_prng(&buffer);
                 }
                 WifiResponse::Unhandled
                 | WifiResponse::Wps

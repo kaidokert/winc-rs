@@ -295,7 +295,7 @@ impl<X: Xfer> WincClient<'_, X> {
         Err(nb::Error::WouldBlock)
     }
 
-    /// Generate Random Number
+    /// Get random bytes using the pseudo random number generator (PRNG).
     ///
     /// # Arguments
     ///
@@ -307,10 +307,25 @@ impl<X: Xfer> WincClient<'_, X> {
     ///
     /// * `()` - If random bytes are generated.
     /// * `StackError` - An error occurred while generating the random bytes
-    pub fn send_get_random_bytes(&mut self, data: &[u8]) -> Result<(), StackError> {
-        self.manager
-            .send_prng(data)
-            .map_err(StackError::WincWifiFail)
+    pub fn get_random_bytes(&mut self, data: &[u8]) -> nb::Result<(), StackError> {
+        match &mut self.callbacks.is_prng_event_rcvd {
+            None => {
+                info!("Sending prng request");
+                info!("Memory Address of data: {:#x}", &data as *const _ as usize);
+                self.manager
+                    .send_prng(&data as *const _ as u32, data.len() as u16)
+                    .map_err(StackError::WincWifiFail)?;
+                self.callbacks.is_prng_event_rcvd = Some(None);
+            }
+            Some(_result) => {
+                if let Some(_result) = _result.take() {
+                    self.callbacks.is_prng_event_rcvd = None;
+                    return Ok(());
+                }
+            }
+        }
+        self.dispatch_events()?;
+        Err(nb::Error::WouldBlock)
     }
 }
 
