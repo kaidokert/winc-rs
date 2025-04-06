@@ -183,6 +183,14 @@ pub fn write_setsockopt_req(
     Ok(result)
 }
 
+pub fn write_prng_req(data_addr: u32, data_size: u16) -> Result<[u8; 8], BufferOverflow> {
+    let mut req = [0x00u8; 8];
+    let mut slice = req.as_mut_slice();
+    slice.write(&data_addr.to_le_bytes())?;
+    slice.write(&data_size.to_le_bytes())?;
+    Ok(req)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
