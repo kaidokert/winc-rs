@@ -174,7 +174,7 @@ impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {
                     .map_err(StackError::ReceiveFailed)?;
                 Ok(ClientSocketOp::AsyncOp(
                     AsyncOp::Recv(None),
-                    AsyncState::Pending(None),
+                    AsyncState::Pending(Some(Self::RECV_TIMEOUT)),
                 ))
             },
             |_, _, recv_buffer, asyncop| {
@@ -188,9 +188,7 @@ impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {
                         }
                         SocketError::Timeout => {
                             debug!("Timeout on receive");
-                            // Timeouts just get turned into a further wait
-                            // Todo: Maybe re-send the command ?
-                            Err(StackError::ContinueOperation)
+                            Err(StackError::RecvTimeout)
                         }
                         _ => {
                             debug!("Error in receive: {:?}", recv_result.error);
@@ -519,5 +517,43 @@ mod test {
         } else {
             assert!(false, "Expected Some value, but it returned None");
         }
+    }
+
+    #[test]
+    fn test_tcp_receive_check_socket_timeout() {
+        let mut client = make_test_client();
+        let mut tcp_socket = client.socket().unwrap();
+        let mut recv_buff = [0u8; 32];
+
+        let result = nb::block!(client.receive(&mut tcp_socket, &mut recv_buff));
+
+        assert_eq!(
+            result.err(),
+            Some(StackError::OpFailed(SocketError::Timeout))
+        );
+    }
+
+    #[test]
+    fn test_tcp_check_stack_timeout() {
+        let mut client = make_test_client();
+        let mut tcp_socket = client.socket().unwrap();
+        let socket_addr = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 80);
+        let mut recv_buff = [0u8; 32];
+        let test_data = "Hello, World";
+
+        let mut my_debug = |callbacks: &mut SocketCallbacks| {
+            callbacks.on_recv(
+                Socket::new(0, 0),
+                socket_addr,
+                test_data.as_bytes(),
+                SocketError::Timeout,
+            );
+        };
+
+        client.debug_callback = Some(&mut my_debug);
+
+        let result = nb::block!(client.receive(&mut tcp_socket, &mut recv_buff));
+
+        assert_eq!(result.err(), Some(StackError::RecvTimeout));
     }
 }

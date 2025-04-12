@@ -159,7 +159,7 @@ impl<X: Xfer> UdpClientStack for WincClient<'_, X> {
                     .map_err(StackError::ReceiveFailed)?;
                 Ok(ClientSocketOp::AsyncOp(
                     AsyncOp::RecvFrom(None),
-                    AsyncState::Pending(None),
+                    AsyncState::Pending(Some(Self::RECV_TIMEOUT)),
                 ))
             },
             |_, _, recv_buffer, asyncop| {
@@ -176,7 +176,7 @@ impl<X: Xfer> UdpClientStack for WincClient<'_, X> {
                         }
                         SocketError::Timeout => {
                             debug!("Timeout on receive");
-                            Err(StackError::ContinueOperation)
+                            Err(StackError::RecvTimeout)
                         }
                         _ => {
                             debug!("Error in receive: {:?}", recv_result.error);
@@ -423,5 +423,58 @@ mod test {
         } else {
             assert!(false, "Expected Some value, but it returned None");
         }
+    }
+
+    #[test]
+    fn test_udp_receive_check_socket_timeout() {
+        let mut client = make_test_client();
+        let mut udp_socket = client.socket().unwrap();
+        let _ipv4 = Ipv4Addr::new(127, 0, 0, 1);
+        let mut recv_buff = [0u8; 32];
+
+        // Connect to address
+        let socket_addr = SocketAddr::new(IpAddr::V4(_ipv4), 80);
+        let result = client.connect(&mut udp_socket, socket_addr);
+        assert!(result.is_ok());
+
+        // call receive
+        let result = nb::block!(client.receive(&mut udp_socket, &mut recv_buff));
+
+        assert_eq!(
+            result.err(),
+            Some(StackError::OpFailed(SocketError::Timeout))
+        );
+    }
+
+    #[test]
+    fn test_udp_receive_check_stack_timeout() {
+        let mut client = make_test_client();
+        let mut udp_socket = client.socket().unwrap();
+        let _ipv4 = Ipv4Addr::new(127, 0, 0, 1);
+        let socket_addr_v4 = SocketAddrV4::new(_ipv4, 80);
+        let mut recv_buff = [0u8; 32];
+        let test_data = "Hello, World".as_bytes();
+
+        // Connect to address
+        let socket_addr = SocketAddr::new(IpAddr::V4(_ipv4), 80);
+        let result = client.connect(&mut udp_socket, socket_addr);
+        assert!(result.is_ok());
+
+        // set callback
+        let mut my_debug = |callbacks: &mut SocketCallbacks| {
+            callbacks.on_recvfrom(
+                Socket::new(7, 0),
+                socket_addr_v4,
+                &test_data,
+                SocketError::Timeout,
+            );
+        };
+
+        client.debug_callback = Some(&mut my_debug);
+
+        // call receive
+        let result = nb::block!(client.receive(&mut udp_socket, &mut recv_buff));
+
+        assert_eq!(result.err(), Some(StackError::RecvTimeout));
     }
 }
