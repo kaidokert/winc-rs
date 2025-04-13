@@ -520,7 +520,7 @@ mod test {
     }
 
     #[test]
-    fn test_tcp_receive_check_socket_timeout() {
+    fn test_tcp_check_receive_socket_timeout() {
         let mut client = make_test_client();
         let mut tcp_socket = client.socket().unwrap();
         let mut recv_buff = [0u8; 32];
@@ -534,7 +534,7 @@ mod test {
     }
 
     #[test]
-    fn test_tcp_check_stack_timeout() {
+    fn test_tcp_check_receive_timeout() {
         let mut client = make_test_client();
         let mut tcp_socket = client.socket().unwrap();
         let socket_addr = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 80);

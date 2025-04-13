@@ -426,7 +426,7 @@ mod test {
     }
 
     #[test]
-    fn test_udp_receive_check_socket_timeout() {
+    fn test_udp_check_receive_socket_timeout() {
         let mut client = make_test_client();
         let mut udp_socket = client.socket().unwrap();
         let _ipv4 = Ipv4Addr::new(127, 0, 0, 1);
@@ -447,7 +447,7 @@ mod test {
     }
 
     #[test]
-    fn test_udp_receive_check_stack_timeout() {
+    fn test_udp_check_receive_timeout() {
         let mut client = make_test_client();
         let mut udp_socket = client.socket().unwrap();
         let _ipv4 = Ipv4Addr::new(127, 0, 0, 1);
