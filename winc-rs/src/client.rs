@@ -58,7 +58,7 @@ impl<X: Xfer> WincClient<'_, X> {
     /// # Arguments
     ///
     /// * `transfer` - The transfer implementation to use for client,
-    ///             typically a struct wrapping SPI communication.
+    ///   typically a struct wrapping SPI communication.
     ///
     ///  See [Xfer] for details how to implement a transfer struct.
     pub fn new(transfer: X) -> Self {
