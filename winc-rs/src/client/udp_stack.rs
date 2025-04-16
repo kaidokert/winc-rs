@@ -162,7 +162,7 @@ impl<X: Xfer> UdpClientStack for WincClient<'_, X> {
                     AsyncState::Pending(Some(Self::RECV_TIMEOUT)),
                 ))
             },
-            |_, _, recv_buffer, asyncop| {
+            |sock, manager, recv_buffer, asyncop| {
                 if let AsyncOp::RecvFrom(Some(recv_result)) = asyncop {
                     match recv_result.error {
                         SocketError::NoError => {
@@ -175,8 +175,11 @@ impl<X: Xfer> UdpClientStack for WincClient<'_, X> {
                             ))
                         }
                         SocketError::Timeout => {
-                            debug!("Timeout on receive");
-                            Err(StackError::RecvTimeout)
+                            debug!("Timeout on receive, re-sending receive command");
+                            manager
+                                .send_recvfrom(*sock, Self::RECV_TIMEOUT)
+                                .map_err(StackError::ReceiveFailed)?;
+                            Err(StackError::ContinueOperation)
                         }
                         _ => {
                             debug!("Error in receive: {:?}", recv_result.error);
