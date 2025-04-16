@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1744771611924,
+  "lastUpdate": 1744771809190,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -725,6 +725,40 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/kaidokert/winc-rs/commit/5d6a0ee50471e40caa1d214f279a0acc1ef373ef"
         },
         "date": 1744771611613,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 41100,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 55648,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "kaidokert@gmail.com",
+            "name": "Kaido Kert",
+            "username": "kaidokert"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "a08856a9a57656a504845ecc501bc687c1732f58",
+          "message": "Implement infinite receive loops correctly (#67)\n\nFixes #65 and turns all blocking receive loops infinite",
+          "timestamp": "2025-04-15T19:49:10-07:00",
+          "tree_id": "6fea54922ebada920661f221951ab2591c12d5b6",
+          "url": "https://github.com/kaidokert/winc-rs/commit/a08856a9a57656a504845ecc501bc687c1732f58"
+        },
+        "date": 1744771808855,
         "tool": "customSmallerIsBetter",
         "benches": [
           {
