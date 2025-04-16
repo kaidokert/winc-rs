@@ -177,7 +177,7 @@ impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {
                     AsyncState::Pending(None),
                 ))
             },
-            |_, _, recv_buffer, asyncop| {
+            |sock, manager, recv_buffer, asyncop| {
                 if let AsyncOp::Recv(Some(recv_result)) = asyncop {
                     match recv_result.error {
                         SocketError::NoError => {
@@ -187,9 +187,11 @@ impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {
                             Ok(recv_result.recv_len)
                         }
                         SocketError::Timeout => {
-                            debug!("Timeout on receive");
-                            // Timeouts just get turned into a further wait
-                            // Todo: Maybe re-send the command ?
+                            debug!("Timeout on receive, re-sending receive command");
+                            // Re-send the receive command with the same timeout
+                            manager
+                                .send_recv(*sock, Self::RECV_TIMEOUT)
+                                .map_err(StackError::ReceiveFailed)?;
                             Err(StackError::ContinueOperation)
                         }
                         _ => {
