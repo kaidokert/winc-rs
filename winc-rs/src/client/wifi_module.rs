@@ -13,6 +13,8 @@ use crate::info;
 
 // 1 minute max, if no other delays are added
 const AP_CONNECT_TIMEOUT_MILLISECONDS: u32 = 60_000;
+// 5 seconds max, assuming no additional delays
+const AP_DISCONNECT_TIMEOUT_MILLISECONDS: u32 = 5_000;
 
 impl<X: Xfer> WincClient<'_, X> {
     /// Call this periodically to receive network events
@@ -66,10 +68,10 @@ impl<X: Xfer> WincClient<'_, X> {
         connect_fn: impl FnOnce(&mut Self) -> Result<(), crate::errors::Error>,
     ) -> nb::Result<(), StackError> {
         match self.callbacks.state {
-            WifiModuleState::Reset | WifiModuleState::Starting => {
+            WifiModuleState::Reset | WifiModuleState::Starting | WifiModuleState::Disconnecting => {
                 Err(nb::Error::Other(StackError::InvalidState))
             }
-            WifiModuleState::Started => {
+            WifiModuleState::Started | WifiModuleState::Disconnected => {
                 self.operation_countdown = AP_CONNECT_TIMEOUT_MILLISECONDS;
                 self.callbacks.state = WifiModuleState::ConnectingToAp;
                 connect_fn(self).map_err(|x| nb::Error::Other(StackError::WincWifiFail(x)))?;
@@ -294,6 +296,41 @@ impl<X: Xfer> WincClient<'_, X> {
         self.dispatch_events()?;
         Err(nb::Error::WouldBlock)
     }
+
+    /// Internal function for handling the disconnect request and response.
+    fn disconnect_ap_impl(
+        &mut self,
+        disconnect_fn: impl FnOnce(&mut Self) -> Result<(), crate::errors::Error>,
+    ) -> nb::Result<(), StackError> {
+        match &mut self.callbacks.state {
+            WifiModuleState::ConnectedToAp => {
+                self.operation_countdown = AP_DISCONNECT_TIMEOUT_MILLISECONDS;
+                self.callbacks.state = WifiModuleState::Disconnecting;
+                disconnect_fn(self).map_err(|x| nb::Error::Other(StackError::WincWifiFail(x)))?;
+                Err(nb::Error::WouldBlock)
+            }
+            WifiModuleState::Disconnecting => {
+                self.delay_us(self.poll_loop_delay_us); // absolute minimum delay to make timeout possible
+                self.dispatch_events()?;
+                self.operation_countdown -= 1;
+                if self.operation_countdown == 0 {
+                    return Err(nb::Error::Other(StackError::GeneralTimeout));
+                }
+                Err(nb::Error::WouldBlock)
+            }
+            _ => {
+                info!("disconnect_ap: got disconnected from AP");
+                Ok(())
+            }
+        }
+    }
+
+    /// Sends a disconnect request to the currently connected AP.
+    ///
+    /// This command is only applicable in station mode.
+    pub fn disconnect_ap(&mut self) -> nb::Result<(), StackError> {
+        self.disconnect_ap_impl(|inner_self: &mut Self| inner_self.manager.send_disconnect())
+    }
 }
 
 #[cfg(test)]
@@ -461,5 +498,41 @@ mod tests {
         let result = nb::block!(client.send_ping(Ipv4Addr::new(192, 168, 1, 1), 64, 1));
         assert!(result.is_ok());
         assert_eq!(result.unwrap().rtt, 42);
+    }
+
+    #[test]
+    fn test_disconnect_success() {
+        let mut client = make_test_client();
+        client.callbacks.state = WifiModuleState::ConnectedToAp;
+
+        let mut my_debug = |callbacks: &mut SocketCallbacks| {
+            callbacks.on_connstate_changed(WifiConnState::Disconnected, WifiConnError::Unhandled);
+        };
+
+        client.debug_callback = Some(&mut my_debug);
+
+        let result = nb::block!(client.disconnect_ap());
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_disconnect_timeout() {
+        let mut client = make_test_client();
+        client.callbacks.state = WifiModuleState::ConnectedToAp;
+
+        let result = nb::block!(client.disconnect_ap());
+
+        assert_eq!(result.err(), Some(StackError::GeneralTimeout));
+    }
+
+    #[test]
+    fn test_disconnect_while_not_connected() {
+        let mut client = make_test_client();
+        client.callbacks.state = WifiModuleState::Starting;
+
+        let result = nb::block!(client.disconnect_ap());
+
+        assert!(result.is_ok());
     }
 }
