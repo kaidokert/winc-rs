@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1744771809190,
+  "lastUpdate": 1745003776226,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -769,6 +769,40 @@ window.BENCHMARK_DATA = {
           {
             "name": "iperf3_client",
             "value": 55648,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "142439476+umarbinzahid@users.noreply.github.com",
+            "name": "Umar Bin Zahid",
+            "username": "umarbinzahid"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "f38a28d57a0e7af42c2d1738bae654413e6f3615",
+          "message": "Added support for disconnect command (#69)\n\n* Added support for disconnect command",
+          "timestamp": "2025-04-18T12:15:12-07:00",
+          "tree_id": "a38af995317445d44c866704209e56fceba00ebb",
+          "url": "https://github.com/kaidokert/winc-rs/commit/f38a28d57a0e7af42c2d1738bae654413e6f3615"
+        },
+        "date": 1745003775403,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 41116,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 55668,
             "unit": "byte"
           }
         ]
