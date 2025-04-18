@@ -13,6 +13,8 @@ use crate::info;
 
 // 1 minute max, if no other delays are added
 const AP_CONNECT_TIMEOUT_MILLISECONDS: u32 = 60_000;
+// 5 seconds max, assuming no additional delays
+const AP_DISCONNECT_TIMEOUT_MILLISECONDS: u32 = 5_000;
 
 impl<X: Xfer> WincClient<'_, X> {
     /// Call this periodically to receive network events
@@ -48,7 +50,7 @@ impl<X: Xfer> WincClient<'_, X> {
                         .boot_the_chip(state)
                         .map_err(|x| nb::Error::Other(StackError::WincWifiFail(x)))?;
                     if result {
-                        self.callbacks.state = WifiModuleState::Started;
+                        self.callbacks.state = WifiModuleState::Unconnected;
                         self.boot = None;
                         return Ok(());
                     }
@@ -66,10 +68,10 @@ impl<X: Xfer> WincClient<'_, X> {
         connect_fn: impl FnOnce(&mut Self) -> Result<(), crate::errors::Error>,
     ) -> nb::Result<(), StackError> {
         match self.callbacks.state {
-            WifiModuleState::Reset | WifiModuleState::Starting => {
+            WifiModuleState::Reset | WifiModuleState::Starting | WifiModuleState::Disconnecting => {
                 Err(nb::Error::Other(StackError::InvalidState))
             }
-            WifiModuleState::Started => {
+            WifiModuleState::Unconnected => {
                 self.operation_countdown = AP_CONNECT_TIMEOUT_MILLISECONDS;
                 self.callbacks.state = WifiModuleState::ConnectingToAp;
                 connect_fn(self).map_err(|x| nb::Error::Other(StackError::WincWifiFail(x)))?;
@@ -294,6 +296,35 @@ impl<X: Xfer> WincClient<'_, X> {
         self.dispatch_events()?;
         Err(nb::Error::WouldBlock)
     }
+
+    /// Sends a disconnect request to the currently connected AP.
+    ///
+    /// This command is only applicable in station mode.
+    pub fn disconnect_ap(&mut self) -> nb::Result<(), StackError> {
+        match &mut self.callbacks.state {
+            WifiModuleState::ConnectedToAp => {
+                self.operation_countdown = AP_DISCONNECT_TIMEOUT_MILLISECONDS;
+                self.callbacks.state = WifiModuleState::Disconnecting;
+                self.manager
+                    .send_disconnect()
+                    .map_err(|x| nb::Error::Other(StackError::WincWifiFail(x)))?;
+                Err(nb::Error::WouldBlock)
+            }
+            WifiModuleState::Disconnecting => {
+                self.delay_us(self.poll_loop_delay_us); // absolute minimum delay to make timeout possible
+                self.dispatch_events()?;
+                self.operation_countdown -= 1;
+                if self.operation_countdown == 0 {
+                    return Err(nb::Error::Other(StackError::GeneralTimeout));
+                }
+                Err(nb::Error::WouldBlock)
+            }
+            _ => {
+                info!("disconnect_ap: got disconnected from AP");
+                Ok(())
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -332,14 +363,14 @@ mod tests {
     #[test]
     fn test_connect_to_saved_ap_timeout() {
         let mut client = make_test_client();
-        client.callbacks.state = WifiModuleState::Started;
+        client.callbacks.state = WifiModuleState::Unconnected;
         let result = nb::block!(client.connect_to_saved_ap());
         assert_eq!(result, Err(StackError::GeneralTimeout));
     }
     #[test]
     fn test_connect_to_saved_ap_success() {
         let mut client = make_test_client();
-        client.callbacks.state = WifiModuleState::Started;
+        client.callbacks.state = WifiModuleState::Unconnected;
         let mut my_debug = |callbacks: &mut SocketCallbacks| {
             callbacks.on_connstate_changed(WifiConnState::Connected, WifiConnError::Unhandled);
         };
@@ -350,7 +381,7 @@ mod tests {
     #[test]
     fn test_connect_to_saved_ap_invalid_credentials() {
         let mut client = make_test_client();
-        client.callbacks.state = WifiModuleState::Started;
+        client.callbacks.state = WifiModuleState::Unconnected;
         let mut my_debug = |callbacks: &mut SocketCallbacks| {
             callbacks.on_connstate_changed(WifiConnState::Disconnected, WifiConnError::AuthFail);
         };
@@ -365,7 +396,7 @@ mod tests {
     #[test]
     fn test_connect_to_ap_success() {
         let mut client = make_test_client();
-        client.callbacks.state = WifiModuleState::Started;
+        client.callbacks.state = WifiModuleState::Unconnected;
         let mut my_debug = |callbacks: &mut SocketCallbacks| {
             callbacks.on_connstate_changed(WifiConnState::Connected, WifiConnError::Unhandled);
         };
@@ -377,7 +408,7 @@ mod tests {
     #[test]
     fn test_scan_ok() {
         let mut client = make_test_client();
-        client.callbacks.state = WifiModuleState::Started;
+        client.callbacks.state = WifiModuleState::Unconnected;
         let mut my_debug = |callbacks: &mut SocketCallbacks| {
             callbacks.on_scan_done(5, WifiConnError::Unhandled);
         };
@@ -389,7 +420,7 @@ mod tests {
     #[test]
     fn test_get_scan_result_ok() {
         let mut client = make_test_client();
-        client.callbacks.state = WifiModuleState::Started;
+        client.callbacks.state = WifiModuleState::Unconnected;
         let mut my_debug = |callbacks: &mut SocketCallbacks| {
             callbacks.on_scan_result(ScanResult {
                 index: 0,
@@ -408,7 +439,7 @@ mod tests {
     #[test]
     fn test_get_current_rssi_ok() {
         let mut client = make_test_client();
-        client.callbacks.state = WifiModuleState::Started;
+        client.callbacks.state = WifiModuleState::Unconnected;
         let mut my_debug = |callbacks: &mut SocketCallbacks| {
             callbacks.on_rssi(0);
         };
@@ -420,7 +451,7 @@ mod tests {
     #[test]
     fn test_get_connection_info_ok() {
         let mut client = make_test_client();
-        client.callbacks.state = WifiModuleState::Started;
+        client.callbacks.state = WifiModuleState::Unconnected;
         let mut my_debug = |callbacks: &mut SocketCallbacks| {
             callbacks.on_connection_info(ConnectionInfo {
                 ssid: Ssid::from("test").unwrap(),
@@ -438,7 +469,7 @@ mod tests {
     #[test]
     fn test_get_firmware_version_ok() {
         let mut client = make_test_client();
-        client.callbacks.state = WifiModuleState::Started;
+        client.callbacks.state = WifiModuleState::Unconnected;
         let result = client.get_firmware_version();
         assert_eq!(result.unwrap().chip_id, 0);
     }
@@ -446,7 +477,7 @@ mod tests {
     #[test]
     fn test_send_ping_ok() {
         let mut client = make_test_client();
-        client.callbacks.state = WifiModuleState::Started;
+        client.callbacks.state = WifiModuleState::Unconnected;
         let mut my_debug = |callbacks: &mut SocketCallbacks| {
             callbacks.on_ping(
                 Ipv4Addr::new(192, 168, 1, 1),
@@ -461,5 +492,41 @@ mod tests {
         let result = nb::block!(client.send_ping(Ipv4Addr::new(192, 168, 1, 1), 64, 1));
         assert!(result.is_ok());
         assert_eq!(result.unwrap().rtt, 42);
+    }
+
+    #[test]
+    fn test_disconnect_success() {
+        let mut client = make_test_client();
+        client.callbacks.state = WifiModuleState::ConnectedToAp;
+
+        let mut my_debug = |callbacks: &mut SocketCallbacks| {
+            callbacks.on_connstate_changed(WifiConnState::Disconnected, WifiConnError::Unhandled);
+        };
+
+        client.debug_callback = Some(&mut my_debug);
+
+        let result = nb::block!(client.disconnect_ap());
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_disconnect_timeout() {
+        let mut client = make_test_client();
+        client.callbacks.state = WifiModuleState::ConnectedToAp;
+
+        let result = nb::block!(client.disconnect_ap());
+
+        assert_eq!(result.err(), Some(StackError::GeneralTimeout));
+    }
+
+    #[test]
+    fn test_disconnect_while_not_connected() {
+        let mut client = make_test_client();
+        client.callbacks.state = WifiModuleState::Starting;
+
+        let result = nb::block!(client.disconnect_ap());
+
+        assert!(result.is_ok());
     }
 }
