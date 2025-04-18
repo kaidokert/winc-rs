@@ -50,7 +50,7 @@ impl<X: Xfer> WincClient<'_, X> {
                         .boot_the_chip(state)
                         .map_err(|x| nb::Error::Other(StackError::WincWifiFail(x)))?;
                     if result {
-                        self.callbacks.state = WifiModuleState::Started;
+                        self.callbacks.state = WifiModuleState::Unconnected;
                         self.boot = None;
                         return Ok(());
                     }
@@ -71,7 +71,7 @@ impl<X: Xfer> WincClient<'_, X> {
             WifiModuleState::Reset | WifiModuleState::Starting | WifiModuleState::Disconnecting => {
                 Err(nb::Error::Other(StackError::InvalidState))
             }
-            WifiModuleState::Started | WifiModuleState::Disconnected => {
+            WifiModuleState::Unconnected => {
                 self.operation_countdown = AP_CONNECT_TIMEOUT_MILLISECONDS;
                 self.callbacks.state = WifiModuleState::ConnectingToAp;
                 connect_fn(self).map_err(|x| nb::Error::Other(StackError::WincWifiFail(x)))?;
@@ -297,16 +297,17 @@ impl<X: Xfer> WincClient<'_, X> {
         Err(nb::Error::WouldBlock)
     }
 
-    /// Internal function for handling the disconnect request and response.
-    fn disconnect_ap_impl(
-        &mut self,
-        disconnect_fn: impl FnOnce(&mut Self) -> Result<(), crate::errors::Error>,
-    ) -> nb::Result<(), StackError> {
+    /// Sends a disconnect request to the currently connected AP.
+    ///
+    /// This command is only applicable in station mode.
+    pub fn disconnect_ap(&mut self) -> nb::Result<(), StackError> {
         match &mut self.callbacks.state {
             WifiModuleState::ConnectedToAp => {
                 self.operation_countdown = AP_DISCONNECT_TIMEOUT_MILLISECONDS;
                 self.callbacks.state = WifiModuleState::Disconnecting;
-                disconnect_fn(self).map_err(|x| nb::Error::Other(StackError::WincWifiFail(x)))?;
+                self.manager
+                    .send_disconnect()
+                    .map_err(|x| nb::Error::Other(StackError::WincWifiFail(x)))?;
                 Err(nb::Error::WouldBlock)
             }
             WifiModuleState::Disconnecting => {
@@ -323,13 +324,6 @@ impl<X: Xfer> WincClient<'_, X> {
                 Ok(())
             }
         }
-    }
-
-    /// Sends a disconnect request to the currently connected AP.
-    ///
-    /// This command is only applicable in station mode.
-    pub fn disconnect_ap(&mut self) -> nb::Result<(), StackError> {
-        self.disconnect_ap_impl(|inner_self: &mut Self| inner_self.manager.send_disconnect())
     }
 }
 
@@ -369,14 +363,14 @@ mod tests {
     #[test]
     fn test_connect_to_saved_ap_timeout() {
         let mut client = make_test_client();
-        client.callbacks.state = WifiModuleState::Started;
+        client.callbacks.state = WifiModuleState::Unconnected;
         let result = nb::block!(client.connect_to_saved_ap());
         assert_eq!(result, Err(StackError::GeneralTimeout));
     }
     #[test]
     fn test_connect_to_saved_ap_success() {
         let mut client = make_test_client();
-        client.callbacks.state = WifiModuleState::Started;
+        client.callbacks.state = WifiModuleState::Unconnected;
         let mut my_debug = |callbacks: &mut SocketCallbacks| {
             callbacks.on_connstate_changed(WifiConnState::Connected, WifiConnError::Unhandled);
         };
@@ -387,7 +381,7 @@ mod tests {
     #[test]
     fn test_connect_to_saved_ap_invalid_credentials() {
         let mut client = make_test_client();
-        client.callbacks.state = WifiModuleState::Started;
+        client.callbacks.state = WifiModuleState::Unconnected;
         let mut my_debug = |callbacks: &mut SocketCallbacks| {
             callbacks.on_connstate_changed(WifiConnState::Disconnected, WifiConnError::AuthFail);
         };
@@ -402,7 +396,7 @@ mod tests {
     #[test]
     fn test_connect_to_ap_success() {
         let mut client = make_test_client();
-        client.callbacks.state = WifiModuleState::Started;
+        client.callbacks.state = WifiModuleState::Unconnected;
         let mut my_debug = |callbacks: &mut SocketCallbacks| {
             callbacks.on_connstate_changed(WifiConnState::Connected, WifiConnError::Unhandled);
         };
@@ -414,7 +408,7 @@ mod tests {
     #[test]
     fn test_scan_ok() {
         let mut client = make_test_client();
-        client.callbacks.state = WifiModuleState::Started;
+        client.callbacks.state = WifiModuleState::Unconnected;
         let mut my_debug = |callbacks: &mut SocketCallbacks| {
             callbacks.on_scan_done(5, WifiConnError::Unhandled);
         };
@@ -426,7 +420,7 @@ mod tests {
     #[test]
     fn test_get_scan_result_ok() {
         let mut client = make_test_client();
-        client.callbacks.state = WifiModuleState::Started;
+        client.callbacks.state = WifiModuleState::Unconnected;
         let mut my_debug = |callbacks: &mut SocketCallbacks| {
             callbacks.on_scan_result(ScanResult {
                 index: 0,
@@ -445,7 +439,7 @@ mod tests {
     #[test]
     fn test_get_current_rssi_ok() {
         let mut client = make_test_client();
-        client.callbacks.state = WifiModuleState::Started;
+        client.callbacks.state = WifiModuleState::Unconnected;
         let mut my_debug = |callbacks: &mut SocketCallbacks| {
             callbacks.on_rssi(0);
         };
@@ -457,7 +451,7 @@ mod tests {
     #[test]
     fn test_get_connection_info_ok() {
         let mut client = make_test_client();
-        client.callbacks.state = WifiModuleState::Started;
+        client.callbacks.state = WifiModuleState::Unconnected;
         let mut my_debug = |callbacks: &mut SocketCallbacks| {
             callbacks.on_connection_info(ConnectionInfo {
                 ssid: Ssid::from("test").unwrap(),
@@ -475,7 +469,7 @@ mod tests {
     #[test]
     fn test_get_firmware_version_ok() {
         let mut client = make_test_client();
-        client.callbacks.state = WifiModuleState::Started;
+        client.callbacks.state = WifiModuleState::Unconnected;
         let result = client.get_firmware_version();
         assert_eq!(result.unwrap().chip_id, 0);
     }
@@ -483,7 +477,7 @@ mod tests {
     #[test]
     fn test_send_ping_ok() {
         let mut client = make_test_client();
-        client.callbacks.state = WifiModuleState::Started;
+        client.callbacks.state = WifiModuleState::Unconnected;
         let mut my_debug = |callbacks: &mut SocketCallbacks| {
             callbacks.on_ping(
                 Ipv4Addr::new(192, 168, 1, 1),
