@@ -23,7 +23,7 @@ impl<X: Xfer> AsyncClient<'_, X> {
                 .boot_the_chip(&mut state)
                 .map_err(StackError::WincWifiFail)?;
             if result {
-                self.callbacks.borrow_mut().state = WifiModuleState::Started;
+                self.callbacks.borrow_mut().state = WifiModuleState::Unconnected;
                 return Ok(());
             }
             self.dispatch_events()?;
