@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1745003776226,
+  "lastUpdate": 1745091421854,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -793,6 +793,40 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/kaidokert/winc-rs/commit/f38a28d57a0e7af42c2d1738bae654413e6f3615"
         },
         "date": 1745003775403,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 41116,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 55668,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "142439476+umarbinzahid@users.noreply.github.com",
+            "name": "Umar Bin Zahid",
+            "username": "umarbinzahid"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "91e7909697e01e0f2c3c610a9d0f77f9405be2cd",
+          "message": "Add unit test cases to cover error cases in the client module (#64)\n\n* Added missing stack test cases.\n\n* Improve unit tests for TCP/UDP receive operations",
+          "timestamp": "2025-04-19T12:36:01-07:00",
+          "tree_id": "b5c171f1deb9c663e163bbfcd9a5625041a4b767",
+          "url": "https://github.com/kaidokert/winc-rs/commit/91e7909697e01e0f2c3c610a9d0f77f9405be2cd"
+        },
+        "date": 1745091421007,
         "tool": "customSmallerIsBetter",
         "benches": [
           {
