@@ -96,7 +96,10 @@ impl ConnectionState {
         }
     }
 }
-
+/*
+pub struct prng_data {
+    pub r
+}*/
 pub(crate) const NUM_TCP_SOCKETS: usize = 7;
 pub(crate) const MAX_UDP_SOCKETS: usize = 4;
 
