@@ -24,10 +24,11 @@ pub struct Handle(pub u8);
 pub(crate) enum WifiModuleState {
     Reset,
     Starting,
-    Started,
+    Unconnected,
     ConnectingToAp,
     ConnectedToAp,
     ConnectionFailed,
+    Disconnecting,
 }
 
 /// Ping operation results
@@ -255,19 +256,22 @@ impl EventListener for SocketCallbacks {
         debug!("client: Connection state changed: {:?} {:?}", state, err);
         self.connection_state.conn_state = state;
         self.connection_state.conn_error = Some(err);
-        match self.state {
-            WifiModuleState::ConnectingToAp => match self.connection_state.conn_state {
-                WifiConnState::Connected => {
-                    self.state = WifiModuleState::ConnectedToAp;
-                }
-                _ => {
+
+        match self.connection_state.conn_state {
+            WifiConnState::Connected => {
+                self.state = WifiModuleState::ConnectedToAp;
+            }
+            WifiConnState::Disconnected => {
+                if self.state == WifiModuleState::ConnectingToAp {
                     self.state = WifiModuleState::ConnectionFailed;
                     debug!(
                         "on_connstate_changed FAILED: {:?} {:?}",
                         self.connection_state.conn_state, self.connection_state.conn_error
                     );
+                } else {
+                    self.state = WifiModuleState::Unconnected;
                 }
-            },
+            }
             _ => {
                 error!(
                     "UNKNOWN STATE on_connstate_changed: {:?} {:?}",

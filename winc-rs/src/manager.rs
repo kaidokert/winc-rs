@@ -742,6 +742,16 @@ impl<X: Xfer> Manager<X> {
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
     }
 
+    pub fn send_disconnect(&mut self) -> Result<(), Error> {
+        self.write_hif_header(
+            HifGroup::Wifi(WifiResponse::Unhandled),
+            WifiRequest::Disconnect,
+            &[],
+            false,
+        )?;
+        self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
+    }
+
     pub fn dispatch_events_new<T: EventListener>(&mut self, listener: &mut T) -> Result<(), Error> {
         let res = self.is_interrupt_pending()?;
         if !res.0 {
