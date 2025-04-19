@@ -394,7 +394,15 @@ pub fn read_common_socket_reply<'a>(
     let session = read16(reader)?;
     Ok(((socket, session).into(), err.into()))
 }
+/*
+pub fn read_prng_reply(mut response: &[u8]) -> Result<(u32, u16), Error> {
+    let reader = &mut response;
+    let buffer_addr = read32le(reader)?;
+    let data_len = read16(reader)?;
 
+    Ok((buffer_addr, data_len))
+}
+*/
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -183,6 +183,30 @@ pub fn write_setsockopt_req(
     Ok(result)
 }
 
+/// Prepares packet for PRNG request.
+///
+/// Packet Structure:
+///
+/// | Input Buffer Address | Number of random bytes to generate | Padding |
+/// |       4 Bytes        |              2 Bytes               | 2 Bytes |
+///
+/// # Arguments
+///
+/// * `data_addr` - Address of the input buffer for storing PRNG data.
+/// * `data_size` - Length of the input buffer or number of random bytes to generate.
+///
+/// # Return
+///
+/// * `[u8]` - Array of 8 bytes request packet for PRNG.
+/// * `BufferOverflow` - Data exceeded the buffer limit during packet preparation.
+pub fn write_prng_req(data_addr: u32, data_size: u16) -> Result<[u8; 8], BufferOverflow> {
+    let mut req = [0x00u8; 8];
+    let mut slice = req.as_mut_slice();
+    slice.write(&data_addr.to_le_bytes())?;
+    slice.write(&data_size.to_le_bytes())?;
+    Ok(req)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
