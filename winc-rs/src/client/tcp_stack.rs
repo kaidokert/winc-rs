@@ -174,7 +174,7 @@ impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {
                     .map_err(StackError::ReceiveFailed)?;
                 Ok(ClientSocketOp::AsyncOp(
                     AsyncOp::Recv(None),
-                    AsyncState::Pending(Some(Self::RECV_TIMEOUT)),
+                    AsyncState::Pending(None),
                 ))
             },
             |sock, manager, recv_buffer, asyncop| {
@@ -496,7 +496,7 @@ mod test {
     }
 
     #[test]
-    fn test_tcp_send_buffer_max_len() {
+    fn test_tcp_check_max_send_buffer() {
         let mut client = make_test_client();
         let mut tcp_socket = client.socket().unwrap();
         let packet = "Hello, World";
@@ -523,41 +523,25 @@ mod test {
     }
 
     #[test]
-    fn test_tcp_check_receive_socket_timeout() {
-        let mut client = make_test_client();
-        let mut tcp_socket = client.socket().unwrap();
-        let mut recv_buff = [0u8; 32];
-
-        let result = nb::block!(client.receive(&mut tcp_socket, &mut recv_buff));
-
-        assert_eq!(
-            result.err(),
-            Some(StackError::OpFailed(SocketError::Timeout))
-        );
-    }
-
-    #[test]
     fn test_tcp_check_receive_timeout() {
         let mut client = make_test_client();
         let mut tcp_socket = client.socket().unwrap();
         let socket_addr = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 80);
         let mut recv_buff = [0u8; 32];
-        let test_data = "Hello, World";
+        let mut counter = 5;
 
         let mut my_debug = |callbacks: &mut SocketCallbacks| {
-            callbacks.on_recv(
-                Socket::new(0, 0),
-                socket_addr,
-                test_data.as_bytes(),
-                SocketError::Timeout,
-            );
+            callbacks.on_recv(Socket::new(0, 0), socket_addr, &[], SocketError::Timeout);
         };
 
         client.debug_callback = Some(&mut my_debug);
 
-        let result = nb::block!(client.receive(&mut tcp_socket, &mut recv_buff));
+        while counter != 0 {
+            let result = client.receive(&mut tcp_socket, &mut recv_buff);
 
-        assert_eq!(result.err(), Some(StackError::RecvTimeout));
+            assert_eq!(result.err(), Some(nb::Error::WouldBlock));
+            counter -= 1;
+        }
     }
 
     #[test]
@@ -566,13 +550,12 @@ mod test {
         let mut tcp_socket = client.socket().unwrap();
         let socket_addr = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 80);
         let mut recv_buff = [0u8; 32];
-        let test_data = "Hello, World";
 
         let mut my_debug = |callbacks: &mut SocketCallbacks| {
             callbacks.on_recv(
                 Socket::new(0, 0),
                 socket_addr,
-                test_data.as_bytes(),
+                &[],
                 SocketError::ConnAborted,
             );
         };
