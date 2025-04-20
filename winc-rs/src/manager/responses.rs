@@ -394,15 +394,33 @@ pub fn read_common_socket_reply<'a>(
     let session = read16(reader)?;
     Ok(((socket, session).into(), err.into()))
 }
-/*
+
+/// Reads the PRNG data packet from the response received from the chip.
+///
+/// Response Structure:
+///
+/// | Input Buffer Address | Number of Random Bytes Generated | Padding |
+/// |----------------------|----------------------------------|---------|
+/// | 4 Bytes              | 2 Bytes                          | 2 Bytes |
+///
+/// # Arguments
+///
+/// * `response` - Data received from the chip.
+///
+/// # Returns
+///
+/// * `u32` - The memory address of the input buffer.
+/// * `u16` - The length of the generated random bytes.
+/// * `Error` - If an error occurred while reading the PRNG response.
 pub fn read_prng_reply(mut response: &[u8]) -> Result<(u32, u16), Error> {
     let reader = &mut response;
-    let buffer_addr = read32le(reader)?;
-    let data_len = read16(reader)?;
 
-    Ok((buffer_addr, data_len))
+    let addr = read32le(reader)?; // memory address
+    let len = read16(reader)?; // random bytes length
+    let _ = read16(reader)?; // void
+    Ok((addr, len))
 }
-*/
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -619,5 +637,11 @@ mod tests {
             (Socket::new(7, 1027), SocketError::AddrAlreadyInUse)
         );
         assert!(matches!(read_common_socket_reply(&[0]), Err(_)))
+    }
+
+    #[test]
+    fn test_prng_reply() {
+        let buffer = [0xDC, 0x65, 0x00, 0x20, 0x20, 0x00, 0x00, 0x00];
+        assert_eq!(read_prng_reply(&buffer).unwrap(), (0x200065DC, 32))
     }
 }

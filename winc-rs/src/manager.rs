@@ -757,27 +757,27 @@ impl<X: Xfer> Manager<X> {
 
     /// Sends a PRNG request to the chip.
     ///
-    /// # Warning
-    ///
-    /// * It is recommended to pass the address of a valid memory location, rather than
-    ///   an arbitrary one, to avoid potential memory leaks or data corruption.
-    /// * Max supported length of incomming buffer is PRNG_DATA_LENGTH.
-    ///
     /// # Arguments
     ///
-    /// * `data_addr` - Address of the input buffer where the PRNG data will be stored.
-    /// * `data_size` - Length of the input buffer, or the number of random bytes to generate.
+    /// * `addr` - The address of the input buffer where the PRNG data will be stored.
+    /// * `len` - The length of the input buffer, i.e., the number of random bytes to generate.
+    ///
+    /// # Warning
+    ///
+    /// * It is recommended to pass the address of a valid memory location rather than
+    ///   an arbitrary one, to avoid potential memory leaks or data corruption.
+    /// * The maximum supported length of the input buffer is `PRNG_DATA_LENGTH`.
     ///
     /// # Returns
     ///
-    /// * `()` - If random bytes were successfully generated.
+    /// * `()` - If the request is successfully sent.
     /// * `Error` - If an error occurred during the PRNG packet request or preparation.
-    pub fn send_prng(&mut self, data_addr: u32, data_size: u16) -> Result<(), Error> {
-        if data_size > PRNG_DATA_LENGTH as u16 {
+    pub fn send_prng(&mut self, addr: u32, len: u16) -> Result<(), Error> {
+        if len > PRNG_DATA_LENGTH as u16 {
             return Err(Error::BufferError);
         }
 
-        let req = write_prng_req(data_addr, data_size)?;
+        let req = write_prng_req(addr, len)?;
         self.write_hif_header(
             HifGroup::Wifi(WifiResponse::Unhandled),
             WifiRequest::GetPrng,
@@ -861,13 +861,16 @@ impl<X: Xfer> Manager<X> {
                 }
                 WifiResponse::GetPrng => {
                     let mut response = [0; PRNG_DATA_LENGTH];
-                    // read the structure
-                    self.read_block(address, &mut response)?;
+                    // read the prng packet
+                    self.read_block(address, &mut response[0..PRNG_PACKET_SIZE])?;
 
-                    //let (addr, len) = read_prng_reply(&mut response)?;
+                    let (_, len) = read_prng_reply(&response)?;
                     // read the random bytes
-                    self.read_block(address + PRNG_PACKET_SIZE as u32, &mut response)?;
-                    listener.on_prng(&response);
+                    self.read_block(
+                        address + PRNG_PACKET_SIZE as u32,
+                        &mut response[0..len as usize],
+                    )?;
+                    listener.on_prng(&response[0..len as usize]);
                 }
                 WifiResponse::Unhandled
                 | WifiResponse::Wps
@@ -1189,5 +1192,27 @@ mod tests {
         assert_eq!(socket, Socket::new(1, 257));
         assert_eq!(err, SocketError::ConnAborted);
         assert_eq!(dataslice, &[]);
+    }
+
+    #[test]
+    fn test_prng() {
+        let mut buff = [0u8; 100];
+        let mut writer = buff.as_mut_slice();
+        let mut mgr = make_manager(&mut writer);
+
+        assert_eq!(mgr.send_prng(0x2000_65DC, 16), Ok(()));
+
+        assert_eq!(buff[CMD_OFFSET], 0x1F);
+
+        let slice = &buff[DATA_OFFSET..DATA_OFFSET + PRNG_PACKET_SIZE];
+
+        assert_eq!(
+            slice,
+            &[
+                0xDC, 0x65, 0x00, 0x020, // Address
+                0x10, 0x00, // length
+                0x00, 0x00 // void
+            ]
+        )
     }
 }

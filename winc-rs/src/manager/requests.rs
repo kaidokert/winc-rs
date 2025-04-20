@@ -183,27 +183,28 @@ pub fn write_setsockopt_req(
     Ok(result)
 }
 
-/// Prepares packet for PRNG request.
+/// Prepares the packet for a PRNG request.
 ///
 /// Packet Structure:
 ///
-/// | Input Buffer Address | Number of random bytes to generate | Padding |
-/// |       4 Bytes        |              2 Bytes               | 2 Bytes |
+/// | Input Buffer Address | Number of Random Bytes to Generate | Padding |
+/// |----------------------|------------------------------------|---------|
+/// | 4 Bytes              | 2 Bytes                            | 2 Bytes |
 ///
 /// # Arguments
 ///
-/// * `data_addr` - Address of the input buffer for storing PRNG data.
-/// * `data_size` - Length of the input buffer or number of random bytes to generate.
+/// * `addr` - The address of the input buffer for storing PRNG data.
+/// * `len` - The length of the input buffer, or the number of random bytes to generate.
 ///
-/// # Return
+/// # Returns
 ///
-/// * `[u8]` - Array of 8 bytes request packet for PRNG.
-/// * `BufferOverflow` - Data exceeded the buffer limit during packet preparation.
-pub fn write_prng_req(data_addr: u32, data_size: u16) -> Result<[u8; 8], BufferOverflow> {
+/// * `[u8]` - An array of 8 bytes representing the request packet for PRNG.
+/// * `BufferOverflow` - If the data exceeds the buffer limit during packet preparation.
+pub fn write_prng_req(addr: u32, len: u16) -> Result<[u8; 8], BufferOverflow> {
     let mut req = [0x00u8; 8];
     let mut slice = req.as_mut_slice();
-    slice.write(&data_addr.to_le_bytes())?;
-    slice.write(&data_size.to_le_bytes())?;
+    slice.write(&addr.to_le_bytes())?;
+    slice.write(&len.to_le_bytes())?;
     Ok(req)
 }
 
@@ -400,5 +401,13 @@ mod tests {
             ),
             Err(BufferOverflow)
         ));
+    }
+
+    #[test]
+    fn test_prng_request() {
+        let request = [0xDC, 0x65, 0x00, 0x20, 0x20, 0x00, 0x00, 0x00];
+        let addr = 0x200065DC;
+        let len = 32;
+        assert_eq!(write_prng_req(addr, len).unwrap(), request);
     }
 }

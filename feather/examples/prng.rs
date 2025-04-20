@@ -35,10 +35,9 @@ fn program() -> Result<(), StackError> {
             }
         }
 
-        delay_ms(1000);
-        let random_bytes: [u8; 16] = [0; 16];
-        let result = nb::block!(stack.get_random_bytes(&random_bytes))?;
-        defmt::info!("Got the Random bytes");
+        let mut random_bytes: [u8; 32] = [0; 32];
+        nb::block!(stack.get_random_bytes(&mut random_bytes))?;
+        defmt::info!("Got the Random bytes: {}", random_bytes);
 
         loop {
             delay_ms(200);

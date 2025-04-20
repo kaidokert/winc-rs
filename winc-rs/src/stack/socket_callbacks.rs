@@ -1,6 +1,6 @@
 use core::net::Ipv4Addr;
 
-use crate::manager::{EventListener, SocketError, WifiConnError, WifiConnState};
+use crate::manager::{EventListener, SocketError, WifiConnError, WifiConnState, PRNG_DATA_LENGTH};
 use crate::ConnectionInfo;
 
 use crate::{debug, error, info};
@@ -119,8 +119,8 @@ pub(crate) struct SocketCallbacks {
     pub dns_resolved_addr: Option<Option<core::net::Ipv4Addr>>,
     pub connection_state: ConnectionState,
     pub state: WifiModuleState,
-    // for prng
-    pub prng_event_received: Option<Option<bool>>,
+    // Random Number Generator
+    pub prng_buffer: Option<Option<[u8; PRNG_DATA_LENGTH]>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -221,7 +221,7 @@ impl SocketCallbacks {
             dns_resolved_addr: None,
             connection_state: ConnectionState::new(),
             state: WifiModuleState::Reset,
-            prng_event_received: None,
+            prng_buffer: None,
         }
     }
     pub fn resolve(&mut self, socket: Socket) -> Option<&mut (Socket, ClientSocketOp)> {
@@ -619,8 +619,16 @@ impl EventListener for SocketCallbacks {
         }
     }
 
+    /// Callback function to store the random bytes read from the chip in the PRNG data.
+    ///
+    /// # Arguments
+    ///
+    /// * `data` - Random bytes read from the chip.
     fn on_prng(&mut self, data: &[u8]) {
-        info!("Data Received: {:?}", data);
-        self.prng_event_received = Some(Some(true));
+        if let Some(ref mut buffer @ None) = self.prng_buffer {
+            let mut new_buf = [0u8; PRNG_DATA_LENGTH];
+            new_buf[..data.len()].copy_from_slice(data);
+            *buffer = Some(new_buf);
+        }
     }
 }
