@@ -340,9 +340,8 @@ mod test {
     use super::*;
     use crate::client::{self, test_shared::*};
     use crate::{client::SocketCallbacks, manager::EventListener, socket::Socket};
-    use core::net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4};
+    use core::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4};
     use embedded_nal::{TcpClientStack, TcpFullStack};
-    use test_log::test;
 
     #[test]
     fn test_tcp_socket_open() {
@@ -521,5 +520,136 @@ mod test {
         } else {
             assert!(false, "Expected Some value, but it returned None");
         }
+    }
+
+    #[test]
+    fn test_tcp_check_receive_timeout() {
+        let mut client = make_test_client();
+        let mut tcp_socket = client.socket().unwrap();
+        let socket_addr = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 80);
+        let mut recv_buff = [0u8; 32];
+        let mut counter = 5;
+
+        let mut my_debug = |callbacks: &mut SocketCallbacks| {
+            callbacks.on_recv(Socket::new(0, 0), socket_addr, &[], SocketError::Timeout);
+        };
+
+        client.debug_callback = Some(&mut my_debug);
+
+        while counter != 0 {
+            let result = client.receive(&mut tcp_socket, &mut recv_buff);
+
+            assert_eq!(result.err(), Some(nb::Error::WouldBlock));
+            counter -= 1;
+        }
+    }
+
+    #[test]
+    fn test_tcp_check_receive_err() {
+        let mut client = make_test_client();
+        let mut tcp_socket = client.socket().unwrap();
+        let socket_addr = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 80);
+        let mut recv_buff = [0u8; 32];
+
+        let mut my_debug = |callbacks: &mut SocketCallbacks| {
+            callbacks.on_recv(
+                Socket::new(0, 0),
+                socket_addr,
+                &[],
+                SocketError::ConnAborted,
+            );
+        };
+
+        client.debug_callback = Some(&mut my_debug);
+
+        let result = nb::block!(client.receive(&mut tcp_socket, &mut recv_buff));
+
+        assert_eq!(
+            result.err(),
+            Some(StackError::OpFailed(SocketError::ConnAborted))
+        );
+    }
+
+    #[test]
+    fn test_tcp_check_bind_error() {
+        let mut client = make_test_client();
+        let mut tcp_socket = client.socket().unwrap();
+
+        let mut my_debug = |callbacks: &mut SocketCallbacks| {
+            callbacks.on_bind(Socket::new(0, 0), SocketError::InvalidAddress);
+        };
+
+        client.debug_callback = Some(&mut my_debug);
+
+        let result = client.bind(&mut tcp_socket, 8080);
+
+        assert_eq!(
+            result.err(),
+            Some(StackError::OpFailed(SocketError::InvalidAddress))
+        );
+    }
+
+    #[test]
+    fn test_tcp_check_accept_backlog() {
+        let mut client = make_test_client();
+        let mut tcp_socket = client.socket().unwrap();
+        let socket_addr = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 80);
+        let socket = Socket::new(0, 0);
+
+        client.callbacks.accept_backlog[0] = Some((socket, socket_addr));
+
+        let result = nb::block!(client.accept(&mut tcp_socket));
+
+        assert_eq!(
+            result.ok(),
+            Some((Handle(0), core::net::SocketAddr::V4(socket_addr)))
+        );
+    }
+
+    #[test]
+    fn test_tcp_check_listen_error() {
+        let mut client = make_test_client();
+        let mut tcp_socket = client.socket().unwrap();
+
+        let mut my_debug = |callbacks: &mut SocketCallbacks| {
+            callbacks.on_listen(Socket::new(0, 0), SocketError::ConnAborted);
+        };
+
+        client.debug_callback = Some(&mut my_debug);
+
+        let result = client.listen(&mut tcp_socket);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_tcp_connect_error() {
+        let mut client = make_test_client();
+        let mut tcp_socket = client.socket().unwrap();
+
+        let mut my_debug = |callbacks: &mut SocketCallbacks| {
+            callbacks.on_connect(Socket::new(0, 0), SocketError::ConnAborted);
+        };
+
+        client.debug_callback = Some(&mut my_debug);
+        let socket_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 80);
+
+        let result = nb::block!(client.connect(&mut tcp_socket, socket_addr));
+
+        assert_eq!(
+            result.err(),
+            Some(StackError::OpFailed(SocketError::ConnAborted))
+        );
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_tcp_connect_ipv6() {
+        let mut client = make_test_client();
+        let mut tcp_socket = client.socket().unwrap();
+
+        let socket_addr = SocketAddr::new(IpAddr::V6(Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 0)), 80);
+
+        let _ = client.connect(&mut tcp_socket, socket_addr);
     }
 }
