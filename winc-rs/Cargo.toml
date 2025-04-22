@@ -42,6 +42,9 @@ void = { version =  "1", default-features = false }
 defmt = { version = "0.3.2", default-features = false, optional=true }
 embedded-nal-async = { version = "0.8.0", optional = true }
 
+# rand_core for prng of winc1500
+rand_core = { version = "0.9", default-features = false, optional = true }
+
 [dev-dependencies]
 async-std = { version= "1.13", features= ["attributes"] }
 test-log = "0.2.11"
@@ -52,6 +55,8 @@ defmt = ["dep:defmt"]
 default = ["std","async"]
 embedded-nal-async = ["dep:embedded-nal-async"]
 async = ["dep:embedded-nal-async"]
+rng = ["dep:rand_core"]
+large_rng = []
 
 # Todo: add feature flags to save binary space
 # - TCP

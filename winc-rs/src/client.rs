@@ -4,6 +4,7 @@ use crate::socket::Socket;
 use crate::transfer::Xfer;
 
 mod dns;
+mod prng;
 mod tcp_stack;
 mod udp_stack;
 mod wifi_module;

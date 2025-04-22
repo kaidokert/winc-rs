@@ -83,7 +83,12 @@ const IP_PACKET_OFFSET: usize = ETHERNET_HEADER_LENGTH + ETHERNET_HEADER_OFFSET;
 
 pub const SOCKET_BUFFER_MAX_LENGTH: usize = 1400;
 pub const PRNG_PACKET_SIZE: usize = 8;
+
+#[cfg(feature = "large_rng")]
 pub(crate) const PRNG_DATA_LENGTH: usize = 1600 - 4 - PRNG_PACKET_SIZE;
+
+#[cfg(not(feature = "large_rng"))]
+pub(crate) const PRNG_DATA_LENGTH: usize = 32;
 
 const HIF_SEND_RETRIES: usize = 1000;
 
@@ -773,10 +778,6 @@ impl<X: Xfer> Manager<X> {
     /// * `()` - If the request is successfully sent.
     /// * `Error` - If an error occurred during the PRNG packet request or preparation.
     pub fn send_prng(&mut self, addr: u32, len: u16) -> Result<(), Error> {
-        if len > PRNG_DATA_LENGTH as u16 {
-            return Err(Error::BufferError);
-        }
-
         let req = write_prng_req(addr, len)?;
         self.write_hif_header(
             HifGroup::Wifi(WifiResponse::Unhandled),

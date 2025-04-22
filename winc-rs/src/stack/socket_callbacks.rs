@@ -96,10 +96,7 @@ impl ConnectionState {
         }
     }
 }
-/*
-pub struct prng_data {
-    pub r
-}*/
+
 pub(crate) const NUM_TCP_SOCKETS: usize = 7;
 pub(crate) const MAX_UDP_SOCKETS: usize = 4;
 
@@ -120,7 +117,7 @@ pub(crate) struct SocketCallbacks {
     pub connection_state: ConnectionState,
     pub state: WifiModuleState,
     // Random Number Generator
-    pub prng_buffer: Option<Option<[u8; PRNG_DATA_LENGTH]>>,
+    pub prng: Option<Option<Prng>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -209,6 +206,12 @@ pub enum ClientSocketOp {
     AsyncOp(AsyncOp, AsyncState),
 }
 
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub struct Prng {
+    pub offset: usize,
+    pub rcv_buffer: Option<[u8; PRNG_DATA_LENGTH]>,
+}
+
 impl SocketCallbacks {
     pub fn new() -> Self {
         Self {
@@ -221,7 +224,7 @@ impl SocketCallbacks {
             dns_resolved_addr: None,
             connection_state: ConnectionState::new(),
             state: WifiModuleState::Reset,
-            prng_buffer: None,
+            prng: None,
         }
     }
     pub fn resolve(&mut self, socket: Socket) -> Option<&mut (Socket, ClientSocketOp)> {
@@ -625,10 +628,12 @@ impl EventListener for SocketCallbacks {
     ///
     /// * `data` - Random bytes read from the chip.
     fn on_prng(&mut self, data: &[u8]) {
-        if let Some(ref mut buffer @ None) = self.prng_buffer {
-            let mut new_buf = [0u8; PRNG_DATA_LENGTH];
-            new_buf[..data.len()].copy_from_slice(data);
-            *buffer = Some(new_buf);
+        if let Some(Some(prng)) = self.prng.as_mut() {
+            if let ref mut buffer @ None = prng.rcv_buffer {
+                let mut new_buf = [0u8; PRNG_DATA_LENGTH];
+                new_buf[..data.len()].copy_from_slice(data);
+                *buffer = Some(new_buf);
+            }
         }
     }
 }
