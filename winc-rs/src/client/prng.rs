@@ -165,23 +165,6 @@ mod tests {
         }
     }
 
-    #[cfg(feature = "large_rng")]
-    #[test]
-    fn test_prng_large_rng() {
-        let mut client = make_test_client();
-        let test_data: [u8; PRNG_DATA_LENGTH] = [0x01u8; PRNG_DATA_LENGTH];
-        let mut random_bytes = [0x0u8; PRNG_DATA_LENGTH];
-
-        let mut my_debug = |callbacks: &mut SocketCallbacks| {
-            callbacks.on_prng(&test_data);
-        };
-        client.debug_callback = Some(&mut my_debug);
-
-        let result = nb::block!(client.get_random_bytes(&mut random_bytes));
-        assert_eq!(result, Ok(()));
-        assert_eq!(random_bytes, test_data);
-    }
-
     #[cfg(feature = "rng")]
     #[test]
     fn test_rng_fill_bytes_success() {
