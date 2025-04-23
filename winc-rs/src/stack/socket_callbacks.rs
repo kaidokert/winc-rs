@@ -96,10 +96,7 @@ impl ConnectionState {
         }
     }
 }
-/*
-pub struct prng_data {
-    pub r
-}*/
+
 pub(crate) const NUM_TCP_SOCKETS: usize = 7;
 pub(crate) const MAX_UDP_SOCKETS: usize = 4;
 
@@ -209,6 +206,8 @@ pub enum ClientSocketOp {
     AsyncOp(AsyncOp, AsyncState),
 }
 
+/// PRNG (Pseudorandom Number Generator) structure.
+/// The `defmt` feature derives `defmt::Format` for logging/serialization if enabled.
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct Prng {
     pub offset: usize,
