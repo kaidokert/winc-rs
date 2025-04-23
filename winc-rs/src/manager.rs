@@ -85,6 +85,7 @@ pub const SOCKET_BUFFER_MAX_LENGTH: usize = 1400;
 pub const PRNG_PACKET_SIZE: usize = 8;
 
 #[cfg(feature = "large_rng")]
+// Maximum length supported by the chip in one iteration.
 pub(crate) const PRNG_DATA_LENGTH: usize = 1600 - 4 - PRNG_PACKET_SIZE;
 
 #[cfg(not(feature = "large_rng"))]
@@ -771,7 +772,6 @@ impl<X: Xfer> Manager<X> {
     ///
     /// * It is recommended to pass the address of a valid memory location rather than
     ///   an arbitrary one, to avoid potential memory leaks or data corruption.
-    /// * The maximum supported length of the input buffer is `PRNG_DATA_LENGTH`.
     ///
     /// # Returns
     ///
