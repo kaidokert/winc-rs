@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1745091421854,
+  "lastUpdate": 1745387373885,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -837,6 +837,40 @@ window.BENCHMARK_DATA = {
           {
             "name": "iperf3_client",
             "value": 55668,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "142439476+umarbinzahid@users.noreply.github.com",
+            "name": "Umar Bin Zahid",
+            "username": "umarbinzahid"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "169a65925922d0ae4b220b8732af131f87efe5be",
+          "message": "added delay to fix startup hard fault (#60)",
+          "timestamp": "2025-04-22T22:48:31-07:00",
+          "tree_id": "d1a87a59db57a36bde5eb95e14102a31f0b95786",
+          "url": "https://github.com/kaidokert/winc-rs/commit/169a65925922d0ae4b220b8732af131f87efe5be"
+        },
+        "date": 1745387373065,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 41124,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 55676,
             "unit": "byte"
           }
         ]
