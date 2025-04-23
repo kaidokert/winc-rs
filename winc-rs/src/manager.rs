@@ -286,7 +286,7 @@ impl<X: Xfer> Manager<X> {
                     return Err(Error::FirmwareStart);
                 }
                 const FINISH_INIT: u32 = 0x02532636;
-                self.delay_us(2000);
+                self.delay_us(2 * 1000); // 2 msec
                 let reg = self.chip.single_reg_read(Regs::NmiState.into())?;
                 if reg == FINISH_INIT {
                     state.stage = BootStage::FinishFirmwareBoot;
