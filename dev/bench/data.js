@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1745387373885,
+  "lastUpdate": 1745466123449,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -871,6 +871,40 @@ window.BENCHMARK_DATA = {
           {
             "name": "iperf3_client",
             "value": 55676,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "142439476+umarbinzahid@users.noreply.github.com",
+            "name": "Umar Bin Zahid",
+            "username": "umarbinzahid"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "bc5dc49de24d73fb06376a6acb5d12fc384215f3",
+          "message": "Add Support for PRNG (#70)\n\n* Added support for PRNG\n\n* Added RngCore trait with feature flag to control it.",
+          "timestamp": "2025-04-23T20:41:03-07:00",
+          "tree_id": "f2d02e2217c46b4f719c9886ec9634d2433b5b50",
+          "url": "https://github.com/kaidokert/winc-rs/commit/bc5dc49de24d73fb06376a6acb5d12fc384215f3"
+        },
+        "date": 1745466123139,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 41396,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 55940,
             "unit": "byte"
           }
         ]
