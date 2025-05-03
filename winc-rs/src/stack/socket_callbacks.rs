@@ -1,9 +1,13 @@
 use core::net::Ipv4Addr;
 
-use crate::manager::{EventListener, SocketError, WifiConnError, WifiConnState, PRNG_DATA_LENGTH};
-use crate::ConnectionInfo;
+use arrayvec::ArrayString;
 
+use crate::manager::{
+    EventListener, SocketError, WifiConnError, WifiConnState, WifiCredentials, MAX_PSK_KEY_LEN,
+    MAX_SSID_LEN, PRNG_DATA_LENGTH,
+};
 use crate::{debug, error, info};
+use crate::{AuthType, ConnectionInfo};
 
 use crate::socket::Socket;
 
@@ -29,6 +33,8 @@ pub(crate) enum WifiModuleState {
     ConnectedToAp,
     ConnectionFailed,
     Disconnecting,
+    Provisioning,
+    ProvisioningFailed,
 }
 
 /// Ping operation results
@@ -118,6 +124,7 @@ pub(crate) struct SocketCallbacks {
     pub state: WifiModuleState,
     // Random Number Generator
     pub prng: Option<Option<Prng>>,
+    pub provisioning_info: Option<Option<WifiCredentials>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -227,6 +234,7 @@ impl SocketCallbacks {
             connection_state: ConnectionState::new(),
             state: WifiModuleState::Reset,
             prng: None,
+            provisioning_info: None,
         }
     }
     pub fn resolve(&mut self, socket: Socket) -> Option<&mut (Socket, ClientSocketOp)> {
@@ -636,6 +644,35 @@ impl EventListener for SocketCallbacks {
                 new_buf[..data.len()].copy_from_slice(data);
                 *buffer = Some(new_buf);
             }
+        }
+    }
+
+    /// Callback function to store the provisioning information.
+    ///
+    /// # Arguments
+    ///
+    /// * `ssid` - The SSID received from the chip.
+    /// * `passphrase` - The Wi-Fi passphrase.
+    /// * `security` - The security type (e.g., WPA2).
+    /// * `status` - Provisioning status (`true` if successful).
+    fn on_provisioning(&mut self, ssid: &str, passphrase: &str, security: AuthType, status: bool) {
+        // Check if provisioning was successful
+        if status {
+            let mut ssid_str: ArrayString<MAX_SSID_LEN> = ArrayString::new();
+            let mut pass_str: ArrayString<MAX_PSK_KEY_LEN> = ArrayString::new();
+
+            ssid_str.push_str(ssid.get(..MAX_SSID_LEN).unwrap_or(""));
+            pass_str.push_str(passphrase.get(..MAX_PSK_KEY_LEN).unwrap_or(""));
+
+            let info = WifiCredentials {
+                ssid: ssid_str,
+                passphrase: pass_str,
+                auth: security,
+            };
+
+            self.provisioning_info = Some(Some(info));
+        } else {
+            self.state = WifiModuleState::ProvisioningFailed;
         }
     }
 }

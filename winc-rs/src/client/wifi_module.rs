@@ -1,6 +1,9 @@
+use crate::errors::Error;
+
 use embedded_nal::nb;
 
-use crate::manager::{AuthType, FirmwareInfo, IPConf, ScanResult};
+use crate::manager::WifiCredentials;
+use crate::manager::{AccessPoint, AuthType, FirmwareInfo, IPConf, ScanResult};
 
 use super::PingResult;
 use super::StackError;
@@ -68,10 +71,13 @@ impl<X: Xfer> WincClient<'_, X> {
         connect_fn: impl FnOnce(&mut Self) -> Result<(), crate::errors::Error>,
     ) -> nb::Result<(), StackError> {
         match self.callbacks.state {
-            WifiModuleState::Reset | WifiModuleState::Starting | WifiModuleState::Disconnecting => {
+            WifiModuleState::Reset
+            | WifiModuleState::Starting
+            | WifiModuleState::Disconnecting
+            | WifiModuleState::ProvisioningFailed => {
                 Err(nb::Error::Other(StackError::InvalidState))
             }
-            WifiModuleState::Unconnected => {
+            WifiModuleState::Unconnected | WifiModuleState::Provisioning => {
                 self.operation_countdown = AP_CONNECT_TIMEOUT_MILLISECONDS;
                 self.callbacks.state = WifiModuleState::ConnectingToAp;
                 connect_fn(self).map_err(|x| nb::Error::Other(StackError::WincWifiFail(x)))?;
@@ -322,6 +328,120 @@ impl<X: Xfer> WincClient<'_, X> {
             _ => {
                 info!("disconnect_ap: got disconnected from AP");
                 Ok(())
+            }
+        }
+    }
+
+    /// Starts provisioning mode. This command is only applicable when the chip is in station mode.
+    ///
+    /// # Arguments
+    ///
+    /// * `ap` - An `AccessPoint` struct containing the SSID, password, and other network details.
+    /// * `dns` - A DNS redirect URL as a string slice. Must not end with `.local`.
+    /// * `http_redirect` - Whether HTTP redirection is enabled.
+    ///
+    /// # Returns
+    ///
+    /// * `()` - If provisioning mode starts successfully.
+    /// * `StackError` - If an error occurs while starting provisioning mode.
+    pub fn start_provisioning_mode(
+        &mut self,
+        ap: AccessPoint,
+        dns: &str,
+        http_redirect: bool,
+    ) -> Result<(), StackError> {
+        match &mut self.callbacks.state {
+            WifiModuleState::Unconnected | WifiModuleState::ConnectedToAp => {
+                if ap.auth == AuthType::Invalid {
+                    return Err(StackError::Unexpected);
+                }
+
+                if ap.auth == AuthType::S802_1X {
+                    unimplemented!("Enterprise Security is not yet supported");
+                }
+
+                #[cfg(not(feature = "enable-wep"))]
+                if ap.auth == AuthType::WEP {
+                    unimplemented!("WEP provides very weak security and is disabled by default.");
+                }
+
+                self.manager
+                    .send_start_provisioning(ap, dns, http_redirect)
+                    .map_err(StackError::WincWifiFail)?;
+
+                self.callbacks.state = WifiModuleState::Provisioning;
+            }
+            _ => {
+                return Err(StackError::InvalidState);
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Stops provisioning mode. This command is only applicable when the chip is in provisioning mode.
+    ///
+    /// # Returns
+    ///
+    /// * `()` - If provisioning mode starts successfully.
+    /// * `StackError` - If an error occurs while starting provisioning mode.
+    pub fn stop_provisioning_mode(&mut self) -> Result<(), StackError> {
+        if self.callbacks.state == WifiModuleState::Provisioning {
+            self.manager
+                .send_stop_provisioning()
+                .map_err(StackError::WincWifiFail)?;
+        } else {
+            return Err(StackError::InvalidState);
+        }
+
+        // change the state to unconnected
+        self.callbacks.state = WifiModuleState::Unconnected;
+        Ok(())
+    }
+
+    /// Get the provisioning information.
+    ///
+    /// # Arguments
+    ///
+    /// * `timeout` - The timeout duration for provisioning, in minutes.
+    ///
+    /// # Returns
+    ///
+    /// * `WifiCredentials` - Wifi Credentials received from provisioning.
+    /// * `StackError` - If an error occurs while receiving provisioning information.
+    pub fn get_provisioning_info(
+        &mut self,
+        timeout: u32,
+    ) -> nb::Result<WifiCredentials, StackError> {
+        match self.callbacks.state {
+            WifiModuleState::Provisioning => {
+                match &mut self.callbacks.provisioning_info {
+                    None => {
+                        self.operation_countdown = timeout * 60 * 1000; // passing in miliseconds
+                        self.callbacks.provisioning_info = Some(None);
+                        Err(nb::Error::WouldBlock)
+                    }
+                    Some(result) => {
+                        if let Some(info) = result.take() {
+                            Ok(info)
+                        } else {
+                            self.delay_us(self.poll_loop_delay_us);
+                            self.dispatch_events()?;
+                            self.operation_countdown -= 1;
+                            if self.operation_countdown == 0 {
+                                return Err(nb::Error::Other(StackError::GeneralTimeout));
+                            }
+                            Err(nb::Error::WouldBlock)
+                        }
+                    }
+                }
+            }
+            WifiModuleState::ProvisioningFailed => {
+                Err(nb::Error::Other(StackError::WincWifiFail(Error::Failed)))
+            }
+            _ => {
+                info!("State of Wifi module: {:?}", self.callbacks.state);
+                Err(nb::Error::Other(StackError::InvalidState))
             }
         }
     }

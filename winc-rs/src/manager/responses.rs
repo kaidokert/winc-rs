@@ -15,7 +15,7 @@
 use crate::readwrite::{Read, ReadExactError};
 use core::net::{Ipv4Addr, SocketAddrV4};
 
-use super::constants::{AuthType, PingError, SocketError};
+use super::constants::{AuthType, PingError, SocketError, MAX_PSK_KEY_LEN, MAX_SSID_LEN};
 use crate::errors::Error;
 type ErrType<'a> = ReadExactError<<&'a [u8] as Read>::ReadError>;
 
@@ -32,9 +32,14 @@ use crate::Ipv4AddrFormatWrapper;
 const AF_INET: u16 = 2;
 
 use crate::socket::Socket;
+/// The length of the SSID in a C-style string: `MAX_SSID_LEN` (32 bytes) plus 1 byte for null termination.
+const SSID_C_LEN: usize = MAX_SSID_LEN + 1;
+/// The length of the Passphrase in a C-style string: `MAX_PSK_KEY_LEN` (64 bytes) plus 1 byte for null termination.
+const PASSPHARASE_C_LEN: usize = MAX_PSK_KEY_LEN + 1;
 
 pub(crate) type HostName = ArrayString<64>;
-pub(crate) type Ssid = ArrayString<33>;
+pub(crate) type Ssid = ArrayString<SSID_C_LEN>;
+pub(crate) type Passphrase = ArrayString<PASSPHARASE_C_LEN>;
 
 fn read32be<'a>(v: &mut &[u8]) -> Result<u32, ErrType<'a>> {
     let mut arr = [0u8; 4];
@@ -419,6 +424,46 @@ pub fn read_prng_reply(mut response: &[u8]) -> Result<(u32, u16), Error> {
     let len = read16(reader)?; // random bytes length
     let _ = read16(reader)?; // void
     Ok((addr, len))
+}
+
+/// Reads the provisioning information from the data packet received from the chip.
+///
+/// Response Structure:
+///
+/// |    SSID    | Passphrase | Security type | Provisioning status |
+/// |------------|------------|---------------|---------------------|
+/// |  33 Bytes  |  65 Bytes  |    2 Bytes    |       1 Byte        |
+///
+/// # Arguments
+///
+/// * `response` - Data received from the chip that contains provisioning information.
+///
+/// # Returns
+///
+/// * `(Ssid, Passphrase, u8, bool)` on success, containing:
+///   - `Ssid`: The Wi-Fi SSID string
+///   - `Passphrase`: The Wi-Fi passphrase
+///   - `u8`: The security type
+///   - `bool`: The provisioning status (`true` if provisioned)
+/// * `Err(Error)` if the data is invalid or incomplete.
+pub fn read_provisioning_reply(mut response: &[u8]) -> Result<(Ssid, Passphrase, u8, bool), Error> {
+    let reader = &mut response;
+    let mut ssid_buf = [0u8; SSID_C_LEN];
+    let mut passphrase_buf = [0u8; PASSPHARASE_C_LEN];
+    // read the ssid
+    reader.read_exact(&mut ssid_buf)?;
+    // read the passphrase
+    reader.read_exact(&mut passphrase_buf)?;
+    // read the security type
+    let security_type = read8(reader)?;
+    // read the provisioning status
+    let provisioning_status: bool = (read8(reader)?) == 0;
+    Ok((
+        from_c_byte_str(ssid_buf)?,
+        from_c_byte_str(passphrase_buf)?,
+        security_type,
+        provisioning_status,
+    ))
 }
 
 #[cfg(test)]

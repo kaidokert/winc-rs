@@ -21,18 +21,21 @@ use crate::transfer::Xfer;
 
 mod chip_access;
 mod constants;
+mod net_types;
 mod requests;
 mod responses;
 use crate::{debug, trace};
 use chip_access::ChipAccess;
-use constants::WifiRequest;
-pub use constants::{AuthType, PingError, SocketError, WifiConnState}; // todo response shouldn't be leaking
+pub use constants::WifiConnError;
+pub use constants::{
+    AuthType, PingError, SocketError, WifiConnState, MAX_PSK_KEY_LEN, MAX_SSID_LEN,
+}; // todo response shouldn't be leaking
 use constants::{IpCode, Regs, WifiResponse};
+use constants::{WifiRequest, PROVISIONING_INFO_PACKET_SIZE};
+pub use net_types::{AccessPoint, WifiCredentials};
 use requests::*;
 pub use responses::IPConf;
 use responses::*;
-
-pub use constants::WifiConnError;
 pub use responses::{ConnectionInfo, ScanResult};
 
 use core::net::{Ipv4Addr, SocketAddrV4};
@@ -136,6 +139,7 @@ pub trait EventListener {
     fn on_recv(&mut self, socket: Socket, address: SocketAddrV4, data: &[u8], err: SocketError);
     fn on_recvfrom(&mut self, socket: Socket, address: SocketAddrV4, data: &[u8], err: SocketError);
     fn on_prng(&mut self, data: &[u8]);
+    fn on_provisioning(&mut self, ssid: &str, passphrase: &str, security: AuthType, status: bool);
 }
 
 pub struct Manager<X: Xfer> {
@@ -790,6 +794,54 @@ impl<X: Xfer> Manager<X> {
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
     }
 
+    /// Sends a request to start provisioning mode.
+    ///
+    /// # Arguments
+    ///
+    /// * `ap` - Configuration parameters for the access point, including SSID, password, authentication type, etc.
+    /// * `dns` - DNS redirect URL as a string slice. Must not end with `.local`.
+    /// * `http_redirect` - Enables or disables HTTP redirection. If enabled, all HTTP traffic
+    ///   (`http://<URL>`) from devices connected to the WINC access point will be redirected
+    ///   to the HTTP provisioning web page.
+    ///
+    /// # Returns
+    ///
+    /// * `()` - If the request is successfully sent.
+    /// * `Error` - If an error occurs during packet preparation or sending.
+    pub fn send_start_provisioning(
+        &mut self,
+        ap: AccessPoint,
+        dns: &str,
+        http_redirect: bool,
+    ) -> Result<(), Error> {
+        let req = write_start_provisioning_req(ap, dns, http_redirect)?;
+        self.write_hif_header(
+            HifGroup::Wifi(WifiResponse::Unhandled),
+            WifiRequest::StartProvisionMode,
+            &req,
+            true,
+        )?;
+        self.chip
+            .dma_block_write(self.not_a_reg_ctrl_4_dma + HIF_HEADER_OFFSET as u32, &req)?;
+        self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
+    }
+
+    /// Sends a request to stop provisioning mode.
+    ///
+    /// # Returns
+    ///
+    /// * `()` - If the request is successfully sent.
+    /// * `Error` - If an error occurs during packet preparation or transmission.
+    pub fn send_stop_provisioning(&mut self) -> Result<(), Error> {
+        self.write_hif_header(
+            HifGroup::Wifi(WifiResponse::Unhandled),
+            WifiRequest::StopProvisionMode,
+            &[],
+            false,
+        )?;
+        self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
+    }
+
     pub fn dispatch_events_new<T: EventListener>(&mut self, listener: &mut T) -> Result<(), Error> {
         let res = self.is_interrupt_pending()?;
         if !res.0 {
@@ -858,7 +910,11 @@ impl<X: Xfer> Manager<X> {
                     listener.on_ip_conflict(u32::from_be_bytes(result).into());
                 }
                 WifiResponse::ProvisionInfo => {
-                    unimplemented!("Provisioning not yet supported")
+                    let mut response = [0u8; PROVISIONING_INFO_PACKET_SIZE];
+                    // read the provisioning info
+                    self.read_block(address, &mut response)?;
+                    let res = read_provisioning_reply(&response)?;
+                    listener.on_provisioning(&res.0, &res.1, (res.2).into(), res.3);
                 }
                 WifiResponse::GetPrng => {
                     let mut response = [0; PRNG_DATA_LENGTH];

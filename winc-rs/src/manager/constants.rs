@@ -12,6 +12,28 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+/// Maxmimum length of SSID.
+pub const MAX_SSID_LEN: usize = 32;
+/// Length for 104 bit string passpharase.
+pub(crate) const MAX_WEP_KEY_LEN: usize = 26;
+#[cfg(feature = "enable-wep")]
+/// Length for 40 bit string passpharase.
+pub(crate) const MIN_WEP_KEY_LEN: usize = 10;
+/// Maximum length for the WPA PSK Key.
+pub const MAX_PSK_KEY_LEN: usize = 64;
+// Minimum length of the WPA PSK Key.
+pub(crate) const MIN_PSK_KEY_LEN: usize = 8;
+/// Maximum length for dns server url for provisioning mode.
+pub const MAX_DNS_URL_LEN: usize = 64;
+/// Maximum WiFi Channels supported
+pub(crate) const MAX_WIFI_CHANNEL: usize = 14;
+/// Minimum WiFi Channels supported
+pub(crate) const MIN_WIFI_CHANNEL: usize = 1;
+/// Packet size of the Start Provisioning Mode request.
+pub(crate) const START_PROVISION_PACKET_SIZE: usize = 204;
+/// Packet size of Provisioning Info.
+pub(crate) const PROVISIONING_INFO_PACKET_SIZE: usize = 100;
+
 pub enum Regs {
     SpiConfig = 0xE824,
     ChipId = 0x1000,
@@ -70,7 +92,7 @@ impl core::fmt::Display for WifiConnError {
 
 /// Type of authentication used by an access point
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-#[derive(Debug, PartialEq, Default)]
+#[derive(Debug, PartialEq, Default, Clone, Copy)]
 pub enum AuthType {
     #[default]
     Invalid,

@@ -74,6 +74,7 @@ pub use transfer::Xfer as Transfer;
 pub use client::PingResult;
 pub use client::StackError;
 pub use client::WincClient;
+pub use manager::AccessPoint;
 pub use manager::AuthType;
 pub use manager::ConnectionInfo;
 pub use manager::FirmwareInfo;

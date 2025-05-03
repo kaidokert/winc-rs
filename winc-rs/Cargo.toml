@@ -57,6 +57,7 @@ embedded-nal-async = ["dep:embedded-nal-async"]
 async = ["dep:embedded-nal-async"]
 rng = ["dep:rand_core"]
 large_rng = [] # This will allocate a 1.6KB buffer for the PRNG upon initialization.
+enable-wep = []
 
 # Todo: add feature flags to save binary space
 # - TCP
