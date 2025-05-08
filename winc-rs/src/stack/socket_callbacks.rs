@@ -1,9 +1,10 @@
 use core::net::Ipv4Addr;
 
-use crate::manager::{EventListener, SocketError, WifiConnError, WifiConnState, PRNG_DATA_LENGTH};
-use crate::ConnectionInfo;
-
+use crate::manager::{
+    EventListener, SocketError, WifiConnError, WifiConnState, WifiCredentials, PRNG_DATA_LENGTH,
+};
 use crate::{debug, error, info};
+use crate::{AuthType, ConnectionInfo};
 
 use crate::socket::Socket;
 
@@ -29,6 +30,8 @@ pub(crate) enum WifiModuleState {
     ConnectedToAp,
     ConnectionFailed,
     Disconnecting,
+    Provisioning,
+    ProvisioningFailed,
 }
 
 /// Ping operation results
@@ -118,6 +121,7 @@ pub(crate) struct SocketCallbacks {
     pub state: WifiModuleState,
     // Random Number Generator
     pub prng: Option<Option<Prng>>,
+    pub provisioning_info: Option<Option<WifiCredentials>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -227,6 +231,7 @@ impl SocketCallbacks {
             connection_state: ConnectionState::new(),
             state: WifiModuleState::Reset,
             prng: None,
+            provisioning_info: None,
         }
     }
     pub fn resolve(&mut self, socket: Socket) -> Option<&mut (Socket, ClientSocketOp)> {
@@ -270,7 +275,9 @@ impl EventListener for SocketCallbacks {
 
         match self.connection_state.conn_state {
             WifiConnState::Connected => {
-                self.state = WifiModuleState::ConnectedToAp;
+                if self.state != WifiModuleState::Provisioning {
+                    self.state = WifiModuleState::ConnectedToAp;
+                }
             }
             WifiConnState::Disconnected => {
                 if self.state == WifiModuleState::ConnectingToAp {
@@ -279,7 +286,7 @@ impl EventListener for SocketCallbacks {
                         "on_connstate_changed FAILED: {:?} {:?}",
                         self.connection_state.conn_state, self.connection_state.conn_error
                     );
-                } else {
+                } else if self.state != WifiModuleState::Provisioning {
                     self.state = WifiModuleState::Unconnected;
                 }
             }
@@ -636,6 +643,34 @@ impl EventListener for SocketCallbacks {
                 new_buf[..data.len()].copy_from_slice(data);
                 *buffer = Some(new_buf);
             }
+        }
+    }
+
+    /// Callback function to store the provisioning information.
+    ///
+    /// # Arguments
+    ///
+    /// * `ssid` - The SSID received from the chip.
+    /// * `passphrase` - The Wi-Fi passphrase.
+    /// * `security` - The security type (e.g., WPA2).
+    /// * `status` - Provisioning status (`true` if successful).
+    fn on_provisioning(
+        &mut self,
+        ssid: &[u8],
+        passphrase: &[u8],
+        security: AuthType,
+        status: bool,
+    ) {
+        // Check if provisioning was successful
+        if status {
+            let info = WifiCredentials::from_bytes(ssid, passphrase, security);
+            if info.is_err() {
+                error!("Invalid provisiong parameters received");
+            } else {
+                self.provisioning_info = Some(Some(info.unwrap()));
+            }
+        } else {
+            self.state = WifiModuleState::ProvisioningFailed;
         }
     }
 }

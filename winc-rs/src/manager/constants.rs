@@ -12,6 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+/// Maxmimum length of SSID.
+pub const MAX_SSID_LEN: usize = 32;
+/// Length for 104 bit string passpharase.
+pub(crate) const MAX_WEP_KEY_LEN: usize = 26;
+#[cfg(feature = "wep")]
+/// Length for 40 bit string passpharase.
+pub(crate) const MIN_WEP_KEY_LEN: usize = 10;
+/// Maximum length for the WPA PSK Key.
+pub const MAX_PSK_KEY_LEN: usize = 63;
+// Minimum length of the WPA PSK Key.
+pub(crate) const MIN_PSK_KEY_LEN: usize = 8;
+/// Maximum length for dns server url for provisioning mode.
+pub const MAX_DNS_URL_LEN: usize = 63;
+/// Packet size of the Start Provisioning Mode request.
+pub(crate) const START_PROVISION_PACKET_SIZE: usize = 204;
+/// Packet size of Provisioning Info.
+pub(crate) const PROVISIONING_INFO_PACKET_SIZE: usize = 100;
+
 pub enum Regs {
     SpiConfig = 0xE824,
     ChipId = 0x1000,
@@ -70,7 +88,7 @@ impl core::fmt::Display for WifiConnError {
 
 /// Type of authentication used by an access point
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-#[derive(Debug, PartialEq, Default)]
+#[derive(Debug, PartialEq, Default, Clone, Copy)]
 pub enum AuthType {
     #[default]
     Invalid,
@@ -362,5 +380,54 @@ impl From<u8> for SocketError {
             242 => Self::BufferFull,
             _ => Self::Unhandled,
         }
+    }
+}
+
+#[repr(u8)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum WifiChannel {
+    Channel1 = 1, // Default Value
+    Channel2 = 2,
+    Channel3 = 3,
+    Channel4 = 4,
+    Channel5 = 5,
+    Channel6 = 6,
+    Channel7 = 7,
+    Channel8 = 8,
+    Channel9 = 9,
+    Channel10 = 10,
+    Channel11 = 11,
+    Channel12 = 12,
+    Channel13 = 13,
+    Channel14 = 14,
+    ChannelAll = 255,
+}
+
+impl From<u8> for WifiChannel {
+    fn from(n: u8) -> Self {
+        match n {
+            1 => WifiChannel::Channel1,
+            2 => WifiChannel::Channel2,
+            3 => WifiChannel::Channel3,
+            4 => WifiChannel::Channel4,
+            5 => WifiChannel::Channel5,
+            6 => WifiChannel::Channel6,
+            7 => WifiChannel::Channel7,
+            8 => WifiChannel::Channel8,
+            9 => WifiChannel::Channel9,
+            10 => WifiChannel::Channel10,
+            11 => WifiChannel::Channel11,
+            12 => WifiChannel::Channel12,
+            13 => WifiChannel::Channel13,
+            14 => WifiChannel::Channel14,
+            255 => WifiChannel::ChannelAll,
+            _ => WifiChannel::Channel1, // Default Value
+        }
+    }
+}
+
+impl From<WifiChannel> for u8 {
+    fn from(val: WifiChannel) -> Self {
+        val as Self
     }
 }

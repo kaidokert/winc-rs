@@ -18,7 +18,14 @@ use crate::readwrite::Write;
 use crate::socket::Socket;
 use core::net::{Ipv4Addr, SocketAddrV4};
 
-use super::constants::AuthType;
+use super::constants::{
+    AuthType, MAX_DNS_URL_LEN, MAX_PSK_KEY_LEN, MAX_WEP_KEY_LEN, START_PROVISION_PACKET_SIZE,
+};
+
+#[cfg(feature = "wep")]
+use super::constants::MIN_WEP_KEY_LEN;
+
+use super::AccessPoint;
 
 // todo: support other auth besides Open/WPA
 pub fn write_connect_request(
@@ -30,7 +37,7 @@ pub fn write_connect_request(
 ) -> Result<[u8; 108], BufferOverflow> {
     let mut result = [0xCCu8; 108];
     let mut slice = result.as_mut_slice();
-    if password.len() > 63 {
+    if password.len() > MAX_PSK_KEY_LEN {
         return Err(BufferOverflow);
     }
     slice.write(password.as_bytes())?;
@@ -205,6 +212,101 @@ pub fn write_prng_req(addr: u32, len: u16) -> Result<[u8; 8], BufferOverflow> {
     let mut slice = req.as_mut_slice();
     slice.write(&addr.to_le_bytes())?;
     slice.write(&len.to_le_bytes())?;
+    Ok(req)
+}
+
+/// Prepares the packet to start the provisioning mode.
+///
+/// Packet Structure:
+///
+/// |       Name        | Bytes |      Name        | Bytes |
+/// |-------------------|-------|------------------|-------|
+/// |       SSID        |   33  |     Channel      |   1   |
+/// |     Key Size      |   1   |     Wep key      |   1   |
+/// |     Wep key       |   27  |     Security     |   1   |
+/// |  SSID Visibility  |   1   |  DHCP server IP  |   4   |
+/// |      WPA Key      |   65  |     Padding      |   2   |
+/// |      DNS url      |   64  |   Http Redirect  |   1   |
+/// |      Padding      |   3   |                  |       |
+///
+///
+/// # Arguments
+///
+/// * `ap` - An `AccessPoint` struct containing the SSID, passphrase, and other network details.
+/// * `dns` - DNS redirect URL as a string slice (max 63 bytes).
+/// * `http_redirect` - Whether HTTP redirect is enabled.
+///
+/// # Returns
+///
+/// * `[u8; START_PROVISION_PACKET_SIZE])` - The provisioning request packet as a fixed-size byte array.
+/// * `BufferOverflow` - If the input data exceeds allowed size or the buffer limit.
+pub fn write_start_provisioning_req(
+    ap: &AccessPoint,
+    dns: &str,
+    http_redirect: bool,
+) -> Result<[u8; START_PROVISION_PACKET_SIZE], BufferOverflow> {
+    let mut req = [0u8; START_PROVISION_PACKET_SIZE];
+    let mut slice = req.as_mut_slice();
+
+    // Set parameters for WEP
+    let wep_key_index: u8 = if ap.credentials.auth == AuthType::WEP {
+        1
+    } else {
+        0
+    };
+    // dhcp
+    let dhcp: u32 = ap.ip.into();
+    // DNS
+    let mut _dns = [0u8; MAX_DNS_URL_LEN];
+    if dns.len() > MAX_DNS_URL_LEN {
+        return Err(BufferOverflow);
+    }
+
+    _dns[..dns.len()].copy_from_slice(dns.as_bytes());
+
+    // SSID
+    slice.write(&ap.credentials.ssid)?;
+    // Null termination
+    slice.write(&[0u8])?;
+    // WiFi channel
+    slice.write(&[(ap.channel).into()])?;
+    // Wep key Index
+    slice.write(&[wep_key_index])?;
+    // Wep/WPA key size
+    slice.write(&[ap.credentials.key.len() as u8])?;
+    // Wep key
+    if ap.credentials.auth == AuthType::WEP {
+        slice.write(&ap.credentials.key[..MAX_WEP_KEY_LEN])?;
+    } else {
+        slice.write(&[0u8; MAX_WEP_KEY_LEN])?;
+    }
+    // Null termination
+    slice.write(&[0u8])?;
+    // Security type
+    slice.write(&[(ap.credentials.auth).into()])?;
+    // SSID visibility
+    slice.write(&[ap.ssid_hidden as u8])?;
+    // dhcp server
+    slice.write(&dhcp.to_be_bytes())?;
+    // WPA key
+    if ap.credentials.auth == AuthType::WpaPSK {
+        slice.write(&ap.credentials.key)?;
+    } else {
+        slice.write(&[0u8; MAX_PSK_KEY_LEN])?;
+    }
+    // WINC firmware supports 64 bytes (+1 over standard) plus null terminator.
+    slice.write(&[0u8, 0u8])?;
+    // Padding
+    slice.write(&[0u8, 0u8])?;
+    // DNS URL
+    slice.write(&_dns)?;
+    // Null termination
+    slice.write(&[0u8])?;
+    // Http redirect
+    slice.write(&[http_redirect as u8])?;
+    // Padding
+    slice.write(&[0u8, 0u8, 0u8])?;
+
     Ok(req)
 }
 
