@@ -8,9 +8,15 @@ use feather as bsp;
 use feather::init::init;
 
 use bsp::shared::SpiStream;
+use core::str;
 use feather::hal::ehal::digital::OutputPin;
 use feather::shared::{create_countdowns, delay_fn};
 use wincwifi::{AccessPoint, StackError, WincClient};
+
+const DEFAULT_TEST_SSID: &str = "winc_network";
+const DEFAULT_TEST_PASSWORD: &str = "password";
+const DEFAULT_TEST_DNS_URL: &str = "admin";
+const DEFAULT_PROVISIONING_TIMEOUT_IN_MINS: u32 = 15;
 
 fn program() -> Result<(), StackError> {
     if let Ok(mut ini) = init() {
@@ -19,6 +25,10 @@ fn program() -> Result<(), StackError> {
 
         let mut cnt = create_countdowns(&ini.delay_tick);
         let mut delay_ms = delay_fn(&mut cnt.0);
+
+        let ap_ssid = option_env!("TEST_AP_SSID").unwrap_or(DEFAULT_TEST_SSID);
+        let ap_password = option_env!("TEST_AP_PASSWORD").unwrap_or(DEFAULT_TEST_PASSWORD);
+        let ap_dns_url = option_env!("TEST_AP_DNS").unwrap_or(DEFAULT_TEST_DNS_URL);
 
         let mut stack = WincClient::new(SpiStream::new(ini.cs, ini.spi));
 
@@ -35,17 +45,22 @@ fn program() -> Result<(), StackError> {
             }
         }
         // Configure the access point with WPA/WPA2 security using the provided SSID and password.
-        let access_point = AccessPoint::wpa("test_winc_rs", "test1234556");
+        let access_point = AccessPoint::wpa(ap_ssid, ap_password)?;
         // Start the provising mode.
-        stack.start_provisioning_mode(access_point, "winctest", true)?;
-        defmt::println!("Provisioning Started for 15 minutes");
+        stack.start_provisioning_mode(&access_point, ap_dns_url, true)?;
+        defmt::println!(
+            "Provisioning Started for {} minutes",
+            DEFAULT_PROVISIONING_TIMEOUT_IN_MINS
+        );
         // Check for provisioning information is receieved for 15 minutes.
-        let result = nb::block!(stack.get_provisioning_info(15));
+        let result = nb::block!(stack.get_provisioning_info(DEFAULT_PROVISIONING_TIMEOUT_IN_MINS));
         match result {
             Ok(info) => {
                 defmt::info!("Credentials received from provisioning; connecting to access point.");
+                let _ssid = str::from_utf8(&info.ssid).unwrap();
+                let _key = str::from_utf8(&info.key).unwrap();
                 // Connect to access point.
-                nb::block!(stack.connect_to_ap(&info.ssid, &info.passphrase, false))?;
+                nb::block!(stack.connect_to_ap(_ssid, _key, false))?;
                 defmt::info!("Connected to AP");
             }
             Err(err) => {

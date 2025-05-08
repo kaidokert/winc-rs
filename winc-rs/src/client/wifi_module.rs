@@ -346,22 +346,22 @@ impl<X: Xfer> WincClient<'_, X> {
     /// * `StackError` - If an error occurs while starting provisioning mode.
     pub fn start_provisioning_mode(
         &mut self,
-        ap: AccessPoint,
+        ap: &AccessPoint,
         dns: &str,
         http_redirect: bool,
     ) -> Result<(), StackError> {
         match &mut self.callbacks.state {
             WifiModuleState::Unconnected | WifiModuleState::ConnectedToAp => {
-                if ap.auth == AuthType::Invalid {
+                if ap.credentials.auth == AuthType::Invalid {
                     return Err(StackError::Unexpected);
                 }
 
-                if ap.auth == AuthType::S802_1X {
+                if ap.credentials.auth == AuthType::S802_1X {
                     unimplemented!("Enterprise Security is not yet supported");
                 }
 
-                #[cfg(not(feature = "enable-wep"))]
-                if ap.auth == AuthType::WEP {
+                #[cfg(not(feature = "wep"))]
+                if ap.credentials.auth == AuthType::WEP {
                     unimplemented!("WEP provides very weak security and is disabled by default.");
                 }
 

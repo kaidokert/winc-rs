@@ -27,9 +27,7 @@ mod responses;
 use crate::{debug, trace};
 use chip_access::ChipAccess;
 pub use constants::WifiConnError;
-pub use constants::{
-    AuthType, PingError, SocketError, WifiConnState, MAX_PSK_KEY_LEN, MAX_SSID_LEN,
-}; // todo response shouldn't be leaking
+pub use constants::{AuthType, PingError, SocketError, WifiConnState}; // todo response shouldn't be leaking
 use constants::{IpCode, Regs, WifiResponse};
 use constants::{WifiRequest, PROVISIONING_INFO_PACKET_SIZE};
 pub use net_types::{AccessPoint, WifiCredentials};
@@ -139,7 +137,7 @@ pub trait EventListener {
     fn on_recv(&mut self, socket: Socket, address: SocketAddrV4, data: &[u8], err: SocketError);
     fn on_recvfrom(&mut self, socket: Socket, address: SocketAddrV4, data: &[u8], err: SocketError);
     fn on_prng(&mut self, data: &[u8]);
-    fn on_provisioning(&mut self, ssid: &str, passphrase: &str, security: AuthType, status: bool);
+    fn on_provisioning(&mut self, ssid: &[u8], passphrase: &[u8], security: AuthType, status: bool);
 }
 
 pub struct Manager<X: Xfer> {
@@ -810,7 +808,7 @@ impl<X: Xfer> Manager<X> {
     /// * `Error` - If an error occurs during packet preparation or sending.
     pub fn send_start_provisioning(
         &mut self,
-        ap: AccessPoint,
+        ap: &AccessPoint,
         dns: &str,
         http_redirect: bool,
     ) -> Result<(), Error> {

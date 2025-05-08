@@ -1,10 +1,7 @@
 use core::net::Ipv4Addr;
 
-use arrayvec::ArrayString;
-
 use crate::manager::{
-    EventListener, SocketError, WifiConnError, WifiConnState, WifiCredentials, MAX_PSK_KEY_LEN,
-    MAX_SSID_LEN, PRNG_DATA_LENGTH,
+    EventListener, SocketError, WifiConnError, WifiConnState, WifiCredentials, PRNG_DATA_LENGTH,
 };
 use crate::{debug, error, info};
 use crate::{AuthType, ConnectionInfo};
@@ -278,7 +275,9 @@ impl EventListener for SocketCallbacks {
 
         match self.connection_state.conn_state {
             WifiConnState::Connected => {
-                self.state = WifiModuleState::ConnectedToAp;
+                if self.state != WifiModuleState::Provisioning {
+                    self.state = WifiModuleState::ConnectedToAp;
+                }
             }
             WifiConnState::Disconnected => {
                 if self.state == WifiModuleState::ConnectingToAp {
@@ -287,7 +286,7 @@ impl EventListener for SocketCallbacks {
                         "on_connstate_changed FAILED: {:?} {:?}",
                         self.connection_state.conn_state, self.connection_state.conn_error
                     );
-                } else {
+                } else if self.state != WifiModuleState::Provisioning {
                     self.state = WifiModuleState::Unconnected;
                 }
             }
@@ -655,22 +654,21 @@ impl EventListener for SocketCallbacks {
     /// * `passphrase` - The Wi-Fi passphrase.
     /// * `security` - The security type (e.g., WPA2).
     /// * `status` - Provisioning status (`true` if successful).
-    fn on_provisioning(&mut self, ssid: &str, passphrase: &str, security: AuthType, status: bool) {
+    fn on_provisioning(
+        &mut self,
+        ssid: &[u8],
+        passphrase: &[u8],
+        security: AuthType,
+        status: bool,
+    ) {
         // Check if provisioning was successful
         if status {
-            let mut ssid_str: ArrayString<MAX_SSID_LEN> = ArrayString::new();
-            let mut pass_str: ArrayString<MAX_PSK_KEY_LEN> = ArrayString::new();
-
-            ssid_str.push_str(ssid.get(..MAX_SSID_LEN).unwrap_or(""));
-            pass_str.push_str(passphrase.get(..MAX_PSK_KEY_LEN).unwrap_or(""));
-
-            let info = WifiCredentials {
-                ssid: ssid_str,
-                passphrase: pass_str,
-                auth: security,
-            };
-
-            self.provisioning_info = Some(Some(info));
+            let info = WifiCredentials::from_bytes(ssid, passphrase, security);
+            if info.is_err() {
+                error!("Invalid provisiong parameters received");
+            } else {
+                self.provisioning_info = Some(Some(info.unwrap()));
+            }
         } else {
             self.state = WifiModuleState::ProvisioningFailed;
         }

@@ -19,52 +19,13 @@ use crate::socket::Socket;
 use core::net::{Ipv4Addr, SocketAddrV4};
 
 use super::constants::{
-    AuthType, MAX_DNS_URL_LEN, MAX_PSK_KEY_LEN, MAX_SSID_LEN, MAX_WEP_KEY_LEN, MAX_WIFI_CHANNEL,
-    MIN_PSK_KEY_LEN, MIN_WIFI_CHANNEL, START_PROVISION_PACKET_SIZE,
+    AuthType, MAX_DNS_URL_LEN, MAX_PSK_KEY_LEN, MAX_WEP_KEY_LEN, START_PROVISION_PACKET_SIZE,
 };
 
-#[cfg(feature = "enable-wep")]
+#[cfg(feature = "wep")]
 use super::constants::MIN_WEP_KEY_LEN;
 
 use super::AccessPoint;
-
-/// Validates the parameters for access point configuration.
-///
-/// # Arguments
-///
-/// * `ssid_len` - Length of SSID.
-/// * `key_len` - Length of passpharase
-/// * `auth` - Authentication type
-///
-/// # Returns
-///
-/// * `()` - An array of 8 bytes representing the request packet for PRNG.
-/// * `BufferOverflow` - If data lengths are not within the limits.
-fn validate_ap_parameters(
-    ssid_len: usize,
-    key_len: usize,
-    auth: AuthType,
-    channel: u8,
-) -> Result<(), BufferOverflow> {
-    if ssid_len > MAX_SSID_LEN {
-        return Err(BufferOverflow);
-    }
-
-    if (auth == AuthType::WpaPSK) && !(MIN_PSK_KEY_LEN..=MAX_PSK_KEY_LEN).contains(&key_len) {
-        return Err(BufferOverflow);
-    }
-
-    #[cfg(feature = "enable-wep")]
-    if (auth == AuthType::WEP) && ((key_len != MAX_WEP_KEY_LEN) && (key_len != MIN_WEP_KEY_LEN)) {
-        return Err(BufferOverflow);
-    }
-
-    if (channel < MIN_WIFI_CHANNEL as u8) || (channel > MAX_WIFI_CHANNEL as u8) {
-        return Err(BufferOverflow);
-    }
-
-    Ok(())
-}
 
 // todo: support other auth besides Open/WPA
 pub fn write_connect_request(
@@ -76,7 +37,7 @@ pub fn write_connect_request(
 ) -> Result<[u8; 108], BufferOverflow> {
     let mut result = [0xCCu8; 108];
     let mut slice = result.as_mut_slice();
-    if password.len() > 63 {
+    if password.len() > MAX_PSK_KEY_LEN {
         return Err(BufferOverflow);
     }
     slice.write(password.as_bytes())?;
@@ -271,79 +232,76 @@ pub fn write_prng_req(addr: u32, len: u16) -> Result<[u8; 8], BufferOverflow> {
 ///
 /// # Arguments
 ///
-/// * `ssid` - The SSID (network name) as a string slice (max 32 bytes).
-/// * `key` - The network key or password (WEP/WPA) as a string slice.
-/// * `auth` - The authentication type (e.g., Open, WEP, WPA) as an `AuthType`.
-/// * `dhcp_ip` - The IPv4 address of the DHCP server.
-/// * `ssid_hidden` - Whether the SSID is hidden (true or false).
-/// * `channel` - Wi-Fi channel number (1–14).
-/// * `dns` - DNS redirect URL as a string slice (max 64 bytes).
+/// * `ap` - An `AccessPoint` struct containing the SSID, passphrase, and other network details.
+/// * `dns` - DNS redirect URL as a string slice (max 63 bytes).
 /// * `http_redirect` - Whether HTTP redirect is enabled.
 ///
 /// # Returns
 ///
-/// * `Ok([u8; START_PROVISION_PACKET_SIZE])` - The provisioning request packet as a fixed-size byte array.
-/// * `Err(BufferOverflow)` - If the input data exceeds allowed size or the buffer limit.
+/// * `[u8; START_PROVISION_PACKET_SIZE])` - The provisioning request packet as a fixed-size byte array.
+/// * `BufferOverflow` - If the input data exceeds allowed size or the buffer limit.
 pub fn write_start_provisioning_req(
-    ap: AccessPoint,
+    ap: &AccessPoint,
     dns: &str,
     http_redirect: bool,
 ) -> Result<[u8; START_PROVISION_PACKET_SIZE], BufferOverflow> {
     let mut req = [0u8; START_PROVISION_PACKET_SIZE];
     let mut slice = req.as_mut_slice();
 
-    // check AP parameters
-    validate_ap_parameters(ap.ssid.len(), ap.key.len(), ap.auth, ap.channel)?;
-
-    // check the dns url length is valid
+    // Set parameters for WEP
+    let wep_key_index: u8 = if ap.credentials.auth == AuthType::WEP {
+        1
+    } else {
+        0
+    };
+    // dhcp
+    let dhcp: u32 = ap.ip.into();
+    // DNS
+    let mut _dns = [0u8; MAX_DNS_URL_LEN];
     if dns.len() > MAX_DNS_URL_LEN {
         return Err(BufferOverflow);
     }
 
-    // Set parameters for WEP
-    let wep_key_index: u8 = if ap.auth == AuthType::WEP { 1 } else { 0 };
-    // copy the ssid to buffer because
-    let mut ssid_tmp = [0u8; MAX_SSID_LEN + 1];
-    ssid_tmp[..ap.ssid.len()].copy_from_slice(ap.ssid.as_bytes());
-    // dhcp
-    let dhcp: u32 = ap.ip.into();
+    _dns[..dns.len()].copy_from_slice(dns.as_bytes());
 
     // SSID
-    slice.write(&ssid_tmp)?;
+    slice.write(&ap.credentials.ssid)?;
+    // Null termination
+    slice.write(&[0u8])?;
     // WiFi channel
-    slice.write(&[ap.channel])?;
+    slice.write(&[(ap.channel).into()])?;
     // Wep key Index
     slice.write(&[wep_key_index])?;
     // Wep/WPA key size
-    slice.write(&[ap.key.len() as u8])?;
+    slice.write(&[ap.credentials.key.len() as u8])?;
     // Wep key
-    if ap.auth == AuthType::WEP {
-        let mut key_tmp = [0u8; MAX_WEP_KEY_LEN + 1];
-        key_tmp[..ap.key.len()].copy_from_slice(ap.key.as_bytes());
-        slice.write(&key_tmp)?;
+    if ap.credentials.auth == AuthType::WEP {
+        slice.write(&ap.credentials.key[..MAX_WEP_KEY_LEN])?;
     } else {
-        slice.write(&[0u8; MAX_WEP_KEY_LEN + 1])?;
+        slice.write(&[0u8; MAX_WEP_KEY_LEN])?;
     }
+    // Null termination
+    slice.write(&[0u8])?;
     // Security type
-    slice.write(&[(ap.auth).into()])?;
+    slice.write(&[(ap.credentials.auth).into()])?;
     // SSID visibility
     slice.write(&[ap.ssid_hidden as u8])?;
     // dhcp server
     slice.write(&dhcp.to_be_bytes())?;
     // WPA key
-    if ap.auth == AuthType::WpaPSK {
-        let mut key_tmp = [0u8; MAX_PSK_KEY_LEN + 1];
-        key_tmp[..ap.key.len()].copy_from_slice(ap.key.as_bytes());
-        slice.write(&key_tmp)?;
+    if ap.credentials.auth == AuthType::WpaPSK {
+        slice.write(&ap.credentials.key)?;
     } else {
-        slice.write(&[0u8; MAX_PSK_KEY_LEN + 1])?;
+        slice.write(&[0u8; MAX_PSK_KEY_LEN])?;
     }
+    // WINC firmware supports 64 bytes (+1 over standard) plus null terminator.
+    slice.write(&[0u8, 0u8])?;
     // Padding
     slice.write(&[0u8, 0u8])?;
     // DNS URL
-    let mut dns_tmp = [0u8; MAX_DNS_URL_LEN];
-    dns_tmp[..dns.len()].copy_from_slice(dns.as_bytes());
-    slice.write(&dns_tmp)?;
+    slice.write(&_dns)?;
+    // Null termination
+    slice.write(&[0u8])?;
     // Http redirect
     slice.write(&[http_redirect as u8])?;
     // Padding
