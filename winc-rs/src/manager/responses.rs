@@ -180,7 +180,7 @@ impl From<[u8; 48]> for ConnectionInfo {
             auth: v[33].into(),
             rssi: v[44] as i8,
             ip: read32be(&mut ipslice).unwrap().into(),
-            ssid: from_c_byte_slice(&v[..=MAX_SSID_LEN]).unwrap(),
+            ssid: from_c_byte_slice(&v[..MAX_SSID_LEN]).unwrap(),
             mac: [0; 6],
         };
         res.mac.clone_from_slice(&v[38..44]);
@@ -226,7 +226,7 @@ impl From<[u8; 44]> for ScanResult {
             ..Default::default()
         };
         res.bssid.copy_from_slice(&v[4..10]);
-        res.ssid = from_c_byte_slice(&v[10..43]).unwrap();
+        res.ssid = from_c_byte_slice(&v[10..42]).unwrap();
         res
     }
 }
@@ -485,14 +485,14 @@ mod tests {
     fn parse_scan_result() {
         let result = [
             1, 2, 3, 4, 61, 61, 61, 61, 61, 0, 65, 66, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62,
-            62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 67, 0,
+            62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 67, 0, 0,
         ]; // 1 padding byte at the end
         let res: ScanResult = result.into();
         assert_eq!(res.index, 1);
         assert_eq!(res.rssi, 2);
         assert_eq!(res.auth, AuthType::WEP);
         assert_eq!(res.bssid, [61, 61, 61, 61, 61, 0]);
-        assert_eq!(res.ssid.as_str(), "AB>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>C");
+        assert_eq!(res.ssid.as_str(), "AB>>>>>>>>>>>>>>>>>>>>>>>>>>>>>C");
     }
 
     #[test]
@@ -529,14 +529,14 @@ mod tests {
     fn parse_connection_info() {
         let src = [
             65, 66, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 0x78, 62, 62, 62, 62, 62,
-            62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 67, 0x04, // auth
+            62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 67, 0, 0x04, // auth
             0x01, 0x02, 0x03, 0x04, //ip
             0xA1, 0xB2, 0xC3, 0xD4, 0xE5, 0xF6, // mac
             0xAB, // rssi
             0xCC, 0xCC, 0xCC,
         ];
         let res: ConnectionInfo = src.into();
-        assert_eq!(res.ssid.as_str(), "AB>>>>>>>>>>>>>x>>>>>>>>>>>>>>>>C");
+        assert_eq!(res.ssid.as_str(), "AB>>>>>>>>>>>>>x>>>>>>>>>>>>>>>C");
         assert_eq!(res.auth, AuthType::S802_1X);
         assert_eq!(res.ip, Ipv4Addr::new(1, 2, 3, 4));
         assert_eq!(res.mac, [0xA1, 0xB2, 0xC3, 0xD4, 0xE5, 0xF6]);

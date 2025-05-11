@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use arrayvec::ArrayString;
-
 use crate::manager::net_types::WpaKey;
 use crate::readwrite::BufferOverflow;
 use crate::readwrite::Write;
@@ -265,7 +263,7 @@ pub fn write_start_provisioning_req(
     #[cfg(not(feature = "wep"))]
     {
         wep_key_index = 0;
-        wep_key = ArrayString::new();
+        wep_key = WepKey::new();
     }
 
     // Set parameters for WPA-PSK
