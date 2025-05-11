@@ -12,20 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use arrayvec::ArrayString;
+
+use crate::manager::net_types::WpaKey;
 use crate::readwrite::BufferOverflow;
 use crate::readwrite::Write;
 
 use crate::socket::Socket;
 use core::net::{Ipv4Addr, SocketAddrV4};
 
-use super::constants::{
-    AuthType, MAX_DNS_URL_LEN, MAX_PSK_KEY_LEN, MAX_WEP_KEY_LEN, START_PROVISION_PACKET_SIZE,
-};
+use super::constants::{AuthType, MAX_PSK_KEY_LEN, START_PROVISION_PACKET_SIZE};
 
-#[cfg(feature = "wep")]
-use super::constants::MIN_WEP_KEY_LEN;
-
-use super::AccessPoint;
+use super::net_types::ArrayStringExt;
+use super::net_types::WepKey;
+use super::{AccessPoint, Credentials, HostName};
 
 // todo: support other auth besides Open/WPA
 pub fn write_connect_request(
@@ -242,30 +242,44 @@ pub fn write_prng_req(addr: u32, len: u16) -> Result<[u8; 8], BufferOverflow> {
 /// * `BufferOverflow` - If the input data exceeds allowed size or the buffer limit.
 pub fn write_start_provisioning_req(
     ap: &AccessPoint,
-    dns: &str,
+    hostname: &HostName,
     http_redirect: bool,
 ) -> Result<[u8; START_PROVISION_PACKET_SIZE], BufferOverflow> {
     let mut req = [0u8; START_PROVISION_PACKET_SIZE];
     let mut slice = req.as_mut_slice();
 
     // Set parameters for WEP
-    let wep_key_index: u8 = if ap.credentials.auth == AuthType::WEP {
-        1
-    } else {
-        0
-    };
-    // dhcp
-    let dhcp: u32 = ap.ip.into();
-    // DNS
-    let mut _dns = [0u8; MAX_DNS_URL_LEN];
-    if dns.len() > MAX_DNS_URL_LEN {
-        return Err(BufferOverflow);
+    let wep_key_index: u8;
+    let wep_key: WepKey;
+    #[cfg(feature = "wep")]
+    {
+        if let Credentials::Wep(key, index) = ap.key {
+            wep_key_index = index;
+            wep_key = key;
+        } else {
+            wep_key_index = 0;
+            wep_key = WepKey::new();
+        }
     }
 
-    _dns[..dns.len()].copy_from_slice(dns.as_bytes());
+    #[cfg(not(feature = "wep"))]
+    {
+        wep_key_index = 0;
+        wep_key = ArrayString::new();
+    }
+
+    // Set parameters for WPA-PSK
+    let wpa_key = if let Credentials::WpaPSK(key) = ap.key {
+        key
+    } else {
+        WpaKey::new()
+    };
+
+    // dhcp
+    let dhcp: u32 = ap.ip.into();
 
     // SSID
-    slice.write(&ap.credentials.ssid)?;
+    slice.write(&ap.ssid.as_padded_bytes())?;
     // Null termination
     slice.write(&[0u8])?;
     // WiFi channel
@@ -273,33 +287,25 @@ pub fn write_start_provisioning_req(
     // Wep key Index
     slice.write(&[wep_key_index])?;
     // Wep/WPA key size
-    slice.write(&[ap.credentials.key.len() as u8])?;
+    slice.write(&[ap.key.key_len() as u8])?;
     // Wep key
-    if ap.credentials.auth == AuthType::WEP {
-        slice.write(&ap.credentials.key[..MAX_WEP_KEY_LEN])?;
-    } else {
-        slice.write(&[0u8; MAX_WEP_KEY_LEN])?;
-    }
+    slice.write(&wep_key.as_padded_bytes())?;
     // Null termination
     slice.write(&[0u8])?;
     // Security type
-    slice.write(&[(ap.credentials.auth).into()])?;
+    slice.write(&[(ap.key).into()])?;
     // SSID visibility
     slice.write(&[ap.ssid_hidden as u8])?;
     // dhcp server
     slice.write(&dhcp.to_be_bytes())?;
     // WPA key
-    if ap.credentials.auth == AuthType::WpaPSK {
-        slice.write(&ap.credentials.key)?;
-    } else {
-        slice.write(&[0u8; MAX_PSK_KEY_LEN])?;
-    }
+    slice.write(&wpa_key.as_padded_bytes())?;
     // WINC firmware supports 64 bytes (+1 over standard) plus null terminator.
     slice.write(&[0u8, 0u8])?;
     // Padding
     slice.write(&[0u8, 0u8])?;
-    // DNS URL
-    slice.write(&_dns)?;
+    // Device Domain name
+    slice.write(&hostname.as_padded_bytes())?;
     // Null termination
     slice.write(&[0u8])?;
     // Http redirect

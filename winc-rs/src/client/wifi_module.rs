@@ -2,8 +2,8 @@ use crate::errors::Error;
 
 use embedded_nal::nb;
 
-use crate::manager::WifiCredentials;
 use crate::manager::{AccessPoint, AuthType, FirmwareInfo, IPConf, ScanResult};
+use crate::manager::{Credentials, HostName, ProvisionalInfo};
 
 use super::PingResult;
 use super::StackError;
@@ -337,7 +337,7 @@ impl<X: Xfer> WincClient<'_, X> {
     /// # Arguments
     ///
     /// * `ap` - An `AccessPoint` struct containing the SSID, password, and other network details.
-    /// * `dns` - A DNS redirect URL as a string slice. Must not end with `.local`.
+    /// * `hostname` - Device domain name. Must not include `.local`.
     /// * `http_redirect` - Whether HTTP redirection is enabled.
     ///
     /// # Returns
@@ -347,26 +347,24 @@ impl<X: Xfer> WincClient<'_, X> {
     pub fn start_provisioning_mode(
         &mut self,
         ap: &AccessPoint,
-        dns: &str,
+        hostname: &HostName,
         http_redirect: bool,
     ) -> Result<(), StackError> {
         match &mut self.callbacks.state {
             WifiModuleState::Unconnected | WifiModuleState::ConnectedToAp => {
-                if ap.credentials.auth == AuthType::Invalid {
-                    return Err(StackError::Unexpected);
-                }
+                let auth = <Credentials as Into<AuthType>>::into(ap.key);
 
-                if ap.credentials.auth == AuthType::S802_1X {
-                    unimplemented!("Enterprise Security is not yet supported");
+                if auth == AuthType::S802_1X {
+                    unimplemented!("Enterprise Security in provisioning mode is not supported");
                 }
 
                 #[cfg(not(feature = "wep"))]
-                if ap.credentials.auth == AuthType::WEP {
+                if auth == AuthType::WEP {
                     unimplemented!("WEP provides very weak security and is disabled by default.");
                 }
 
                 self.manager
-                    .send_start_provisioning(ap, dns, http_redirect)
+                    .send_start_provisioning(ap, hostname, http_redirect)
                     .map_err(StackError::WincWifiFail)?;
 
                 self.callbacks.state = WifiModuleState::Provisioning;
@@ -407,12 +405,12 @@ impl<X: Xfer> WincClient<'_, X> {
     ///
     /// # Returns
     ///
-    /// * `WifiCredentials` - Wifi Credentials received from provisioning.
+    /// * `ProvisionalInfo` - Wifi Credentials received from provisioning.
     /// * `StackError` - If an error occurs while receiving provisioning information.
     pub fn get_provisioning_info(
         &mut self,
         timeout: u32,
-    ) -> nb::Result<WifiCredentials, StackError> {
+    ) -> nb::Result<ProvisionalInfo, StackError> {
         match self.callbacks.state {
             WifiModuleState::Provisioning => {
                 match &mut self.callbacks.provisioning_info {

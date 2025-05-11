@@ -25,21 +25,26 @@ mod net_types;
 mod requests;
 mod responses;
 use crate::{debug, trace};
+
 use chip_access::ChipAccess;
 pub use constants::WifiConnError;
+#[cfg(feature = "wep")]
+pub(crate) use constants::DEFAULT_WEP_KEY_INDEX;
 pub use constants::{AuthType, PingError, SocketError, WifiConnState}; // todo response shouldn't be leaking
 use constants::{IpCode, Regs, WifiResponse};
 use constants::{WifiRequest, PROVISIONING_INFO_PACKET_SIZE};
-pub use net_types::{AccessPoint, WifiCredentials};
+
+pub use net_types::{AccessPoint, Credentials, HostName, ProvisionalInfo, Ssid, WpaKey};
+
+#[cfg(feature = "wep")]
+pub use net_types::WepKey;
+
 use requests::*;
 pub use responses::IPConf;
 use responses::*;
 pub use responses::{ConnectionInfo, ScanResult};
 
 use core::net::{Ipv4Addr, SocketAddrV4};
-
-#[cfg(test)]
-pub(crate) use responses::Ssid;
 
 pub use responses::FirmwareInfo;
 
@@ -137,7 +142,7 @@ pub trait EventListener {
     fn on_recv(&mut self, socket: Socket, address: SocketAddrV4, data: &[u8], err: SocketError);
     fn on_recvfrom(&mut self, socket: Socket, address: SocketAddrV4, data: &[u8], err: SocketError);
     fn on_prng(&mut self, data: &[u8]);
-    fn on_provisioning(&mut self, ssid: &[u8], passphrase: &[u8], security: AuthType, status: bool);
+    fn on_provisioning(&mut self, ssid: Ssid, key: WpaKey, security: AuthType, status: bool);
 }
 
 pub struct Manager<X: Xfer> {
@@ -809,10 +814,10 @@ impl<X: Xfer> Manager<X> {
     pub fn send_start_provisioning(
         &mut self,
         ap: &AccessPoint,
-        dns: &str,
+        hostname: &HostName,
         http_redirect: bool,
     ) -> Result<(), Error> {
-        let req = write_start_provisioning_req(ap, dns, http_redirect)?;
+        let req = write_start_provisioning_req(ap, hostname, http_redirect)?;
         self.write_hif_header(
             HifGroup::Wifi(WifiResponse::Unhandled),
             WifiRequest::StartProvisionMode,
@@ -912,7 +917,7 @@ impl<X: Xfer> Manager<X> {
                     // read the provisioning info
                     self.read_block(address, &mut response)?;
                     let res = read_provisioning_reply(&response)?;
-                    listener.on_provisioning(&res.0, &res.1, (res.2).into(), res.3);
+                    listener.on_provisioning(res.0, res.1, (res.2).into(), res.3);
                 }
                 WifiResponse::GetPrng => {
                     let mut response = [0; PRNG_DATA_LENGTH];

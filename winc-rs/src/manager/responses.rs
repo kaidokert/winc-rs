@@ -15,10 +15,13 @@
 use crate::readwrite::{Read, ReadExactError};
 use core::net::{Ipv4Addr, SocketAddrV4};
 
+use super::constants::MAX_HOST_NAME_LEN;
 use super::constants::{AuthType, PingError, SocketError, MAX_PSK_KEY_LEN, MAX_SSID_LEN};
+use super::WpaKey;
 use crate::errors::Error;
 type ErrType<'a> = ReadExactError<<&'a [u8] as Read>::ReadError>;
 
+use super::net_types::{HostName, Ssid};
 use arrayvec::ArrayString;
 
 use crate::error;
@@ -32,11 +35,6 @@ use crate::Ipv4AddrFormatWrapper;
 const AF_INET: u16 = 2;
 
 use crate::socket::Socket;
-/// The length of the SSID in a C-style string: `MAX_SSID_LEN` (32 bytes) plus 1 byte for null termination.
-const SSID_C_LEN: usize = MAX_SSID_LEN + 1;
-
-pub(crate) type HostName = ArrayString<64>;
-pub(crate) type Ssid = ArrayString<SSID_C_LEN>;
 
 fn read32be<'a>(v: &mut &[u8]) -> Result<u32, ErrType<'a>> {
     let mut arr = [0u8; 4];
@@ -182,7 +180,7 @@ impl From<[u8; 48]> for ConnectionInfo {
             auth: v[33].into(),
             rssi: v[44] as i8,
             ip: read32be(&mut ipslice).unwrap().into(),
-            ssid: from_c_byte_slice(&v[..33]).unwrap(),
+            ssid: from_c_byte_slice(&v[..=MAX_SSID_LEN]).unwrap(),
             mac: [0; 6],
         };
         res.mac.clone_from_slice(&v[38..44]);
@@ -347,8 +345,12 @@ pub fn read_dhcp_conf<'a>(mut response: &[u8]) -> Result<IPConf, ErrType<'a>> {
 // tstrDnsReply: returns hostname, IP
 pub fn read_dns_reply(mut response: &[u8]) -> Result<(Ipv4Addr, HostName), Error> {
     let reader = &mut response;
-    let mut strbuffer = [0u8; 64];
+    let mut strbuffer = [0u8; MAX_HOST_NAME_LEN];
+    // read hostname
     reader.read_exact(&mut strbuffer)?;
+    // read null terminator
+    read8(reader)?;
+    // read ip address
     let ip = read32be(reader)?;
     Ok((ip.into(), from_c_byte_str(strbuffer)?))
 }
@@ -438,14 +440,12 @@ pub fn read_prng_reply(mut response: &[u8]) -> Result<(u32, u16), Error> {
 /// # Returns
 ///
 /// * `(Ssid, Passphrase, u8, bool)` on success, containing:
-///   - `Ssid`: The Wi-Fi SSID string
-///   - `Passphrase`: The Wi-Fi passphrase
+///   - `Ssid`: The Wi-Fi SSID in bytes.
+///   - `Passphrase`: The Wi-Fi passphrase in bytes.
 ///   - `u8`: The security type
 ///   - `bool`: The provisioning status (`true` if provisioned)
 /// * `Err(Error)` if the data is invalid or incomplete.
-pub fn read_provisioning_reply(
-    mut response: &[u8],
-) -> Result<([u8; MAX_SSID_LEN], [u8; MAX_PSK_KEY_LEN], u8, bool), Error> {
+pub fn read_provisioning_reply(mut response: &[u8]) -> Result<(Ssid, WpaKey, u8, bool), Error> {
     let reader = &mut response;
     let mut ssid = [0u8; MAX_SSID_LEN];
     let mut key = [0u8; MAX_PSK_KEY_LEN];
@@ -461,7 +461,12 @@ pub fn read_provisioning_reply(
     let security_type = read8(reader)?;
     // read the provisioning status
     let provisioning_status: bool = (read8(reader)?) == 0;
-    Ok((ssid, key, security_type, provisioning_status))
+    Ok((
+        from_c_byte_str(ssid)?,
+        from_c_byte_str(key)?,
+        security_type,
+        provisioning_status,
+    ))
 }
 
 #[cfg(test)]

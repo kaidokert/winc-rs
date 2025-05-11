@@ -11,11 +11,11 @@ use bsp::shared::SpiStream;
 use core::str;
 use feather::hal::ehal::digital::OutputPin;
 use feather::shared::{create_countdowns, delay_fn};
-use wincwifi::{AccessPoint, StackError, WincClient};
+use wincwifi::{AccessPoint, Credentials, HostName, Ssid, StackError, WincClient, WpaKey};
 
 const DEFAULT_TEST_SSID: &str = "winc_network";
 const DEFAULT_TEST_PASSWORD: &str = "password";
-const DEFAULT_TEST_DNS_URL: &str = "admin";
+const DEFAULT_TEST_HOSTNAME: &str = "admin";
 const DEFAULT_PROVISIONING_TIMEOUT_IN_MINS: u32 = 15;
 
 fn program() -> Result<(), StackError> {
@@ -26,9 +26,11 @@ fn program() -> Result<(), StackError> {
         let mut cnt = create_countdowns(&ini.delay_tick);
         let mut delay_ms = delay_fn(&mut cnt.0);
 
-        let ap_ssid = option_env!("TEST_AP_SSID").unwrap_or(DEFAULT_TEST_SSID);
-        let ap_password = option_env!("TEST_AP_PASSWORD").unwrap_or(DEFAULT_TEST_PASSWORD);
-        let ap_dns_url = option_env!("TEST_AP_DNS").unwrap_or(DEFAULT_TEST_DNS_URL);
+        let ap_ssid = Ssid::from(option_env!("TEST_AP_SSID").unwrap_or(DEFAULT_TEST_SSID)).unwrap();
+        let ap_password =
+            WpaKey::from(option_env!("TEST_AP_PASSWORD").unwrap_or(DEFAULT_TEST_PASSWORD)).unwrap();
+        let hostname =
+            HostName::from(option_env!("TEST_AP_DNS").unwrap_or(DEFAULT_TEST_HOSTNAME)).unwrap();
 
         let mut stack = WincClient::new(SpiStream::new(ini.cs, ini.spi));
 
@@ -45,9 +47,9 @@ fn program() -> Result<(), StackError> {
             }
         }
         // Configure the access point with WPA/WPA2 security using the provided SSID and password.
-        let access_point = AccessPoint::wpa(ap_ssid, ap_password)?;
+        let access_point = AccessPoint::wpa(&ap_ssid, &ap_password)?;
         // Start the provising mode.
-        stack.start_provisioning_mode(&access_point, ap_dns_url, true)?;
+        stack.start_provisioning_mode(&access_point, &hostname, true)?;
         defmt::println!(
             "Provisioning Started for {} minutes",
             DEFAULT_PROVISIONING_TIMEOUT_IN_MINS
@@ -57,10 +59,16 @@ fn program() -> Result<(), StackError> {
         match result {
             Ok(info) => {
                 defmt::info!("Credentials received from provisioning; connecting to access point.");
-                let _ssid = str::from_utf8(&info.ssid).unwrap();
-                let _key = str::from_utf8(&info.key).unwrap();
+                let key: &str = match info.key {
+                    Credentials::Open => "",
+                    Credentials::WpaPSK(ref _key) => _key.as_str(),
+                    _ => {
+                        defmt::error!("Invalid Authentication type");
+                        return Err(StackError::Unexpected);
+                    }
+                };
                 // Connect to access point.
-                nb::block!(stack.connect_to_ap(_ssid, _key, false))?;
+                nb::block!(stack.connect_to_ap(info.ssid.as_str(), key, false))?;
                 defmt::info!("Connected to AP");
             }
             Err(err) => {

@@ -26,6 +26,7 @@ embedded-nal = "=0.9.0"
 wincwifi = { path = "../winc-rs", default-features = false, features=["defmt"] }
 demos = { path = "../demos", default-features = false, features=["defmt"] }
 ssd1306 = { version = "0.10", optional = true }
+arrayvec =  { version = "0.7.2", default-features = false, optional = true}
 
 [[example]]
 name = "iperf3_client"

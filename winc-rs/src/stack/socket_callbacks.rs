@@ -1,7 +1,12 @@
 use core::net::Ipv4Addr;
 
+#[cfg(feature = "wep")]
+use crate::manager::WepKey;
+#[cfg(feature = "wep")]
+use crate::manager::DEFAULT_WEP_KEY_INDEX;
 use crate::manager::{
-    EventListener, SocketError, WifiConnError, WifiConnState, WifiCredentials, PRNG_DATA_LENGTH,
+    Credentials, EventListener, ProvisionalInfo, SocketError, Ssid, WifiConnError, WifiConnState,
+    WpaKey, PRNG_DATA_LENGTH,
 };
 use crate::{debug, error, info};
 use crate::{AuthType, ConnectionInfo};
@@ -121,7 +126,7 @@ pub(crate) struct SocketCallbacks {
     pub state: WifiModuleState,
     // Random Number Generator
     pub prng: Option<Option<Prng>>,
-    pub provisioning_info: Option<Option<WifiCredentials>>,
+    pub provisioning_info: Option<Option<ProvisionalInfo>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -654,21 +659,26 @@ impl EventListener for SocketCallbacks {
     /// * `passphrase` - The Wi-Fi passphrase.
     /// * `security` - The security type (e.g., WPA2).
     /// * `status` - Provisioning status (`true` if successful).
-    fn on_provisioning(
-        &mut self,
-        ssid: &[u8],
-        passphrase: &[u8],
-        security: AuthType,
-        status: bool,
-    ) {
+    fn on_provisioning(&mut self, ssid: Ssid, key: WpaKey, security: AuthType, status: bool) {
         // Check if provisioning was successful
         if status {
-            let info = WifiCredentials::from_bytes(ssid, passphrase, security);
-            if info.is_err() {
-                error!("Invalid provisiong parameters received");
-            } else {
-                self.provisioning_info = Some(Some(info.unwrap()));
+            let mut cred = Credentials::Open;
+
+            match security {
+                AuthType::Open => cred = Credentials::Open,
+                AuthType::WpaPSK => cred = Credentials::WpaPSK(key),
+                #[cfg(feature = "wep")]
+                AuthType::WEP => {
+                    let mut wep_key = WepKey::new();
+                    wep_key.push_str(&key[..wep_key.capacity()]);
+                    cred = Credentials::Wep(wep_key, DEFAULT_WEP_KEY_INDEX as u8);
+                }
+                _ => error!("Invalid or Unsupported Authentication type"),
             }
+
+            let info = ProvisionalInfo { ssid, key: cred };
+
+            self.provisioning_info = Some(Some(info));
         } else {
             self.state = WifiModuleState::ProvisioningFailed;
         }

@@ -16,19 +16,21 @@
 pub const MAX_SSID_LEN: usize = 32;
 /// Length for 104 bit string passpharase.
 pub(crate) const MAX_WEP_KEY_LEN: usize = 26;
-#[cfg(feature = "wep")]
-/// Length for 40 bit string passpharase.
-pub(crate) const MIN_WEP_KEY_LEN: usize = 10;
 /// Maximum length for the WPA PSK Key.
 pub const MAX_PSK_KEY_LEN: usize = 63;
-// Minimum length of the WPA PSK Key.
-pub(crate) const MIN_PSK_KEY_LEN: usize = 8;
-/// Maximum length for dns server url for provisioning mode.
-pub const MAX_DNS_URL_LEN: usize = 63;
+/// Maximum length for Device domain name for provisioning mode.
+pub const MAX_HOST_NAME_LEN: usize = 63;
 /// Packet size of the Start Provisioning Mode request.
 pub(crate) const START_PROVISION_PACKET_SIZE: usize = 204;
 /// Packet size of Provisioning Info.
 pub(crate) const PROVISIONING_INFO_PACKET_SIZE: usize = 100;
+/// Maximum password length for the enterprise mode.
+pub const MAX_S802_PASSWORD_LEN: usize = 40;
+/// Maximum usuername length for the Enterprise mode.
+pub const MAX_S802_USERNAME_LEN: usize = 20;
+#[cfg(feature = "wep")]
+/// Default Wep Key index.
+pub(crate) const DEFAULT_WEP_KEY_INDEX: usize = 1;
 
 pub enum Regs {
     SpiConfig = 0xE824,
@@ -383,6 +385,7 @@ impl From<u8> for SocketError {
     }
 }
 
+// Wi-Fi RF Channels
 #[repr(u8)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum WifiChannel {

@@ -14,26 +14,73 @@
 
 use crate::{errors::Error, StackError};
 
-use super::constants::{AuthType, WifiChannel, MAX_PSK_KEY_LEN, MAX_SSID_LEN, MIN_PSK_KEY_LEN};
+use arrayvec::ArrayString;
+
+use super::constants::{
+    AuthType, WifiChannel, MAX_HOST_NAME_LEN, MAX_PSK_KEY_LEN, MAX_S802_PASSWORD_LEN,
+    MAX_S802_USERNAME_LEN, MAX_SSID_LEN,
+};
+
+use super::constants::MAX_WEP_KEY_LEN;
 use core::net::Ipv4Addr;
 
 // Default IP address for provisioning mode.
 const PROVISIONING_DEFAULT_IP: u32 = 0xC0A80101;
 
-/// Structure for Wi-Fi Credentials.
-pub struct WifiCredentials {
+/// Device Domain name.
+pub type HostName = ArrayString<MAX_HOST_NAME_LEN>;
+/// Wifi SSID
+pub type Ssid = ArrayString<MAX_SSID_LEN>;
+/// WPA-PSK key
+pub type WpaKey = ArrayString<MAX_PSK_KEY_LEN>;
+/// Wep Key
+pub type WepKey = ArrayString<MAX_WEP_KEY_LEN>;
+/// S802_1X Username
+pub type S8Username = ArrayString<MAX_S802_USERNAME_LEN>;
+/// S802_1X Password
+pub type S8Password = ArrayString<MAX_S802_PASSWORD_LEN>;
+
+/// Extension trait for ArrayString
+pub trait ArrayStringExt<const N: usize> {
+    /// Returns a `[u8; N]` containing the string bytes, padded with `0`s.
+    fn as_padded_bytes(&self) -> [u8; N];
+}
+
+/// Wi-Fi Security Credentials.
+#[repr(u8)]
+#[derive(Copy, Clone, PartialEq, Eq)]
+pub enum Credentials {
+    Open = 1,
+    /// WPA-PSK Passpharase: Must be at least 8 bytes (MIN) and no more than 63 bytes long.
+    WpaPSK(WpaKey) = 2,
+    /// Wep Passphrase: Should be 10 characters for 40-bit and 26 characters for 104-bit.
+    /// Wep key Index: Between 1 and 4.
+    #[cfg(feature = "wep")]
+    Wep(WepKey, u8) = 3,
+    /// 802.1X enterprise authentication.
+    ///
+    /// Used for WPA/WPA2-Enterprise networks that require a username and password.
+    ///
+    /// # Fields
+    /// - `S8Username`: The user identity
+    /// - `S8Password`: The user password
+    S802_1X(S8Username, S8Password) = 4,
+}
+
+/// Structure for Provisioning Information.
+pub struct ProvisionalInfo {
     /// The SSID (network name) of the network.
-    pub ssid: [u8; MAX_SSID_LEN],
-    /// The passphrase (Wi-Fi key) for the network's security.
-    pub key: [u8; MAX_PSK_KEY_LEN],
-    /// The authentication type (e.g., WPA, WPA2, etc.) used by the network.
-    pub auth: AuthType,
+    pub ssid: Ssid,
+    /// Credentials for network's security.
+    pub key: Credentials,
 }
 
 /// Structure for Access Point Configuration.
-pub struct AccessPoint {
-    /// Structure for storing Wifi Credentials.
-    pub credentials: WifiCredentials,
+pub struct AccessPoint<'a> {
+    /// The SSID (network name) of the network.
+    pub ssid: &'a Ssid,
+    /// The passphrase (Wi-Fi key) for the network's security.
+    pub key: Credentials,
     /// The channel number (1..14) or 255 for all channels used by the access point.
     pub channel: WifiChannel,
     /// Whether the SSID is hidden (true for hidden).
@@ -43,161 +90,59 @@ pub struct AccessPoint {
     pub ip: Ipv4Addr,
 }
 
-impl WifiCredentials {
-    /// Checks whether the provided key length is valid for the given authentication type.
-    ///
-    /// # Arguments
-    ///
-    /// * `auth` - The authentication method (e.g., Open, WEP, WPA2).
-    /// * `key_len` - The length of the security key in bytes.
-    ///
-    /// # Returns
-    ///
-    /// * `()` - If the key length is valid for the specified authentication type.
-    /// * `StackError` - If the key length is invalid.
-    fn check_key_validity(auth: AuthType, key_len: usize) -> Result<(), StackError> {
-        match auth {
-            AuthType::WpaPSK => {
-                if !((MIN_PSK_KEY_LEN..=MAX_PSK_KEY_LEN).contains(&key_len)) {
-                    return Err(StackError::WincWifiFail(Error::BufferError));
-                }
-            }
-            #[cfg(feature = "wep")]
-            AuthType::WEP => {
-                if (key_len != MAX_WEP_KEY_LEN) && (key_len != MIN_WEP_KEY_LEN) {
-                    return Err(StackError::WincWifiFail(Error::BufferError));
-                }
-            }
-            _ => {
-                // do nothing
-            }
-        }
-
-        Ok(())
-    }
-
-    /// Creates new Wi-Fi credentials from the provided parameters.
-    ///
-    /// # Arguments
-    ///
-    /// * `ssid` - The SSID (network name) as a UTF-8 string, no more than 32 bytes.
-    /// * `key` - The security key as a UTF-8 string; must meet length requirements based on the `auth` type.
-    /// * `auth` - The authentication method (e.g., Open, WEP, WPA2).
-    ///
-    /// # Notes
-    ///
-    /// For WPA, the security key must be at least 8 bytes (MIN) and no more than 63 bytes long.
-    /// For WEP, the security key should be 10 bytes for 40-bit and 26 bytes for 104-bit.
-    ///
-    /// # Returns
-    ///
-    /// * `WifiCredentials` - The configured Wi-Fi credentials on success.
-    /// * `StackError` - If any parameter fails validation.
-    pub fn new(ssid: &str, key: &str, auth: AuthType) -> Result<Self, StackError> {
-        // SSID
-        let mut _ssid = [0u8; MAX_SSID_LEN];
-        let _ssid_len = ssid.len().min(MAX_SSID_LEN);
-        // Passphrase
-        let mut _key = [0u8; MAX_PSK_KEY_LEN];
-        let _key_len = key.len().min(MAX_PSK_KEY_LEN);
-        // Check the key length validity
-        Self::check_key_validity(auth, key.len())?;
-        // Copy the SSID
-        _ssid[.._ssid_len].copy_from_slice(&(ssid.as_bytes())[.._ssid_len]);
-        // Copy the Passphrase
-        _key[.._key_len].copy_from_slice(&(key.as_bytes()[.._key_len]));
-        Ok(Self {
-            ssid: _ssid,
-            key: _key,
-            auth,
-        })
-    }
-
-    /// Creates new Wi-Fi credentials with open (no security) access.
-    ///
-    /// # Arguments
-    ///
-    /// * `ssid` - The SSID (network name) as a UTF-8 string, no more than 32 bytes.
-    ///
-    /// # Returns
-    ///
-    /// * `WifiCredentials` - The configured Wi-Fi credentials without security.
-    /// * `StackError` - If the SSID exceeds the length limit.
-    pub fn open(ssid: &str) -> Result<Self, StackError> {
-        Self::new(ssid, "", AuthType::Open)
-    }
-
-    /// Creates a wifi configuration for a WPA or WPA2-secured access point.
-    ///
-    /// # Arguments
-    ///
-    /// * `ssid` - The SSID (network name), up to 32 bytes.
-    /// * `key` - The WPA security key, up to 63 bytes (as per WPA/WPA2 specification).
-    ///
-    /// # Returns
-    ///
-    /// * `WifiCredentials` - The configured Wi-Fi credentials with WPA-PSK security on success.
-    /// * `StackError` - If parameter validation fails.
-    pub fn wpa(ssid: &str, key: &str) -> Result<Self, StackError> {
-        Self::new(ssid, key, AuthType::WpaPSK)
-    }
-
-    #[cfg(feature = "wep")]
-    /// Creates a wifi configuration for a WEP secured access point.
-    ///
-    /// # Arguments
-    ///
-    /// * `ssid` - The SSID (network name), up to 32 bytes.
-    /// * `key` - The WEP security key, either 10 bytes (for 40-bit) or 26 bytes (for 104-bit).
-    ///
-    /// # Returns
-    ///
-    /// * `WifiCredentials` - The configured Wi-Fi credentials with WPA-PSK security on success.
-    /// * `StackError` - If parameter validation fails.
-    pub fn wep(ssid: &str, key: &str) -> Result<Self, StackError> {
-        Self::new(ssid, passphrase, AuthType::WEP)
-    }
-
-    /// Creates an wifi configuration from raw byte slices.
-    ///
-    /// # Arguments
-    ///
-    /// * `ssid` - The SSID as a byte slice; no more than 32 bytes.
-    /// * `key` - The security key as a byte slice; must meet length requirements based on the `auth` type.
-    /// * `auth` - The authentication method (e.g., Open, WEP, WPA2).
-    ///
-    /// # Returns
-    ///
-    /// * `WifiCredentials` - The configured WifiCredentials on success.
-    /// * `StackError` - If validation of any parameters fails.
-    pub fn from_bytes(ssid: &[u8], key: &[u8], auth: AuthType) -> Result<Self, StackError> {
-        // SSID
-        let mut _ssid = [0u8; MAX_SSID_LEN];
-        let _ssid_len = ssid.len().min(MAX_SSID_LEN);
-        // Passphrase
-        let mut _key = [0u8; MAX_PSK_KEY_LEN];
-        let _key_len = key.len().min(MAX_PSK_KEY_LEN);
-        // Check the key length validity
-        Self::check_key_validity(auth, key.len())?;
-        // Copy the SSID
-        _ssid[.._ssid_len].copy_from_slice(&ssid[.._ssid_len]);
-        // Copy the Passphrase
-        _key[.._key_len].copy_from_slice(&key[.._key_len]);
-        Ok(Self {
-            ssid: _ssid,
-            key: _key,
-            auth,
-        })
+/// Implementation For ArrayStringExt Trait
+impl<const N: usize> ArrayStringExt<N> for ArrayString<N> {
+    fn as_padded_bytes(&self) -> [u8; N] {
+        let mut buf = [0u8; N];
+        let bytes = self.as_bytes();
+        buf[..bytes.len()].copy_from_slice(bytes);
+        buf
     }
 }
 
-impl AccessPoint {
+impl From<Credentials> for AuthType {
+    fn from(cred: Credentials) -> Self {
+        match cred {
+            Credentials::Open => Self::Open,
+            Credentials::WpaPSK(_) => Self::WpaPSK,
+            #[cfg(feature = "wep")]
+            Credentials::Wep(_, _) => Self::WEP,
+            Credentials::S802_1X(_, _) => Self::S802_1X,
+        }
+    }
+}
+
+impl From<Credentials> for u8 {
+    fn from(val: Credentials) -> Self {
+        match val {
+            Credentials::Open => 1,
+            Credentials::WpaPSK(_) => 2,
+            #[cfg(feature = "wep")]
+            Credentials::Wep(_, _) => 3,
+            Credentials::S802_1X(_, _) => 4,
+        }
+    }
+}
+
+impl Credentials {
+    pub fn key_len(&self) -> usize {
+        match self {
+            Credentials::Open => 0,
+            #[cfg(feature = "wep")]
+            Credentials::Wep(key, _) => key.capacity(),
+            Credentials::WpaPSK(key) => key.capacity(),
+            Credentials::S802_1X(_, key) => key.capacity(),
+        }
+    }
+}
+
+impl<'a> AccessPoint<'a> {
     /// Creates a new access point configuration with the provided parameters.
     ///
     /// # Arguments
     ///
-    /// * `ssid` - The SSID (network name), up to 32 bytes.
-    /// * `key` - The security key or password, length depends on the `auth` type.
+    /// * `ssid` - The SSID (network name) up to 32 characters.
+    /// * `key` - Security credentials depends on the `auth` type.
     /// * `auth` - The authentication method (e.g., Open, WPA2).
     /// * `channel` - The Wi-Fi channel to operate on (typically between 1 and 14).
     /// * `ssid_hidden` - Whether the SSID should be hidden from network scans (true for hidden).
@@ -205,17 +150,18 @@ impl AccessPoint {
     ///
     /// # Notes
     ///
+    /// For Open, the security type should be empty.
     /// For WPA, the security key must be at least 8 bytes (MIN) and no more than 63 bytes long.
     /// For WEP, the security key should be 10 bytes for 40-bit and 26 bytes for 104-bit.
+    /// For S802, the security key should be no more then 40 bytes long.
     ///
     /// # Returns
     ///
     /// * `AccessPoint` - Configured access point structure on success.
     /// * `StackError` - If validation of any parameters fails.
     pub fn new(
-        ssid: &str,
-        key: &str,
-        auth: AuthType,
+        ssid: &'a Ssid,
+        key: Credentials,
         channel: WifiChannel,
         ssid_hidden: bool,
         ip: Ipv4Addr,
@@ -225,7 +171,8 @@ impl AccessPoint {
             return Err(StackError::WincWifiFail(Error::BufferError));
         }
         Ok(Self {
-            credentials: WifiCredentials::new(ssid, key, auth)?,
+            ssid,
+            key,
             channel,
             ssid_hidden,
             ip: Ipv4Addr::from(octets),
@@ -236,15 +183,16 @@ impl AccessPoint {
     ///
     /// # Arguments
     ///
-    /// * `ssid` - The SSID (network name), up to 32 bytes.
+    /// * `ssid` - The SSID (network name) string up to 32 bytes.
     ///
     /// # Returns
     ///
     /// * `AccessPoint` - The configured `AccessPoint` with open (no security) on success.
     /// * `StackError` - If validation of any parameters fails.
-    pub fn open(ssid: &str) -> Result<Self, StackError> {
+    pub fn open(ssid: &'a Ssid) -> Result<Self, StackError> {
         Ok(Self {
-            credentials: WifiCredentials::new(ssid, "", AuthType::Open)?,
+            ssid,
+            key: Credentials::Open,
             channel: WifiChannel::Channel1,
             ssid_hidden: false,
             ip: Ipv4Addr::from_bits(PROVISIONING_DEFAULT_IP),
@@ -258,14 +206,16 @@ impl AccessPoint {
     ///
     /// * `ssid` - The SSID (network name), up to 32 bytes.
     /// * `key` - The WEP security key, either 10 bytes (for 40-bit) or 26 bytes (for 104-bit).
+    /// * `key_index` - Wep Key Index; typically between 1 and 4.
     ///
     /// # Returns
     ///
     /// * `AccessPoint` - The configured `AccessPoint` with WEP security on success.
     /// * `StackError` - If parameter validation fails.
-    pub fn wep(ssid: &'a str, key: &'a str) -> Result<Self, StackError> {
+    pub fn wep(ssid: &'a Ssid, key: &'a WepKey, key_index: u8) -> Result<Self, StackError> {
         Ok(Self {
-            credentials: WifiCredentials::new(ssid, key, AuthType::WEP)?,
+            ssid,
+            key: Credentials::Wep(key.clone(), key_index),
             channel: WifiChannel::Channel1,
             ssid_hidden: false,
             ip: Ipv4Addr::from_bits(PROVISIONING_DEFAULT_IP),
@@ -283,9 +233,10 @@ impl AccessPoint {
     ///
     /// * `AccessPoint` - The configured `AccessPoint` with WPA-PSK security on success.
     /// * `StackError` - If parameter validation fails.
-    pub fn wpa(ssid: &str, key: &str) -> Result<Self, StackError> {
+    pub fn wpa(ssid: &'a Ssid, key: &'a WpaKey) -> Result<Self, StackError> {
         Ok(Self {
-            credentials: WifiCredentials::new(ssid, key, AuthType::WpaPSK)?,
+            ssid,
+            key: Credentials::WpaPSK(*key),
             channel: WifiChannel::Channel1,
             ssid_hidden: false,
             ip: Ipv4Addr::from_bits(PROVISIONING_DEFAULT_IP),
