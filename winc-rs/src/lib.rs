@@ -77,6 +77,9 @@ pub use client::WincClient;
 pub use manager::AuthType;
 pub use manager::ConnectionInfo;
 pub use manager::FirmwareInfo;
+#[cfg(feature = "wep")]
+pub use manager::WepKey;
+pub use manager::{AccessPoint, Credentials, HostName, Ssid, WpaKey};
 
 // TODO: maybe don't expose this directly
 pub use manager::ScanResult;

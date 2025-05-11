@@ -15,10 +15,13 @@
 use crate::readwrite::{Read, ReadExactError};
 use core::net::{Ipv4Addr, SocketAddrV4};
 
-use super::constants::{AuthType, PingError, SocketError};
+use super::constants::MAX_HOST_NAME_LEN;
+use super::constants::{AuthType, PingError, SocketError, MAX_PSK_KEY_LEN, MAX_SSID_LEN};
+use super::WpaKey;
 use crate::errors::Error;
 type ErrType<'a> = ReadExactError<<&'a [u8] as Read>::ReadError>;
 
+use super::net_types::{HostName, Ssid};
 use arrayvec::ArrayString;
 
 use crate::error;
@@ -32,9 +35,6 @@ use crate::Ipv4AddrFormatWrapper;
 const AF_INET: u16 = 2;
 
 use crate::socket::Socket;
-
-pub(crate) type HostName = ArrayString<64>;
-pub(crate) type Ssid = ArrayString<33>;
 
 fn read32be<'a>(v: &mut &[u8]) -> Result<u32, ErrType<'a>> {
     let mut arr = [0u8; 4];
@@ -180,7 +180,7 @@ impl From<[u8; 48]> for ConnectionInfo {
             auth: v[33].into(),
             rssi: v[44] as i8,
             ip: read32be(&mut ipslice).unwrap().into(),
-            ssid: from_c_byte_slice(&v[..33]).unwrap(),
+            ssid: from_c_byte_slice(&v[..MAX_SSID_LEN]).unwrap(),
             mac: [0; 6],
         };
         res.mac.clone_from_slice(&v[38..44]);
@@ -226,7 +226,7 @@ impl From<[u8; 44]> for ScanResult {
             ..Default::default()
         };
         res.bssid.copy_from_slice(&v[4..10]);
-        res.ssid = from_c_byte_slice(&v[10..43]).unwrap();
+        res.ssid = from_c_byte_slice(&v[10..42]).unwrap();
         res
     }
 }
@@ -345,8 +345,12 @@ pub fn read_dhcp_conf<'a>(mut response: &[u8]) -> Result<IPConf, ErrType<'a>> {
 // tstrDnsReply: returns hostname, IP
 pub fn read_dns_reply(mut response: &[u8]) -> Result<(Ipv4Addr, HostName), Error> {
     let reader = &mut response;
-    let mut strbuffer = [0u8; 64];
+    let mut strbuffer = [0u8; MAX_HOST_NAME_LEN];
+    // read hostname
     reader.read_exact(&mut strbuffer)?;
+    // read null terminator
+    read8(reader)?;
+    // read ip address
     let ip = read32be(reader)?;
     Ok((ip.into(), from_c_byte_str(strbuffer)?))
 }
@@ -421,6 +425,50 @@ pub fn read_prng_reply(mut response: &[u8]) -> Result<(u32, u16), Error> {
     Ok((addr, len))
 }
 
+/// Reads the provisioning information from the data packet received from the chip.
+///
+/// Response Structure:
+///
+/// |    SSID    | Passphrase | Security type | Provisioning status |
+/// |------------|------------|---------------|---------------------|
+/// |  33 Bytes  |  65 Bytes  |    2 Bytes    |       1 Byte        |
+///
+/// # Arguments
+///
+/// * `response` - Data received from the chip that contains provisioning information.
+///
+/// # Returns
+///
+/// * `(Ssid, Passphrase, u8, bool)` on success, containing:
+///   - `Ssid`: The Wi-Fi SSID in bytes.
+///   - `Passphrase`: The Wi-Fi passphrase in bytes.
+///   - `u8`: The security type
+///   - `bool`: The provisioning status (`true` if provisioned)
+/// * `Err(Error)` if the data is invalid or incomplete.
+pub fn read_provisioning_reply(mut response: &[u8]) -> Result<(Ssid, WpaKey, u8, bool), Error> {
+    let reader = &mut response;
+    let mut ssid = [0u8; MAX_SSID_LEN];
+    let mut key = [0u8; MAX_PSK_KEY_LEN];
+    // read the ssid
+    reader.read_exact(&mut ssid)?;
+    // read the null terminator
+    read8(reader)?;
+    // read the passphrase
+    reader.read_exact(&mut key)?;
+    // read the null termiantor (+1 for extra PSK key byte)
+    read16(reader)?;
+    // read the security type
+    let security_type = read8(reader)?;
+    // read the provisioning status
+    let provisioning_status: bool = (read8(reader)?) == 0;
+    Ok((
+        from_c_byte_str(ssid)?,
+        from_c_byte_str(key)?,
+        security_type,
+        provisioning_status,
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -437,14 +485,14 @@ mod tests {
     fn parse_scan_result() {
         let result = [
             1, 2, 3, 4, 61, 61, 61, 61, 61, 0, 65, 66, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62,
-            62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 67, 0,
+            62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 67, 0, 0,
         ]; // 1 padding byte at the end
         let res: ScanResult = result.into();
         assert_eq!(res.index, 1);
         assert_eq!(res.rssi, 2);
         assert_eq!(res.auth, AuthType::WEP);
         assert_eq!(res.bssid, [61, 61, 61, 61, 61, 0]);
-        assert_eq!(res.ssid.as_str(), "AB>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>C");
+        assert_eq!(res.ssid.as_str(), "AB>>>>>>>>>>>>>>>>>>>>>>>>>>>>>C");
     }
 
     #[test]
@@ -481,14 +529,14 @@ mod tests {
     fn parse_connection_info() {
         let src = [
             65, 66, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 0x78, 62, 62, 62, 62, 62,
-            62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 67, 0x04, // auth
+            62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 67, 0, 0x04, // auth
             0x01, 0x02, 0x03, 0x04, //ip
             0xA1, 0xB2, 0xC3, 0xD4, 0xE5, 0xF6, // mac
             0xAB, // rssi
             0xCC, 0xCC, 0xCC,
         ];
         let res: ConnectionInfo = src.into();
-        assert_eq!(res.ssid.as_str(), "AB>>>>>>>>>>>>>x>>>>>>>>>>>>>>>>C");
+        assert_eq!(res.ssid.as_str(), "AB>>>>>>>>>>>>>x>>>>>>>>>>>>>>>C");
         assert_eq!(res.auth, AuthType::S802_1X);
         assert_eq!(res.ip, Ipv4Addr::new(1, 2, 3, 4));
         assert_eq!(res.mac, [0xA1, 0xB2, 0xC3, 0xD4, 0xE5, 0xF6]);
