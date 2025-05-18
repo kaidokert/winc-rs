@@ -431,7 +431,7 @@ pub fn read_prng_reply(mut response: &[u8]) -> Result<(u32, u16), Error> {
 ///
 /// |    SSID    | Passphrase | Security type | Provisioning status |
 /// |------------|------------|---------------|---------------------|
-/// |  33 Bytes  |  65 Bytes  |    2 Bytes    |       1 Byte        |
+/// |  33 Bytes  |  65 Bytes  |    1 Bytes    |       1 Byte        |
 ///
 /// # Arguments
 ///
@@ -691,5 +691,25 @@ mod tests {
     fn test_prng_reply() {
         let buffer = [0xDC, 0x65, 0x00, 0x20, 0x20, 0x00, 0x00, 0x00];
         assert_eq!(read_prng_reply(&buffer).unwrap(), (0x200065DC, 32))
+    }
+
+    #[test]
+    fn test_provisioning_reply() {
+        let buffer = [
+            116, 101, 115, 116, 95, 115, 115, 105, 100, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 116, 101, 115, 116, 95, 112, 97, 115, 115, 119, 111, 114,
+            100, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0,
+        ];
+        let res = read_provisioning_reply(&buffer);
+
+        if let Ok(info) = res {
+            assert_eq!(info.0.as_str(), "test_ssid");
+            assert_eq!(info.1.as_str(), "test_password");
+            assert_eq!(info.2, 2);
+            assert_eq!(info.3, true);
+        } else {
+            assert!(false);
+        }
     }
 }

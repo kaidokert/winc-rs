@@ -21,7 +21,6 @@ use core::net::{Ipv4Addr, SocketAddrV4};
 
 use super::constants::{AuthType, MAX_PSK_KEY_LEN, START_PROVISION_PACKET_SIZE};
 
-use super::net_types::ArrayStringExt;
 use super::net_types::WepKey;
 use super::{AccessPoint, Credentials, HostName};
 
@@ -252,7 +251,7 @@ pub fn write_start_provisioning_req(
     #[cfg(feature = "wep")]
     {
         if let Credentials::Wep(key, index) = ap.key {
-            wep_key_index = index;
+            wep_key_index = index.into();
             wep_key = key;
         } else {
             wep_key_index = 0;
@@ -277,8 +276,9 @@ pub fn write_start_provisioning_req(
     let dhcp: u32 = ap.ip.into();
 
     // SSID
-    slice.write(&ap.ssid.as_padded_bytes())?;
+    slice.write(ap.ssid.as_bytes())?;
     // Null termination
+    slice = &mut req[32..];
     slice.write(&[0u8])?;
     // WiFi channel
     slice.write(&[(ap.channel).into()])?;
@@ -287,8 +287,9 @@ pub fn write_start_provisioning_req(
     // Wep/WPA key size
     slice.write(&[ap.key.key_len() as u8])?;
     // Wep key
-    slice.write(&wep_key.as_padded_bytes())?;
+    slice.write(wep_key.as_bytes())?;
     // Null termination
+    slice = &mut req[62..];
     slice.write(&[0u8])?;
     // Security type
     slice.write(&[(ap.key).into()])?;
@@ -297,14 +298,17 @@ pub fn write_start_provisioning_req(
     // dhcp server
     slice.write(&dhcp.to_be_bytes())?;
     // WPA key
-    slice.write(&wpa_key.as_padded_bytes())?;
+    slice.write(wpa_key.as_bytes())?;
     // WINC firmware supports 64 bytes (+1 over standard) plus null terminator.
+    slice = &mut req[132..];
+    // Null termination
     slice.write(&[0u8, 0u8])?;
     // Padding
     slice.write(&[0u8, 0u8])?;
     // Device Domain name
-    slice.write(&hostname.as_padded_bytes())?;
+    slice.write(hostname.as_bytes())?;
     // Null termination
+    slice = &mut req[199..];
     slice.write(&[0u8])?;
     // Http redirect
     slice.write(&[http_redirect as u8])?;
@@ -316,6 +320,8 @@ pub fn write_start_provisioning_req(
 
 #[cfg(test)]
 mod tests {
+    use crate::Ssid;
+
     use super::*;
     #[test]
     fn test_scan() {
@@ -515,5 +521,35 @@ mod tests {
         let addr = 0x200065DC;
         let len = 32;
         assert_eq!(write_prng_req(addr, len).unwrap(), request);
+    }
+
+    #[test]
+    fn test_start_provisioning_request() {
+        let valid_req: [u8; START_PROVISION_PACKET_SIZE] = [
+            /* Ssid */ 116, 101, 115, 116, 95, 115, 115, 105, 100, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, /* Wifi Channel */ 1,
+            /* Wep key Index */ 0, /* Wep/Wpa Key Size */ 13, /* Wep key */ 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            /* Security Type */ 2, /* ssid hidden */ 0, /* DHCP Server */ 0xC0,
+            0xA8, 0x01, 0x01, /* WPA Key */ 116, 101, 115, 116, 95, 112, 97, 115, 115, 119,
+            111, 114, 100, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            /* padding */ 0, 0, /* hostname */ 97, 100, 109, 105, 110, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            /* Http redirect */ 0, /* padding */ 0, 0, 0,
+        ];
+        let ap_ssid = Ssid::from("test_ssid").unwrap();
+        let psk = WpaKey::from("test_password").unwrap();
+        let access_point = AccessPoint::wpa(&ap_ssid, &psk);
+        let hostname = HostName::from("admin").unwrap();
+
+        let result = write_start_provisioning_req(&access_point, &hostname, false);
+
+        if let Ok(req) = result {
+            assert_eq!(req, valid_req);
+        } else {
+            assert!(false);
+        }
     }
 }

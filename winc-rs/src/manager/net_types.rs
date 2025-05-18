@@ -12,20 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::{errors::Error, StackError};
+use crate::StackError;
 
 use arrayvec::ArrayString;
 
 use super::constants::{
     AuthType, WifiChannel, MAX_HOST_NAME_LEN, MAX_PSK_KEY_LEN, MAX_S802_PASSWORD_LEN,
-    MAX_S802_USERNAME_LEN, MAX_SSID_LEN,
+    MAX_S802_USERNAME_LEN, MAX_SSID_LEN, MAX_WEP_KEY_LEN,
 };
 
-use super::constants::MAX_WEP_KEY_LEN;
+#[cfg(feature = "wep")]
+use super::constants::WepKeyIndex;
 use core::net::Ipv4Addr;
 
-// Default IP address for provisioning mode.
-const PROVISIONING_DEFAULT_IP: u32 = 0xC0A80101;
+/// Default IP address "192.168.1.1" for access point and provisioning mode.
+const DEFAULT_AP_IP: u32 = 0xC0A80101;
 
 /// Device Domain name.
 pub type HostName = ArrayString<MAX_HOST_NAME_LEN>;
@@ -40,42 +41,34 @@ pub type S8Username = ArrayString<MAX_S802_USERNAME_LEN>;
 /// S802_1X Password
 pub type S8Password = ArrayString<MAX_S802_PASSWORD_LEN>;
 
-/// Extension trait for ArrayString
-pub trait ArrayStringExt<const N: usize> {
-    /// Returns a `[u8; N]` containing the string bytes, padded with `0`s.
-    fn as_padded_bytes(&self) -> [u8; N];
-}
-
 /// Wi-Fi Security Credentials.
 #[repr(u8)]
-#[derive(Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum Credentials {
     Open = 1,
     /// WPA-PSK Passpharase: Must be at least 8 bytes (MIN) and no more than 63 bytes long.
     WpaPSK(WpaKey) = 2,
-    /// Wep Passphrase: Should be 10 characters for 40-bit and 26 characters for 104-bit.
+    /// Wep Passphrase: Should be 10 bytes for 40-bit and 26 bytes for 104-bit.
     /// Wep key Index: Between 1 and 4.
     #[cfg(feature = "wep")]
-    Wep(WepKey, u8) = 3,
-    /// 802.1X enterprise authentication.
-    ///
-    /// Used for WPA/WPA2-Enterprise networks that require a username and password.
-    ///
-    /// # Fields
-    /// - `S8Username`: The user identity
-    /// - `S8Password`: The user password
+    Wep(WepKey, WepKeyIndex) = 3,
+    /// 802.1X Username: Should not be greater then 20 bytes.
+    /// 802.1X Password: Should not be greater then 40 bytes.
     S802_1X(S8Username, S8Password) = 4,
 }
 
 /// Structure for Provisioning Information.
-pub struct ProvisionalInfo {
+pub struct ProvisioningInfo {
     /// The SSID (network name) of the network.
     pub ssid: Ssid,
     /// Credentials for network's security.
     pub key: Credentials,
+    // Status of Provisioning.
+    pub(crate) status: bool,
 }
 
 /// Structure for Access Point Configuration.
+#[derive(Debug, PartialEq, Eq)]
 pub struct AccessPoint<'a> {
     /// The SSID (network name) of the network.
     pub ssid: &'a Ssid,
@@ -85,19 +78,10 @@ pub struct AccessPoint<'a> {
     pub channel: WifiChannel,
     /// Whether the SSID is hidden (true for hidden).
     pub ssid_hidden: bool,
-    /// IP address for the access point. The last octet must be in the range 1 to 100,
-    /// for example: 192.168.1.1 to 192.168.1.100.
+    /// IP address for the access point. The last octet must be in the range 1 to 99,
+    /// for example: 192.168.1.1 to 192.168.1.99.
+    /// Invalid Ip: 192.168.1.0 or 192.168.1.100.
     pub ip: Ipv4Addr,
-}
-
-/// Implementation For ArrayStringExt Trait
-impl<const N: usize> ArrayStringExt<N> for ArrayString<N> {
-    fn as_padded_bytes(&self) -> [u8; N] {
-        let mut buf = [0u8; N];
-        let bytes = self.as_bytes();
-        buf[..bytes.len()].copy_from_slice(bytes);
-        buf
-    }
 }
 
 impl From<Credentials> for AuthType {
@@ -129,9 +113,9 @@ impl Credentials {
         match self {
             Credentials::Open => 0,
             #[cfg(feature = "wep")]
-            Credentials::Wep(key, _) => key.capacity(),
-            Credentials::WpaPSK(key) => key.capacity(),
-            Credentials::S802_1X(_, key) => key.capacity(),
+            Credentials::Wep(key, _) => key.len(),
+            Credentials::WpaPSK(key) => key.len(),
+            Credentials::S802_1X(_, key) => key.len(),
         }
     }
 }
@@ -167,9 +151,16 @@ impl<'a> AccessPoint<'a> {
         ip: Ipv4Addr,
     ) -> Result<Self, StackError> {
         let octets = ip.octets();
+        let auth = <Credentials as Into<AuthType>>::into(key);
+
         if !((1..100).contains(&octets[3])) {
-            return Err(StackError::WincWifiFail(Error::BufferError));
+            return Err(StackError::InvalidParameters);
         }
+
+        if auth == AuthType::S802_1X {
+            return Err(StackError::InvalidParameters);
+        }
+
         Ok(Self {
             ssid,
             key,
@@ -188,15 +179,14 @@ impl<'a> AccessPoint<'a> {
     /// # Returns
     ///
     /// * `AccessPoint` - The configured `AccessPoint` with open (no security) on success.
-    /// * `StackError` - If validation of any parameters fails.
-    pub fn open(ssid: &'a Ssid) -> Result<Self, StackError> {
-        Ok(Self {
+    pub fn open(ssid: &'a Ssid) -> Self {
+        Self {
             ssid,
             key: Credentials::Open,
             channel: WifiChannel::Channel1,
             ssid_hidden: false,
-            ip: Ipv4Addr::from_bits(PROVISIONING_DEFAULT_IP),
-        })
+            ip: Ipv4Addr::from_bits(DEFAULT_AP_IP),
+        }
     }
 
     #[cfg(feature = "wep")]
@@ -206,20 +196,19 @@ impl<'a> AccessPoint<'a> {
     ///
     /// * `ssid` - The SSID (network name), up to 32 bytes.
     /// * `key` - The WEP security key, either 10 bytes (for 40-bit) or 26 bytes (for 104-bit).
-    /// * `key_index` - Wep Key Index; typically between 1 and 4.
+    /// * `key_index` - Wep Key Index; typically between 0 and 4.
     ///
     /// # Returns
     ///
     /// * `AccessPoint` - The configured `AccessPoint` with WEP security on success.
-    /// * `StackError` - If parameter validation fails.
-    pub fn wep(ssid: &'a Ssid, key: &'a WepKey, key_index: u8) -> Result<Self, StackError> {
-        Ok(Self {
+    pub fn wep(ssid: &'a Ssid, key: &'a WepKey, key_index: WepKeyIndex) -> Self {
+        Self {
             ssid,
-            key: Credentials::Wep(key.clone(), key_index),
+            key: Credentials::Wep(*key, key_index),
             channel: WifiChannel::Channel1,
             ssid_hidden: false,
-            ip: Ipv4Addr::from_bits(PROVISIONING_DEFAULT_IP),
-        })
+            ip: Ipv4Addr::from_bits(DEFAULT_AP_IP),
+        }
     }
 
     /// Creates a configuration for a WPA or WPA2-secured access point.
@@ -232,15 +221,14 @@ impl<'a> AccessPoint<'a> {
     /// # Returns
     ///
     /// * `AccessPoint` - The configured `AccessPoint` with WPA-PSK security on success.
-    /// * `StackError` - If parameter validation fails.
-    pub fn wpa(ssid: &'a Ssid, key: &'a WpaKey) -> Result<Self, StackError> {
-        Ok(Self {
+    pub fn wpa(ssid: &'a Ssid, key: &'a WpaKey) -> Self {
+        Self {
             ssid,
             key: Credentials::WpaPSK(*key),
             channel: WifiChannel::Channel1,
             ssid_hidden: false,
-            ip: Ipv4Addr::from_bits(PROVISIONING_DEFAULT_IP),
-        })
+            ip: Ipv4Addr::from_bits(DEFAULT_AP_IP),
+        }
     }
 
     /// Sets the static IP address for the configured access point.
@@ -251,7 +239,7 @@ impl<'a> AccessPoint<'a> {
     ///
     /// # Warning
     ///
-    /// Due to a WINC firmware limitation, the client's IP address is always assigned as `x.x.x.100`.
+    /// Due to a WINC firmware limitation, the access point IP address can only be in the range `x.x.x.1` to `x.x.x.99`.
     ///
     /// # Returns
     ///
@@ -261,7 +249,7 @@ impl<'a> AccessPoint<'a> {
         let octets = ip.octets();
         // WINC fimrware limitation; IP address of client is always x.x.x.100
         if !((1..100).contains(&octets[3])) {
-            return Err(StackError::WincWifiFail(Error::BufferError));
+            return Err(StackError::InvalidParameters);
         }
 
         self.ip = Ipv4Addr::from(octets);
@@ -276,5 +264,107 @@ impl<'a> AccessPoint<'a> {
     /// * `channel` - The Wi-Fi RF channel to use (typically 1–14).
     pub fn set_channel(&mut self, channel: WifiChannel) {
         self.channel = channel;
+    }
+
+    /// Sets whether the SSID is hidden.
+    ///
+    /// # Arguments
+    ///
+    /// * `hidden` – `true` to hide the SSID, `false` to make it visible.
+    pub fn set_ssid_hidden(&mut self, hidden: bool) {
+        self.ssid_hidden = hidden;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+
+    #[test]
+    fn test_ap_set_channel() {
+        let ssid = Ssid::from("test").unwrap();
+        let mut ap = AccessPoint::open(&ssid);
+
+        assert_eq!(ap.channel, WifiChannel::Channel1);
+
+        ap.set_channel(WifiChannel::Channel2);
+
+        assert_eq!(ap.channel, WifiChannel::Channel2);
+    }
+
+    #[test]
+    fn test_ap_set_ip_fail() {
+        let ssid = Ssid::from("test").unwrap();
+        let psk = WpaKey::from("test_key").unwrap();
+        let mut ap = AccessPoint::wpa(&ssid, &psk);
+        let ip = Ipv4Addr::new(192, 168, 1, 100);
+
+        assert_eq!(ap.ip, Ipv4Addr::from_bits(DEFAULT_AP_IP));
+
+        let result = ap.set_ip(ip);
+
+        assert_eq!(result, Err(StackError::InvalidParameters))
+    }
+
+    #[test]
+    fn test_ap_config_fail() {
+        let ssid = Ssid::from("test").unwrap();
+        let psk = WpaKey::from("test_key").unwrap();
+        // Access Point Configuration.
+        let ap = AccessPoint::new(
+            &ssid,
+            Credentials::WpaPSK(psk),
+            WifiChannel::Channel1,
+            false,
+            Ipv4Addr::new(192, 168, 1, 100),
+        );
+
+        assert_eq!(ap, Err(StackError::InvalidParameters));
+    }
+
+    #[test]
+    fn test_ap_config_success() {
+        let ssid = Ssid::from("test").unwrap();
+        let psk = WpaKey::from("test_key").unwrap();
+        // Access Point Configuration.
+        let ap = AccessPoint::new(
+            &ssid,
+            Credentials::WpaPSK(psk),
+            WifiChannel::Channel1,
+            false,
+            Ipv4Addr::new(192, 168, 1, 1),
+        );
+
+        assert!(ap.is_ok());
+    }
+
+    #[test]
+    fn test_ap_config_enterprise_fail() {
+        let ssid = Ssid::from("test").unwrap();
+        let username = S8Username::from("username").unwrap();
+        let password = S8Password::from("password").unwrap();
+        // Access Point Configuration.
+        let ap = AccessPoint::new(
+            &ssid,
+            Credentials::S802_1X(username, password),
+            WifiChannel::Channel1,
+            false,
+            Ipv4Addr::new(192, 168, 1, 1),
+        );
+
+        assert_eq!(ap, Err(StackError::InvalidParameters));
+    }
+
+    #[test]
+    fn test_ssid_visibility() {
+        let ssid = Ssid::from("test").unwrap();
+        let mut ap = AccessPoint::open(&ssid);
+
+        assert_eq!(ap.ssid_hidden, false);
+
+        ap.set_ssid_hidden(true);
+
+        assert_eq!(ap.ssid_hidden, true);
     }
 }

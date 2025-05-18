@@ -41,6 +41,8 @@ pub enum StackError {
     ContinueOperation,
     /// Not found
     SocketNotFound,
+    /// Parameters are not valid.
+    InvalidParameters,
 }
 
 impl From<core::convert::Infallible> for StackError {

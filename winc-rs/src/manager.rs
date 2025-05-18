@@ -27,14 +27,15 @@ mod responses;
 use crate::{debug, trace};
 
 use chip_access::ChipAccess;
-pub use constants::WifiConnError;
 #[cfg(feature = "wep")]
-pub(crate) use constants::DEFAULT_WEP_KEY_INDEX;
-pub use constants::{AuthType, PingError, SocketError, WifiConnState}; // todo response shouldn't be leaking
+pub use constants::WepKeyIndex;
+pub use constants::{AuthType, PingError, SocketError, WifiChannel, WifiConnError, WifiConnState}; // todo response shouldn't be leaking
 use constants::{IpCode, Regs, WifiResponse};
 use constants::{WifiRequest, PROVISIONING_INFO_PACKET_SIZE};
 
-pub use net_types::{AccessPoint, Credentials, HostName, ProvisionalInfo, Ssid, WpaKey};
+pub use net_types::{
+    AccessPoint, Credentials, HostName, ProvisioningInfo, S8Password, S8Username, Ssid, WpaKey,
+};
 
 #[cfg(feature = "wep")]
 pub use net_types::WepKey;

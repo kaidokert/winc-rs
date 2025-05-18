@@ -2,8 +2,9 @@ use crate::errors::Error;
 
 use embedded_nal::nb;
 
+use crate::error;
 use crate::manager::{AccessPoint, AuthType, FirmwareInfo, IPConf, ScanResult};
-use crate::manager::{Credentials, HostName, ProvisionalInfo};
+use crate::manager::{Credentials, HostName, ProvisioningInfo};
 
 use super::PingResult;
 use super::StackError;
@@ -18,6 +19,11 @@ use crate::info;
 const AP_CONNECT_TIMEOUT_MILLISECONDS: u32 = 60_000;
 // 5 seconds max, assuming no additional delays
 const AP_DISCONNECT_TIMEOUT_MILLISECONDS: u32 = 5_000;
+// Timeout for Provisioning
+#[cfg(not(test))]
+const PROVISIONING_TIMEOUT: u32 = 60 * 1000;
+#[cfg(test)]
+const PROVISIONING_TIMEOUT: u32 = 1000;
 
 impl<X: Xfer> WincClient<'_, X> {
     /// Call this periodically to receive network events
@@ -71,10 +77,7 @@ impl<X: Xfer> WincClient<'_, X> {
         connect_fn: impl FnOnce(&mut Self) -> Result<(), crate::errors::Error>,
     ) -> nb::Result<(), StackError> {
         match self.callbacks.state {
-            WifiModuleState::Reset
-            | WifiModuleState::Starting
-            | WifiModuleState::Disconnecting
-            | WifiModuleState::ProvisioningFailed => {
+            WifiModuleState::Reset | WifiModuleState::Starting | WifiModuleState::Disconnecting => {
                 Err(nb::Error::Other(StackError::InvalidState))
             }
             WifiModuleState::Unconnected | WifiModuleState::Provisioning => {
@@ -332,49 +335,69 @@ impl<X: Xfer> WincClient<'_, X> {
         }
     }
 
-    /// Starts provisioning mode. This command is only applicable when the chip is in station mode.
+    /// Starts the provisioning mode. This command is only applicable when the chip is in station mode.
     ///
     /// # Arguments
     ///
     /// * `ap` - An `AccessPoint` struct containing the SSID, password, and other network details.
     /// * `hostname` - Device domain name. Must not include `.local`.
     /// * `http_redirect` - Whether HTTP redirection is enabled.
+    /// * `timeout` - The timeout duration for provisioning, in minutes.
     ///
     /// # Returns
     ///
-    /// * `()` - If provisioning mode starts successfully.
-    /// * `StackError` - If an error occurs while starting provisioning mode.
-    pub fn start_provisioning_mode(
+    /// * `ProvisioningInfo` - Wifi Credentials received from provisioning.
+    /// * `StackError` - If an error occurs while starting provisioning mode or receiving provisioning information.
+    pub fn provisioning_mode(
         &mut self,
         ap: &AccessPoint,
         hostname: &HostName,
         http_redirect: bool,
-    ) -> Result<(), StackError> {
+        timeout: u32,
+    ) -> nb::Result<ProvisioningInfo, StackError> {
         match &mut self.callbacks.state {
             WifiModuleState::Unconnected | WifiModuleState::ConnectedToAp => {
                 let auth = <Credentials as Into<AuthType>>::into(ap.key);
 
                 if auth == AuthType::S802_1X {
-                    unimplemented!("Enterprise Security in provisioning mode is not supported");
-                }
-
-                #[cfg(not(feature = "wep"))]
-                if auth == AuthType::WEP {
-                    unimplemented!("WEP provides very weak security and is disabled by default.");
+                    error!("Enterprise Security in provisioning mode is not supported");
+                    return Err(nb::Error::Other(StackError::InvalidParameters));
                 }
 
                 self.manager
                     .send_start_provisioning(ap, hostname, http_redirect)
-                    .map_err(StackError::WincWifiFail)?;
+                    .map_err(|x| nb::Error::Other(StackError::WincWifiFail(x)))?;
 
                 self.callbacks.state = WifiModuleState::Provisioning;
+                self.callbacks.provisioning_info = None;
             }
+            WifiModuleState::Provisioning => match &mut self.callbacks.provisioning_info {
+                None => {
+                    self.operation_countdown = timeout * PROVISIONING_TIMEOUT;
+                    self.callbacks.provisioning_info = Some(None);
+                }
+                Some(result) => {
+                    if let Some(info) = result.take() {
+                        if info.status {
+                            return Ok(info);
+                        }
+                        return Err(nb::Error::Other(StackError::WincWifiFail(Error::Failed)));
+                    } else {
+                        self.delay_us(self.poll_loop_delay_us);
+                        self.operation_countdown -= 1;
+                        if self.operation_countdown == 0 {
+                            return Err(nb::Error::Other(StackError::GeneralTimeout));
+                        }
+                    }
+                }
+            },
             _ => {
-                return Err(StackError::InvalidState);
+                return Err(nb::Error::Other(StackError::InvalidState));
             }
         }
 
-        Ok(())
+        self.dispatch_events()?;
+        Err(nb::Error::WouldBlock)
     }
 
     /// Stops provisioning mode. This command is only applicable when the chip is in provisioning mode.
@@ -382,7 +405,7 @@ impl<X: Xfer> WincClient<'_, X> {
     /// # Returns
     ///
     /// * `()` - If provisioning mode starts successfully.
-    /// * `StackError` - If an error occurs while starting provisioning mode.
+    /// * `StackError` - If an error occurs while stopping provisioning mode.
     pub fn stop_provisioning_mode(&mut self) -> Result<(), StackError> {
         if self.callbacks.state == WifiModuleState::Provisioning {
             self.manager
@@ -396,53 +419,6 @@ impl<X: Xfer> WincClient<'_, X> {
         self.callbacks.state = WifiModuleState::Unconnected;
         Ok(())
     }
-
-    /// Get the provisioning information.
-    ///
-    /// # Arguments
-    ///
-    /// * `timeout` - The timeout duration for provisioning, in minutes.
-    ///
-    /// # Returns
-    ///
-    /// * `ProvisionalInfo` - Wifi Credentials received from provisioning.
-    /// * `StackError` - If an error occurs while receiving provisioning information.
-    pub fn get_provisioning_info(
-        &mut self,
-        timeout: u32,
-    ) -> nb::Result<ProvisionalInfo, StackError> {
-        match self.callbacks.state {
-            WifiModuleState::Provisioning => {
-                match &mut self.callbacks.provisioning_info {
-                    None => {
-                        self.operation_countdown = timeout * 60 * 1000; // passing in miliseconds
-                        self.callbacks.provisioning_info = Some(None);
-                        Err(nb::Error::WouldBlock)
-                    }
-                    Some(result) => {
-                        if let Some(info) = result.take() {
-                            Ok(info)
-                        } else {
-                            self.delay_us(self.poll_loop_delay_us);
-                            self.dispatch_events()?;
-                            self.operation_countdown -= 1;
-                            if self.operation_countdown == 0 {
-                                return Err(nb::Error::Other(StackError::GeneralTimeout));
-                            }
-                            Err(nb::Error::WouldBlock)
-                        }
-                    }
-                }
-            }
-            WifiModuleState::ProvisioningFailed => {
-                Err(nb::Error::Other(StackError::WincWifiFail(Error::Failed)))
-            }
-            _ => {
-                info!("State of Wifi module: {:?}", self.callbacks.state);
-                Err(nb::Error::Other(StackError::InvalidState))
-            }
-        }
-    }
 }
 
 #[cfg(test)]
@@ -455,7 +431,9 @@ mod tests {
     use crate::errors::Error;
     use crate::manager::Ssid;
     use crate::manager::{EventListener, PingError, WifiConnError, WifiConnState};
-    use crate::ConnectionInfo;
+    use crate::{ConnectionInfo, Credentials, S8Password, S8Username, WifiChannel, WpaKey};
+    #[cfg(feature = "wep")]
+    use crate::{WepKey, WepKeyIndex};
 
     #[test]
     fn test_heartbeat() {
@@ -646,5 +624,261 @@ mod tests {
         let result = nb::block!(client.disconnect_ap());
 
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_provisioning_mode_open_success() {
+        // test client
+        let mut client = make_test_client();
+        // ssid for access point configuration.
+        let ap_ssid = Ssid::from("ssid").unwrap();
+        // access point configuration.
+        let ap = AccessPoint::open(&ap_ssid);
+        // hostname for access point.
+        let hostname = HostName::from("admin").unwrap();
+        // ssid received from provisioning.
+        let test_ssid = Ssid::from("test_ssid").unwrap();
+        // Wpa key passed to provisioning callback.
+        // Should be empty for Open network.
+        let test_key = WpaKey::new();
+        // debug callback
+        let mut my_debug = |callbacks: &mut SocketCallbacks| {
+            callbacks.on_provisioning(test_ssid, test_key, AuthType::Open, true);
+        };
+
+        client.debug_callback = Some(&mut my_debug);
+        // set the module state to unconnected.
+        client.callbacks.state = WifiModuleState::Unconnected;
+
+        let result = nb::block!(client.provisioning_mode(&ap, &hostname, false, 1));
+
+        assert!(result.is_ok());
+        if let Ok(info) = result {
+            assert_eq!(info.key, Credentials::Open);
+            assert_eq!(info.ssid, test_ssid);
+        } else {
+            assert!(false);
+        }
+    }
+
+    #[test]
+    fn test_provisioning_mode_wpa_success() {
+        // test client
+        let mut client = make_test_client();
+        // ssid for access point configuration.
+        let ap_ssid = Ssid::from("ssid").unwrap();
+        // wpa key for access point configuration.
+        let ap_key = WpaKey::from("wpa_key").unwrap();
+        // Access Point Configuration.
+        let ap = AccessPoint::wpa(&ap_ssid, &ap_key);
+        // hostname for access point.
+        let hostname = HostName::from("admin").unwrap();
+        // ssid received from provisioning.
+        let test_ssid = Ssid::from("test_ssid").unwrap();
+        // Wpa key passed to provisioning callback.
+        let test_key = WpaKey::from("test_key").unwrap();
+        // debug callback
+        let mut my_debug = |callbacks: &mut SocketCallbacks| {
+            callbacks.on_provisioning(test_ssid, test_key, AuthType::WpaPSK, true);
+        };
+
+        client.debug_callback = Some(&mut my_debug);
+        // set the module state to unconnected.
+        client.callbacks.state = WifiModuleState::Unconnected;
+
+        let result = nb::block!(client.provisioning_mode(&ap, &hostname, false, 1));
+
+        assert!(result.is_ok());
+        if let Ok(info) = result {
+            assert_eq!(info.key, Credentials::WpaPSK(test_key));
+            assert_eq!(info.ssid, test_ssid);
+        } else {
+            assert!(false);
+        }
+    }
+
+    #[cfg(feature = "wep")]
+    #[test]
+    fn test_provisioning_mode_wep_success() {
+        // test client
+        let mut client = make_test_client();
+        // ssid for access point configuration.
+        let ap_ssid = Ssid::from("ssid").unwrap();
+        // wep key for access point configuration.
+        let ap_key = WepKey::from("wep_key").unwrap();
+        // Wep key index
+        let wep_key_index = WepKeyIndex::Key1;
+        // Access Point Configuration.
+        let ap = AccessPoint::wep(&ap_ssid, &ap_key, wep_key_index);
+        // hostname for access point.
+        let hostname = HostName::from("admin").unwrap();
+        // ssid received from provisioning.
+        let test_ssid = Ssid::from("test_ssid").unwrap();
+        // Wpa key passed to provisioning callback.
+        let test_key = WpaKey::from("test_wep_key").unwrap();
+        // Wep Key received from provisioning.
+        let test_wep_key = WepKey::from("test_wep_key").unwrap();
+        // debug callback
+        let mut my_debug = |callbacks: &mut SocketCallbacks| {
+            callbacks.on_provisioning(test_ssid, test_key, AuthType::WEP, true);
+        };
+
+        client.debug_callback = Some(&mut my_debug);
+        // set the module state to unconnected.
+        client.callbacks.state = WifiModuleState::Unconnected;
+
+        let result = nb::block!(client.provisioning_mode(&ap, &hostname, false, 1));
+
+        assert!(result.is_ok());
+        if let Ok(info) = result {
+            assert_eq!(info.key, Credentials::Wep(test_wep_key, wep_key_index));
+            assert_eq!(info.ssid, test_ssid);
+        } else {
+            assert!(false);
+        }
+    }
+
+    #[test]
+    fn test_provisioning_mode_enterprise_fail() {
+        // test client
+        let mut client = make_test_client();
+        // ssid for access point configuration.
+        let ap_ssid = Ssid::from("ssid").unwrap();
+        // S802_1X Username for network credentials.
+        let s8_username = S8Username::from("username").unwrap();
+        // S802_1X Password for network credentials.
+        let s8_password = S8Password::from("password").unwrap();
+        // S802_1X network credentials.
+        let ap_key = Credentials::S802_1X(s8_username, s8_password);
+
+        // Access Point Configuration.
+        let ap = AccessPoint {
+            ssid: &ap_ssid,
+            key: ap_key,
+            channel: WifiChannel::Channel1,
+            ssid_hidden: false,
+            ip: Ipv4Addr::new(192, 168, 1, 1),
+        };
+
+        // hostname for access point.
+        let hostname = HostName::from("admin").unwrap();
+
+        // set the module state to unconnected.
+        client.callbacks.state = WifiModuleState::Unconnected;
+
+        let result = nb::block!(client.provisioning_mode(&ap, &hostname, false, 1));
+
+        assert!(result.is_err());
+        if let Err(error) = result {
+            assert_eq!(error, StackError::InvalidParameters);
+        } else {
+            assert!(false);
+        }
+    }
+
+    #[test]
+    fn test_provisioning_invalid_state() {
+        // test client
+        let mut client = make_test_client();
+        // ssid for access point configuration.
+        let ap_ssid = Ssid::from("ssid").unwrap();
+        // access point configuration.
+        let ap = AccessPoint::open(&ap_ssid);
+        // hostname for access point.
+        let hostname = HostName::from("admin").unwrap();
+
+        // set the module state to unconnected.
+        client.callbacks.state = WifiModuleState::ConnectingToAp;
+
+        let result = nb::block!(client.provisioning_mode(&ap, &hostname, false, 1));
+
+        assert!(result.is_err());
+        if let Err(err) = result {
+            assert_eq!(err, StackError::InvalidState);
+        } else {
+            assert!(false);
+        }
+    }
+
+    #[test]
+    fn test_provisioning_timeout() {
+        // test client
+        let mut client = make_test_client();
+        // ssid for access point configuration.
+        let ap_ssid = Ssid::from("ssid").unwrap();
+        // access point configuration.
+        let ap = AccessPoint::open(&ap_ssid);
+        // hostname for access point.
+        let hostname = HostName::from("admin").unwrap();
+
+        // set the module state to unconnected.
+        client.callbacks.state = WifiModuleState::Unconnected;
+
+        let result = nb::block!(client.provisioning_mode(&ap, &hostname, false, 1500)); // Time is in miliseconds
+
+        assert!(result.is_err());
+        if let Err(err) = result {
+            assert_eq!(err, StackError::GeneralTimeout);
+        } else {
+            assert!(false);
+        }
+    }
+
+    #[test]
+    fn test_provisioning_failed() {
+        // test client
+        let mut client = make_test_client();
+        // ssid for access point configuration.
+        let ap_ssid = Ssid::from("ssid").unwrap();
+        // access point configuration.
+        let ap = AccessPoint::open(&ap_ssid);
+        // hostname for access point.
+        let hostname = HostName::from("admin").unwrap();
+        // ssid received from provisioning.
+        let test_ssid = Ssid::from("test_ssid").unwrap();
+        // Wpa key passed to provisioning callback.
+        // Should be empty for Open network.
+        let test_key = WpaKey::new();
+        // debug callback
+        let mut my_debug = |callbacks: &mut SocketCallbacks| {
+            callbacks.on_provisioning(test_ssid, test_key, AuthType::Open, false);
+        };
+
+        client.debug_callback = Some(&mut my_debug);
+        // set the module state to unconnected.
+        client.callbacks.state = WifiModuleState::Unconnected;
+
+        let result = nb::block!(client.provisioning_mode(&ap, &hostname, false, 1));
+
+        assert!(result.is_err());
+        if let Err(error) = result {
+            assert_eq!(error, StackError::WincWifiFail(Error::Failed));
+        } else {
+            assert!(false);
+        }
+    }
+
+    #[test]
+    fn test_stop_provisioning_success() {
+        // test client
+        let mut client = make_test_client();
+        // set the module state to unconnected.
+        client.callbacks.state = WifiModuleState::Provisioning;
+
+        let result = client.stop_provisioning_mode();
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_stop_provisioning_state_error() {
+        // test client
+        let mut client = make_test_client();
+        // set the module state to unconnected.
+        client.callbacks.state = WifiModuleState::Unconnected;
+
+        let result = client.stop_provisioning_mode();
+
+        assert!(result.is_err());
     }
 }

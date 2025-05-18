@@ -20,7 +20,7 @@ const DEFAULT_PROVISIONING_TIMEOUT_IN_MINS: u32 = 15;
 
 fn program() -> Result<(), StackError> {
     if let Ok(mut ini) = init() {
-        defmt::println!("Hello, Winc PRNG");
+        defmt::println!("Hello, Winc Provisioning");
         let red_led = &mut ini.red_led;
 
         let mut cnt = create_countdowns(&ini.delay_tick);
@@ -47,15 +47,20 @@ fn program() -> Result<(), StackError> {
             }
         }
         // Configure the access point with WPA/WPA2 security using the provided SSID and password.
-        let access_point = AccessPoint::wpa(&ap_ssid, &ap_password)?;
+        let access_point = AccessPoint::wpa(&ap_ssid, &ap_password);
         // Start the provising mode.
-        stack.start_provisioning_mode(&access_point, &hostname, true)?;
         defmt::println!(
-            "Provisioning Started for {} minutes",
+            "Starting Provisioning Mode for {} minutes",
             DEFAULT_PROVISIONING_TIMEOUT_IN_MINS
         );
+        let result = nb::block!(stack.provisioning_mode(
+            &access_point,
+            &hostname,
+            true,
+            DEFAULT_PROVISIONING_TIMEOUT_IN_MINS,
+        ));
+
         // Check for provisioning information is receieved for 15 minutes.
-        let result = nb::block!(stack.get_provisioning_info(DEFAULT_PROVISIONING_TIMEOUT_IN_MINS));
         match result {
             Ok(info) => {
                 defmt::info!("Credentials received from provisioning; connecting to access point.");

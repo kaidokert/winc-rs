@@ -26,11 +26,8 @@ pub(crate) const START_PROVISION_PACKET_SIZE: usize = 204;
 pub(crate) const PROVISIONING_INFO_PACKET_SIZE: usize = 100;
 /// Maximum password length for the enterprise mode.
 pub const MAX_S802_PASSWORD_LEN: usize = 40;
-/// Maximum usuername length for the Enterprise mode.
+/// Maximum username length for the Enterprise mode.
 pub const MAX_S802_USERNAME_LEN: usize = 20;
-#[cfg(feature = "wep")]
-/// Default Wep Key index.
-pub(crate) const DEFAULT_WEP_KEY_INDEX: usize = 1;
 
 pub enum Regs {
     SpiConfig = 0xE824,
@@ -432,5 +429,37 @@ impl From<u8> for WifiChannel {
 impl From<WifiChannel> for u8 {
     fn from(val: WifiChannel) -> Self {
         val as Self
+    }
+}
+
+#[cfg(feature = "wep")]
+#[repr(u8)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum WepKeyIndex {
+    NoKey = 0,
+    Key1 = 1,
+    Key2 = 2,
+    Key3 = 3,
+    Key4 = 4,
+}
+
+#[cfg(feature = "wep")]
+impl From<WepKeyIndex> for u8 {
+    fn from(val: WepKeyIndex) -> Self {
+        val as Self
+    }
+}
+
+#[cfg(feature = "wep")]
+impl From<u8> for WepKeyIndex {
+    fn from(n: u8) -> Self {
+        match n {
+            0 => WepKeyIndex::NoKey,
+            1 => WepKeyIndex::Key1,
+            2 => WepKeyIndex::Key2,
+            3 => WepKeyIndex::Key3,
+            4 => WepKeyIndex::Key4,
+            _ => WepKeyIndex::NoKey, // Default Value
+        }
     }
 }
