@@ -432,6 +432,7 @@ impl From<WifiChannel> for u8 {
     }
 }
 
+/// Wep Key Index
 #[cfg(feature = "wep")]
 #[repr(u8)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
