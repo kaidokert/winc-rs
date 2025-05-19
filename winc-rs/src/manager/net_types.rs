@@ -308,6 +308,20 @@ mod tests {
     }
 
     #[test]
+    fn test_ap_set_ip_success() {
+        let ssid = Ssid::from("test").unwrap();
+        let psk = WpaKey::from("test_key").unwrap();
+        let mut ap = AccessPoint::wpa(&ssid, &psk);
+        let ip = Ipv4Addr::new(192, 168, 1, 1);
+
+        assert_eq!(ap.ip, Ipv4Addr::from_bits(DEFAULT_AP_IP));
+
+        let result = ap.set_ip(ip);
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
     fn test_ap_config_fail() {
         let ssid = Ssid::from("test").unwrap();
         let psk = WpaKey::from("test_key").unwrap();

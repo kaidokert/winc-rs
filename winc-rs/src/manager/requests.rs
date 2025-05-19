@@ -544,12 +544,8 @@ mod tests {
         let access_point = AccessPoint::wpa(&ap_ssid, &psk);
         let hostname = HostName::from("admin").unwrap();
 
-        let result = write_start_provisioning_req(&access_point, &hostname, false);
+        let result = write_start_provisioning_req(&access_point, &hostname, false).unwrap();
 
-        if let Ok(req) = result {
-            assert_eq!(req, valid_req);
-        } else {
-            assert!(false);
-        }
+        assert_eq!(result, valid_req);
     }
 }

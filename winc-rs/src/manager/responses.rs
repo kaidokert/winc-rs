@@ -701,15 +701,11 @@ mod tests {
             100, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0,
         ];
-        let res = read_provisioning_reply(&buffer);
+        let info = read_provisioning_reply(&buffer).unwrap();
 
-        if let Ok(info) = res {
-            assert_eq!(info.0.as_str(), "test_ssid");
-            assert_eq!(info.1.as_str(), "test_password");
-            assert_eq!(info.2, 2);
-            assert_eq!(info.3, true);
-        } else {
-            assert!(false);
-        }
+        assert_eq!(info.0.as_str(), "test_ssid");
+        assert_eq!(info.1.as_str(), "test_password");
+        assert_eq!(info.2, 2);
+        assert_eq!(info.3, true);
     }
 }
