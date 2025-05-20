@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1745466123449,
+  "lastUpdate": 1747764840982,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -905,6 +905,40 @@ window.BENCHMARK_DATA = {
           {
             "name": "iperf3_client",
             "value": 55940,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "142439476+umarbinzahid@users.noreply.github.com",
+            "name": "Umar Bin Zahid",
+            "username": "umarbinzahid"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "ebaa63793d26fd16fa2181f3ee066c881575f483",
+          "message": "Support for provisioning mode. [Work in progress] (#73)\n\n* Added initial support for provisioning mode.\n\n* Fix test cases for ssid length change.\n\n* Added test cases and improved provisioning mode and net types.",
+          "timestamp": "2025-05-20T11:12:57-07:00",
+          "tree_id": "95c9aebb3d0813619b23b568572426d47dd19999",
+          "url": "https://github.com/kaidokert/winc-rs/commit/ebaa63793d26fd16fa2181f3ee066c881575f483"
+        },
+        "date": 1747764840487,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 40116,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 54308,
             "unit": "byte"
           }
         ]
