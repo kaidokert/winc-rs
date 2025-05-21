@@ -11,7 +11,7 @@
 - [x] Refactor dispatch_events to be internal, don't expose to clients
 - [x] Clippy clean
 - Feature Parity with Wifi101 lib:
- - [ ] Add Station/provisioning mode
+ - [x] Add Station/provisioning mode
  - [ ] Implement missing SSL stuff
  - [ ] Implement firmware update
  - [ ] Implement all unimplemented `WifiRequest` commands

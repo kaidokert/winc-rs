@@ -19,7 +19,6 @@ For example programs, see [feather/](https://github.com/kaidokert/winc-rs/tree/m
 
 ### TODO list
 
-- STA mode - not implemented at protocol level yet
 - Test coverage in core code
 - client.rs needs some cleanup and refactoring
 - TODOs in code
