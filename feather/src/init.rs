@@ -10,6 +10,7 @@ use bsp::periph_alias;
 use bsp::pin_alias;
 use core::convert::Infallible;
 use hal::clock::GenericClockController;
+use hal::dmac::{DmaController, PriorityLevel};
 use hal::time::{Hertz, MegaHertz};
 
 use hal::prelude::*;
@@ -92,12 +93,21 @@ pub fn init() -> Result<
 
     let hertz: Hertz = gclk0.into();
     let mut del = PollingSysTick::new(core.SYST, &SysTickCalibration::from_clock_hz(hertz.raw()));
+    
+    // Setup DMA for SPI
+    let mut pm = peripherals.pm;
+    let dmac = peripherals.dmac;
+    let mut dmac = DmaController::init(dmac, &mut pm);
+    let channels = dmac.split();
+    let chan0 = channels.0.init(PriorityLevel::Lvl0);
+    let chan1 = channels.1.init(PriorityLevel::Lvl0);
+
 
     let i2c = bsp::i2c_master(
         &mut clocks,
         KiloHertz::from_raw(I2C_KHZ).convert(),
         periph_alias!(peripherals.i2c_sercom),
-        &mut peripherals.pm,
+        &mut pm,
         pins.sda,
         pins.scl,
     );
@@ -107,11 +117,12 @@ pub fn init() -> Result<
         &mut clocks,
         freq.convert(),
         spi_sercom,
-        &mut peripherals.pm,
+        &mut pm,
         pins.sclk,
         pins.mosi,
         pins.miso,
-    );
+    )
+    .with_dma_channels(chan0, chan1);
 
     let mut ena: bsp::WincEna = pin_alias!(pins.winc_ena).into(); // ENA
     let mut rst: bsp::WincRst = pin_alias!(pins.winc_rst).into(); // RST
