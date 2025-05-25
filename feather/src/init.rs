@@ -93,7 +93,7 @@ pub fn init() -> Result<
 
     let hertz: Hertz = gclk0.into();
     let mut del = PollingSysTick::new(core.SYST, &SysTickCalibration::from_clock_hz(hertz.raw()));
-    
+
     // Setup DMA for SPI
     let mut pm = peripherals.pm;
     let dmac = peripherals.dmac;
@@ -101,7 +101,6 @@ pub fn init() -> Result<
     let channels = dmac.split();
     let chan0 = channels.0.init(PriorityLevel::Lvl0);
     let chan1 = channels.1.init(PriorityLevel::Lvl0);
-
 
     let i2c = bsp::i2c_master(
         &mut clocks,
