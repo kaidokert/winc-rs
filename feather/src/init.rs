@@ -11,7 +11,6 @@ use bsp::pin_alias;
 use core::convert::Infallible;
 use cortex_m::peripheral::NVIC;
 use hal::clock::GenericClockController;
-use hal::dmac::{DmaController, PriorityLevel};
 use hal::eic::Eic;
 use hal::eic::*;
 use hal::time::{Hertz, MegaHertz};
@@ -99,11 +98,6 @@ pub fn init() -> Result<
 
     // Setup DMA for SPI
     let mut pm = peripherals.pm;
-    let dmac = peripherals.dmac;
-    let mut dmac = DmaController::init(dmac, &mut pm);
-    let channels = dmac.split();
-    let chan0 = channels.0.init(PriorityLevel::Lvl0);
-    let chan1 = channels.1.init(PriorityLevel::Lvl0);
 
     let i2c = bsp::i2c_master(
         &mut clocks,
@@ -123,8 +117,7 @@ pub fn init() -> Result<
         pins.sclk,
         pins.mosi,
         pins.miso,
-    )
-    .with_dma_channels(chan0, chan1);
+    );
 
     let mut ena: bsp::WincEna = pin_alias!(pins.winc_ena).into(); // ENA
     let mut rst: bsp::WincRst = pin_alias!(pins.winc_rst).into(); // RST
