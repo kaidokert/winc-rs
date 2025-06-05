@@ -80,10 +80,24 @@ impl<X: Xfer> WincClient<'_, X> {
     fn delay_us(&mut self, delay: u32) {
         self.manager.delay_us(delay)
     }
+    pub fn get_debug_info(&mut self) -> crate::manager::DebugInfo {
+        self.manager.debug_info.clone()
+    }
     fn get_next_session_id(&mut self) -> u16 {
         let ret = self.next_session_id;
         self.next_session_id += 1;
         ret
+    }
+
+    fn dispatch_events_may_wait(&mut self) -> Result<(), StackError> {
+        #[cfg(test)]
+        if let Some(callback) = &mut self.debug_callback {
+            callback(&mut self.callbacks);
+        }
+        self.manager.may_wait_for_interrupt();
+        self.manager
+            .dispatch_events_new(&mut self.callbacks)
+            .map_err(StackError::DispatchError)
     }
 
     fn test_hook(&mut self) {
@@ -156,7 +170,7 @@ impl<X: Xfer> WincClient<'_, X> {
             ClientSocketOp::None | ClientSocketOp::New => {
                 *op = init_callback(sock, manager)?;
                 manager
-                    .dispatch_events_new(callbacks)
+                    .dispatch_events_wait(callbacks)
                     .map_err(StackError::DispatchError)?;
                 Err(nb::Error::WouldBlock)
             }
@@ -170,13 +184,13 @@ impl<X: Xfer> WincClient<'_, X> {
                         Err(nb::Error::Other(StackError::OpFailed(SocketError::Timeout)))
                     } else {
                         manager
-                            .dispatch_events_new(callbacks)
+                            .dispatch_events_wait(callbacks)
                             .map_err(StackError::DispatchError)?;
                         Err(nb::Error::WouldBlock)
                     }
                 } else {
                     manager
-                        .dispatch_events_new(callbacks)
+                        .dispatch_events_wait(callbacks)
                         .map_err(StackError::DispatchError)?;
                     Err(nb::Error::WouldBlock)
                 }

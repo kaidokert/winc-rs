@@ -13,7 +13,10 @@ use feather as bsp;
 use feather::init::init;
 use feather::shared::{create_countdowns, delay_fn};
 
-use wincwifi::{StackError, WincClient};
+use wincwifi::{ConnectionInfo, StackError, WincClient};
+
+use feather::bsp::pac;
+use pac::interrupt;
 
 use core::convert::Infallible;
 use core::net::Ipv4Addr;
@@ -24,6 +27,8 @@ use demos::iperf3_client::{iperf3_client, Conf, TestConfig};
 
 const DEFAULT_IPERF_IP: &str = "192.168.1.1";
 const DEFAULT_IPERF_PORT: &str = "5201";
+const DEFAULT_TEST_SSID: &str = "network";
+const DEFAULT_TEST_PASSWORD: &str = "password";
 
 const MAX_BLOCK_LEN: usize = 8192;
 
@@ -102,6 +107,9 @@ where
         defmt::println!("Hello, Iperf ");
         let red_led = &mut ini.red_led;
 
+        let ssid = option_env!("TEST_SSID").unwrap_or(DEFAULT_TEST_SSID);
+        let password = option_env!("TEST_PASSWORD").unwrap_or(DEFAULT_TEST_PASSWORD);
+
         let mut cnt = create_countdowns(&ini.delay_tick);
 
         let mut delay_ms = delay_fn(&mut cnt.0);
@@ -122,10 +130,30 @@ where
             }
         }
         defmt::info!("Started, connecting to AP ..");
-        nb::block!(stack.connect_to_saved_ap())?;
-        delay_ms(1000);
+        //nb::block!(stack.connect_to_saved_ap())?;
+        let result = nb::block!(stack.connect_to_ap(ssid, password, false));
+        if result.is_err() {
+            nb::block!(stack.connect_to_ap(ssid, password, false))?;
+        }
 
-        let info = nb::block!(stack.get_connection_info())?;
+        let mut counter: u8 = 0;
+        let mut info: ConnectionInfo;
+        // wait for dhcp
+        loop {
+            if counter == 5 {
+                return Err(nb::Error::Other(StackError::GeneralTimeout).into());
+            }
+
+            info = nb::block!(stack.get_connection_info())?;
+
+            let host_ip = info.ip.octets();
+
+            if host_ip[0] != 0 && host_ip[1] != 0 && host_ip[2] != 0 && host_ip[3] != 0 {
+                break;
+            }
+            delay_ms(1000);
+            counter += 1;
+        }
         defmt::info!("Connection info: {}", info);
 
         defmt::info!(".. connected to AP, running iperf3 ..");
@@ -180,4 +208,22 @@ fn main() -> ! {
         defmt::info!("Good exit")
     };
     loop {}
+}
+
+#[interrupt]
+fn EIC() {
+    unsafe {
+        // Accessing registers from interrupts context is safe
+        let eic = &*pac::Eic::ptr();
+
+        let flag5 = eic.intflag().read().extint5().bit_is_set();
+        if flag5 {
+            eic.intflag().modify(|_, w| w.extint5().set_bit());
+        }
+
+        let flag15 = eic.intflag().read().extint15().bit_is_set();
+        if flag15 {
+            eic.intflag().modify(|_, w| w.extint15().set_bit());
+        }
+    }
 }
