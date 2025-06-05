@@ -9,8 +9,11 @@ use pac::{CorePeripherals, Peripherals};
 use bsp::periph_alias;
 use bsp::pin_alias;
 use core::convert::Infallible;
+use cortex_m::peripheral::NVIC;
 use hal::clock::GenericClockController;
 use hal::dmac::{DmaController, PriorityLevel};
+use hal::eic::Eic;
+use hal::eic::*;
 use hal::time::{Hertz, MegaHertz};
 
 use hal::prelude::*;
@@ -78,7 +81,7 @@ pub fn init() -> Result<
     FailureSource,
 > {
     let mut peripherals = Peripherals::take().ok_or(FailureSource::Periph)?;
-    let core = CorePeripherals::take().ok_or(FailureSource::Core)?;
+    let mut core = CorePeripherals::take().ok_or(FailureSource::Core)?;
 
     let mut clocks = GenericClockController::with_internal_32kosc(
         peripherals.gclk,
@@ -126,6 +129,24 @@ pub fn init() -> Result<
     let mut ena: bsp::WincEna = pin_alias!(pins.winc_ena).into(); // ENA
     let mut rst: bsp::WincRst = pin_alias!(pins.winc_rst).into(); // RST
     let mut cs: bsp::WincCs = pin_alias!(pins.winc_cs).into(); // CS
+    let irq: bsp::WincIrq = pin_alias!(pins.winc_irq).into(); // IRQ
+
+    //
+    let eic_clock = clocks.eic(&gclk0).ok_or(FailureSource::Clock)?;
+    let eic = Eic::new(&mut pm, eic_clock, peripherals.eic);
+    let channels = eic.split();
+    let mut extint = irq.into_pull_up_ei(channels.5);
+    extint.sense(hal::eic::Sense::Fall);
+    extint.enable_interrupt();
+    // Enable EIC interrupt in the NVIC
+    unsafe {
+        core.NVIC.set_priority(pac::interrupt::EIC, 1);
+        NVIC::unmask(pac::interrupt::EIC);
+    }
+
+    let mut button_c = pins.d5.into_pull_up_ei(channels.15);
+    button_c.sense(hal::eic::Sense::Fall);
+    button_c.enable_interrupt();
 
     OutputPin::set_high(&mut ena)?; // ENable pin for the WiFi module, by default pulled down low, set HIGH to enable WiFi
     OutputPin::set_high(&mut cs)?; // CS: pull low for transaction, high to end
@@ -147,6 +168,6 @@ pub fn init() -> Result<
         i2c,
         button_a: pins.d9.into_pull_up_input(),
         button_b: pins.d6.into_pull_up_input(),
-        button_c: pins.d5.into_pull_up_input(),
+        button_c: pins.d0.into_pull_up_input(),
     })
 }

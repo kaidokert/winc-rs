@@ -10,6 +10,9 @@ use feather::hal::ehal::digital::OutputPin;
 use feather::init::init;
 use feather::shared::{create_countdowns, delay_fn};
 
+use feather::bsp::pac;
+use pac::interrupt;
+
 const DEFAULT_TEST_SSID: &str = "network";
 const DEFAULT_TEST_PASSWORD: &str = "password";
 
@@ -76,4 +79,22 @@ fn main() -> ! {
         defmt::info!("Good exit")
     };
     loop {}
+}
+
+#[interrupt]
+fn EIC() {
+    unsafe {
+        // Accessing registers from interrupts context is safe
+        let eic = &*pac::Eic::ptr();
+
+        let flag5 = eic.intflag().read().extint5().bit_is_set();
+        if flag5 {
+            eic.intflag().modify(|_, w| w.extint5().set_bit());
+        }
+
+        let flag15 = eic.intflag().read().extint15().bit_is_set();
+        if flag15 {
+            eic.intflag().modify(|_, w| w.extint15().set_bit());
+        }
+    }
 }

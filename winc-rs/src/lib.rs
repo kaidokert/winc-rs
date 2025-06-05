@@ -76,6 +76,7 @@ pub use client::StackError;
 pub use client::WincClient;
 pub use manager::AuthType;
 pub use manager::ConnectionInfo;
+pub use manager::DebugInfo;
 pub use manager::FirmwareInfo;
 pub use manager::{
     AccessPoint, Credentials, HostName, S8Password, S8Username, Ssid, WifiChannel, WpaKey,

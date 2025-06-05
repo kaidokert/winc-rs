@@ -146,10 +146,18 @@ pub trait EventListener {
     fn on_provisioning(&mut self, ssid: Ssid, key: WpaKey, security: AuthType, status: bool);
 }
 
+#[derive(Debug, PartialEq, Clone, Default)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub struct DebugInfo {
+    interrupt_counter: u32,
+    no_interrupt_polls: u32,
+}
+
 pub struct Manager<X: Xfer> {
     // cached addresses
     not_a_reg_ctrl_4_dma: u32, // todo: make this dynamic/proper
     chip: ChipAccess<X>,
+    pub debug_info: DebugInfo,
 }
 
 /// The stages of the boot process
@@ -184,6 +192,7 @@ impl<X: Xfer> Manager<X> {
         Self {
             not_a_reg_ctrl_4_dma: 0xbf0000,
             chip: ChipAccess::new(xfer),
+            debug_info: DebugInfo::default(),
         }
     }
     #[cfg(test)]
@@ -351,6 +360,7 @@ impl<X: Xfer> Manager<X> {
         Ok((val & 0x1 == 0x1, val))
     }
     fn clear_interrupt_pending(&mut self, ctrlreg: u32) -> Result<(), Error> {
+        self.debug_info.interrupt_counter += 1;
         let setval = ctrlreg & !1;
         self.chip
             .single_reg_write(Regs::WifiHostRcvCtrl0.into(), setval)
@@ -846,9 +856,24 @@ impl<X: Xfer> Manager<X> {
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
     }
 
+    pub fn may_wait_for_interrupt(&mut self) {
+        self.chip.wait_for_interrupt()
+    }
+
+    pub fn dispatch_events_wait<T: EventListener>(
+        &mut self,
+        listener: &mut T,
+    ) -> Result<(), Error> {
+        self.may_wait_for_interrupt();
+        self.dispatch_events_new(listener)?;
+
+        Ok(())
+    }
+
     pub fn dispatch_events_new<T: EventListener>(&mut self, listener: &mut T) -> Result<(), Error> {
         let res = self.is_interrupt_pending()?;
         if !res.0 {
+            self.debug_info.no_interrupt_polls += 1;
             return Ok(());
         }
         self.clear_interrupt_pending(res.1)?;
