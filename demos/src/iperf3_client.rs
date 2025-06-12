@@ -34,6 +34,18 @@ pub trait TcpError: embedded_nal::TcpError + defmt::Format {}
 #[cfg(feature = "defmt")]
 impl<T> TcpError for T where T: embedded_nal::TcpError + defmt::Format {}
 
+#[cfg(not(feature = "defmt"))]
+pub trait UdpError: core::fmt::Debug {}
+
+#[cfg(not(feature = "defmt"))]
+impl<T> UdpError for T where T: core::fmt::Debug {}
+
+#[cfg(feature = "defmt")]
+pub trait UdpError: core::fmt::Debug + defmt::Format {}
+
+#[cfg(feature = "defmt")]
+impl<T> UdpError for T where T: core::fmt::Debug + defmt::Format {}
+
 impl<T> From<T> for Errors
 where
     T: embedded_nal::TcpError,
@@ -180,7 +192,7 @@ pub fn iperf3_client_with_protocol<const MAX_BLOCK_LEN: usize, T, S, US>(
 where
     T: TcpClientStack<TcpSocket = S> + UdpClientStack<UdpSocket = US> + ?Sized,
     <T as TcpClientStack>::Error: TcpError,
-    <T as UdpClientStack>::Error: core::fmt::Debug,
+    <T as UdpClientStack>::Error: UdpError,
 {
     let my_confg = config.unwrap_or(TestConfig {
         conf: Conf::Bytes(1024_1000 * 20),
@@ -537,7 +549,7 @@ pub fn iperf3_client<const MAX_BLOCK_LEN: usize, T, S>(
 where
     T: TcpClientStack<TcpSocket = S> + UdpClientStack + ?Sized,
     <T as TcpClientStack>::Error: TcpError,
-    <T as UdpClientStack>::Error: core::fmt::Debug,
+    <T as UdpClientStack>::Error: UdpError,
 {
     iperf3_client_with_protocol::<MAX_BLOCK_LEN, T, S, T::UdpSocket>(
         stack,
@@ -561,7 +573,7 @@ pub fn iperf3_udp_client<const MAX_BLOCK_LEN: usize, T, S, US>(
 where
     T: TcpClientStack<TcpSocket = S> + UdpClientStack<UdpSocket = US> + ?Sized,
     <T as TcpClientStack>::Error: TcpError,
-    <T as UdpClientStack>::Error: core::fmt::Debug,
+    <T as UdpClientStack>::Error: UdpError,
 {
     iperf3_client_with_protocol::<MAX_BLOCK_LEN, T, S, US>(
         stack,
