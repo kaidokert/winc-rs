@@ -145,11 +145,6 @@ where
 
     info!("Incoming len {}", len);
 
-    // Handle case where server disconnects (len = 0)
-    if len == 0 {
-        return Err(Errors::UnexpectedResponse);
-    }
-
     if len > buffer.len() {
         return Err(Errors::JsonTooLarge);
     }
@@ -441,7 +436,7 @@ where
             bytes: udp_metrics.bytes_sent,
             packets: udp_metrics.packets_sent,
             errors: udp_metrics.errors,
-            jitter: (udp_metrics.calculate_jitter() * 1000.0) as u32, // Convert to microseconds
+            jitter: udp_metrics.calculate_jitter() * 1000.0, // Convert to microseconds
             ..Default::default()
         }][..]
     } else {
