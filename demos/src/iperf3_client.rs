@@ -270,6 +270,8 @@ where
 
     // Create data connection immediately after CreateStreams as iperf3 expects
     let mut udp_metrics = UdpMetrics::default();
+    let mut udp_socket_option: Option<US> = None;
+    let mut tcp_socket_option: Option<S> = None;
 
     if use_udp {
         debug!("-----Creating UDP data socket-----");
@@ -334,6 +336,9 @@ where
                 reply_len
             );
         }
+
+        // Store the UDP socket for reuse in data transfer
+        udp_socket_option = Some(udp_socket);
     } else {
         let mut transport_socket = TcpClientStack::socket(stack)?;
         block!(TcpClientStack::connect(
@@ -343,6 +348,9 @@ where
         ))?;
         block!(TcpClientStack::send(stack, &mut transport_socket, &cookie))?;
         debug!("-----TCP data socket connected and cookie sent-----");
+
+        // Store the TCP socket for reuse in data transfer
+        tcp_socket_option = Some(transport_socket);
     }
 
     read_control(stack, &mut control_socket, Cmds::TestStart)?;
@@ -354,9 +362,8 @@ where
     let mut packet_id = 1u32;
 
     if use_udp {
-        // UDP data transfer using actual UDP sockets
-        let mut udp_socket = UdpClientStack::socket(stack).map_err(|_| Errors::UDP)?;
-        UdpClientStack::connect(stack, &mut udp_socket, remote).map_err(|_| Errors::UDP)?;
+        // UDP data transfer using the same socket from handshake
+        let mut udp_socket = udp_socket_option.unwrap();
 
         // TODO: Implement UDP pacing/rate limiting for better throughput performance.
         // Current implementation sends packets as fast as possible which causes network
@@ -404,18 +411,8 @@ where
             }
         }
     } else {
-        // TCP data transfer using TCP transport socket
-        let mut transport_socket = TcpClientStack::socket(stack)?;
-        block!(TcpClientStack::connect(
-            stack,
-            &mut transport_socket,
-            remote
-        ))?;
-        block!(TcpClientStack::send(stack, &mut transport_socket, &cookie))?;
-        debug!(
-            "-----{} test: transport socket connected and cookie sent-----",
-            protocol_name
-        );
+        // TCP data transfer using the same socket from handshake
+        let mut transport_socket = tcp_socket_option.unwrap();
 
         loop {
             let buffer = [0xAA; MAX_BLOCK_LEN];
@@ -431,12 +428,7 @@ where
             }
         }
 
-        debug!(
-            "UDP Metrics: sent={} errors={} loss={}%",
-            udp_metrics.packets_sent,
-            udp_metrics.errors,
-            udp_metrics.packet_loss_percent() as u32
-        );
+        debug!("-----TCP data transfer completed-----");
     }
 
     send_cmd(stack, &mut control_socket, Cmds::TestEnd)?;
