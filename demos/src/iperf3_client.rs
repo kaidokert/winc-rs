@@ -3,7 +3,10 @@ use core::net::{IpAddr, SocketAddr};
 use super::{debug, error, info};
 use embedded_nal::nb::block;
 use embedded_nal::{TcpClientStack, UdpClientStack};
-use iperf_data::{Cmds, SessionConfig, SessionResults, StreamResults, UdpMetrics, UdpPacketHeader};
+use iperf_data::{
+    Cmds, SessionConfig, SessionResults, StreamResults, UdpMetrics, UdpPacketHeader,
+    UdpSessionConfig,
+};
 pub use rand_core::RngCore;
 
 mod iperf_data;
@@ -81,12 +84,25 @@ where
 {
     let fx = cmd.clone() as u8;
     let mut read_cmd: [u8; 1] = [0];
-    block!(stack.receive(&mut control_socket, &mut read_cmd))?;
-    if fx == read_cmd[0] {
-        debug!("Got {:?}", cmd);
-    } else {
-        error!("Unexpected response {}", read_cmd[0]);
-        return Err(Errors::UnexpectedResponse);
+    debug!("Waiting for control command: {:?} ({})", cmd, fx);
+
+    match block!(stack.receive(&mut control_socket, &mut read_cmd)) {
+        Ok(_) => {
+            debug!("Received control byte: {}", read_cmd[0]);
+            if fx == read_cmd[0] {
+                debug!("Got expected {:?}", cmd);
+            } else {
+                error!(
+                    "Unexpected response: expected {} ({:?}), got {}",
+                    fx, cmd, read_cmd[0]
+                );
+                return Err(Errors::UnexpectedResponse);
+            }
+        }
+        Err(e) => {
+            error!("Failed to receive control command {:?}", cmd);
+            return Err(e.into());
+        }
     }
     Ok(())
 }
@@ -210,21 +226,173 @@ where
 
     read_control(stack, &mut control_socket, Cmds::ParamExchange)?;
 
-    // Set tcp field based on protocol
-    let conf = SessionConfig {
-        tcp: if use_udp { 0 } else { 1 },
-        num: full_len,
-        len: block_len,
-    };
-    let json = conf.serde_json().unwrap();
-    send_json(stack, &mut control_socket, &json)?;
+    // Create protocol-specific configuration
+    if use_udp {
+        let udp_conf = UdpSessionConfig {
+            udp: true,
+            omit: 0,
+            time: 3, // Default 3 seconds - could be made configurable
+            num: 0,  // When using time, num should be 0
+            blockcount: 0,
+            parallel: 1,
+            len: block_len,
+            bandwidth: 1048576, // 1 Mbps default
+            pacing_timer: 1000,
+            client_version: heapless::String::try_from("3.19").unwrap(),
+        };
+        let json = udp_conf.serde_json().unwrap();
+        send_json(stack, &mut control_socket, &json)?;
+    } else {
+        let tcp_conf = SessionConfig {
+            tcp: 1,
+            num: full_len,
+            len: block_len,
+        };
+        let json = tcp_conf.serde_json().unwrap();
+        send_json(stack, &mut control_socket, &json)?;
+    }
     info!("-----Sent param exchange ({})-----", protocol_name);
 
     read_control(stack, &mut control_socket, Cmds::CreateStreams)?;
+    debug!("-----Received CreateStreams command-----");
 
-    // Data transfer section - protocol-specific logic
+    // Create data connection immediately after CreateStreams as iperf3 expects
     let mut udp_metrics = UdpMetrics::default();
-    {
+
+    if use_udp {
+        debug!("-----Creating UDP data socket-----");
+        let mut udp_socket = UdpClientStack::socket(stack).map_err(|e| {
+            error!("Failed to create UDP socket: {:?}", e);
+            Errors::UDP
+        })?;
+        debug!("-----UDP socket created, connecting-----");
+        UdpClientStack::connect(stack, &mut udp_socket, remote).map_err(|e| {
+            error!("Failed to connect UDP socket: {:?}", e);
+            Errors::UDP
+        })?;
+        debug!("-----UDP data socket connected-----");
+
+        // Send UDP connect message as per iperf3 protocol
+        let udp_connect_msg: [u8; 4] = 0x36373839u32.to_be_bytes(); // "6789"
+        debug!("-----Sending UDP connect message-----");
+        block!(UdpClientStack::send(
+            stack,
+            &mut udp_socket,
+            &udp_connect_msg
+        ))
+        .map_err(|e| {
+            error!("Failed to send UDP connect message: {:?}", e);
+            Errors::UDP
+        })?;
+
+        // Wait for UDP connect reply
+        let mut reply_buf = [0u8; 4];
+        debug!("-----Waiting for UDP connect reply-----");
+        let (reply_len, _) = block!(UdpClientStack::receive(
+            stack,
+            &mut udp_socket,
+            &mut reply_buf
+        ))
+        .map_err(|e| {
+            error!("Failed to receive UDP connect reply: {:?}", e);
+            Errors::UDP
+        })?;
+
+        if reply_len == 4 {
+            let reply_value = u32::from_be_bytes(reply_buf);
+            debug!(
+                "-----Received UDP connect reply: 0x{:08x}-----",
+                reply_value
+            );
+            if reply_value == 0x39383736 {
+                // "9876" - expected reply
+                debug!("-----UDP handshake completed with proper reply-----");
+            } else if reply_value == 0x36373839 {
+                // "6789" - echo of our message
+                debug!("-----UDP handshake completed (received echo)-----");
+            } else {
+                debug!(
+                    "-----UDP handshake completed with unexpected reply: 0x{:08x}-----",
+                    reply_value
+                );
+            }
+        } else {
+            debug!(
+                "-----UDP connect reply length: {} (continuing anyway)-----",
+                reply_len
+            );
+        }
+    } else {
+        let mut transport_socket = TcpClientStack::socket(stack)?;
+        block!(TcpClientStack::connect(
+            stack,
+            &mut transport_socket,
+            remote
+        ))?;
+        block!(TcpClientStack::send(stack, &mut transport_socket, &cookie))?;
+        debug!("-----TCP data socket connected and cookie sent-----");
+    }
+
+    read_control(stack, &mut control_socket, Cmds::TestStart)?;
+    debug!("-----Test started-----");
+    read_control(stack, &mut control_socket, Cmds::TestRunning)?;
+    info!("-----Test running ({})-----", protocol_name);
+
+    let mut to_send = full_len as isize;
+    let mut packet_id = 1u32;
+
+    if use_udp {
+        // UDP data transfer using actual UDP sockets
+        let mut udp_socket = UdpClientStack::socket(stack).map_err(|_| Errors::UDP)?;
+        UdpClientStack::connect(stack, &mut udp_socket, remote).map_err(|_| Errors::UDP)?;
+
+        // TODO: Implement UDP pacing/rate limiting for better throughput performance.
+        // Current implementation sends packets as fast as possible which causes network
+        // buffer overflow and poor utilization. Official iperf3 achieves ~12x better
+        // performance (197 Mbps vs our 16 Mbps) through intelligent pacing algorithms.
+        // For optimal results, packets should be spaced based on target bitrate and
+        // network feedback rather than sent in a tight loop.
+        loop {
+            // Create UDP packet with header
+            let mut buffer = [0xBB; MAX_BLOCK_LEN]; // Different pattern for UDP
+
+            // UDP packet header (12 bytes)
+            let current_time = 0.0f32; // Simplified - would need actual timestamp
+            let header = UdpPacketHeader {
+                tv_sec: current_time as u32,
+                tv_usec: 0, // Simplified - fractional seconds would be computed here
+                id: packet_id,
+            };
+            let header_bytes = header.to_bytes();
+            buffer[..12].copy_from_slice(&header_bytes);
+
+            match block!(UdpClientStack::send(
+                stack,
+                &mut udp_socket,
+                &buffer[..block_len]
+            )) {
+                Ok(_) => {
+                    udp_metrics.packets_sent += 1;
+                    udp_metrics.bytes_sent += block_len as u32;
+                    debug!(
+                        "-----Sent UDP packet {} ({} bytes)-----",
+                        packet_id, block_len
+                    );
+                }
+                Err(_) => {
+                    udp_metrics.errors += 1;
+                    debug!("-----Failed to send UDP packet {}-----", packet_id);
+                }
+            }
+
+            packet_id += 1;
+            to_send -= block_len as isize;
+            if to_send <= 0 {
+                break;
+            }
+        }
+    } else {
+        // TCP data transfer using TCP transport socket
         let mut transport_socket = TcpClientStack::socket(stack)?;
         block!(TcpClientStack::connect(
             stack,
@@ -237,83 +405,26 @@ where
             protocol_name
         );
 
-        read_control(stack, &mut control_socket, Cmds::TestStart)?;
-        debug!("-----Test started-----");
-        read_control(stack, &mut control_socket, Cmds::TestRunning)?;
-        info!("-----Test running ({})-----", protocol_name);
-
-        let mut to_send = full_len as isize;
-        let mut packet_id = 1u32;
-
-        if use_udp {
-            // TODO: Implement UDP pacing/rate limiting for better throughput performance.
-            // Current implementation sends packets as fast as possible which causes network
-            // buffer overflow and poor utilization. Official iperf3 achieves ~12x better
-            // performance (197 Mbps vs our 16 Mbps) through intelligent pacing algorithms.
-            // For optimal results, packets should be spaced based on target bitrate and
-            // network feedback rather than sent in a tight loop.
-            loop {
-                // Create UDP packet with header
-                let mut buffer = [0xBB; MAX_BLOCK_LEN]; // Different pattern for UDP
-
-                // UDP packet header (12 bytes)
-                let current_time = 0.0f32; // Simplified - would need actual timestamp
-                let header = UdpPacketHeader {
-                    tv_sec: current_time as u32,
-                    tv_usec: 0, // Simplified - fractional seconds would be computed here
-                    id: packet_id,
-                };
-                let header_bytes = header.to_bytes();
-                buffer[..12].copy_from_slice(&header_bytes);
-
-                match block!(TcpClientStack::send(
-                    stack,
-                    &mut transport_socket,
-                    &buffer[..block_len]
-                )) {
-                    Ok(_) => {
-                        udp_metrics.packets_sent += 1;
-                        udp_metrics.bytes_sent += block_len as u32;
-                        debug!(
-                            "-----Sent UDP packet {} ({} bytes)-----",
-                            packet_id, block_len
-                        );
-                    }
-                    Err(_) => {
-                        udp_metrics.errors += 1;
-                        debug!("-----Failed to send UDP packet {}-----", packet_id);
-                    }
-                }
-
-                packet_id += 1;
-                to_send -= block_len as isize;
-                if to_send <= 0 {
-                    break;
-                }
-            }
-
-            debug!(
-                "UDP Metrics: sent={} errors={} loss={}%",
-                udp_metrics.packets_sent,
-                udp_metrics.errors,
-                udp_metrics.packet_loss_percent() as u32
-            );
-        } else {
-            // TCP data transfer
-            loop {
-                let buffer = [0xAA; MAX_BLOCK_LEN];
-                block!(TcpClientStack::send(
-                    stack,
-                    &mut transport_socket,
-                    &buffer[..block_len]
-                ))?;
-                debug!("-----Sent {} bytes-----", block_len);
-                to_send -= block_len as isize;
-                if to_send <= 0 {
-                    break;
-                }
+        loop {
+            let buffer = [0xAA; MAX_BLOCK_LEN];
+            block!(TcpClientStack::send(
+                stack,
+                &mut transport_socket,
+                &buffer[..block_len]
+            ))?;
+            debug!("-----Sent {} bytes-----", block_len);
+            to_send -= block_len as isize;
+            if to_send <= 0 {
+                break;
             }
         }
+
+        debug!(
+            "UDP Metrics: sent={} errors={} loss={}%",
+            udp_metrics.packets_sent,
+            udp_metrics.errors,
+            udp_metrics.packet_loss_percent() as u32
+        );
     }
 
     send_cmd(stack, &mut control_socket, Cmds::TestEnd)?;

@@ -27,6 +27,20 @@ pub struct SessionConfig {
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
+pub struct UdpSessionConfig {
+    pub udp: bool,
+    pub omit: u32,
+    pub time: u32,
+    pub num: usize,
+    pub blockcount: u32,
+    pub parallel: u32,
+    pub len: usize,
+    pub bandwidth: u32,
+    pub pacing_timer: u32,
+    pub client_version: heapless::String<16>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct UdpPacketHeader {
     pub tv_sec: u32,
     pub tv_usec: u32,
@@ -92,12 +106,35 @@ impl SessionConfig {
     }
 }
 
+impl UdpSessionConfig {
+    const MAX_UDP_SESSION_CONF_LEN: usize = 200;
+    pub fn serde_json(
+        &self,
+    ) -> Result<heapless::String<{ Self::MAX_UDP_SESSION_CONF_LEN }>, serde_json_core::ser::Error>
+    {
+        serde_json_core::to_string(self)
+    }
+}
+
+fn deserialize_retransmits<'de, D>(deserializer: D) -> Result<u64, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value: i64 = serde::Deserialize::deserialize(deserializer)?;
+    if value < 0 {
+        Ok(u64::MAX) // Convert -1 to max value to indicate "not available"
+    } else {
+        Ok(value as u64)
+    }
+}
+
 #[derive(serde::Serialize, serde::Deserialize, Default, Clone, Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct StreamResults {
     pub id: u8,
     pub bytes: u32,
-    pub retransmits: u64, // Handle large unsigned values like 18446744073709551615
+    #[serde(deserialize_with = "deserialize_retransmits")]
+    pub retransmits: u64, // Handle large unsigned values and convert -1 to u64::MAX
     pub jitter: u32,
     pub errors: u32,
     pub packets: u32,
@@ -124,7 +161,8 @@ pub struct SessionResults<const N: usize> {
     pub cpu_util_total: f32,
     pub cpu_util_user: f32,
     pub cpu_util_system: f32,
-    pub sender_has_retransmits: u64, // Handle large unsigned values like 18446744073709551615
+    #[serde(deserialize_with = "deserialize_retransmits")]
+    pub sender_has_retransmits: u64, // Handle large unsigned values and convert -1 to u64::MAX
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub congestion_used: Option<heapless::String<16>>, // Optional field from remote servers
     pub streams: heapless::Vec<StreamResults, N>,
@@ -230,7 +268,7 @@ mod tests {
             cpu_util_system: 1000.0,
             cpu_util_user: 1000.0,
             cpu_util_total: 1000.0,
-            sender_has_retransmits: 1000,
+            sender_has_retransmits: u64::MAX,
             congestion_used: None,
         };
         let j = results.serde_json().unwrap();
@@ -240,7 +278,7 @@ mod tests {
                 r#"{"cpu_util_total":1000.0,"#,
                 r#""cpu_util_user":1000.0,"#,
                 r#""cpu_util_system":1000.0,"#,
-                r#""sender_has_retransmits":1000,"#,
+                r#""sender_has_retransmits":18446744073709551615,"#,
                 r#""streams":[{"#,
                 r#""id":1,"#,
                 r#""bytes":4294967295,"#,
