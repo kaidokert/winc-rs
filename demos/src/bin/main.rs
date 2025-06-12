@@ -4,7 +4,7 @@ use core::net::Ipv4Addr;
 use std_embedded_nal::Stack;
 
 #[cfg(feature = "iperf3")]
-use demos::iperf3_client::{iperf3_client, iperf3_udp_client, Conf, TestConfig};
+use demos::iperf3_client::{iperf3_client_with_protocol, Conf, TestConfig};
 use demos::{
     coap_client::coap_client, http_client::http_client, http_server::http_server,
     tcp_server::tcp_server, telnet_shell::telnet_shell, udp_client::udp_client,
@@ -157,32 +157,17 @@ fn main() -> Result<(), LocalErrors> {
                         transmit_block_len: _config.block_len,
                     }
                 };
-                
-                if _config.udp {
-                    // UDP mode
-                    let mut wait_fn = |ms: u32| {
-                        std::thread::sleep(std::time::Duration::from_millis(ms as u64));
-                    };
-                    iperf3_udp_client::<65536, _, _, _>(
-                        &mut stack,
-                        ip_addr,
-                        Some(port),
-                        &mut rand::rng(),
-                        Some(conf),
-                        &mut wait_fn,
-                    )
-                    .map_err(|_| LocalErrors::IoError)?;
-                } else {
-                    // TCP mode (default)
-                    iperf3_client::<65536, _, _>(
-                        &mut stack,
-                        ip_addr,
-                        Some(port),
-                        &mut rand::rng(),
-                        Some(conf),
-                    )
-                    .map_err(|_| LocalErrors::IoError)?;
-                }
+
+                // Use consolidated function for both TCP and UDP
+                iperf3_client_with_protocol::<65536, _, _, _>(
+                    &mut stack,
+                    ip_addr,
+                    Some(port),
+                    &mut rand::rng(),
+                    Some(conf),
+                    _config.udp, // Pass UDP flag directly
+                )
+                .map_err(|_| LocalErrors::IoError)?;
             }
         }
         #[cfg(feature = "telnet")]
