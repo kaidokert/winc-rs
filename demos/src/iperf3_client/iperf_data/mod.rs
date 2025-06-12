@@ -231,6 +231,7 @@ mod tests {
             cpu_util_user: 1000.0,
             cpu_util_total: 1000.0,
             sender_has_retransmits: 1000,
+            congestion_used: None,
         };
         let j = results.serde_json().unwrap();
         assert_eq!(

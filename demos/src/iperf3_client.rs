@@ -49,6 +49,31 @@ fn make_cookie(gen: &mut dyn rand_core::RngCore) -> [u8; 37] {
     bytes
 }
 
+fn format_speed(bytes_per_second: f32) -> (f32, &'static str, f32, &'static str) {
+    let mut speed = bytes_per_second;
+    let suffixes = ["bytes", "KB", "MB", "GB"];
+    let mut suffix_index = 0;
+
+    while speed >= 1000.0 && suffix_index < suffixes.len() - 1 {
+        speed /= 1000.0;
+        suffix_index += 1;
+    }
+
+    let bits_speed = speed * 8.0;
+    let bits_suffix = if suffix_index == 0 {
+        "bits"
+    } else {
+        match suffix_index {
+            1 => "Kbits",
+            2 => "Mbits",
+            3 => "Gbits",
+            _ => "bits",
+        }
+    };
+
+    (speed, suffixes[suffix_index], bits_speed, bits_suffix)
+}
+
 fn read_control<T, S>(stack: &mut T, mut control_socket: &mut S, cmd: Cmds) -> Result<(), Errors>
 where
     T: TcpClientStack<TcpSocket = S> + ?Sized,
@@ -274,7 +299,7 @@ where
                 udp_metrics.packet_loss_percent()
             );
         } else {
-            // TCP data transfer (simplified version from original TCP client)
+            // TCP data transfer
             loop {
                 let buffer = [0xAA; MAX_BLOCK_LEN];
                 block!(TcpClientStack::send(
@@ -325,12 +350,8 @@ where
     debug!("-----Doing recv_json-----");
     match recv_json(stack, &mut control_socket, &mut remote_results_buffer) {
         Ok(remote_results) => {
-            // DisplayResults might not be sent by all servers
-            if let Err(_) = read_control(stack, &mut control_socket, Cmds::DisplayResults) {
-                debug!("No DisplayResults received - server may have disconnected (normal for some servers)");
-            }
+            read_control(stack, &mut control_socket, Cmds::DisplayResults)?;
 
-            debug!("Raw JSON from server: {}", remote_results);
             let (session_results, _): (SessionResults<1>, usize) =
                 match serde_json_core::from_str(remote_results) {
                     Ok(result) => result,
@@ -361,36 +382,12 @@ where
             // Calculate speed from Stream[0] .end_time-.start_time and .bytes
             let strm = &session_results.streams[0];
             if strm.end_time > strm.start_time {
-                let speed = strm.bytes as f32 / (strm.end_time - strm.start_time);
-                if speed > 1_000_000_000.0 {
-                    info!(
-                        "{} Speed {} in Gb/s ( {} in GBits/s)",
-                        protocol_name,
-                        speed / 1_000_000_000.0,
-                        speed * 8.0 / 1_000_000_000.0
-                    );
-                } else if speed > 1_000_000.0 {
-                    info!(
-                        "{} Speed {} in Mb/s ( {} in MBits/s)",
-                        protocol_name,
-                        speed / 1000_000.0,
-                        speed * 8.0 / 1000_000.0
-                    );
-                } else if speed > 1000.0 {
-                    info!(
-                        "{} Speed {} in kb/s ( {} in KBits/s)",
-                        protocol_name,
-                        speed / 1000.0,
-                        speed * 8.0 / 1000.0
-                    );
-                } else {
-                    info!(
-                        "{} Speed {} in bytes/s ( {} in bits/s)",
-                        protocol_name,
-                        speed,
-                        speed * 8.0
-                    );
-                }
+                let bytes_per_second = strm.bytes as f32 / (strm.end_time - strm.start_time);
+                let (speed, bytes_suffix, bits_speed, bits_suffix) = format_speed(bytes_per_second);
+                info!(
+                    "{} Speed {:.2} {}/s ({:.2} {}/s)",
+                    protocol_name, speed, bytes_suffix, bits_speed, bits_suffix
+                );
             } else {
                 info!(
                     "{} test completed: {} bytes sent",
@@ -463,4 +460,73 @@ where
         config,
         true,
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_format_speed_bytes() {
+        let (speed, bytes_suffix, bits_speed, bits_suffix) = format_speed(500.0);
+        assert_eq!(speed, 500.0);
+        assert_eq!(bytes_suffix, "bytes");
+        assert_eq!(bits_speed, 4000.0);
+        assert_eq!(bits_suffix, "bits");
+    }
+
+    #[test]
+    fn test_format_speed_kb() {
+        let (speed, bytes_suffix, bits_speed, bits_suffix) = format_speed(1500.0);
+        assert_eq!(speed, 1.5);
+        assert_eq!(bytes_suffix, "KB");
+        assert_eq!(bits_speed, 12.0);
+        assert_eq!(bits_suffix, "Kbits");
+    }
+
+    #[test]
+    fn test_format_speed_mb() {
+        let (speed, bytes_suffix, bits_speed, bits_suffix) = format_speed(2_500_000.0);
+        assert_eq!(speed, 2.5);
+        assert_eq!(bytes_suffix, "MB");
+        assert_eq!(bits_speed, 20.0);
+        assert_eq!(bits_suffix, "Mbits");
+    }
+
+    #[test]
+    fn test_format_speed_gb() {
+        let (speed, bytes_suffix, bits_speed, bits_suffix) = format_speed(1_500_000_000.0);
+        assert_eq!(speed, 1.5);
+        assert_eq!(bytes_suffix, "GB");
+        assert_eq!(bits_speed, 12.0);
+        assert_eq!(bits_suffix, "Gbits");
+    }
+
+    #[test]
+    fn test_format_speed_exact_boundaries() {
+        // Test exactly 1000 bytes
+        let (speed, bytes_suffix, _, _) = format_speed(1000.0);
+        assert_eq!(speed, 1.0);
+        assert_eq!(bytes_suffix, "KB");
+
+        // Test exactly 1 MB
+        let (speed, bytes_suffix, _, _) = format_speed(1_000_000.0);
+        assert_eq!(speed, 1.0);
+        assert_eq!(bytes_suffix, "MB");
+
+        // Test exactly 1 GB
+        let (speed, bytes_suffix, _, _) = format_speed(1_000_000_000.0);
+        assert_eq!(speed, 1.0);
+        assert_eq!(bytes_suffix, "GB");
+    }
+
+    #[test]
+    fn test_format_speed_very_large() {
+        // Test very large value - should cap at GB
+        let (speed, bytes_suffix, bits_speed, bits_suffix) = format_speed(5_000_000_000_000.0);
+        assert_eq!(speed, 5000.0);
+        assert_eq!(bytes_suffix, "GB");
+        assert_eq!(bits_speed, 40000.0);
+        assert_eq!(bits_suffix, "Gbits");
+    }
 }
