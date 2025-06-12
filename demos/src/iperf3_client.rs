@@ -1,7 +1,7 @@
 use core::net::{IpAddr, SocketAddr};
 
 use super::{debug, error, info};
-use embedded_nal::nb::{self, block};
+use embedded_nal::nb::block;
 use embedded_nal::{TcpClientStack, UdpClientStack};
 use iperf_data::{Cmds, SessionConfig, SessionResults, StreamResults, UdpMetrics, UdpPacketHeader};
 pub use rand_core::RngCore;
@@ -260,7 +260,7 @@ where
                 let current_time = 0.0f32; // Simplified - would need actual timestamp
                 let header = UdpPacketHeader {
                     tv_sec: current_time as u32,
-                    tv_usec: ((current_time - current_time.floor()) * 1_000_000.0) as u32,
+                    tv_usec: 0, // Simplified - fractional seconds would be computed here
                     id: packet_id,
                 };
                 let header_bytes = header.to_bytes();
@@ -293,10 +293,10 @@ where
             }
 
             debug!(
-                "UDP Metrics: sent={} errors={} loss={:.2}%",
+                "UDP Metrics: sent={} errors={} loss={}%",
                 udp_metrics.packets_sent,
                 udp_metrics.errors,
-                udp_metrics.packet_loss_percent()
+                udp_metrics.packet_loss_percent() as u32
             );
         } else {
             // TCP data transfer
@@ -355,8 +355,8 @@ where
             let (session_results, _): (SessionResults<1>, usize) =
                 match serde_json_core::from_str(remote_results) {
                     Ok(result) => result,
-                    Err(e) => {
-                        error!("JSON parse error: {:?}", e);
+                    Err(_e) => {
+                        error!("JSON parse error");
                         error!("Raw JSON: {}", remote_results);
                         return Err(Errors::UnexpectedResponse);
                     }
@@ -385,8 +385,8 @@ where
                 let bytes_per_second = strm.bytes as f32 / (strm.end_time - strm.start_time);
                 let (speed, bytes_suffix, bits_speed, bits_suffix) = format_speed(bytes_per_second);
                 info!(
-                    "{} Speed {:.2} {}/s ({:.2} {}/s)",
-                    protocol_name, speed, bytes_suffix, bits_speed, bits_suffix
+                    "{} Speed {} {}/s ({} {}/s)",
+                    protocol_name, speed as u32, bytes_suffix, bits_speed as u32, bits_suffix
                 );
             } else {
                 info!(
