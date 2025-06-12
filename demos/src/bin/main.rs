@@ -4,7 +4,7 @@ use core::net::Ipv4Addr;
 use std_embedded_nal::Stack;
 
 #[cfg(feature = "iperf3")]
-use demos::iperf3_client::{iperf3_client, Conf, TestConfig};
+use demos::iperf3_client::{iperf3_client, iperf3_udp_client, Conf, TestConfig};
 use demos::{
     coap_client::coap_client, http_client::http_client, http_server::http_server,
     tcp_server::tcp_server, telnet_shell::telnet_shell, udp_client::udp_client,
@@ -61,6 +61,10 @@ struct Iperf3Config {
     /// length of buffer to read or write
     #[arg(short = 'l', long, default_value_t = 32)]
     block_len: usize,
+
+    /// use UDP rather than TCP
+    #[arg(short = 'u', long)]
+    udp: bool,
 }
 
 #[derive(Parser)]
@@ -110,6 +114,7 @@ fn main() -> Result<(), LocalErrors> {
         env_logger::Env::default().default_filter_or(log_level.to_string()),
     )
     .init();
+    log::warn!("Starting embedded-nal demo application");
 
     let ip_str = cli.ip.unwrap_or("127.0.0.1".to_string());
     let ip = parse_ip_octets(&ip_str);
@@ -152,14 +157,32 @@ fn main() -> Result<(), LocalErrors> {
                         transmit_block_len: _config.block_len,
                     }
                 };
-                iperf3_client::<65536, _, _>(
-                    &mut stack,
-                    ip_addr,
-                    Some(port),
-                    &mut rand::rng(),
-                    Some(conf),
-                )
-                .map_err(|_| LocalErrors::IoError)?;
+                
+                if _config.udp {
+                    // UDP mode
+                    let mut wait_fn = |ms: u32| {
+                        std::thread::sleep(std::time::Duration::from_millis(ms as u64));
+                    };
+                    iperf3_udp_client::<65536, _, _, _>(
+                        &mut stack,
+                        ip_addr,
+                        Some(port),
+                        &mut rand::rng(),
+                        Some(conf),
+                        &mut wait_fn,
+                    )
+                    .map_err(|_| LocalErrors::IoError)?;
+                } else {
+                    // TCP mode (default)
+                    iperf3_client::<65536, _, _>(
+                        &mut stack,
+                        ip_addr,
+                        Some(port),
+                        &mut rand::rng(),
+                        Some(conf),
+                    )
+                    .map_err(|_| LocalErrors::IoError)?;
+                }
             }
         }
         #[cfg(feature = "telnet")]

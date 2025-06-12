@@ -25,6 +25,64 @@ pub struct SessionConfig {
     pub num: usize,
     pub len: usize,
 }
+
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct UdpPacketHeader {
+    pub tv_sec: u32,
+    pub tv_usec: u32,
+    pub id: u32,
+}
+
+impl UdpPacketHeader {
+    pub fn to_bytes(&self) -> [u8; 12] {
+        let mut bytes = [0u8; 12];
+        bytes[0..4].copy_from_slice(&self.tv_sec.to_be_bytes());
+        bytes[4..8].copy_from_slice(&self.tv_usec.to_be_bytes());
+        bytes[8..12].copy_from_slice(&self.id.to_be_bytes());
+        bytes
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> Option<Self> {
+        if bytes.len() < 12 {
+            return None;
+        }
+        Some(Self {
+            tv_sec: u32::from_be_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]),
+            tv_usec: u32::from_be_bytes([bytes[4], bytes[5], bytes[6], bytes[7]]),
+            id: u32::from_be_bytes([bytes[8], bytes[9], bytes[10], bytes[11]]),
+        })
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct UdpMetrics {
+    pub packets_sent: u32,
+    pub packets_received: u32,
+    pub bytes_sent: u32,
+    pub bytes_received: u32,
+    pub jitter_sum: f32,
+    pub jitter_count: u32,
+    pub last_transit_time: f32,
+    pub errors: u32,
+}
+
+impl UdpMetrics {
+    pub fn calculate_jitter(&self) -> f32 {
+        if self.jitter_count > 0 {
+            self.jitter_sum / self.jitter_count as f32
+        } else {
+            0.0
+        }
+    }
+
+    pub fn packet_loss_percent(&self) -> f32 {
+        if self.packets_sent > 0 {
+            ((self.packets_sent - self.packets_received) as f32 / self.packets_sent as f32) * 100.0
+        } else {
+            0.0
+        }
+    }
+}
 impl SessionConfig {
     const MAX_SESSION_CONF_LEN: usize = 80;
     pub fn serde_json(
@@ -39,7 +97,7 @@ impl SessionConfig {
 pub struct StreamResults {
     pub id: u8,
     pub bytes: u32,
-    pub retransmits: u64,
+    pub retransmits: u64, // Handle large unsigned values like 18446744073709551615
     pub jitter: u32,
     pub errors: u32,
     pub packets: u32,
@@ -66,7 +124,9 @@ pub struct SessionResults<const N: usize> {
     pub cpu_util_total: f32,
     pub cpu_util_user: f32,
     pub cpu_util_system: f32,
-    pub sender_has_retransmits: u64,
+    pub sender_has_retransmits: u64, // Handle large unsigned values like 18446744073709551615
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub congestion_used: Option<heapless::String<16>>, // Optional field from remote servers
     pub streams: heapless::Vec<StreamResults, N>,
 }
 impl<const N: usize> SessionResults<N> {
