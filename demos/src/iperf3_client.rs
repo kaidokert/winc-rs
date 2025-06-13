@@ -217,7 +217,11 @@ where
     let mut control_socket = TcpClientStack::socket(stack)?;
     let remote = SocketAddr::new(IpAddr::V4(server_addr), port.unwrap_or(DEFAULT_PORT));
     info!(
-        "-----Connecting to {} ({} test)-----",
+        "-----Connecting to {}.{}.{}.{} on port {} ({} test)-----",
+        server_addr.octets()[0],
+        server_addr.octets()[1],
+        server_addr.octets()[2],
+        server_addr.octets()[3],
         remote.port(),
         protocol_name
     );
@@ -545,30 +549,6 @@ where
         rng,
         config,
         false,
-    )
-}
-
-// Backward compatibility wrapper for UDP
-pub fn iperf3_udp_client<const MAX_BLOCK_LEN: usize, T, S, US>(
-    stack: &mut T,
-    server_addr: core::net::Ipv4Addr,
-    port: Option<u16>,
-    rng: &mut dyn RngCore,
-    config: Option<TestConfig>,
-    _wait_ms: &mut dyn FnMut(u32), // Ignored - timeouts no longer needed
-) -> Result<(), Errors>
-where
-    T: TcpClientStack<TcpSocket = S> + UdpClientStack<UdpSocket = US> + ?Sized,
-    <T as TcpClientStack>::Error: TcpError,
-    <T as UdpClientStack>::Error: UdpError,
-{
-    iperf3_client_with_protocol::<MAX_BLOCK_LEN, T, S, US>(
-        stack,
-        server_addr,
-        port,
-        rng,
-        config,
-        true,
     )
 }
 

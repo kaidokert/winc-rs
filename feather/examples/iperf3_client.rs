@@ -20,7 +20,7 @@ use core::net::Ipv4Addr;
 
 use core::str::FromStr;
 
-use demos::iperf3_client::{iperf3_client, Conf, TestConfig};
+use demos::iperf3_client::{iperf3_client, iperf3_client_with_protocol, Conf, TestConfig};
 
 const DEFAULT_IPERF_IP: &str = "192.168.1.1";
 const DEFAULT_IPERF_PORT: &str = "5201";
@@ -136,6 +136,9 @@ where
         let test_port = option_env!("TEST_IPERF_PORT").unwrap_or(DEFAULT_IPERF_PORT);
         let port = u16::from_str(test_port).unwrap_or(12345);
 
+        let use_udp = option_env!("TEST_IPERF_UDP").unwrap_or("false");
+        let use_udp = bool::from_str(use_udp).unwrap_or(false);
+
         let numbytes = match option_env!("NUM_BYTES") {
             Some(numbytes) => numbytes.parse::<usize>().unwrap(),
             None => 256,
@@ -152,12 +155,13 @@ where
 
         let systick = SYST::get_current();
         let mut fake_rng = FakeRng { init: systick };
-        iperf3_client::<MAX_BLOCK_LEN, _, _>(
+        iperf3_client_with_protocol::<MAX_BLOCK_LEN, _, _, _>(
             &mut stack,
             server_addr,
             Some(port),
             &mut fake_rng,
             Some(conf),
+            use_udp,
         )?;
 
         loop {

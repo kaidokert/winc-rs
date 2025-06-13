@@ -1,4 +1,26 @@
+use serde::de::IgnoredAny;
+use serde::{Deserialize, Deserializer, Serializer};
 use serde_json_core::heapless;
+
+// Custom serializer/deserializer for retransmit fields
+// Deserializes any value to 0 (ignores what server sends)
+// Serializes as 0 (consistent value for server)
+fn deserialize_ignore_retransmits<'de, D>(deserializer: D) -> Result<u64, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    // Ignore whatever value is sent and always return 0
+    let _ = IgnoredAny::deserialize(deserializer)?;
+    Ok(0)
+}
+
+fn serialize_retransmits<S>(_value: &u64, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    // Always serialize as 0, ignore the actual value
+    serializer.serialize_u64(0)
+}
 
 #[derive(Debug, Clone)]
 #[allow(unused)]
@@ -110,7 +132,11 @@ impl UdpSessionConfig {
 pub struct StreamResults {
     pub id: u8,
     pub bytes: u32,
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_ignore_retransmits",
+        serialize_with = "serialize_retransmits"
+    )]
     pub retransmits: u64, // Always include retransmits field for server compatibility
     pub jitter: f32,
     pub errors: u32,
@@ -138,7 +164,11 @@ pub struct SessionResults<const N: usize> {
     pub cpu_util_total: f32,
     pub cpu_util_user: f32,
     pub cpu_util_system: f32,
-    #[serde(default)]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_ignore_retransmits",
+        serialize_with = "serialize_retransmits"
+    )]
     pub sender_has_retransmits: u64, // Always include for server compatibility
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub congestion_used: Option<heapless::String<16>>, // Optional field from remote servers
@@ -218,7 +248,7 @@ mod tests {
             concat!(
                 r#"{"id":255,"#,
                 r#""bytes":4294967295,"#,
-                r#""retransmits":18446744073709551615,"#,
+                r#""retransmits":0,"#,
                 r#""jitter":3.4028235e38,"#,
                 r#""errors":4294967295,"#,
                 r#""packets":4294967295,"#,
@@ -255,11 +285,11 @@ mod tests {
                 r#"{"cpu_util_total":1000.0,"#,
                 r#""cpu_util_user":1000.0,"#,
                 r#""cpu_util_system":1000.0,"#,
-                r#""sender_has_retransmits":18446744073709551615,"#,
+                r#""sender_has_retransmits":0,"#,
                 r#""streams":[{"#,
                 r#""id":1,"#,
                 r#""bytes":4294967295,"#,
-                r#""retransmits":18446744073709551615,"#,
+                r#""retransmits":0,"#,
                 r#""jitter":3.4028235e38,"#,
                 r#""errors":4294967295,"#,
                 r#""packets":4294967295,"#,
@@ -281,9 +311,9 @@ mod tests {
                 assert_eq!(session_results.streams[0].packets, 977576);
                 assert_eq!(session_results.streams[0].errors, 914275);
                 assert!(session_results.streams[0].end_time > 0.0);
-                // Large retransmit values should parse correctly (server uses u64::MAX for N/A)
-                assert_eq!(session_results.streams[0].retransmits, 18446744073709551615);
-                assert_eq!(session_results.sender_has_retransmits, 18446744073709551615);
+                // Retransmit values are ignored during deserialization and always become 0
+                assert_eq!(session_results.streams[0].retransmits, 0);
+                assert_eq!(session_results.sender_has_retransmits, 0);
             }
             Err(e) => {
                 panic!("Failed to parse remote server UDP response: {:?}", e);
@@ -405,6 +435,27 @@ mod tests {
             }
             Err(e) => {
                 panic!("Failed to parse remote server TCP response: {:?}", e);
+            }
+        }
+    }
+
+    #[test]
+    fn test_udp_client() {
+        let server_json = r#"{"cpu_util_total":0.14083125251201814,
+            "cpu_util_user":0.024052079080704222,
+            "cpu_util_system":0.119943920678775,
+            "sender_has_retransmits":-1,
+            "streams":[{"id":1,"bytes":256,"retransmits":-1,"jitter":0,"errors":0,"omitted_errors":0,"packets":0,"omitted_packets":0,"start_time":0,"end_time":0.315936}]}"#;
+        let result: Result<(SessionResults<1>, usize), _> = serde_json_core::from_str(server_json);
+        match result {
+            Ok((session_results, _)) => {
+                assert_eq!(session_results.streams[0].bytes, 256);
+                // Retransmit values are ignored during deserialization and always become 0
+                assert_eq!(session_results.streams[0].retransmits, 0);
+                assert_eq!(session_results.sender_has_retransmits, 0);
+            }
+            Err(e) => {
+                panic!("Failed to parse UDP client response: {:?}", e);
             }
         }
     }
