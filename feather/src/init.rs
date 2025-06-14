@@ -9,10 +9,16 @@ use pac::{CorePeripherals, Peripherals};
 use bsp::periph_alias;
 use bsp::pin_alias;
 use core::convert::Infallible;
+#[cfg(feature = "irq")]
 use cortex_m::peripheral::NVIC;
 use hal::clock::GenericClockController;
+#[cfg(feature = "irq")]
 use hal::eic::Eic;
+#[cfg(feature = "irq")]
 use hal::eic::*;
+#[cfg(all(feature = "irq", not(feature = "irq-override")))]
+use pac::interrupt;
+
 use hal::time::{Hertz, MegaHertz};
 
 use hal::prelude::*;
@@ -52,7 +58,7 @@ pub struct InitResult<
     SPI: SpiBus,
     I2C: I2c,
     OUTPUT1: OutputPin,
-    OUTPUT2: hal::gpio::AnyPin, // todo: change this to OutputPin
+    OUTPUT2: OutputPin,
     INPUT1: InputPin,
     INPUT2: InputPin,
     INPUT3: InputPin,
@@ -72,7 +78,7 @@ pub fn init() -> Result<
         impl SpiBus,
         impl I2c,
         impl OutputPin,
-        impl hal::gpio::AnyPin,
+        impl OutputPin,
         impl InputPin,
         impl InputPin,
         impl InputPin,
@@ -80,6 +86,9 @@ pub fn init() -> Result<
     FailureSource,
 > {
     let mut peripherals = Peripherals::take().ok_or(FailureSource::Periph)?;
+    #[cfg(not(feature = "irq"))]
+    let core = CorePeripherals::take().ok_or(FailureSource::Core)?;
+    #[cfg(feature = "irq")]
     let mut core = CorePeripherals::take().ok_or(FailureSource::Core)?;
 
     let mut clocks = GenericClockController::with_internal_32kosc(
@@ -96,7 +105,7 @@ pub fn init() -> Result<
     let hertz: Hertz = gclk0.into();
     let mut del = PollingSysTick::new(core.SYST, &SysTickCalibration::from_clock_hz(hertz.raw()));
 
-    // Setup DMA for SPI
+    // Power Manager
     let mut pm = peripherals.pm;
 
     let i2c = bsp::i2c_master(
@@ -122,26 +131,27 @@ pub fn init() -> Result<
     let mut ena: bsp::WincEna = pin_alias!(pins.winc_ena).into(); // ENA
     let mut rst: bsp::WincRst = pin_alias!(pins.winc_rst).into(); // RST
     let mut cs: bsp::WincCs = pin_alias!(pins.winc_cs).into(); // CS
-    let irq: bsp::WincIrq = pin_alias!(pins.winc_irq).into(); // IRQ
+    #[cfg(feature = "irq")]
+    {
+        let irq: bsp::WincIrq = pin_alias!(pins.winc_irq).into(); // Get IRQ pin
+        let eic_clock = clocks.eic(&gclk0).ok_or(FailureSource::Clock)?; // Enable clock for interrupt controller
+        let eic = Eic::new(&mut pm, eic_clock, peripherals.eic); // Configure the interrupt controller
+        let channels = eic.split(); // Get Channels of EIC
+        let mut extint = irq.into_pull_up_ei(channels.5); // Set Channel 5 to EXINT
+        extint.sense(hal::eic::Sense::Fall);
+        extint.enable_interrupt();
+        // Enable EIC interrupt in the NVIC
+        unsafe {
+            core.NVIC.set_priority(pac::interrupt::EIC, 1);
+            NVIC::unmask(pac::interrupt::EIC);
+        }
 
-    //
-    let eic_clock = clocks.eic(&gclk0).ok_or(FailureSource::Clock)?;
-    let eic = Eic::new(&mut pm, eic_clock, peripherals.eic);
-    let channels = eic.split();
-    let mut extint = irq.into_pull_up_ei(channels.5);
-    extint.sense(hal::eic::Sense::Fall);
-    extint.enable_interrupt();
-    // Enable EIC interrupt in the NVIC
-    unsafe {
-        core.NVIC.set_priority(pac::interrupt::EIC, 1);
-        NVIC::unmask(pac::interrupt::EIC);
+        let mut button_c = pins.d5.into_pull_up_ei(channels.15);
+        button_c.sense(hal::eic::Sense::Fall);
+        button_c.enable_interrupt();
     }
 
-    let mut button_c = pins.d5.into_pull_up_ei(channels.15);
-    button_c.sense(hal::eic::Sense::Fall);
-    button_c.enable_interrupt();
-
-    OutputPin::set_high(&mut ena)?; // ENable pin for the WiFi module, by default pulled down low, set HIGH to enable WiFi
+    OutputPin::set_high(&mut ena)?; // Enable pin for the WiFi module, by default pulled down low, set HIGH to enable WiFi
     OutputPin::set_high(&mut cs)?; // CS: pull low for transaction, high to end
     OutputPin::set_high(&mut rst)?; // Reset pin for the WiFi module, controlled by the library
 
@@ -163,4 +173,18 @@ pub fn init() -> Result<
         button_b: pins.d6.into_pull_up_input(),
         button_c: pins.d0.into_pull_up_input(),
     })
+}
+
+#[cfg(all(feature = "irq", not(feature = "irq-override")))]
+#[interrupt]
+fn EIC() {
+    unsafe {
+        // Accessing registers from interrupts context is safe
+        let eic = &*pac::Eic::ptr();
+
+        let flag5 = eic.intflag().read().extint5().bit_is_set();
+        if flag5 {
+            eic.intflag().modify(|_, w| w.extint5().set_bit());
+        }
+    }
 }

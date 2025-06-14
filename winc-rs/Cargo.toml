@@ -58,6 +58,7 @@ async = ["dep:embedded-nal-async"]
 rng = ["dep:rand_core"]
 large_rng = [] # This will allocate a 1.6KB buffer for the PRNG upon initialization.
 wep = [] # This will enable weak WEP network security.
+irq = [] # Use the IRQ pin on the module.
 
 # Todo: add feature flags to save binary space
 # - TCP
