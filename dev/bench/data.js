@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1749709281433,
+  "lastUpdate": 1749939513043,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -1143,6 +1143,40 @@ window.BENCHMARK_DATA = {
           {
             "name": "iperf3_client",
             "value": 55372,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "kaidokert@gmail.com",
+            "name": "Kaido Kert",
+            "username": "kaidokert"
+          },
+          "committer": {
+            "email": "kaidokert@gmail.com",
+            "name": "Kaido Kert",
+            "username": "kaidokert"
+          },
+          "distinct": true,
+          "id": "acb8d37ee91815355400516de8a865d91d8aa42e",
+          "message": "Arduino HTTP speed test",
+          "timestamp": "2025-06-14T15:17:28-07:00",
+          "tree_id": "22459862d728fe1b3e612404afa5897aa8f8ffe9",
+          "url": "https://github.com/kaidokert/winc-rs/commit/acb8d37ee91815355400516de8a865d91d8aa42e"
+        },
+        "date": 1749939512676,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 40116,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 55496,
             "unit": "byte"
           }
         ]
