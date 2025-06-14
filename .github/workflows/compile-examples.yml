@@ -1,0 +1,118 @@
+name: Compile Examples
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/compile-examples.yml"
+      - "examples/**"
+      - "src/**"
+  push:
+    paths:
+      - ".github/workflows/compile-examples.yml"
+      - "examples/**"
+      - "src/**"
+  schedule:
+    # Run every Tuesday at 8 AM UTC to catch breakage caused by changes to external resources (libraries, platforms).
+    - cron: "0 8 * * TUE"
+  workflow_dispatch:
+  repository_dispatch:
+
+jobs:
+  build:
+    name: ${{ matrix.board.fqbn }}
+    runs-on: ubuntu-latest
+
+    env:
+      # sketch paths to compile (recursive) for all boards
+      UNIVERSAL_SKETCH_PATHS: |
+        - examples/AP_SimpleWebServer
+        - examples/CheckWifi101FirmwareVersion
+        - examples/ConnectNoEncryption
+        - examples/ConnectWithWEP
+        - examples/ConnectWithWPA
+        - examples/MDNS_WiFiWebServer
+        - examples/Provisioning_WiFiWebServer
+        - examples/ScanNetworks
+        - examples/ScanNetworksAdvanced
+        - examples/SimpleWebServerWiFi
+        - examples/WiFiChatServer
+        - examples/WiFiPing
+        - examples/WiFiSSLClient
+        - examples/WiFiUdpNtpClient
+        - examples/WiFiUdpSendReceiveString
+        - examples/WiFiWebClient
+        - examples/WiFiWebClientRepeating
+        - examples/WiFiWebServer
+      SKETCHES_REPORTS_PATH: sketches-reports
+
+    strategy:
+      fail-fast: false
+
+      matrix:
+        board:
+          - fqbn: arduino:avr:uno
+            platforms: |
+              - name: arduino:avr
+            firmwareUpdaterSupport: false
+            artifact-name-suffix: arduino-avr-uno
+          - fqbn: arduino:avr:mega
+            platforms: |
+              - name: arduino:avr
+            firmwareUpdaterSupport: false
+            artifact-name-suffix: arduino-avr-mega
+          - fqbn: arduino:sam:arduino_due_x_dbg
+            platforms: |
+              - name: arduino:sam
+            firmwareUpdaterSupport: true
+            artifact-name-suffix: arduino-sam-arduino_due_x_dbg
+          - fqbn: arduino:samd:arduino_zero_edbg
+            platforms: |
+              - name: arduino:samd
+            firmwareUpdaterSupport: true
+            artifact-name-suffix: arduino-samd-arduino_zero_edbg
+          - fqbn: arduino:samd:mkr1000
+            platforms: |
+              - name: arduino:samd
+            firmwareUpdaterSupport: true
+            artifact-name-suffix: arduino-samd-mkr1000
+          - fqbn: Intel:arc32:arduino_101
+            platforms: |
+              - name: Intel:arc32
+            firmwareUpdaterSupport: true
+            artifact-name-suffix: Intel-arc32-arduino_101
+
+        # make board type-specific customizations to the matrix jobs
+        include:
+          - board:
+              firmwareUpdaterSupport: true
+            firmwareUpdater-sketch-paths: |
+              - examples/FirmwareUpdater
+          - board:
+              firmwareUpdaterSupport: false
+            firmwareUpdater-sketch-paths: ""
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Compile examples
+        uses: arduino/compile-sketches@v1
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          fqbn: ${{ matrix.board.fqbn }}
+          platforms: ${{ matrix.board.platforms }}
+          libraries: |
+            # Install the WiFi101 library from the local path
+            - source-path: ./
+          sketch-paths: |
+            ${{ env.UNIVERSAL_SKETCH_PATHS }}
+            ${{ matrix.firmwareUpdater-sketch-paths }}
+          enable-deltas-report: true
+          sketches-report-path: ${{ env.SKETCHES_REPORTS_PATH }}
+
+      - name: Save memory usage change report as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          if-no-files-found: error
+          path: ${{ env.SKETCHES_REPORTS_PATH }}
+          name: sketches-report-${{ matrix.board.artifact-name-suffix }}
