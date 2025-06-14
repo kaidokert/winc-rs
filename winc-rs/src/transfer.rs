@@ -1,4 +1,4 @@
-// Copyright 2023 Google LLC
+// Copyright 2025 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -34,6 +34,7 @@ pub trait Xfer {
     /// Optional delay, roughly in microseconds
     /// Note/TODO: This will be deprecated
     fn delay_us(&mut self, _delay: u32) {}
+    #[cfg(feature = "irq")]
     /// Optionally wait for an interrupt from IRQ pin
     fn wait_for_interrupt(&mut self) {}
 }

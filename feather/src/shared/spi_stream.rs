@@ -1,8 +1,6 @@
 use super::hal;
 use defmt::trace;
 
-use hal::gpio::AnyPin;
-
 use hal::ehal::digital::OutputPin;
 use wincwifi::Transfer;
 
@@ -12,54 +10,65 @@ use core::mem::take;
 const DEFAULT_WAIT_CYCLES: u32 = 16_000; // hand tested :)
 const FAST_WAIT_CYCLES: u32 = 500; // ditto
 
-// This shouldn't use AnyPin, but ehal::digital::OutputPin
-pub struct SpiStream<CS: AnyPin, Spi: SpiBus> {
+pub struct SpiStream<CS: OutputPin, Spi: SpiBus> {
     cs: Option<CS>,
     spi: Spi,
     wait_cycles: u32,
+    #[cfg(feature = "irq")]
     interrupts_enabled: bool,
 }
 
 const TRANSFER_SIZE: usize = 256;
 
-impl<CS: AnyPin, Spi: SpiBus> SpiStream<CS, Spi> {
+impl<CS: OutputPin, Spi: SpiBus> SpiStream<CS, Spi> {
     pub fn new(cs: CS, spi: Spi) -> Self {
         SpiStream {
             cs: Some(cs),
             spi,
             wait_cycles: DEFAULT_WAIT_CYCLES,
-            interrupts_enabled: false,
+            #[cfg(feature = "irq")]
+            interrupts_enabled: true,
         }
     }
+
+    #[cfg(feature = "irq")]
+    /// Enable the interrupt
     pub fn enable_interrupts(&mut self) {
         self.interrupts_enabled = true;
     }
+
+    #[cfg(feature = "irq")]
+    /// Disable the interrupt.
+    pub fn disable_interrupts(&mut self) {
+        self.interrupts_enabled = false;
+    }
+
     fn set_wait_cycles(&mut self, wait_cycles: u32) {
         self.wait_cycles = wait_cycles;
     }
+
     fn transfer(&mut self, buf: &mut [u8], start: bool, end: bool) -> Result<(), Spi::Error> {
-        if let Some(cs) = take(&mut self.cs) {
+        if let Some(mut cs) = take(&mut self.cs) {
             trace!("send: {=[u8]:#x}", buf);
-            let mut pin = cs.into().into_push_pull_output();
 
             if start {
-                pin.set_low().ok();
+                OutputPin::set_low(&mut cs).ok();
                 cortex_m::asm::delay(self.wait_cycles);
             }
             self.spi.transfer_in_place(buf)?;
             cortex_m::asm::delay(self.wait_cycles);
             if end {
-                pin.set_high().ok();
+                OutputPin::set_high(&mut cs).ok();
             }
 
-            self.cs.get_or_insert(pin.into_mode().into());
+            self.cs.get_or_insert(cs);
             trace!("recv: {=[u8]:#x}", buf);
         }
         Ok(())
     }
 }
 
-impl<CS: AnyPin, Spi: SpiBus> Transfer for SpiStream<CS, Spi> {
+impl<CS: OutputPin, Spi: SpiBus> Transfer for SpiStream<CS, Spi> {
     fn recv(&mut self, dest: &mut [u8]) -> Result<(), wincwifi::CommError> {
         self.transfer(dest, true, true)
             .map_err(|_| wincwifi::CommError::ReadError)?;
@@ -91,6 +100,9 @@ impl<CS: AnyPin, Spi: SpiBus> Transfer for SpiStream<CS, Spi> {
     fn delay_us(&mut self, delay: u32) {
         cortex_m::asm::delay(delay * 100);
     }
+
+    #[cfg(feature = "irq")]
+    /// Implementation for wait for interrupt.
     fn wait_for_interrupt(&mut self) {
         if self.interrupts_enabled {
             cortex_m::asm::wfi();

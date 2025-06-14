@@ -1,4 +1,4 @@
-// Copyright 2023 Google LLC
+// Copyright 2025 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -91,7 +91,10 @@ impl<X: Xfer> ChipAccess<X> {
         }
     }
 
+    #[cfg(feature = "irq")]
+    /// Wait for Interrupt on IRQ Pin
     pub fn wait_for_interrupt(&mut self) {
+        #[cfg(not(test))]
         self.xfer.wait_for_interrupt()
     }
 
