@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1749939513043,
+  "lastUpdate": 1749955974428,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -1177,6 +1177,40 @@ window.BENCHMARK_DATA = {
           {
             "name": "iperf3_client",
             "value": 55496,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "kaidokert@gmail.com",
+            "name": "Kaido Kert",
+            "username": "kaidokert"
+          },
+          "committer": {
+            "email": "kaidokert@gmail.com",
+            "name": "Kaido Kert",
+            "username": "kaidokert"
+          },
+          "distinct": true,
+          "id": "990163fa300ade7d754257242cfc35b36425e082",
+          "message": "Add a HTTP download speed test",
+          "timestamp": "2025-06-14T19:51:57-07:00",
+          "tree_id": "2ffef25fe5b29db4ec2f228d156d8e9bf7b1d80f",
+          "url": "https://github.com/kaidokert/winc-rs/commit/990163fa300ade7d754257242cfc35b36425e082"
+        },
+        "date": 1749955974092,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 40316,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 55788,
             "unit": "byte"
           }
         ]
