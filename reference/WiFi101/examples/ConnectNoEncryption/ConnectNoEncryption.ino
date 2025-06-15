@@ -14,7 +14,7 @@
  */
 #include <SPI.h>
 #include <WiFi101.h>
-#include "arduino_secrets.h" 
+#include "arduino_secrets.h"
 ///////please enter your sensitive data in the Secret tab/arduino_secrets.h
 char ssid[] = SECRET_SSID;        // your network SSID (name)
 int status = WL_IDLE_STATUS;     // the WiFi radio's status

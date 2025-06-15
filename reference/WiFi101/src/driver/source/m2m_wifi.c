@@ -163,7 +163,7 @@ static void m2m_wifi_cb(uint8 u8OpCode, uint16 u16DataSize, uint32 u32Addr)
 		uint32  u32ConflictedIP;
 		if(hif_receive(u32Addr, (uint8 *)&u32ConflictedIP, sizeof(u32ConflictedIP), 0) == M2M_SUCCESS)
 		{
-			M2M_INFO("Conflicted IP \" %u.%u.%u.%u \" \n", 
+			M2M_INFO("Conflicted IP \" %u.%u.%u.%u \" \n",
 				BYTE_0(u32ConflictedIP),BYTE_1(u32ConflictedIP),BYTE_2(u32ConflictedIP),BYTE_3(u32ConflictedIP));
 			if (gpfAppWifiCb)
 				gpfAppWifiCb(M2M_WIFI_RESP_IP_CONFLICT, NULL);
@@ -224,7 +224,7 @@ static void m2m_wifi_cb(uint8 u8OpCode, uint16 u16DataSize, uint32 u32Addr)
 				gpfAppWifiCb(M2M_WIFI_RESP_DEFAULT_CONNECT, &strResp);
 		}
 	}
-	
+
 	else if(u8OpCode == M2M_WIFI_RESP_GET_PRNG)
 	{
 		tstrPrng strPrng;
@@ -264,7 +264,7 @@ static void m2m_wifi_cb(uint8 u8OpCode, uint16 u16DataSize, uint32 u32Addr)
 
 						if(hif_receive(u32Addr + u16Offset, gau8ethRcvBuf, strM2mIpCtrlBuf.u16DataSize, u8SetRxDone) == M2M_SUCCESS)
 						{
-							strM2mIpCtrlBuf.u16RemainigDataSize -= strM2mIpCtrlBuf.u16DataSize;							
+							strM2mIpCtrlBuf.u16RemainigDataSize -= strM2mIpCtrlBuf.u16DataSize;
 							u16Offset += strM2mIpCtrlBuf.u16DataSize;
 							gpfAppEthCb(M2M_WIFI_RESP_ETHERNET_RX_PACKET, gau8ethRcvBuf, &(strM2mIpCtrlBuf));
 						}
@@ -280,7 +280,7 @@ static void m2m_wifi_cb(uint8 u8OpCode, uint16 u16DataSize, uint32 u32Addr)
 #ifdef CONF_MGMT
 	else if(u8OpCode == M2M_WIFI_RESP_WIFI_RX_PACKET)
 	{
-		
+
 		tstrM2MWifiRxPacketInfo		strRxPacketInfo;
 		if(u16DataSize >= sizeof(tstrM2MWifiRxPacketInfo)) {
 			if(hif_receive(u32Addr, (uint8*)&strRxPacketInfo, sizeof(tstrM2MWifiRxPacketInfo), 0) == M2M_SUCCESS)
@@ -405,7 +405,7 @@ static sint8 m2m_validate_ap_parameters(CONST tstrM2MAPConfig* pstrM2MAPConfig)
 		s8Ret = M2M_ERR_FAIL;
 		goto ERR1;
 	}
-	
+
 ERR1:
 	return s8Ret;
 }
@@ -418,28 +418,28 @@ static sint8 m2m_validate_scan_options(tstrM2MScanOption* ptstrM2MScanOption)
 		M2M_ERR("INVALID POINTER\n");
 		s8Ret = M2M_ERR_FAIL;
 		goto ERR;
-	}	
+	}
 	/* Check for valid No of slots */
 	if(ptstrM2MScanOption->u8NumOfSlot == 0)
 	{
 		M2M_ERR("INVALID No of scan slots! %d\n",ptstrM2MScanOption->u8NumOfSlot);
 		s8Ret = M2M_ERR_FAIL;
 		goto ERR;
-	}	
+	}
 	/* Check for valid time of slots */
 	if(ptstrM2MScanOption->u8SlotTime < 10 || ptstrM2MScanOption->u8SlotTime > 250)
 	{
 		M2M_ERR("INVALID scan slot time! %d\n",ptstrM2MScanOption->u8SlotTime);
 		s8Ret = M2M_ERR_FAIL;
 		goto ERR;
-	}	
+	}
 	/* Check for valid No of probe requests per slot */
 	if((ptstrM2MScanOption->u8ProbesPerSlot == 0)||(ptstrM2MScanOption->u8ProbesPerSlot > M2M_SCAN_DEFAULT_NUM_PROBE))
 	{
 		M2M_ERR("INVALID No of probe requests per scan slot %d\n",ptstrM2MScanOption->u8ProbesPerSlot);
 		s8Ret = M2M_ERR_FAIL;
 		goto ERR;
-	}	
+	}
 	/* Check for valid RSSI threshold */
 	if((ptstrM2MScanOption->s8RssiThresh  < -99) || (ptstrM2MScanOption->s8RssiThresh >= 0))
 	{
@@ -463,12 +463,12 @@ sint8 m2m_wifi_init(tstrWifiInitParam * param)
 	tstrM2mRev strtmp;
 	sint8 ret = M2M_SUCCESS;
 	uint8 u8WifiMode = M2M_WIFI_MODE_NORMAL;
-	
+
 	if(param == NULL) {
 		ret = M2M_ERR_FAIL;
 		goto _EXIT0;
 	}
-	
+
 	gpfAppWifiCb = param->pfAppWifiCb;
 
 #ifdef ETH_MODE
@@ -598,7 +598,7 @@ sint8 m2m_wifi_connect_sc(char *pcSsid, uint8 u8SsidLen, uint8 u8SecType, void *
 	m2m_memcpy(strConnect.au8SSID, (uint8*)pcSsid, u8SsidLen);
 	strConnect.au8SSID[u8SsidLen]	= 0;
 	strConnect.u16Ch				= NM_BSP_B_L_16(u16Ch);
-	/* Credentials will be Not be saved if u8NoSaveCred is set */ 
+	/* Credentials will be Not be saved if u8NoSaveCred is set */
 	strConnect.u8NoSaveCred 			= u8NoSaveCred ? 1:0;
 	pstrAuthInfo = &strConnect.strSec;
 	pstrAuthInfo->u8SecType		= u8SecType;
@@ -714,7 +714,7 @@ sint8 m2m_wifi_request_dhcp_server(uint8* addr)
 @return		The function SHALL return 0 for success and a negative value otherwise.
 @sa			tstrM2mLsnInt , m2m_wifi_set_sleep_mode
 @pre		m2m_wifi_set_sleep_mode shall be called first
-@warning	The Function called once after initialization. 
+@warning	The Function called once after initialization.
 */
 sint8 m2m_wifi_enable_dhcp(uint8  u8DhcpEn )
 {
@@ -800,9 +800,9 @@ sint8 m2m_wifi_request_scan_passive(uint8 ch, uint16 scan_time)
 		{
 			tstrM2MScan strtmp;
 			strtmp.u8ChNum = ch;
-			
+
 			strtmp.u16PassiveScanTime = scan_time;
-			
+
 			s8Ret = hif_send(M2M_REQ_GROUP_WIFI, M2M_WIFI_REQ_PASSIVE_SCAN, (uint8*)&strtmp, sizeof(tstrM2MScan),NULL, 0,0);
 			if(s8Ret == M2M_SUCCESS)
 			{
@@ -837,7 +837,7 @@ sint8 m2m_wifi_request_scan_ssid_list(uint8 ch,uint8 * u8Ssidlist)
 				u16Lsize++;
 				while(u8Apnum)
 				{
-					if(u8Ssidlist[u16Lsize] >= M2M_MAX_SSID_LEN){ 
+					if(u8Ssidlist[u16Lsize] >= M2M_MAX_SSID_LEN){
 						goto EXIT;
 					}else {
 						u16Lsize += u8Ssidlist[u16Lsize] + 1;
@@ -881,14 +881,14 @@ sint8 m2m_wifi_wps_disable(void)
 }
 /*!
 @fn			NMI_API sint8 m2m_wifi_req_client_ctrl(uint8 cmd);
-@brief		Send a command to the PS Client (An WINC1500 board running the ps_firmware), 
+@brief		Send a command to the PS Client (An WINC1500 board running the ps_firmware),
 			if the PS client send any commands it will be received in wifi_cb M2M_WIFI_RESP_CLIENT_INFO
 @param [in]	cmd
 			Control command sent from PS Server to PS Client (command values defined by the application)
 @return		The function SHALL return M2M_SUCCESE for success and a negative value otherwise.
 @sa			m2m_wifi_req_server_init, M2M_WIFI_RESP_CLIENT_INFO
 @pre		m2m_wifi_req_server_init should be called first
-@warning	
+@warning
 */
 sint8 m2m_wifi_req_client_ctrl(uint8 u8Cmd)
 {
@@ -908,7 +908,7 @@ sint8 m2m_wifi_req_client_ctrl(uint8 u8Cmd)
 }
 /*!
 @fn			NMI_API sint8 m2m_wifi_req_server_init(uint8 ch);
-@brief		Initialize the PS Server, The WINC1500 support Non secure communication with another WINC1500, 
+@brief		Initialize the PS Server, The WINC1500 support Non secure communication with another WINC1500,
 			(SERVER/CLIENT) through one byte command (probe request and probe response) without any connection setup
 @param [in]	ch
 			Server listening channel
@@ -963,7 +963,7 @@ sint8 m2m_wifi_enable_ap(CONST tstrM2MAPConfig* pstrM2MAPConfig)
 		uint16 txSize = sizeof(tstrM2MAPConfig);
 
 		if (nmdrv_firm_ver < M2M_MAKE_VERSION(19, 5, 0)) {
-			// for backwards compat with firmwware 19.4.x and older 
+			// for backwards compat with firmwware 19.4.x and older
 			// (listen channel is 0 based, there is no au8Key field)
 			((tstrM2MAPConfig*)pstrM2MAPConfig)->u8ListenChannel--;
 			txSize -= sizeof(pstrM2MAPConfig->au8Key) + 1;
@@ -982,7 +982,7 @@ sint8 m2m_wifi_set_gains(tstrM2mWifiGainsParams* pstrM2mGain)
 	sint8 ret = M2M_ERR_FAIL;
 	if(pstrM2mGain != NULL)
 	{
-		ret = hif_send(M2M_REQ_GROUP_WIFI, M2M_WIFI_REQ_SET_GAINS, (uint8 *)pstrM2mGain, sizeof(tstrM2mWifiGainsParams), NULL, 0, 0);	
+		ret = hif_send(M2M_REQ_GROUP_WIFI, M2M_WIFI_REQ_SET_GAINS, (uint8 *)pstrM2mGain, sizeof(tstrM2mWifiGainsParams), NULL, 0, 0);
 	}
 	return ret;
 }
@@ -994,9 +994,9 @@ sint8 m2m_wifi_disable_ap(void)
 }
 /*!
 @fn          NMI_API sint8 m2m_wifi_req_curr_rssi(void);
-@brief       Request the current RSSI for the current connected AP, 
-			 the response received in wifi_cb M2M_WIFI_RESP_CURRENT_RSSI	
-@sa          M2M_WIFI_RESP_CURRENT_RSSI              
+@brief       Request the current RSSI for the current connected AP,
+			 the response received in wifi_cb M2M_WIFI_RESP_CURRENT_RSSI
+@sa          M2M_WIFI_RESP_CURRENT_RSSI
 @return      The function shall return M2M_SUCCESS for success and a negative value otherwise.
 */
 sint8 m2m_wifi_req_curr_rssi(void)
@@ -1022,14 +1022,14 @@ sint8 m2m_wifi_send_ethernet_pkt(uint8* pu8Packet,uint16 u16PacketSize)
 /*!
 @fn          NMI_API sint8 m2m_wifi_get_otp_mac_address(uint8 *pu8MacAddr, uint8 * pu8IsValid);
 @brief       Request the MAC address stored on the OTP (one time programmable) memory of the device.
-			 (the function is Blocking until response received)	
+			 (the function is Blocking until response received)
 @param [out] pu8MacAddr
 			 Output MAC address buffer of 6 bytes size. Valid only if *pu8Valid=1.
 @param [out] pu8IsValid
-		     A output boolean value to indicate the validity of pu8MacAddr in OTP. 
-		     Output zero if the OTP memory is not programmed, non-zero otherwise.	
+		     A output boolean value to indicate the validity of pu8MacAddr in OTP.
+		     Output zero if the OTP memory is not programmed, non-zero otherwise.
 @return      The function shall return M2M_SUCCESS for success and a negative value otherwise.
-@sa          m2m_wifi_get_mac_address             
+@sa          m2m_wifi_get_mac_address
 @pre         m2m_wifi_init required to call any WIFI/socket function
 */
 sint8 m2m_wifi_get_otp_mac_address(uint8 *pu8MacAddr, uint8* pu8IsValid)
@@ -1049,11 +1049,11 @@ sint8 m2m_wifi_get_otp_mac_address(uint8 *pu8MacAddr, uint8* pu8IsValid)
 /*!
 @fn          NMI_API sint8 m2m_wifi_get_mac_address(uint8 *pu8MacAddr)
 @brief       Request the current MAC address of the device (the working mac address).
-			 (the function is Blocking until response received)	
+			 (the function is Blocking until response received)
 @param [out] pu8MacAddr
-			 Output MAC address buffer of 6 bytes size.	
+			 Output MAC address buffer of 6 bytes size.
 @return      The function shall return M2M_SUCCESS for success and a negative value otherwise.
-@sa          m2m_wifi_get_otp_mac_address             
+@sa          m2m_wifi_get_otp_mac_address
 @pre         m2m_wifi_init required to call any WIFI/socket function
 */
 sint8 m2m_wifi_get_mac_address(uint8 *pu8MacAddr)
@@ -1073,18 +1073,18 @@ sint8 m2m_wifi_get_mac_address(uint8 *pu8MacAddr)
 }
 /*!
 @fn          NMI_API sint8 m2m_wifi_req_scan_result(uint8 index);
-@brief       Reads the AP information from the Scan Result list with the given index, 
-			 the response received in wifi_cb M2M_WIFI_RESP_SCAN_RESULT, 
-			 the response pointer should be casted with tstrM2mWifiscanResult structure 	
-@param [in]  index 
-			 Index for the requested result, the index range start from 0 till number of AP's found 
-@sa          tstrM2mWifiscanResult,m2m_wifi_get_num_ap_found,m2m_wifi_request_scan             
+@brief       Reads the AP information from the Scan Result list with the given index,
+			 the response received in wifi_cb M2M_WIFI_RESP_SCAN_RESULT,
+			 the response pointer should be casted with tstrM2mWifiscanResult structure
+@param [in]  index
+			 Index for the requested result, the index range start from 0 till number of AP's found
+@sa          tstrM2mWifiscanResult,m2m_wifi_get_num_ap_found,m2m_wifi_request_scan
 @return      The function shall return M2M_SUCCESE for success and a negative value otherwise
-@pre         m2m_wifi_request_scan need to be called first, then m2m_wifi_get_num_ap_found 
+@pre         m2m_wifi_request_scan need to be called first, then m2m_wifi_get_num_ap_found
 			 to get the number of AP's found
 @warning     Function used only in STA mode only. the scan result updated only if scan request called,
-			 else it will be cashed in firmware for the host scan request result, 
-			 which mean if large delay occur between the scan request and the scan result request, 
+			 else it will be cashed in firmware for the host scan request result,
+			 which mean if large delay occur between the scan request and the scan result request,
 			 the result will not be up-to-date
 */
 
@@ -1098,13 +1098,13 @@ sint8 m2m_wifi_req_scan_result(uint8 index)
 }
 /*!
 @fn          NMI_API uint8 m2m_wifi_get_num_ap_found(void);
-@brief       Reads the number of AP's found in the last Scan Request, 
-			 The function read the number of AP's from global variable which updated in the 
-			 wifi_cb in M2M_WIFI_RESP_SCAN_DONE.			 
-@sa          m2m_wifi_request_scan               
+@brief       Reads the number of AP's found in the last Scan Request,
+			 The function read the number of AP's from global variable which updated in the
+			 wifi_cb in M2M_WIFI_RESP_SCAN_DONE.
+@sa          m2m_wifi_request_scan
 @return      Return the number of AP's found in the last Scan Request.
-@pre         m2m_wifi_request_scan need to be called first 
-@warning     That function need to be called in the wifi_cb in M2M_WIFI_RESP_SCAN_DONE, 
+@pre         m2m_wifi_request_scan need to be called first
+@warning     That function need to be called in the wifi_cb in M2M_WIFI_RESP_SCAN_DONE,
 			 calling that function in any other place will return undefined/undated numbers.
 			 Function used only in STA mode only.
 */
@@ -1124,17 +1124,17 @@ uint8 m2m_wifi_get_sleep_mode(void)
 }
 /*!
 @fn			NMI_API sint8 m2m_wifi_set_sleep_mode(uint8 PsTyp, uint8 BcastEn);
-@brief      Set the power saving mode for the WINC1500. 
+@brief      Set the power saving mode for the WINC1500.
 @param [in]	PsTyp
 			Desired power saving mode. Supported types are defined in tenuPowerSaveModes.
 @param [in]	BcastEn
-			Broadcast reception enable flag. 
+			Broadcast reception enable flag.
 			If it is 1, the WINC1500 must be awake each DTIM Beacon for receiving Broadcast traffic.
-			If it is 0, the WINC1500 will not wakeup at the DTIM Beacon, but its wakeup depends only 
-			on the the configured Listen Interval. 
+			If it is 0, the WINC1500 will not wakeup at the DTIM Beacon, but its wakeup depends only
+			on the the configured Listen Interval.
 @return     The function SHALL return 0 for success and a negative value otherwise.
 @sa			tenuPowerSaveModes
-@warning    The function called once after initialization.  
+@warning    The function called once after initialization.
 */
 sint8 m2m_wifi_set_sleep_mode(uint8 PsTyp, uint8 BcastEn)
 {
@@ -1151,10 +1151,10 @@ sint8 m2m_wifi_set_sleep_mode(uint8 PsTyp, uint8 BcastEn)
 @fn	        NMI_API sint8 m2m_wifi_request_sleep(void)
 @brief	    Request from WINC1500 device to Sleep for specific time in the M2M_PS_MANUAL Power save mode (only).
 @param [in]	u32SlpReqTime
-			Request Sleep in ms 
+			Request Sleep in ms
 @return     The function SHALL return M2M_SUCCESS for success and a negative value otherwise.
 @sa         tenuPowerSaveModes , m2m_wifi_set_sleep_mode
-@warning	the Function should be called in M2M_PS_MANUAL power save only 
+@warning	the Function should be called in M2M_PS_MANUAL power save only
 */
 sint8 m2m_wifi_request_sleep(uint32 u32SlpReqTime)
 {
@@ -1177,7 +1177,7 @@ sint8 m2m_wifi_request_sleep(uint32 u32SlpReqTime)
 @param [in]	u8DeviceNameLength
 			Length of the device name.
 @return		The function SHALL return M2M_SUCCESS for success and a negative value otherwise.
-@warning	The Function called once after initialization. 
+@warning	The Function called once after initialization.
 */
 sint8 m2m_wifi_set_device_name(uint8 *pu8DeviceName, uint8 u8DeviceNameLength)
 {
@@ -1257,7 +1257,7 @@ sint8 m2m_wifi_start_provision_mode(tstrM2MAPConfig *pstrAPConfig, char *pcHttpS
 			}
 			m2m_memcpy((uint8*)strProvConfig.acHttpServerDomainName, (uint8*)pcHttpServerDomainName, 64);
 			strProvConfig.u8EnableRedirect = bEnableHttpRedirect;
-		
+
 			/* Stop Scan if it is ongoing.
 			*/
 			gu8scanInProgress = 0;
@@ -1266,7 +1266,7 @@ sint8 m2m_wifi_start_provision_mode(tstrM2MAPConfig *pstrAPConfig, char *pcHttpS
 			uint16 txSize = sizeof(tstrM2MProvisionModeConfig);
 
 			if (nmdrv_firm_ver < M2M_MAKE_VERSION(19, 5, 0)) {
-				// for backwards compat with firmwware 19.4.x and older 
+				// for backwards compat with firmwware 19.4.x and older
 				// (listen channel is 0 based, there is no au8Key field)
 				strProvConfig.strApConfig.u8ListenChannel--;
 				txSize -= sizeof(strProvConfig.strApConfig.au8Key) + 1;
@@ -1275,10 +1275,10 @@ sint8 m2m_wifi_start_provision_mode(tstrM2MAPConfig *pstrAPConfig, char *pcHttpS
 				pu8EnableRedirect[3 + 64] = bEnableHttpRedirect;
 			}
 
-			s8Ret = hif_send(M2M_REQ_GROUP_WIFI, M2M_WIFI_REQ_START_PROVISION_MODE | M2M_REQ_DATA_PKT, 
+			s8Ret = hif_send(M2M_REQ_GROUP_WIFI, M2M_WIFI_REQ_START_PROVISION_MODE | M2M_REQ_DATA_PKT,
 						(uint8*)&strProvConfig, txSize, NULL, 0, 0);
 #else
-			s8Ret = hif_send(M2M_REQ_GROUP_WIFI, M2M_WIFI_REQ_START_PROVISION_MODE | M2M_REQ_DATA_PKT, 
+			s8Ret = hif_send(M2M_REQ_GROUP_WIFI, M2M_WIFI_REQ_START_PROVISION_MODE | M2M_REQ_DATA_PKT,
 						(uint8*)&strProvConfig, sizeof(tstrM2MProvisionModeConfig), NULL, 0, 0);
 #endif
 		}
@@ -1303,15 +1303,15 @@ sint8 m2m_wifi_get_connection_info(void)
 
 sint8 m2m_wifi_set_sytem_time(uint32 u32UTCSeconds)
 {
-	/* 
+	/*
 		The firmware accepts timestamps relative to 1900 like NTP Timestamp.
 	*/
 	return hif_send(M2M_REQ_GROUP_WIFI, M2M_WIFI_REQ_SET_SYS_TIME, (uint8*)&u32UTCSeconds, sizeof(tstrSystemTime), NULL, 0, 0);
 }
 /*!
- * @fn             NMI_API sint8 m2m_wifi_get_sytem_time(void);   
+ * @fn             NMI_API sint8 m2m_wifi_get_sytem_time(void);
  * @see            m2m_wifi_enable_sntp
- 			  		tstrSystemTime   
+ 			  		tstrSystemTime
  * @note         get the system time from the sntp client
  *		         using the API \ref m2m_wifi_get_sytem_time.
  * @return        The function returns @ref M2M_SUCCESS for successful operations and a negative value otherwise.
@@ -1330,14 +1330,14 @@ sint8 m2m_wifi_enable_sntp(uint8 bEnable)
 }
 /*!
 @fn			NMI_API sint8 m2m_wifi_set_power_profile(uint8 u8PwrMode);
-@brief		Change the power profile mode 
+@brief		Change the power profile mode
 @param [in]	u8PwrMode
-			Change the WINC power profile to different mode 
+			Change the WINC power profile to different mode
 			PWR_LOW1/PWR_LOW2/PWR_HIGH/PWR_AUTO (tenuM2mPwrMode)
 @return		The function SHALL return M2M_SUCCESE for success and a negative value otherwise.
 @sa			tenuM2mPwrMode
 @pre		m2m_wifi_init
-@warning	must be called after the initializations and before any connection request and can't be changed in run time, 
+@warning	must be called after the initializations and before any connection request and can't be changed in run time,
 */
 sint8 m2m_wifi_set_power_profile(uint8 u8PwrMode)
 {
@@ -1355,7 +1355,7 @@ sint8 m2m_wifi_set_power_profile(uint8 u8PwrMode)
 @return		The function SHALL return M2M_SUCCESE for success and a negative value otherwise.
 @sa			tenuM2mTxPwrLevel
 @pre		m2m_wifi_init
-@warning	
+@warning
 */
 sint8 m2m_wifi_set_tx_power(uint8 u8TxPwrLevel)
 {
@@ -1368,14 +1368,14 @@ sint8 m2m_wifi_set_tx_power(uint8 u8TxPwrLevel)
 
 /*!
 @fn			NMI_API sint8 m2m_wifi_enable_firmware_logs(uint8 u8Enable);
-@brief		Enable or Disable logs in run time (Disable Firmware logs will 
+@brief		Enable or Disable logs in run time (Disable Firmware logs will
 			enhance the firmware start-up time and performance)
 @param [in]	u8Enable
 			Set 1 to enable the logs 0 for disable
 @return		The function SHALL return M2M_SUCCESE for success and a negative value otherwise.
 @sa			__DISABLE_FIRMWARE_LOGS__ (build option to disable logs from initializations)
 @pre		m2m_wifi_init
-@warning	
+@warning
 */
 sint8 m2m_wifi_enable_firmware_logs(uint8 u8Enable)
 {
@@ -1388,14 +1388,14 @@ sint8 m2m_wifi_enable_firmware_logs(uint8 u8Enable)
 
 /*!
 @fn			NMI_API sint8 m2m_wifi_set_battery_voltage(uint16 u16BattVoltx100);
-@brief		Enable or Disable logs in run time (Disable Firmware logs will 
+@brief		Enable or Disable logs in run time (Disable Firmware logs will
 			enhance the firmware start-up time and performance)
 @param [in]	u16BattVoltx100
 			battery voltage multiplied by 100
 @return		The function SHALL return M2M_SUCCESE for success and a negative value otherwise.
 @sa			__DISABLE_FIRMWARE_LOGS__ (build option to disable logs from initializations)
 @pre		m2m_wifi_init
-@warning	
+@warning
 */
 sint8 m2m_wifi_set_battery_voltage(uint16 u16BattVoltx100)
 {
@@ -1407,11 +1407,11 @@ sint8 m2m_wifi_set_battery_voltage(uint16 u16BattVoltx100)
 }
 /*!
 @fn        	 	 sint8 m2m_wifi_prng_get_random_bytes(uint8 * pu8PrngBuff,uint16 u16PrngSize)
-@brief     	 Get random bytes using the PRNG bytes.	      
+@brief     	 Get random bytes using the PRNG bytes.
 @param [in]    u16PrngSize
-		  	 Size of the required random bytes to be generated.   	 
+		  	 Size of the required random bytes to be generated.
 @param [in]    pu8PrngBuff
-		        Pointer to user allocated buffer.  		            
+		        Pointer to user allocated buffer.
 @return           The function SHALL return M2M_SUCCESE for success and a negative value otherwise.
 */
 sint8 m2m_wifi_prng_get_random_bytes(uint8 * pu8PrngBuff,uint16 u16PrngSize)

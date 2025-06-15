@@ -238,7 +238,7 @@ fi
 # Define HAVE_CPU_AFFINITY to indicate the CPU affinity setting as a
 # generic concept is available.
 AC_CHECK_FUNCS([cpuset_setaffinity sched_setaffinity SetProcessAffinityMask],
-	       AC_DEFINE([HAVE_CPU_AFFINITY], [1], 
+	       AC_DEFINE([HAVE_CPU_AFFINITY], [1],
 	 	         [Have CPU affinity support.]))
 
 # Check for daemon().  Most systems have this but a few (IRIX) don't.

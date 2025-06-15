@@ -97,7 +97,7 @@ sint8 nm_get_firmware_full_info(tstrM2mRev* pstrRev);
 *	@brief	Get Firmware version info
 *	@param [out]	M2mRev
 *			    pointer holds address of structure "tstrM2mRev" that contains the firmware version parameters
-			
+
 *	@version	1.0
 */
 sint8 nm_get_ota_firmware_info(tstrM2mRev* pstrRev);
@@ -134,5 +134,3 @@ sint8 nm_drv_deinit(void * arg);
  #endif
 
 #endif	/*_NMDRV_H_*/
-
-

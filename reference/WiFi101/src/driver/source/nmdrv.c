@@ -83,7 +83,7 @@ sint8 nm_get_firmware_info(tstrM2mRev* M2mRev)
 	M2mRev->u8FirmwarePatch = M2M_GET_FW_PATCH(reg);
 	M2mRev->u32Chipid	= nmi_get_chipid();
 	M2mRev->u16FirmwareSvnNum = 0;
-	
+
 	curr_firm_ver   = M2M_MAKE_VERSION(M2mRev->u8FirmwareMajor, M2mRev->u8FirmwareMinor,M2mRev->u8FirmwarePatch);
 #ifdef ARDUINO
 	nmdrv_firm_ver  = curr_firm_ver;
@@ -91,7 +91,7 @@ sint8 nm_get_firmware_info(tstrM2mRev* M2mRev)
 	curr_drv_ver    = M2M_MAKE_VERSION(M2M_RELEASE_VERSION_MAJOR_NO, M2M_RELEASE_VERSION_MINOR_NO, M2M_RELEASE_VERSION_PATCH_NO);
 	min_req_drv_ver = M2M_MAKE_VERSION(M2mRev->u8DriverMajor, M2mRev->u8DriverMinor,M2mRev->u8DriverPatch);
 	if(curr_drv_ver <  min_req_drv_ver) {
-		/*The current driver version should be larger or equal 
+		/*The current driver version should be larger or equal
 		than the min driver that the current firmware support  */
 		ret = M2M_ERR_FW_VER_MISMATCH;
 	}
@@ -143,7 +143,7 @@ sint8 nm_get_firmware_full_info(tstrM2mRev* pstrRev)
 								goto EXIT;
 							}
 							if(curr_drv_ver <  min_req_drv_ver) {
-								/*The current driver version should be larger or equal 
+								/*The current driver version should be larger or equal
 								than the min driver that the current firmware support  */
 								ret = M2M_ERR_FW_VER_MISMATCH;
 								goto EXIT;
@@ -171,7 +171,7 @@ EXIT:
 *	@brief	Get Firmware version info
 *	@param [out]	M2mRev
 *			    pointer holds address of structure "tstrM2mRev" that contains the firmware version parameters
-			
+
 *	@version	1.0
 */
 sint8 nm_get_ota_firmware_info(tstrM2mRev* pstrRev)
@@ -207,7 +207,7 @@ sint8 nm_get_ota_firmware_info(tstrM2mRev* pstrRev)
 								goto EXIT;
 							}
 							if(curr_drv_ver <  min_req_drv_ver) {
-								/*The current driver version should be larger or equal 
+								/*The current driver version should be larger or equal
 								than the min driver that the current firmware support  */
 								ret = M2M_ERR_FW_VER_MISMATCH;
 							}
@@ -290,7 +290,7 @@ sint8 nm_drv_init(void * arg)
 {
 	sint8 ret = M2M_SUCCESS;
 	uint8 u8Mode;
-	
+
 	if(NULL != arg) {
 		u8Mode = *((uint8 *)arg);
 		if((u8Mode < M2M_WIFI_MODE_NORMAL)||(u8Mode >= M2M_WIFI_MODE_MAX)) {
@@ -299,7 +299,7 @@ sint8 nm_drv_init(void * arg)
 	} else {
 		u8Mode = M2M_WIFI_MODE_NORMAL;
 	}
-	
+
 	ret = nm_bus_iface_init(NULL);
 	if (M2M_SUCCESS != ret) {
 		M2M_ERR("[nmi start]: fail init bus\n");
@@ -309,8 +309,8 @@ sint8 nm_drv_init(void * arg)
 #ifdef BUS_ONLY
 	return;
 #endif
-	
-	
+
+
 #ifdef NO_HW_CHIP_EN
 	ret = chip_wake();
 	if (M2M_SUCCESS != ret) {
@@ -340,18 +340,18 @@ sint8 nm_drv_init(void * arg)
 	if (M2M_SUCCESS != ret) {
 		goto ERR2;
 	}
-		
+
 	ret = wait_for_firmware_start(u8Mode);
 	if (M2M_SUCCESS != ret) {
 		goto ERR2;
 	}
-	
+
 	if((M2M_WIFI_MODE_ATE_HIGH == u8Mode)||(M2M_WIFI_MODE_ATE_LOW == u8Mode)) {
 		goto ERR1;
 	} else {
 		/*continue running*/
 	}
-	
+
 	ret = enable_interrupts();
 	if (M2M_SUCCESS != ret) {
 		M2M_ERR("failed to enable interrupts..\n");
@@ -383,7 +383,7 @@ sint8 nm_drv_deinit(void * arg)
 		M2M_ERR("[nmi stop]: chip_deinit fail\n");
 		goto ERR1;
 	}
-	
+
 	/* Disable SPI flash to save power when the chip is off */
 	ret = spi_flash_enable(0);
 	if (M2M_SUCCESS != ret) {
@@ -404,5 +404,3 @@ sint8 nm_drv_deinit(void * arg)
 ERR1:
 	return ret;
 }
-
-

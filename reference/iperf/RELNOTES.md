@@ -179,7 +179,7 @@ iperf-3.16 2023-11-30
     continue to work with OpenSSL 1.1.1. OpenSSL is used as a part
     of the iperf3 authentication functionality (Issue #1300, PR
     #1589).
-    
+
   * The authorized users file used by the authentication functionality
     is now checked for accessibility much earlier during the program
     startup, as opposed to being checked near the start of a
@@ -327,10 +327,10 @@ iperf-3.12 2022-09-30
 
   * Operation of bootstrap.sh has been fixed and simplified (#1335 /
     #1325).
-    
+
   * Flow label support / compatibility under Linux has been improved
     (#1310).
-    
+
   * Various minor memory leaks have been fixed (#1332 / #1333).
 
   * A getter/setter has been added for the bind_port parameter

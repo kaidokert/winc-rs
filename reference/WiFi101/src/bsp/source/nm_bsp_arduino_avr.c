@@ -161,4 +161,3 @@ void detachInterruptMultiArch(uint32_t pin)
 }
 
 #endif
-

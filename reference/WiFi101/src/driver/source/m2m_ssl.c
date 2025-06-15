@@ -126,7 +126,7 @@ static void m2m_ssl_cb(uint8 u8OpCode, uint16 u16DataSize, uint32 u32Addr)
 NMI_API sint8 m2m_ssl_handshake_rsp(tstrEccReqInfo* strECCResp, uint8* pu8RspDataBuff, uint16 u16RspDataSz)
 {
 	sint8 s8Ret = M2M_SUCCESS;
-	
+
 	s8Ret = hif_send(M2M_REQ_GROUP_SSL, (M2M_SSL_RESP_ECC | M2M_REQ_DATA_PKT), (uint8*)strECCResp, sizeof(tstrEccReqInfo), pu8RspDataBuff, u16RspDataSz, sizeof(tstrEccReqInfo));
 
 	return s8Ret;
@@ -170,7 +170,7 @@ NMI_API sint8 m2m_ssl_retrieve_cert(uint16* pu16CurveType, uint8* pu8Hash, uint8
 	sint8	s8Ret = M2M_SUCCESS;
 
 	if(gu32HIFAddr == 0) return M2M_ERR_FAIL;
-	
+
 	if(hif_receive(gu32HIFAddr, (uint8*)pu16CurveType, 2, 0) != M2M_SUCCESS) goto __ERR;
 	gu32HIFAddr += 2;
 
@@ -187,7 +187,7 @@ NMI_API sint8 m2m_ssl_retrieve_cert(uint16* pu16CurveType, uint8* pu8Hash, uint8
 	pu8Key->u16Size	= _htons(u16KeySz);
 	u16HashSz		= _htons(u16HashSz);
 	u16SigSz		= _htons(u16SigSz);
-	
+
 	if(hif_receive(gu32HIFAddr, pu8Key->X, pu8Key->u16Size * 2, 0) != M2M_SUCCESS) goto __ERR;
 	gu32HIFAddr += (pu8Key->u16Size * 2);
 
@@ -196,7 +196,7 @@ NMI_API sint8 m2m_ssl_retrieve_cert(uint16* pu16CurveType, uint8* pu8Hash, uint8
 
 	if(hif_receive(gu32HIFAddr, pu8Sig, u16SigSz, 0) != M2M_SUCCESS) goto __ERR;
 	gu32HIFAddr += u16SigSz;
-	
+
 	bSetRxDone = 0;
 
 __ERR:
@@ -225,7 +225,7 @@ NMI_API sint8 m2m_ssl_retrieve_hash(uint8* pu8Hash, uint16 u16HashSz)
 	if(gu32HIFAddr == 0) return M2M_ERR_FAIL;
 
 	if(hif_receive(gu32HIFAddr, pu8Hash, u16HashSz, 0) != M2M_SUCCESS) goto __ERR;
-	
+
 	bSetRxDone = 0;
 
 __ERR:
@@ -271,7 +271,7 @@ NMI_API void m2m_ssl_ecc_process_done(void)
 				If u32SslCsBMP does not contain any ciphersuites supported by firmware, then the current active list will not
 				be changed.
 
-@return		
+@return
 	- [SOCK_ERR_NO_ERROR](@ref SOCK_ERR_NO_ERROR)
 	- [SOCK_ERR_INVALID_ARG](@ref SOCK_ERR_INVALID_ARG)
 */
@@ -279,7 +279,7 @@ sint8 m2m_ssl_set_active_ciphersuites(uint32 u32SslCsBMP)
 {
 	sint8 s8Ret = M2M_SUCCESS;
 	tstrSslSetActiveCsList	strCsList;
-	
+
 	strCsList.u32CsBMP = u32SslCsBMP;
 	s8Ret = hif_send(M2M_REQ_GROUP_SSL, M2M_SSL_REQ_SET_CS_LIST, (uint8*)&strCsList, sizeof(tstrSslSetActiveCsList), NULL, 0, 0);
 

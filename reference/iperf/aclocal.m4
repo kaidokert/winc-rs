@@ -10060,7 +10060,7 @@ am_cv_filesystem_timestamp_resolution=2
 # Don't try 1 sec, because if 0.01 sec and 0.1 sec don't work,
 # - 1 sec is not much of a win compared to 2 sec, and
 # - it takes 2 seconds to perform the test whether 1 sec works.
-# 
+#
 # Instead, just use the default 2s on platforms that have 1s resolution,
 # accept the extra 1s delay when using $sleep in the Automake tests, in
 # exchange for not incurring the 2s delay for running the test for all
@@ -10133,7 +10133,7 @@ for am_try_res in $am_try_resolutions; do
       # everything else supports the subsecond mtimes, but make doesn't;
       # notably on macOS, which ships make 3.81 from 2006 (the last one
       # released under GPLv2). https://bugs.gnu.org/68808
-      # 
+      #
       # We test $MAKE if it is defined in the environment, else "make".
       # It might get overridden later, but our hope is that in practice
       # it does not matter: it is the system "make" which is (by far)
@@ -10521,4 +10521,3 @@ AS_IF([test "$am_cv_xargs_n_works" = yes], [am__xargs_n='xargs -n'], [dnl
 ])dnl
 AC_SUBST(am__xargs_n)
 ])
-

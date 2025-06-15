@@ -110,7 +110,7 @@ void WiFiClass::handleEvent(uint8_t u8MsgType, void *pvMsg)
 				_localip = pstrIPCfg->u32StaticIP;
 				_submask = pstrIPCfg->u32SubnetMask;
 				_gateway = pstrIPCfg->u32Gateway;
-				
+
 				_status = WL_CONNECTED;
 
 #ifdef CONF_PERIPH
@@ -343,7 +343,7 @@ extern "C" {
 char* WiFiClass::firmwareVersion()
 {
 	tstrM2mRev rev;
-	
+
 	if (!_init) {
 		init();
 	}
@@ -363,7 +363,7 @@ uint8_t WiFiClass::begin()
 	if (!_init) {
 		init();
 	}
-	
+
 	// Connect to router:
 	if (_dhcp) {
 		_localip = 0;
@@ -425,7 +425,7 @@ uint8_t WiFiClass::startConnect(const char *ssid, uint8_t u8SecType, const void 
 	if (!_init) {
 		init();
 	}
-	
+
 	// Connect to router:
 	if (_dhcp) {
 		_localip = 0;
@@ -514,7 +514,7 @@ uint8_t WiFiClass::startAP(const char *ssid, uint8_t u8SecType, const void *pvAu
 	strcpy((char *)&strM2MAPConfig.au8SSID, ssid);
 	strM2MAPConfig.u8ListenChannel = channel;
 	strM2MAPConfig.u8SecType = u8SecType;
-	if (_localip == 0) { 
+	if (_localip == 0) {
 		strM2MAPConfig.au8DHCPServerIP[0] = 192;
 		strM2MAPConfig.au8DHCPServerIP[1] = 168;
 		strM2MAPConfig.au8DHCPServerIP[2] = 1;
@@ -739,12 +739,12 @@ uint8_t *WiFiClass::macAddress(uint8_t *mac)
 {
 	m2m_wifi_get_mac_address(mac);
 	byte tmpMac[6], i;
-	
+
 	m2m_wifi_get_mac_address(tmpMac);
-	
+
 	for(i = 0; i < 6; i++)
 		mac[i] = tmpMac[5-i];
-		
+
 	return mac;
 }
 
@@ -909,7 +909,7 @@ int32_t WiFiClass::RSSI(uint8_t pos)
 }
 
 uint8_t WiFiClass::encryptionType()
-{ 
+{
 	int8_t net = scanNetworks();
 
 	for (uint8_t i = 0; i < net; ++i) {
@@ -1004,10 +1004,10 @@ uint8_t WiFiClass::status()
 
 int WiFiClass::hostByName(const char* aHostname, IPAddress& aResult)
 {
-	
+
 	// check if aHostname is already an ipaddress
 	if (aResult.fromString(aHostname)) {
-		// if fromString returns true we have an IP address ready 
+		// if fromString returns true we have an IP address ready
 		return 1;
 
 	} else {

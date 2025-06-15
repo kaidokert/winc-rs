@@ -67,7 +67,7 @@ const uint8_t aRecord[] PROGMEM = {
 };
 
 // Generate negative response for IPV6 address (CC3000 doesn't support IPV6)
-const uint8_t nsecRecord[] PROGMEM = { 
+const uint8_t nsecRecord[] PROGMEM = {
   0xC0, 0x0C,                // Name offset
   0x00, 0x2F,                // Type = 47, NSEC (overloaded by MDNS)
   0x80, 0x01,                // Class = Internet, with cache flush bit
@@ -191,7 +191,7 @@ void WiFiMDNSResponder::replyToRequest()
   // copy header
   memcpy_P(r, responseHeader, sizeof(responseHeader));
   r += sizeof(responseHeader);
-  
+
   // copy name
   *r = nameLength;
   memcpy(r + 1, name.c_str(), nameLength);

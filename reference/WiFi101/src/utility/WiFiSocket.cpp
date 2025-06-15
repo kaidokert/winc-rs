@@ -329,7 +329,7 @@ sint16 WiFiSocketClass::sendto(SOCKET sock, void *pvSendBuffer, uint16 u16SendLe
 		return ::sendto(sock, pvSendBuffer, u16SendLength, flags, pstrDestAddr, u8AddrLen);
 	} else {
 		return ::send(sock, pvSendBuffer, u16SendLength, 0);
-	}	
+	}
 }
 
 sint8 WiFiSocketClass::close(SOCKET sock)

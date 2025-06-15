@@ -50,7 +50,7 @@ int WiFiClient::connect(const char* host, uint16_t port)
 
 int WiFiClient::connect(IPAddress ip, uint16_t port)
 {
-	return connect(ip, port, 0, 0);	
+	return connect(ip, port, 0, 0);
 }
 
 int WiFiClient::connect(const char* host, uint16_t port, uint8_t opt)
@@ -141,11 +141,11 @@ int WiFiClient::read(uint8_t* buf, size_t size)
 	// sizeof(size_t) is architecture dependent
 	// but we need a 16 bit data type here
 	uint16_t size_tmp = available();
-	
+
 	if (size_tmp == 0) {
 		return -1;
 	}
-	
+
 	if (size < size_tmp) {
 		size_tmp = size;
 	}

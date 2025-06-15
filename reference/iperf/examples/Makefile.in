@@ -111,7 +111,7 @@ mic_DEPENDENCIES = ../src/libiperf.la
 AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
 am__v_lt_0 = --silent
-am__v_lt_1 = 
+am__v_lt_1 =
 mic_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(mic_CFLAGS) $(CFLAGS) \
 	$(mic_LDFLAGS) $(LDFLAGS) -o $@
@@ -128,11 +128,11 @@ am__v_P_1 = :
 AM_V_GEN = $(am__v_GEN_@AM_V@)
 am__v_GEN_ = $(am__v_GEN_@AM_DEFAULT_V@)
 am__v_GEN_0 = @echo "  GEN     " $@;
-am__v_GEN_1 = 
+am__v_GEN_1 =
 AM_V_at = $(am__v_at_@AM_V@)
 am__v_at_ = $(am__v_at_@AM_DEFAULT_V@)
 am__v_at_0 = @
-am__v_at_1 = 
+am__v_at_1 =
 DEFAULT_INCLUDES = -I.@am__isrc@ -I$(top_builddir)/src
 depcomp = $(SHELL) $(top_srcdir)/config/depcomp
 am__maybe_remake_depfiles = depfiles
@@ -147,7 +147,7 @@ LTCOMPILE = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
 AM_V_CC = $(am__v_CC_@AM_V@)
 am__v_CC_ = $(am__v_CC_@AM_DEFAULT_V@)
 am__v_CC_0 = @echo "  CC      " $@;
-am__v_CC_1 = 
+am__v_CC_1 =
 CCLD = $(CC)
 LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
@@ -155,7 +155,7 @@ LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
 AM_V_CCLD = $(am__v_CCLD_@AM_V@)
 am__v_CCLD_ = $(am__v_CCLD_@AM_DEFAULT_V@)
 am__v_CCLD_0 = @echo "  CCLD    " $@;
-am__v_CCLD_1 = 
+am__v_CCLD_1 =
 SOURCES = $(mic_SOURCES) $(mis_SOURCES)
 DIST_SOURCES = $(mic_SOURCES) $(mis_SOURCES)
 am__can_run_installinfo = \
@@ -362,11 +362,11 @@ clean-noinstPROGRAMS:
 	$(am__rm_f) $(noinst_PROGRAMS)
 	test -z "$(EXEEXT)" || $(am__rm_f) $(noinst_PROGRAMS:$(EXEEXT)=)
 
-mic$(EXEEXT): $(mic_OBJECTS) $(mic_DEPENDENCIES) $(EXTRA_mic_DEPENDENCIES) 
+mic$(EXEEXT): $(mic_OBJECTS) $(mic_DEPENDENCIES) $(EXTRA_mic_DEPENDENCIES)
 	@rm -f mic$(EXEEXT)
 	$(AM_V_CCLD)$(mic_LINK) $(mic_OBJECTS) $(mic_LDADD) $(LIBS)
 
-mis$(EXEEXT): $(mis_OBJECTS) $(mis_DEPENDENCIES) $(EXTRA_mis_DEPENDENCIES) 
+mis$(EXEEXT): $(mis_OBJECTS) $(mis_DEPENDENCIES) $(EXTRA_mis_DEPENDENCIES)
 	@rm -f mis$(EXEEXT)
 	$(AM_V_CCLD)$(mis_LINK) $(mis_OBJECTS) $(mis_LDADD) $(LIBS)
 

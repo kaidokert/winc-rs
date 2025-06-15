@@ -61,7 +61,7 @@ iperf_udp_recv(struct iperf_stream *sp)
     int       first_packet = 0;
     double    transit = 0, d = 0;
     struct iperf_time sent_time, arrival_time, temp_time;
-    struct iperf_test *test = sp->test;	
+    struct iperf_test *test = sp->test;
     int sock_opt = 0;
 
 #if defined(HAVE_MSG_TRUNC)
@@ -362,7 +362,7 @@ iperf_udp_buffercheck(struct iperf_test *test, int s)
     if (sndbuf_actual_item == NULL) {
 	cJSON_AddNumberToObject(test->json_start, "sndbuf_actual", sndbuf_actual);
     }
-        
+
     cJSON *rcvbuf_actual_item = cJSON_GetObjectItem(test->json_start, "rcvbuf_actual");
     if (rcvbuf_actual_item == NULL) {
 	cJSON_AddNumberToObject(test->json_start, "rcvbuf_actual", rcvbuf_actual);

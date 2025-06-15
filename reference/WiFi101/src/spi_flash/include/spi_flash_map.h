@@ -182,11 +182,11 @@
 		M2M_HTTP_MEM_FLASH_SZ			+ 	\
 		M2M_CACHED_CONNS_FLASH_SZ		 	\
 	)
-	
+
 /*
  *
  * OTA image1 Offset
- */								
+ */
 
 #define M2M_OTA_IMAGE1_OFFSET					(M2M_CACHED_CONNS_FLASH_OFFSET + M2M_CACHED_CONNS_FLASH_SZ)
 /*
@@ -217,7 +217,7 @@
  * Flash Total size
  */
 #define FLASH_IMAGE1_CONTENT_SZ 				(M2M_COMMON_DATA_SEC  +  OTA_IMAGE_SIZE)
-									
+
 /**
  *
  * OTA image 2 offset

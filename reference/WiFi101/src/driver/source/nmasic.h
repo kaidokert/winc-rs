@@ -94,117 +94,117 @@ typedef struct{
 
 /*
 *	@fn		cpu_halt
-*	@brief	
+*	@brief
 */
 sint8 cpu_halt(void);
 /*
 *	@fn		chip_sleep
-*	@brief	
+*	@brief
 */
 sint8 chip_sleep(void);
 /*
 *	@fn		chip_wake
-*	@brief	
+*	@brief
 */
 sint8 chip_wake(void);
 /*
 *	@fn		chip_idle
-*	@brief	
+*	@brief
 */
 void chip_idle(void);
 /*
 *	@fn		enable_interrupts
-*	@brief	
+*	@brief
 */
 sint8 enable_interrupts(void);
 /*
-*	@fn		cpu_start	
-*	@brief	
+*	@fn		cpu_start
+*	@brief
 */
 sint8 cpu_start(void);
 /*
 *	@fn		nmi_get_chipid
-*	@brief	
+*	@brief
 */
 uint32 nmi_get_chipid(void);
 /*
 *	@fn		nmi_get_rfrevid
-*	@brief	
+*	@brief
 */
 uint32 nmi_get_rfrevid(void);
 /*
 *	@fn		restore_pmu_settings_after_global_reset
-*	@brief	
+*	@brief
 */
 void restore_pmu_settings_after_global_reset(void);
 /*
 *	@fn		nmi_update_pll
-*	@brief	
+*	@brief
 */
 void nmi_update_pll(void);
 /*
 *	@fn		nmi_set_sys_clk_src_to_xo
-*	@brief	
+*	@brief
 */
 void nmi_set_sys_clk_src_to_xo(void);
 /*
 *	@fn		chip_reset
-*	@brief	
+*	@brief
 */
 sint8 chip_reset(void);
 /*
 *	@fn		wait_for_bootrom
-*	@brief	
+*	@brief
 */
 sint8 wait_for_bootrom(uint8);
 /*
 *	@fn		wait_for_firmware_start
-*	@brief	
+*	@brief
 */
 sint8 wait_for_firmware_start(uint8);
 /*
 *	@fn		chip_deinit
-*	@brief	
+*	@brief
 */
 sint8 chip_deinit(void);
 /*
 *	@fn		chip_reset_and_cpu_halt
-*	@brief	
+*	@brief
 */
 sint8 chip_reset_and_cpu_halt(void);
 /*
 *	@fn		set_gpio_dir
-*	@brief	
+*	@brief
 */
 sint8 set_gpio_dir(uint8 gpio, uint8 dir);
 /*
 *	@fn		set_gpio_val
-*	@brief	
+*	@brief
 */
 sint8 set_gpio_val(uint8 gpio, uint8 val);
 /*
 *	@fn		get_gpio_val
-*	@brief	
+*	@brief
 */
 sint8 get_gpio_val(uint8 gpio, uint8* val);
 /*
 *	@fn		pullup_ctrl
-*	@brief	
+*	@brief
 */
 sint8 pullup_ctrl(uint32 pinmask, uint8 enable);
 /*
 *	@fn		nmi_get_otp_mac_address
-*	@brief	
+*	@brief
 */
 sint8 nmi_get_otp_mac_address(uint8 *pu8MacAddr, uint8 * pu8IsValid);
 /*
 *	@fn		nmi_get_mac_address
-*	@brief	
+*	@brief
 */
 sint8 nmi_get_mac_address(uint8 *pu8MacAddr);
 /*
 *	@fn		chip_apply_conf
-*	@brief	
+*	@brief
 */
 sint8 chip_apply_conf(uint32 u32conf);
 

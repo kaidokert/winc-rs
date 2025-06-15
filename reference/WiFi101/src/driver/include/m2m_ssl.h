@@ -172,7 +172,7 @@ NMI_API void m2m_ssl_ecc_process_done(void);
 				If u32SslCsBMP does not contain any ciphersuites supported by firmware, then the current active list will not
 				be changed.
 
-@return		
+@return
 	- [SOCK_ERR_NO_ERROR](@ref SOCK_ERR_NO_ERROR)
 	- [SOCK_ERR_INVALID_ARG](@ref SOCK_ERR_INVALID_ARG)
 */

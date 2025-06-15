@@ -68,20 +68,20 @@ Maximum number of all rates (b,g and n)
  */
 #define M2M_ATE_MIN_FRAME_LENGTH		(1)
 /*!< Minimum number of length for each frame
- */ 
+ */
 #define M2M_ATE_SUCCESS					(M2M_SUCCESS)
 /*!< No Error and operation has been completed successfully.
 */
-#define M2M_ATE_ERR_VALIDATE			(M2M_ERR_FAIL)	
+#define M2M_ATE_ERR_VALIDATE			(M2M_ERR_FAIL)
 /*!< Error in parameters passed to functions.
  */
 #define M2M_ATE_ERR_TX_ALREADY_RUNNING	(-1)
 /*!< Error in starting a transmission test. Another test is already running and its not allowed to start another ATE test.
  */
-#define M2M_ATE_ERR_RX_ALREADY_RUNNING	(-2)			
+#define M2M_ATE_ERR_RX_ALREADY_RUNNING	(-2)
 /*!< Error in starting a reception test. Another test is already running and its not allowed to start another ATE test.
  */
-#define M2M_ATE_ERR_UNHANDLED_CASE		(-3)	
+#define M2M_ATE_ERR_UNHANDLED_CASE		(-3)
 /*!< Invalid case.
  */
 #define M2M_ATE_RX_DISABLE_DA          		0x0
@@ -118,7 +118,7 @@ Maximum number of all rates (b,g and n)
 DATA TYPES
 *=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*/
 /*!
- *@enum		tenuM2mAteFwState	
+ *@enum		tenuM2mAteFwState
  *@brief	Enumeration used to change ATE firmware states
  */
 typedef enum {
@@ -131,7 +131,7 @@ typedef enum {
 }tenuM2mAteFwState;
 
 /*!
- *@enum		tenuM2mAteTxRates	
+ *@enum		tenuM2mAteTxRates
  *@brief	Enumeration used to index the TX rates that can be used during the transmission test.
  */
 typedef enum {
@@ -164,7 +164,7 @@ typedef enum {
 }tenuM2mAteTxIndexOfRates;
 
 /*!
- *@enum		tenuM2mAteTxDutyCycle	
+ *@enum		tenuM2mAteTxDutyCycle
  *@brief	Enumeration used to index the TX duty cycle that can be used during the transmission test.
  */
 typedef enum {
@@ -181,7 +181,7 @@ typedef enum {
 }tenuM2mAteTxDutyCycle;
 
 /*!
- *@enum		tenuM2mAteTxDpdControl	
+ *@enum		tenuM2mAteTxDpdControl
  *@brief	Enumeration for the allowed Digital-pre distortion(DPD) control values.
  */
 typedef enum {
@@ -197,7 +197,7 @@ typedef enum {
 }tenuM2mAteTxDpdControl;
 
 /*!
- *@enum		tenuM2mAteTxGainSetting	
+ *@enum		tenuM2mAteTxGainSetting
  *@brief	Enumeration for the allowed TX gain selection modes.
  */
 typedef enum {
@@ -216,7 +216,7 @@ typedef enum {
 }tenuM2mAteTxGainSetting;
 
 /*!
- *@enum		tenuM2mAtePMUSetting	
+ *@enum		tenuM2mAtePMUSetting
  *@brief	Used to Enable PMU or disable it
  */
 typedef enum {
@@ -229,7 +229,7 @@ typedef enum {
 }tenuM2mAtePMUSetting;
 
 /*!
- *@enum	 tenuM2mAteTxSource	
+ *@enum	 tenuM2mAteTxSource
  *@brief	Used to define the Tx source, either PHY mode or MAC mode.
  */
 typedef enum {
@@ -242,12 +242,12 @@ typedef enum {
 }tenuM2mAteTxSource;
 
 /*!
- *@enum	tenuM2mAteTxMode	
+ *@enum	tenuM2mAteTxMode
  *@brief	Used to define the mode of PHY TX transmission source: Continuous Wave(CW) or Normal(i.e CW is disabled) TX sequence
  */
 typedef enum {
 	M2M_ATE_TX_MODE_NORM	= 0x00,
-	/*!< When the TX source is set to PHY,normal mode indicates that continous transmission is disabled. 
+	/*!< When the TX source is set to PHY,normal mode indicates that continous transmission is disabled.
 	*/
 	M2M_ATE_TX_MODE_CW		= 0x01,
 	/*!< When the TX source is set to PHY, continous mode indicates that transmission sequences occur back to back in a continous wave from the PHY layer.
@@ -255,20 +255,20 @@ typedef enum {
 }tenuM2mAteTxMode;
 
 /*!
- *@enum		tenuM2mAteRxPwrMode	
+ *@enum		tenuM2mAteRxPwrMode
  *@brief	Used to define type of RX mode either high power or low power
  */
 typedef enum {
 	M2M_ATE_RX_PWR_HIGH	= 0x00,
 	/*!< Indicates that receive mode is operating at high power
-	*/	
+	*/
 	M2M_ATE_RX_PWR_LOW	= 0x01,
 	/*!< Indicates that receive mode is operating at low power
 	*/
 }tenuM2mAteRxPwrMode;
 
 /*!
- *@enum		tenuM2mAteChannels	
+ *@enum		tenuM2mAteChannels
  *@brief	Available channels for TX and RX in the 2.4GHz spectrum starting at 2412MHz with a 5MHz bandwidth.
  */
 typedef enum {
@@ -334,7 +334,7 @@ typedef struct {
 
 /*!
  *@struct	tstrM2mAteRxStatus
- *@brief	Used to save recieve test case configuration  
+ *@brief	Used to save recieve test case configuration
  *@see    tenuM2mAteRxPwrMode
  */
 typedef struct {
@@ -348,7 +348,7 @@ typedef struct {
  *@brief	Used for the transmission(Tx) test configuration.
  */
 typedef struct {
-	uint32	num_frames;	
+	uint32	num_frames;
 	/*!< Number of frames to be sent where maximum number allowed is 4294967295 ul, and ZERO means infinite number of frames
 	 */
 	uint32	data_rate;
@@ -357,7 +357,7 @@ typedef struct {
 	uint8	channel_num;
 	/*!< Channel number as enumerated at \ref tenuM2mAteChannels
 	 */
-	uint8    duty_cycle; 
+	uint8    duty_cycle;
 	/*!< Duty cycle value between from 1 to 10, where maximum = 1, minimum = 10. As enumerated \ref tenuM2mAteTxDutyCycle
 	 */
 	uint16    frame_len;
@@ -372,17 +372,17 @@ typedef struct {
 	uint8     use_pmu;
 	/*!< This is 0 if PMU is not used otherwise it must be be 1 \ref tenuM2mAtePMUSetting
 	 */
-	uint8     phy_burst_tx; 
+	uint8     phy_burst_tx;
 	/*!< Source of Burst TX either PHY or MAC \ref tenuM2mAteTxSource
 	 */
-	uint8     cw_tx; 
+	uint8     cw_tx;
 	/*!< Mode of Phy TX transmission either normal TX sequence or CW(Continuous Wave) TX sequence \ref tenuM2mAteTxMode
 	 */
-	uint32     xo_offset_x1000; 
+	uint32     xo_offset_x1000;
 	/*!< Signed XO offset value in Part Per Million(PPM) multiplied by 1000.
 	 */
 	uint8     use_efuse_xo_offset;
-	/*!< Set to 0 to use the XO offset provided in xo_offset_x1000. Set to 1 to use XO offset programmed on WINC efuse. 
+	/*!< Set to 0 to use the XO offset provided in xo_offset_x1000. Set to 1 to use XO offset programmed on WINC efuse.
 	*/
 	uint8 peer_mac_addr[6];
 	/*!< Set peer address to send directed frames to a certain address.
@@ -400,29 +400,29 @@ typedef struct {
 	uint8     use_pmu;
 	/*!< This is 0 if PMU is not used otherwise it must be be 1 \ref tenuM2mAtePMUSetting
 	 */
-	uint32     xo_offset_x1000; 
+	uint32     xo_offset_x1000;
 	/*!< Signed XO offset value in PPM (Part Per Million) multiplied by 1000.
 	 */
 	uint8     use_efuse_xo_offset;
-	/*!< Set to 0 to use the XO offset provided in xo_offset_x1000. Set to 1 to use XO offset programmed on WINC efuse. 
+	/*!< Set to 0 to use the XO offset provided in xo_offset_x1000. Set to 1 to use XO offset programmed on WINC efuse.
 	*/
 	uint8    self_mac_addr[6];
-	/*!< Set to the self mac address required to be overriden. 
+	/*!< Set to the self mac address required to be overriden.
 	*/
 	uint8    peer_mac_addr[6];
-	/*!< Set to the source mac address expected to filter frames from. 
+	/*!< Set to the source mac address expected to filter frames from.
 	*/
 	uint8    mac_filter_en_da;
-	/*!< Flag set to enable or disable reception with destination address as a filter. Using the following flags \ref M2M_ATE_RX_ENABLE_DA 
-	\ref M2M_ATE_RX_DISABLE_DA 
+	/*!< Flag set to enable or disable reception with destination address as a filter. Using the following flags \ref M2M_ATE_RX_ENABLE_DA
+	\ref M2M_ATE_RX_DISABLE_DA
 	*/
 	uint8    mac_filter_en_sa;
-	/*!< Flag set to enable or disable reception with source address as a filter.Using the following flags \ref M2M_ATE_RX_ENABLE_SA 
-	\ref M2M_ATE_RX_DISABLE_SA 
+	/*!< Flag set to enable or disable reception with source address as a filter.Using the following flags \ref M2M_ATE_RX_ENABLE_SA
+	\ref M2M_ATE_RX_DISABLE_SA
 	*/
 	uint8   override_self_mac_addr;
-	/*!< Flag set to enable or disable self mac address feature. Using the following flags \ref M2M_ATE_DISABLE_SELF_MACADDR 
-	\ref M2M_ATE_SET_SELF_MACADDR 
+	/*!< Flag set to enable or disable self mac address feature. Using the following flags \ref M2M_ATE_DISABLE_SELF_MACADDR
+	\ref M2M_ATE_SET_SELF_MACADDR
 	*/
 } tstrM2mAteRx;
   //@}
@@ -446,7 +446,7 @@ FUNCTION PROTOTYPES
 @return
 	The function SHALL return @ref M2M_SUCCESS for success and a negative value otherwise.
 @see
-	m2m_ate_init_param	
+	m2m_ate_init_param
 */
 sint8 m2m_ate_init(void);
 
@@ -456,7 +456,7 @@ sint8 m2m_ate_init(void);
 	sint8 m2m_ate_init(tstrM2mAteInit *pstrInit);
 
 @brief
-	This function is used to download and start the ATE firmware with an initialization value 
+	This function is used to download and start the ATE firmware with an initialization value
 	stating the rx mode power \ref tstrM2mAteInit.
 @param [in]	tstrM2mAteInit *
 	Pointer to a structure \ref tstrM2mAteInit, defining the initial RX mode value.
@@ -472,7 +472,7 @@ sint8 m2m_ate_init_param(tstrM2mAteInit *pstrInit);
 	sint8 m2m_ate_deinit(void);
 
 @brief
-	De-Initialization of ATE firmware mode 
+	De-Initialization of ATE firmware mode
 
 @return
 	The function SHALL return @ref M2M_SUCCESS for success and a negative value otherwise.
@@ -650,7 +650,7 @@ sint8 m2m_ate_set_dig_gain(double dGaindB);
 	sint8 m2m_ate_get_dig_gain(double * dGaindB)
 
 @brief
-	This function is used to retrieve the digital gain value from the HW registers in dB. 
+	This function is used to retrieve the digital gain value from the HW registers in dB.
 	Digital gain is one of the values that are set to calculate the total tx gain value.
 
 @param [out]	double * dGaindB
@@ -722,7 +722,7 @@ m2m_ate_set_dig_gain, m2m_ate_get_dig_gain,m2m_ate_get_pa_gain,m2m_ate_get_ppa_g
 */
 sint8 m2m_ate_get_tot_gain(double * totGaindB);
    //@}
-	
+
 #ifdef __cplusplus
 }
 #endif

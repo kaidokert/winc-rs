@@ -217,7 +217,7 @@ static sint8 p_nm_read_block(uint32 u32Addr, uint8 *puBuf, uint16 u16Sz)
 *	@author	M. Abdelmawla
 *	@date	11 July 2012
 *	@version	1.0
-*/ 
+*/
 sint8 nm_read_block(uint32 u32Addr, uint8 *puBuf, uint32 u32Sz)
 {
 	uint16 u16MaxTrxSz = egstrNmBusCapabilities.u16MaxTrxSz - MAX_TRX_CFG_SZ;
@@ -228,7 +228,7 @@ sint8 nm_read_block(uint32 u32Addr, uint8 *puBuf, uint32 u32Sz)
 	{
 		if(u32Sz <= u16MaxTrxSz)
 		{
-			s8Ret += p_nm_read_block(u32Addr, &puBuf[off], (uint16)u32Sz);	
+			s8Ret += p_nm_read_block(u32Addr, &puBuf[off], (uint16)u32Sz);
 			break;
 		}
 		else
@@ -270,7 +270,7 @@ static sint8 p_nm_write_block(uint32 u32Addr, uint8 *puBuf, uint16 u16Sz)
 *	@author	M. Abdelmawla
 *	@date	11 July 2012
 *	@version	1.0
-*/ 
+*/
 sint8 nm_write_block(uint32 u32Addr, uint8 *puBuf, uint32 u32Sz)
 {
 	uint16 u16MaxTrxSz = egstrNmBusCapabilities.u16MaxTrxSz - MAX_TRX_CFG_SZ;
@@ -281,7 +281,7 @@ sint8 nm_write_block(uint32 u32Addr, uint8 *puBuf, uint32 u32Sz)
 	{
 		if(u32Sz <= u16MaxTrxSz)
 		{
-			s8Ret += p_nm_write_block(u32Addr, &puBuf[off], (uint16)u32Sz);	
+			s8Ret += p_nm_write_block(u32Addr, &puBuf[off], (uint16)u32Sz);
 			break;
 		}
 		else
@@ -298,4 +298,3 @@ sint8 nm_write_block(uint32 u32Addr, uint8 *puBuf, uint32 u32Sz)
 }
 
 #endif
-

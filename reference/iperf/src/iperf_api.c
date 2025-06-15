@@ -602,25 +602,25 @@ iperf_set_mapped_v4(struct iperf_test *ipt, const int val)
     ipt->mapped_v4 = val;
 }
 
-void 
+void
 iperf_set_on_new_stream_callback(struct iperf_test* ipt, void (*callback)(struct iperf_stream *))
 {
         ipt->on_new_stream = callback;
 }
 
-void 
+void
 iperf_set_on_test_start_callback(struct iperf_test* ipt, void (*callback)(struct iperf_test *))
 {
         ipt->on_test_start = callback;
 }
 
-void 
+void
 iperf_set_on_test_connect_callback(struct iperf_test* ipt, void (*callback)(struct iperf_test *))
 {
         ipt->on_connect = callback;
 }
 
-void 
+void
 iperf_set_on_test_finish_callback(struct iperf_test* ipt, void (*callback)(struct iperf_test *))
 {
         ipt->on_test_finish = callback;
@@ -1951,7 +1951,7 @@ iperf_check_throttle(struct iperf_stream *sp, struct iperf_time *nowP)
     uint64_t bits_per_second;
     int64_t missing_rate;
     uint64_t bits_sent;
-    
+
 #if defined(HAVE_CLOCK_NANOSLEEP) || defined(HAVE_NANOSLEEP)
     struct timespec nanosleep_time;
     int64_t time_to_green_light, delta_bits;
@@ -2138,7 +2138,7 @@ iperf_recv_mt(struct iperf_stream *sp)
 		i_errno = IESTREAMREAD;
 		return r;
 	    }
-            
+
             /* Collect statistics only if receive did not timeout (e.g. `Nread()` may timeout).
              * This is also important for `--rcv-timeout` to work properly.
              */
@@ -5415,7 +5415,7 @@ iperf_set_control_keepalive(struct iperf_test *test)
                 return -1;
             }
         }
-   
+
         // Seems that at least in Windows WSL2, TCP keepalive retries full inteval must be
         // smaller than the idle interval. Otherwise, the keepalive message is sent only once.
         if (test->settings->cntl_ka_keepidle) {

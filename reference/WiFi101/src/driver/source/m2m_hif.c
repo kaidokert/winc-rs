@@ -234,7 +234,7 @@ sint8 hif_chip_sleep(void)
 	{
 		gstrHifCxt.u8ChipSleep--;
 	}
-	
+
 	if(gstrHifCxt.u8ChipSleep == 0)
 	{
 		if(gstrHifCxt.u8ChipMode != M2M_NO_PS)
@@ -329,7 +329,7 @@ sint8 hif_send(uint8 u8Gid,uint8 u8Opcode,uint8 *pu8CtrlBuf,uint16 u16CtrlBufSiz
 	{
 		volatile uint32 reg, dma_addr = 0;
 		volatile uint16 cnt = 0;
-//#define OPTIMIZE_BUS 
+//#define OPTIMIZE_BUS
 /*please define in firmware also*/
 #ifndef OPTIMIZE_BUS
 		reg = 0UL;
@@ -353,13 +353,13 @@ sint8 hif_send(uint8 u8Gid,uint8 u8Opcode,uint8 *pu8CtrlBuf,uint16 u16CtrlBufSiz
 		if(M2M_SUCCESS != ret) goto ERR1;
 #endif
 		dma_addr = 0;
-		
+
 		for(cnt = 0; cnt < 1000; cnt ++)
 		{
 			ret = nm_read_reg_with_ret(WIFI_HOST_RCV_CTRL_2,(uint32 *)&reg);
 			if(ret != M2M_SUCCESS) break;
 			/*
-			 * If it takes too long to get a response, the slow down to 
+			 * If it takes too long to get a response, the slow down to
 			 * avoid back-to-back register read operations.
 			 */
 			if(cnt >= 500) {
@@ -628,7 +628,7 @@ ERR1:
 
 sint8 hif_handle_isr(void)
 {
-	sint8 ret = M2M_SUCCESS;	
+	sint8 ret = M2M_SUCCESS;
 
 #ifdef ARDUINO
 	if (hif_receive_blocked) {
@@ -679,7 +679,7 @@ sint8 hif_receive(uint32 u32Addr, uint8 *pu8Buf, uint16 u16Sz, uint8 isDone)
 	if((u32Addr == 0)||(pu8Buf == NULL) || (u16Sz == 0))
 	{
 		if(isDone)
-		{			
+		{
 			/* set RX done */
 			ret = hif_set_rx_done();
 		}
@@ -703,7 +703,7 @@ sint8 hif_receive(uint32 u32Addr, uint8 *pu8Buf, uint16 u16Sz, uint8 isDone)
 		M2M_ERR("APP Requested Address beyond the recived buffer address and length\n");
 		goto ERR1;
 	}
-	
+
 	/* Receive the payload */
 	ret = nm_read_block(u32Addr, pu8Buf, u16Sz);
 	if(ret != M2M_SUCCESS)goto ERR1;

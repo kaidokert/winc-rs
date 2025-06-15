@@ -134,9 +134,9 @@ sint8 m2m_ate_init(void)
 {
 	sint8 s8Ret = M2M_SUCCESS;
 	uint8 u8WifiMode = M2M_WIFI_MODE_ATE_HIGH;
-	
+
 	s8Ret = nm_drv_init(&u8WifiMode);
-	
+
 	return s8Ret;
 }
 
@@ -153,9 +153,9 @@ sint8 m2m_ate_init(void)
 sint8 m2m_ate_init_param(tstrM2mAteInit *pstrInit)
 {
 	sint8 s8Ret = M2M_SUCCESS;
-	
+
 	s8Ret = nm_drv_init((void*)&pstrInit->u8RxPwrMode);
-	
+
 	return s8Ret;
 }
 
@@ -164,7 +164,7 @@ sint8 m2m_ate_init_param(tstrM2mAteInit *pstrInit)
 	sint8 m2m_ate_deinit(void);
 
 @brief
-	De-Initialization of ATE firmware mode 
+	De-Initialization of ATE firmware mode
 
 @return
 	The function SHALL return 0 for success and a negative value otherwise.
@@ -192,7 +192,7 @@ sint8 m2m_ate_set_fw_state(uint8 u8State)
 {
 	sint8		s8Ret	= M2M_SUCCESS;
 	uint32_t	u32Val	= 0;
-	
+
 	if((M2M_ATE_FW_STATE_STOP == u8State) && (M2M_ATE_FW_STATE_STOP != gu8AteIsRunning))
 	{
 		u32Val = nm_read_reg(rNMI_GLB_RESET);
@@ -207,7 +207,7 @@ sint8 m2m_ate_set_fw_state(uint8 u8State)
 		u32Val = nm_read_reg(rNMI_BOOT_RESET_MUX);
 		u32Val |= (1 << 0);
 		s8Ret = nm_write_reg(rNMI_BOOT_RESET_MUX, u32Val);
-		if(M2M_SUCCESS != s8Ret) 
+		if(M2M_SUCCESS != s8Ret)
 		{
 			goto __EXIT;
 		}
@@ -217,25 +217,25 @@ sint8 m2m_ate_set_fw_state(uint8 u8State)
 		This will let the boot-rom code execute from RAM.
 		**/
 		s8Ret = nm_write_reg(0xc0000, 0x71);
-		if(M2M_SUCCESS != s8Ret) 
+		if(M2M_SUCCESS != s8Ret)
 		{
 			goto __EXIT;
 		}
 
 		u32Val = nm_read_reg(rNMI_GLB_RESET);
-		if((u32Val & (1ul << 10)) == (1ul << 10)) 
+		if((u32Val & (1ul << 10)) == (1ul << 10))
 		{
 			u32Val &= ~(1ul << 10);
 			s8Ret = nm_write_reg(rNMI_GLB_RESET, u32Val);
-			if(M2M_SUCCESS != s8Ret) 
+			if(M2M_SUCCESS != s8Ret)
 			{
 				goto __EXIT;
 			}
 		}
-		
+
 		u32Val |= (1ul << 10);
 		s8Ret = nm_write_reg(rNMI_GLB_RESET, u32Val);
-		if(M2M_SUCCESS != s8Ret) 
+		if(M2M_SUCCESS != s8Ret)
 		{
 			goto __EXIT;
 		}
@@ -245,7 +245,7 @@ sint8 m2m_ate_set_fw_state(uint8 u8State)
 	{
 		s8Ret = M2M_ATE_ERR_UNHANDLED_CASE;
 	}
-	
+
 __EXIT:
 	if((M2M_SUCCESS == s8Ret) && (M2M_ATE_FW_STATE_RUN == gu8AteIsRunning))
 	{
@@ -331,27 +331,27 @@ sint8 m2m_ate_start_tx(tstrM2mAteTx * strM2mAteTx)
 	uint8	u8LoopCntr = 0;
 	uint32_t 	val32;
 
-	
-	if(NULL == strM2mAteTx) 
+
+	if(NULL == strM2mAteTx)
 	{
 		s8Ret = M2M_ATE_ERR_VALIDATE;
 		goto __EXIT;
 	}
-	
-	if(0 != m2m_ate_get_tx_status()) 
+
+	if(0 != m2m_ate_get_tx_status())
 	{
 		s8Ret = M2M_ATE_ERR_TX_ALREADY_RUNNING;
 		goto __EXIT;
 	}
-	
+
 	if(0 != m2m_ate_get_rx_status())
 	{
 		s8Ret = M2M_ATE_ERR_RX_ALREADY_RUNNING;
 		goto __EXIT;
 	}
-	
-	if(	(strM2mAteTx->channel_num < M2M_ATE_CHANNEL_1) || 
-		(strM2mAteTx->channel_num > M2M_ATE_CHANNEL_14) || 
+
+	if(	(strM2mAteTx->channel_num < M2M_ATE_CHANNEL_1) ||
+		(strM2mAteTx->channel_num > M2M_ATE_CHANNEL_14) ||
 		(strM2mAteTx->tx_gain_sel < M2M_ATE_TX_GAIN_DYNAMIC)	||
 		(strM2mAteTx->tx_gain_sel > M2M_ATE_TX_GAIN_TELEC) ||
 		(strM2mAteTx->frame_len > M2M_ATE_MAX_FRAME_LENGTH) ||
@@ -361,7 +361,7 @@ sint8 m2m_ate_start_tx(tstrM2mAteTx * strM2mAteTx)
 		s8Ret = M2M_ATE_ERR_VALIDATE;
 		goto __EXIT;
 	}
-	
+
 	if(	(strM2mAteTx->duty_cycle < M2M_ATE_TX_DUTY_MAX_VALUE /*1*/) ||
 		(strM2mAteTx->duty_cycle > M2M_ATE_TX_DUTY_MIN_VALUE /*10*/ ) ||
 		(strM2mAteTx->dpd_ctrl < M2M_ATE_TX_DPD_DYNAMIC)	||
@@ -376,23 +376,23 @@ sint8 m2m_ate_start_tx(tstrM2mAteTx * strM2mAteTx)
 		s8Ret = M2M_ATE_ERR_VALIDATE;
 		goto __EXIT;
 	}
-	
-	for(u8LoopCntr=0; u8LoopCntr<M2M_ATE_MAX_NUM_OF_RATES; u8LoopCntr++) 
+
+	for(u8LoopCntr=0; u8LoopCntr<M2M_ATE_MAX_NUM_OF_RATES; u8LoopCntr++)
 	{
 		if(gaAteFwTxRates[u8LoopCntr] == strM2mAteTx->data_rate)
 		{
 			break;
 		}
 	}
-	
-	if(M2M_ATE_MAX_NUM_OF_RATES == u8LoopCntr) 
+
+	if(M2M_ATE_MAX_NUM_OF_RATES == u8LoopCntr)
 	{
 		s8Ret = M2M_ATE_ERR_VALIDATE;
 		goto __EXIT;
 	}
-	
 
-	
+
+
 	s8Ret += nm_write_reg(rBurstTx_NMI_USE_PMU, strM2mAteTx->use_pmu);
 	s8Ret += nm_write_reg(rBurstTx_NMI_TX_PHY_CONT, strM2mAteTx->phy_burst_tx);
 	s8Ret += nm_write_reg(rBurstTx_NMI_NUM_TX_FRAMES, strM2mAteTx->num_frames);
@@ -410,19 +410,19 @@ sint8 m2m_ate_start_tx(tstrM2mAteTx * strM2mAteTx)
 	val32	|= strM2mAteTx->peer_mac_addr[4]  << 8;
 	val32	|= strM2mAteTx->peer_mac_addr[3]  << 16;
 	nm_write_reg(rBurstTx_NMI_MAC_ADDR_LO_PEER, val32 );
-	
+
 	val32	 = strM2mAteTx->peer_mac_addr[2]  << 0;
 	val32	|= strM2mAteTx->peer_mac_addr[1] << 8;
 	val32	|= strM2mAteTx->peer_mac_addr[0] << 16;
 	nm_write_reg(rBurstTx_NMI_MAC_ADDR_HI_PEER, val32 );
 
-	if(M2M_SUCCESS == s8Ret) 
+	if(M2M_SUCCESS == s8Ret)
 	{
 		s8Ret += nm_write_reg(rInterrupt_CORTUS_0, 1);	/*Interrupt Cortus*/
 		m2m_ate_set_tx_status(1);
-		nm_bsp_sleep(200);  /*Recommended*/	
+		nm_bsp_sleep(200);  /*Recommended*/
 	}
-	
+
 __EXIT:
 	return s8Ret;
 }
@@ -442,13 +442,13 @@ __EXIT:
 sint8 m2m_ate_stop_tx(void)
 {
 	sint8	s8Ret = M2M_SUCCESS;
-	
+
 	s8Ret = nm_write_reg(rInterrupt_CORTUS_1, 1);
 	if(M2M_SUCCESS == s8Ret)
 	{
 		m2m_ate_set_tx_status(0);
 	}
-	
+
 	return s8Ret;
 }
 
@@ -487,24 +487,24 @@ sint8 m2m_ate_start_rx(tstrM2mAteRx * strM2mAteRxStr)
 {
 	sint8		s8Ret = M2M_SUCCESS;
 	uint32  	val32;
-	if(NULL == strM2mAteRxStr) 
+	if(NULL == strM2mAteRxStr)
 	{
 		s8Ret = M2M_ATE_ERR_VALIDATE;
 		goto __EXIT;
 	}
-	
-	if(0 != m2m_ate_get_tx_status()) 
+
+	if(0 != m2m_ate_get_tx_status())
 	{
 		s8Ret = M2M_ATE_ERR_TX_ALREADY_RUNNING;
 		goto __EXIT;
 	}
-	
+
 	if(0 != m2m_ate_get_rx_status())
 	{
 		s8Ret = M2M_ATE_ERR_RX_ALREADY_RUNNING;
 		goto __EXIT;
 	}
-	
+
 	if(	(strM2mAteRxStr->channel_num < M2M_ATE_CHANNEL_1) ||
 		(strM2mAteRxStr->channel_num > M2M_ATE_CHANNEL_14)||
 		(strM2mAteRxStr->use_pmu > M2M_ATE_PMU_ENABLE)
@@ -513,7 +513,7 @@ sint8 m2m_ate_start_rx(tstrM2mAteRx * strM2mAteRxStr)
 		s8Ret = M2M_ATE_ERR_VALIDATE;
 		goto __EXIT;
 	}
-	
+
 	s8Ret += nm_write_reg(rBurstTx_NMI_TEST_CH, strM2mAteRxStr->channel_num);
 	s8Ret += nm_write_reg(rBurstTx_NMI_USE_PMU, strM2mAteRxStr->use_pmu);
 	s8Ret += nm_write_reg(rBurstTx_NMI_TEST_XO_OFF, strM2mAteRxStr->xo_offset_x1000);
@@ -531,31 +531,31 @@ sint8 m2m_ate_start_rx(tstrM2mAteRx * strM2mAteRxStr)
 		val32	|= strM2mAteRxStr->self_mac_addr[0] << 16;
 		nm_write_reg(rBurstTx_NMI_MAC_ADDR_HI_SELF, val32 );
 	}
-	
+
 	if(strM2mAteRxStr->mac_filter_en_sa)
 	{
 		val32	 = strM2mAteRxStr->peer_mac_addr[5] << 0;
 		val32	|= strM2mAteRxStr->peer_mac_addr[4] << 8;
 		val32	|= strM2mAteRxStr->peer_mac_addr[3] << 16;
 		nm_write_reg(rBurstTx_NMI_MAC_ADDR_LO_SA, val32 );
-	
+
 		val32	 = strM2mAteRxStr->peer_mac_addr[2] << 0;
 		val32	|= strM2mAteRxStr->peer_mac_addr[1] << 8;
 		val32	|= strM2mAteRxStr->peer_mac_addr[0] << 16;
 		nm_write_reg(rBurstTx_NMI_MAC_ADDR_HI_SA, val32 );
 	}
-	
+
 	nm_write_reg(rBurstTx_NMI_MAC_FILTER_ENABLE_DA, strM2mAteRxStr->mac_filter_en_da);
 	nm_write_reg(rBurstTx_NMI_MAC_FILTER_ENABLE_SA, strM2mAteRxStr->mac_filter_en_sa);
 	nm_write_reg(rBurstTx_NMI_SET_SELF_MAC_ADDR, strM2mAteRxStr->override_self_mac_addr);
-	
-	if(M2M_SUCCESS == s8Ret) 
+
+	if(M2M_SUCCESS == s8Ret)
 	{
 		s8Ret += nm_write_reg(rInterrupt_CORTUS_2, 1);	/*Interrupt Cortus*/
 		m2m_ate_set_rx_status(1);
-		nm_bsp_sleep(10);  /*Recommended*/	
+		nm_bsp_sleep(10);  /*Recommended*/
 	}
-	
+
 __EXIT:
 	return s8Ret;
 }
@@ -575,7 +575,7 @@ __EXIT:
 sint8 m2m_ate_stop_rx(void)
 {
 	m2m_ate_set_rx_status(0);
-	nm_bsp_sleep(200);  /*Recommended*/	
+	nm_bsp_sleep(200);  /*Recommended*/
 	return M2M_SUCCESS;
 }
 
@@ -596,25 +596,25 @@ sint8 m2m_ate_stop_rx(void)
 sint8 m2m_ate_read_rx_status(tstrM2mAteRxStatus *strM2mAteRxStatus)
 {
 	sint8	s8Ret = M2M_SUCCESS;
-	
-	if(NULL == strM2mAteRxStatus) 
+
+	if(NULL == strM2mAteRxStatus)
 	{
 		s8Ret = M2M_ATE_ERR_VALIDATE;
 		goto __EXIT;
 	}
-	
-	if(0 != m2m_ate_get_tx_status()) 
+
+	if(0 != m2m_ate_get_tx_status())
 	{
 		s8Ret = M2M_ATE_ERR_TX_ALREADY_RUNNING;
 		goto __EXIT;
 	}
 
-	if (nm_read_reg(rBurstTx_NMI_MAC_FILTER_ENABLE_DA) || nm_read_reg(rBurstTx_NMI_MAC_FILTER_ENABLE_SA)) 
+	if (nm_read_reg(rBurstTx_NMI_MAC_FILTER_ENABLE_DA) || nm_read_reg(rBurstTx_NMI_MAC_FILTER_ENABLE_SA))
 	{
 		strM2mAteRxStatus->num_rx_pkts 		= 		nm_read_reg(rBurstTx_NMI_RX_PKT_CNT_SUCCESS) + nm_read_reg(rBurstTx_NMI_RX_PKT_CNT_FAIL);
 		strM2mAteRxStatus->num_good_pkts 	= 		nm_read_reg(rBurstTx_NMI_RX_PKT_CNT_SUCCESS);
 		strM2mAteRxStatus->num_err_pkts 	= 		nm_read_reg(rBurstTx_NMI_RX_PKT_CNT_FAIL);
-	} 
+	}
 	else
 	{
 		strM2mAteRxStatus->num_rx_pkts = nm_read_reg(rBurstRx_NMI_RX_ALL_PKTS_CONT) + nm_read_reg(0x989c);
@@ -663,14 +663,14 @@ sint8 m2m_ate_set_dig_gain(double dGaindB)
 sint8 m2m_ate_get_dig_gain(double * dGaindB)
 {
 	uint32 dGain, val32;
-	
+
 	if(!dGaindB) return M2M_ERR_INVALID_ARG;
-	
+
 	val32 = nm_read_reg(0x160cd0);
-	
+
 	dGain = (val32 >> 0) & 0x1ffful;
 	*dGaindB = 20.0*log10((double)dGain / 1024.0);
-	
+
 	return M2M_SUCCESS;
 }
 /*!
@@ -718,14 +718,14 @@ sint8 m2m_ate_get_pa_gain(double *paGaindB)
 {
 	uint32 val32, paGain;
 	uint32 m_cmbPAGainStep;
-	
-	if(!paGaindB) 
+
+	if(!paGaindB)
 		return M2M_ERR_INVALID_ARG;
-	
+
 	val32 = nm_read_reg(0x1e9c);
-	
+
 	paGain = (val32 >> 8) & 0x3f;
-	
+
 	switch(paGain){
 		case 0x1:
 		m_cmbPAGainStep = 5;
@@ -749,7 +749,7 @@ sint8 m2m_ate_get_pa_gain(double *paGaindB)
 		m_cmbPAGainStep = 0;
 		break;
 	}
-	
+
 	*paGaindB = 18 - m_cmbPAGainStep*3;
 
 	return M2M_SUCCESS;
@@ -769,13 +769,13 @@ sint8 m2m_ate_get_pa_gain(double *paGaindB)
 sint8 m2m_ate_get_ppa_gain(double * ppaGaindB)
 {
 	uint32 val32, ppaGain, m_cmbPPAGainStep;
-	
+
 	if(!ppaGaindB) return M2M_ERR_INVALID_ARG;
 
 	val32 = nm_read_reg(0x1ea0);
-		
+
 	ppaGain = (val32 >> 5) & 0x7;
-	
+
 	switch(ppaGain){
 		case 0x1:
 		m_cmbPPAGainStep = 2;
@@ -790,10 +790,10 @@ sint8 m2m_ate_get_ppa_gain(double * ppaGaindB)
 		m_cmbPPAGainStep = 3;
 		break;
 	}
-	
+
 	*ppaGaindB = 9 - m_cmbPPAGainStep*3;
-			
-	
+
+
 	return M2M_SUCCESS;
 }
 /*!
@@ -810,16 +810,16 @@ sint8 m2m_ate_get_ppa_gain(double * ppaGaindB)
 */
 sint8 m2m_ate_get_tot_gain(double * totGaindB)
 {
-	double dGaindB, paGaindB, ppaGaindB;	
-	
+	double dGaindB, paGaindB, ppaGaindB;
+
 	if(!totGaindB) return M2M_ERR_INVALID_ARG;
-	
+
 	m2m_ate_get_pa_gain(&paGaindB);
 	m2m_ate_get_ppa_gain(&ppaGaindB);
 	m2m_ate_get_dig_gain(&dGaindB);
-	
+
 	*totGaindB = dGaindB + paGaindB + ppaGaindB;
-	
+
 	return M2M_SUCCESS;
 }
 

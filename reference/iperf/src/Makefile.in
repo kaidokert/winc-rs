@@ -157,7 +157,7 @@ libiperf_la_OBJECTS = $(am_libiperf_la_OBJECTS)
 AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
 am__v_lt_0 = --silent
-am__v_lt_1 = 
+am__v_lt_1 =
 am_iperf3_OBJECTS = iperf3-main.$(OBJEXT)
 iperf3_OBJECTS = $(am_iperf3_OBJECTS)
 iperf3_DEPENDENCIES = libiperf.la
@@ -234,11 +234,11 @@ am__v_P_1 = :
 AM_V_GEN = $(am__v_GEN_@AM_V@)
 am__v_GEN_ = $(am__v_GEN_@AM_DEFAULT_V@)
 am__v_GEN_0 = @echo "  GEN     " $@;
-am__v_GEN_1 = 
+am__v_GEN_1 =
 AM_V_at = $(am__v_at_@AM_V@)
 am__v_at_ = $(am__v_at_@AM_DEFAULT_V@)
 am__v_at_0 = @
-am__v_at_1 = 
+am__v_at_1 =
 DEFAULT_INCLUDES = -I.@am__isrc@
 depcomp = $(SHELL) $(top_srcdir)/config/depcomp
 am__maybe_remake_depfiles = depfiles
@@ -282,7 +282,7 @@ LTCOMPILE = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
 AM_V_CC = $(am__v_CC_@AM_V@)
 am__v_CC_ = $(am__v_CC_@AM_DEFAULT_V@)
 am__v_CC_0 = @echo "  CC      " $@;
-am__v_CC_1 = 
+am__v_CC_1 =
 CCLD = $(CC)
 LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
@@ -290,7 +290,7 @@ LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
 AM_V_CCLD = $(am__v_CCLD_@AM_V@)
 am__v_CCLD_ = $(am__v_CCLD_@AM_DEFAULT_V@)
 am__v_CCLD_0 = @echo "  CCLD    " $@;
-am__v_CCLD_1 = 
+am__v_CCLD_1 =
 SOURCES = $(libiperf_la_SOURCES) $(iperf3_SOURCES) \
 	$(iperf3_profile_SOURCES) $(t_api_SOURCES) $(t_auth_SOURCES) \
 	$(t_timer_SOURCES) $(t_units_SOURCES) $(t_uuid_SOURCES)
@@ -710,23 +710,23 @@ iperf3_LDFLAGS = -g
 # Specify the sources and various flags for the test cases
 t_timer_SOURCES = t_timer.c
 t_timer_CFLAGS = -g
-t_timer_LDFLAGS = 
+t_timer_LDFLAGS =
 t_timer_LDADD = libiperf.la
 t_units_SOURCES = t_units.c
 t_units_CFLAGS = -g
-t_units_LDFLAGS = 
+t_units_LDFLAGS =
 t_units_LDADD = libiperf.la
 t_uuid_SOURCES = t_uuid.c
 t_uuid_CFLAGS = -g
-t_uuid_LDFLAGS = 
+t_uuid_LDFLAGS =
 t_uuid_LDADD = libiperf.la
 t_api_SOURCES = t_api.c
 t_api_CFLAGS = -g
-t_api_LDFLAGS = 
+t_api_LDFLAGS =
 t_api_LDADD = libiperf.la
 t_auth_SOURCES = t_auth.c
 t_auth_CFLAGS = -g
-t_auth_LDFLAGS = 
+t_auth_LDFLAGS =
 t_auth_LDADD = libiperf.la
 dist_man_MANS = iperf3.1 libiperf.3
 all: iperf_config.h
@@ -771,7 +771,7 @@ iperf_config.h: stamp-h1
 stamp-h1: $(srcdir)/iperf_config.h.in $(top_builddir)/config.status
 	$(AM_V_at)rm -f stamp-h1
 	$(AM_V_GEN)cd $(top_builddir) && $(SHELL) ./config.status src/iperf_config.h
-$(srcdir)/iperf_config.h.in: @MAINTAINER_MODE_TRUE@ $(am__configure_deps) 
+$(srcdir)/iperf_config.h.in: @MAINTAINER_MODE_TRUE@ $(am__configure_deps)
 	$(AM_V_GEN)($(am__cd) $(top_srcdir) && $(AUTOHEADER))
 	$(AM_V_at)rm -f stamp-h1
 	$(AM_V_at)touch $@
@@ -862,34 +862,34 @@ clean-libLTLIBRARIES:
 	echo rm -f $${locs}; \
 	$(am__rm_f) $${locs}
 
-libiperf.la: $(libiperf_la_OBJECTS) $(libiperf_la_DEPENDENCIES) $(EXTRA_libiperf_la_DEPENDENCIES) 
+libiperf.la: $(libiperf_la_OBJECTS) $(libiperf_la_DEPENDENCIES) $(EXTRA_libiperf_la_DEPENDENCIES)
 	$(AM_V_CCLD)$(LINK) -rpath $(libdir) $(libiperf_la_OBJECTS) $(libiperf_la_LIBADD) $(LIBS)
 
-iperf3$(EXEEXT): $(iperf3_OBJECTS) $(iperf3_DEPENDENCIES) $(EXTRA_iperf3_DEPENDENCIES) 
+iperf3$(EXEEXT): $(iperf3_OBJECTS) $(iperf3_DEPENDENCIES) $(EXTRA_iperf3_DEPENDENCIES)
 	@rm -f iperf3$(EXEEXT)
 	$(AM_V_CCLD)$(iperf3_LINK) $(iperf3_OBJECTS) $(iperf3_LDADD) $(LIBS)
 
-iperf3_profile$(EXEEXT): $(iperf3_profile_OBJECTS) $(iperf3_profile_DEPENDENCIES) $(EXTRA_iperf3_profile_DEPENDENCIES) 
+iperf3_profile$(EXEEXT): $(iperf3_profile_OBJECTS) $(iperf3_profile_DEPENDENCIES) $(EXTRA_iperf3_profile_DEPENDENCIES)
 	@rm -f iperf3_profile$(EXEEXT)
 	$(AM_V_CCLD)$(iperf3_profile_LINK) $(iperf3_profile_OBJECTS) $(iperf3_profile_LDADD) $(LIBS)
 
-t_api$(EXEEXT): $(t_api_OBJECTS) $(t_api_DEPENDENCIES) $(EXTRA_t_api_DEPENDENCIES) 
+t_api$(EXEEXT): $(t_api_OBJECTS) $(t_api_DEPENDENCIES) $(EXTRA_t_api_DEPENDENCIES)
 	@rm -f t_api$(EXEEXT)
 	$(AM_V_CCLD)$(t_api_LINK) $(t_api_OBJECTS) $(t_api_LDADD) $(LIBS)
 
-t_auth$(EXEEXT): $(t_auth_OBJECTS) $(t_auth_DEPENDENCIES) $(EXTRA_t_auth_DEPENDENCIES) 
+t_auth$(EXEEXT): $(t_auth_OBJECTS) $(t_auth_DEPENDENCIES) $(EXTRA_t_auth_DEPENDENCIES)
 	@rm -f t_auth$(EXEEXT)
 	$(AM_V_CCLD)$(t_auth_LINK) $(t_auth_OBJECTS) $(t_auth_LDADD) $(LIBS)
 
-t_timer$(EXEEXT): $(t_timer_OBJECTS) $(t_timer_DEPENDENCIES) $(EXTRA_t_timer_DEPENDENCIES) 
+t_timer$(EXEEXT): $(t_timer_OBJECTS) $(t_timer_DEPENDENCIES) $(EXTRA_t_timer_DEPENDENCIES)
 	@rm -f t_timer$(EXEEXT)
 	$(AM_V_CCLD)$(t_timer_LINK) $(t_timer_OBJECTS) $(t_timer_LDADD) $(LIBS)
 
-t_units$(EXEEXT): $(t_units_OBJECTS) $(t_units_DEPENDENCIES) $(EXTRA_t_units_DEPENDENCIES) 
+t_units$(EXEEXT): $(t_units_OBJECTS) $(t_units_DEPENDENCIES) $(EXTRA_t_units_DEPENDENCIES)
 	@rm -f t_units$(EXEEXT)
 	$(AM_V_CCLD)$(t_units_LINK) $(t_units_OBJECTS) $(t_units_LDADD) $(LIBS)
 
-t_uuid$(EXEEXT): $(t_uuid_OBJECTS) $(t_uuid_DEPENDENCIES) $(EXTRA_t_uuid_DEPENDENCIES) 
+t_uuid$(EXEEXT): $(t_uuid_OBJECTS) $(t_uuid_DEPENDENCIES) $(EXTRA_t_uuid_DEPENDENCIES)
 	@rm -f t_uuid$(EXEEXT)
 	$(AM_V_CCLD)$(t_uuid_LINK) $(t_uuid_OBJECTS) $(t_uuid_LDADD) $(LIBS)
 
@@ -1631,7 +1631,7 @@ echo "information.  Thanks.";                                                \
 	fi;								\
 	$$success || exit 1
 
-check-TESTS: 
+check-TESTS:
 	@$(am__rm_f) $(RECHECK_LOGS)
 	@$(am__rm_f) $(RECHECK_LOGS:.log=.trs)
 	@$(am__rm_f) $(TEST_SUITE_LOG)
@@ -1640,7 +1640,7 @@ check-TESTS:
 	log_list=`echo $$log_list`; \
 	$(MAKE) $(AM_MAKEFLAGS) $(TEST_SUITE_LOG) TEST_LOGS="$$log_list"; \
 	exit $$?;
-recheck: all 
+recheck: all
 	@$(am__rm_f) $(TEST_SUITE_LOG)
 	@set +e; $(am__set_TESTS_bases); \
 	bases=`for i in $$bases; do echo $$i; done \

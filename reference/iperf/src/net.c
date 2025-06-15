@@ -429,7 +429,7 @@ Nrecv(int fd, char *buf, size_t count, int prot, int sock_opt)
             break;
 
         total += r;
-        nleft -= r; 
+        nleft -= r;
         buf += r;
 
         /*

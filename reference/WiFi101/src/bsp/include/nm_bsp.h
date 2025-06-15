@@ -38,7 +38,7 @@
  * \asf_license_stop
  *
  */
- 
+
 /** \defgroup nm_bsp BSP
  */
 /**@defgroup  BSPDefine Defines
@@ -49,12 +49,12 @@
 #define _NM_BSP_H_
 
 #define NMI_API
-/*!< 
+/*!<
 *        Attribute used to define memory section to map Functions in host memory.
 */
 #define CONST const
 
-/*!< 
+/*!<
 *     Used for code portability.
 */
 
@@ -250,8 +250,8 @@ void nm_bsp_register_isr(tpfNmBspIsr pfIsr);
  * @fn           void nm_bsp_interrupt_ctrl(uint8);
  * @brief        Enable/Disable interrupts
  * @param [in]   u8Enable
- *               '0' disable interrupts. '1' enable interrupts 
- * @see          tpfNmBspIsr           
+ *               '0' disable interrupts. '1' enable interrupts
+ * @see          tpfNmBspIsr
  * @note         Implementation of this function is host dependent and called by HIF layer.
  * @return       None
 

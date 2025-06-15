@@ -58,7 +58,7 @@ private:
   void handleEvent(SOCKET sock, uint8 u8Msg, void *pvMsg);
   int fillRecvBuffer(SOCKET sock);
 
-  struct 
+  struct
   {
     uint8_t state;
     SOCKET parent;

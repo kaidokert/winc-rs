@@ -38,7 +38,7 @@
  * \asf_license_stop
  *
  */
- 
+
 #ifndef __ECC_TYPES_H__
 #define __ECC_TYPES_H__
 
@@ -55,7 +55,7 @@ MACROS
 
 
 #define ECC_LARGEST_CURVE_SIZE						(32)
-/*!<	
+/*!<
 	The size of the the largest supported EC. For now, assuming
 	the 256-bit EC is the largest supported curve type.
 */
@@ -117,7 +117,7 @@ typedef enum EcNamedCurve{
 @struct	\
 	tstrECPoint
 
-@brief	Elliptic Curve point representation	
+@brief	Elliptic Curve point representation
 */
 typedef struct EcPoint{
 	uint8	X[ECC_POINT_MAX_SIZE];
@@ -142,7 +142,7 @@ typedef struct EcPoint{
 /*!
 @struct	\
 	tstrECDomainParam
-	
+
 @brief	ECC Curve Domain Parameters
 
 	The structure defines the ECC domain parameters for curves defined over prime finite fields.

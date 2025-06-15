@@ -94,7 +94,7 @@ static sint8 spi_rw(uint8* pu8Mosi, uint8* pu8Miso, uint16 u16Sz)
 
 	while (u16Sz) {
 		*pu8Miso = WINC1501_SPI.transfer(*pu8Mosi);
-			
+
 		u16Sz--;
 		if (!u8SkipMiso)
 			pu8Miso++;
@@ -124,7 +124,7 @@ sint8 nm_bus_init(void * /* pvInitValue */)
 
 	/* Configure SPI peripheral. */
 	WINC1501_SPI.begin();
-	
+
 	/* Configure CS PIN. */
 	pinMode(gi8Winc1501CsPin, OUTPUT);
 	digitalWrite(gi8Winc1501CsPin, HIGH);
@@ -197,4 +197,3 @@ sint8 nm_bus_reinit(void* /* config */)
 }
 
 } // extern "C"
-

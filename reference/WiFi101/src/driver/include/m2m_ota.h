@@ -58,14 +58,14 @@ INCLUDES
 /*!
 @typedef void (*tpfOtaNotifCb) (tstrOtaUpdateInfo *);
 
-@brief 	
+@brief
 		A callback to get notification about a potential OTA update.
- 
-@param[in] pstrOtaUpdateInfo 
+
+@param[in] pstrOtaUpdateInfo
 		A structure to provide notification payload.
-@sa 
+@sa
 	tstrOtaUpdateInfo
-@warning 
+@warning
 		The notification is not supported (Not implemented yet)
 
 */
@@ -75,13 +75,13 @@ typedef void (*tpfOtaNotifCb) (tstrOtaUpdateInfo * pstrOtaUpdateInfo);
 /*!
 @typedef void (*tpfOtaUpdateCb) (uint8 u8OtaUpdateStatusType ,uint8 u8OtaUpdateStatus);
 
-@brief 
+@brief
    A callback to get OTA status update, the callback provide the status type and its status.
-   The OTA callback provides the download status, the switch to the downloaded firmware status and roll-back status. 
- 
+   The OTA callback provides the download status, the switch to the downloaded firmware status and roll-back status.
+
 @param[in] u8OtaUpdateStatusType Possible values are listed in tenuOtaUpdateStatusType.
 
-@param[in] u8OtaUpdateStatus Possible values are listed as enumerated by @ref tenuOtaUpdateStatus. 
+@param[in] u8OtaUpdateStatus Possible values are listed as enumerated by @ref tenuOtaUpdateStatus.
 
 @see
 	tenuOtaUpdateStatusType
@@ -111,16 +111,16 @@ FUNCTION PROTOTYPES
 
 @param [in]	pfOtaUpdateCb
 				OTA Update callback function
-				
-@param [in]	pfOtaNotifCb
-				OTA notify callback function 
 
-@return		
+@param [in]	pfOtaNotifCb
+				OTA notify callback function
+
+@return
 	The function returns @ref M2M_SUCCESS for successful operations  and a negative value otherwise.
 */
 NMI_API sint8  m2m_ota_init(tpfOtaUpdateCb  pfOtaUpdateCb,tpfOtaNotifCb  pfOtaNotifCb);
  /**@}*/
- 
+
  /** @defgroup OtaNotifStFn m2m_ota_notif_set_url
  *  @ingroup WLANAPI
  * Set the OTA notification server URL, the functions need to be called before any check for update
@@ -132,12 +132,12 @@ NMI_API sint8  m2m_ota_init(tpfOtaUpdateCb  pfOtaUpdateCb,tpfOtaNotifCb  pfOtaNo
 
 @param [in]	u8Url
 			 Set the OTA notification server URL, the functions need to be called before any check for update.
-@warning 
+@warning
 			Calling m2m_ota_init is required
 			Notification Server is not supported in the current version (function is not implemented)
-@see    
-			m2m_ota_init			
-@return		
+@see
+			m2m_ota_init
+@return
 	The function returns @ref M2M_SUCCESS for successful operations  and a negative value otherwise.
 */
 NMI_API sint8  m2m_ota_notif_set_url(uint8 * u8Url);
@@ -153,13 +153,13 @@ NMI_API sint8  m2m_ota_notif_set_url(uint8 * u8Url);
 @fn	\
 	NMI_API sint8  m2m_ota_notif_check_for_update(void);
 
-@warning 
+@warning
 		Function is not implemented (not supported at the current version)
-		
-@sa   
+
+@sa
 			m2m_ota_init
 			m2m_ota_notif_set_url
-@return		
+@return
 	The function returns @ref M2M_SUCCESS for successful operations  and a negative value otherwise.
 */
 NMI_API sint8  m2m_ota_notif_check_for_update(void);
@@ -177,19 +177,19 @@ NMI_API sint8  m2m_ota_notif_check_for_update(void);
 @param [in]	u32Period
 			Period in days
 
-@sa 
+@sa
 		m2m_ota_init
 		m2m_ota_notif_check_for_update
 		m2m_ota_notif_set_url
-@return		
+@return
 	The function returns @ref M2M_SUCCESS for successful operations  and a negative value otherwise.
 */
 NMI_API sint8 m2m_ota_notif_sched(uint32 u32Period);
   /**@}*/
 /** @defgroup OtaStartUpdatefn m2m_ota_start_update
 *  @ingroup WLANAPI
-*	Request OTA start update using the downloaded URL, the OTA module will download the OTA image and ensure integrity of the image, 
-*   and update the validity of the image in control structure. Switching to that image requires calling @ref m2m_ota_switch_firmware API. 
+*	Request OTA start update using the downloaded URL, the OTA module will download the OTA image and ensure integrity of the image,
+*   and update the validity of the image in control structure. Switching to that image requires calling @ref m2m_ota_switch_firmware API.
 *   As a prerequisite @ref m2m_ota_init should be called before using @ref m2m_ota_start().
 */
   /**@{*/
@@ -202,14 +202,14 @@ NMI_API sint8 m2m_ota_notif_sched(uint32 u32Period);
 
 @warning
 	Calling this API does not guarantee OTA WINC image update, It depends on the connection with the download server and the validity of the image.
-	If the API response is failure this may invalidate the roll-back image if it was previously valid, since the WINC does not have any internal memory 
+	If the API response is failure this may invalidate the roll-back image if it was previously valid, since the WINC does not have any internal memory
 	except the flash roll-back image location to validate the downloaded image from
-				
-@see		
+
+@see
 		m2m_ota_init
 		tpfOtaUpdateCb
-		
-@return		
+
+@return
 	The function returns @ref M2M_SUCCESS for successful operations  and a negative value otherwise.
 \section Example
    The example shows an example of how the OTA image update is carried out.
@@ -245,10 +245,10 @@ int main (void)
 	tstrWifiInitParam param;
 	tstr1xAuthCredentials gstrCred1x    = AUTH_CREDENTIALS;
 	nm_bsp_init();
-	
+
 	m2m_memset((uint8*)&param, 0, sizeof(param));
 	param.pfAppWifiCb = wifi_event_cb;
-	
+
 	//Initialize the WINC Driver
 	ret = m2m_wifi_init(&param);
 	if (M2M_SUCCESS != ret)
@@ -263,23 +263,23 @@ int main (void)
 
 	while(1)
 	{
-		
-		//Handle the app state machine plus the WINC event handler                                                                     
+
+		//Handle the app state machine plus the WINC event handler
 		while(m2m_wifi_handle_events(NULL) != M2M_SUCCESS) {
-			
+
 		}
-		
+
 	}
 }
-@endcode		
+@endcode
 
 */
 NMI_API sint8 m2m_ota_start_update(uint8 * u8DownloadUrl);
     /**@}*/
 /** @defgroup OtaStartUpdatefn m2m_ota_start_update_crt
 *  @ingroup WLANAPI
-*	Request OTA start for cortus application image using the downloaded URL, the OTA module will download the OTA image and ensure integrity of the image, 
-*   and update the validity of the image in control structure. Switching to that image requires calling @ref m2m_ota_switch_crt API. 
+*	Request OTA start for cortus application image using the downloaded URL, the OTA module will download the OTA image and ensure integrity of the image,
+*   and update the validity of the image in control structure. Switching to that image requires calling @ref m2m_ota_switch_crt API.
 *   As a prerequisite @ref m2m_ota_init should be called before using @ref m2m_ota_start_update_crt().
 */
   /**@{*/
@@ -291,14 +291,14 @@ NMI_API sint8 m2m_ota_start_update(uint8 * u8DownloadUrl);
 		The cortus application image url.
 @warning
 	Calling this API does not guarantee cortus application image update, It depends on the connection with the download server and the validity of the image.
-	If the API response is failure this may invalidate the roll-back image if it was previously valid, since the WINC does not have any internal memory 
+	If the API response is failure this may invalidate the roll-back image if it was previously valid, since the WINC does not have any internal memory
 	except the flash roll-back image location to validate the downloaded image from
-				
-@see		
+
+@see
 		m2m_ota_init
 		tpfOtaUpdateCb
-		
-@return		
+
+@return
 	The function returns @ref M2M_SUCCESS for successful operations  and a negative value otherwise.
 */
 NMI_API sint8 m2m_ota_start_update_crt(uint8 * u8DownloadUrl);
@@ -316,11 +316,11 @@ NMI_API sint8 m2m_ota_start_update_crt(uint8 * u8DownloadUrl);
 @fn	\
 	NMI_API sint8 m2m_ota_rollback(void);
 
-@sa 
+@sa
 	m2m_ota_init
-	m2m_ota_start_update	
+	m2m_ota_start_update
 
-@return		
+@return
 	The function returns @ref M2M_SUCCESS for successful operations  and a negative value otherwise.
 */
 NMI_API sint8 m2m_ota_rollback(void);
@@ -338,11 +338,11 @@ NMI_API sint8 m2m_ota_rollback(void);
 @fn	\
 	NMI_API sint8 m2m_ota_rollback_crt(void);
 
-@sa 
+@sa
 	m2m_ota_init
-	m2m_ota_start_update_crt	
+	m2m_ota_start_update_crt
 
-@return		
+@return
 	The function returns @ref M2M_SUCCESS for successful operations  and a negative value otherwise.
 */
 NMI_API sint8 m2m_ota_rollback_crt(void);
@@ -375,13 +375,13 @@ NMI_API sint8 m2m_ota_abort(void);
 	NMI_API sint8 m2m_ota_switch_firmware(void);
 
 @warning
-   It is important to note that if the API succeeds, system restart is required (re-initializing the driver with hardware reset) updating the host driver version may be required 
+   It is important to note that if the API succeeds, system restart is required (re-initializing the driver with hardware reset) updating the host driver version may be required
    if it does not match the minimum driver version supported by the WINC's firmware.
-@sa 
+@sa
 	m2m_ota_init
 	m2m_ota_start_update
 
-@return		
+@return
 	The function returns @ref M2M_SUCCESS for successful operations  and a negative value otherwise.
 */
 NMI_API sint8 m2m_ota_switch_firmware(void);
@@ -398,13 +398,13 @@ NMI_API sint8 m2m_ota_switch_firmware(void);
 	NMI_API sint8 m2m_ota_switch_firmware(void);
 
 @warning
-   It is important to note that if the API succeeds, system restart is required (re-initializing the driver with hardware reset) updating the host driver version may be required 
+   It is important to note that if the API succeeds, system restart is required (re-initializing the driver with hardware reset) updating the host driver version may be required
    if it does not match the minimum driver version supported by the WINC's firmware.
-@sa 
+@sa
 	m2m_ota_init
 	m2m_ota_start_update_crt
 
-@return		
+@return
 	The function returns @ref M2M_SUCCESS for successful operations  and a negative value otherwise.
 */
 NMI_API sint8 m2m_ota_switch_crt(void);

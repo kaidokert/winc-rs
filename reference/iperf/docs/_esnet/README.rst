@@ -21,7 +21,7 @@ Installation
 6. ``sphinx-quickstart``
 7. ``ln -s ../_esnet/static _static/esnet``
 8. edit ``conf.py`` as described in the next section
-  
+
 Editing conf.py
 ^^^^^^^^^^^^^^^
 

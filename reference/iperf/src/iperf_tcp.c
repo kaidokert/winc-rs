@@ -510,7 +510,7 @@ iperf_tcp_connect(struct iperf_test *test)
     if (sndbuf_actual_item == NULL) {
 	cJSON_AddNumberToObject(test->json_start, "sndbuf_actual", sndbuf_actual);
     }
-        
+
     cJSON *rcvbuf_actual_item = cJSON_GetObjectItem(test->json_start, "rcvbuf_actual");
     if (rcvbuf_actual_item == NULL) {
 	cJSON_AddNumberToObject(test->json_start, "rcvbuf_actual", rcvbuf_actual);

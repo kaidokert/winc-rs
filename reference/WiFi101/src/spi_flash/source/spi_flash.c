@@ -67,7 +67,7 @@
 #define CORTUS_SHARE_MEM_BASE	(0x60000000UL)
 #define NMI_SPI_FLASH_ADDR		(0x111c)
 /***********************************************************
-SPI Flash DMA 
+SPI Flash DMA
 ***********************************************************/
 #define GET_UINT32(X,Y)			(X[0+Y] + ((uint32)X[1+Y]<<8) + ((uint32)X[2+Y]<<16) +((uint32)X[3+Y]<<24))
 #define SPI_FLASH_BASE			(0x10200)
@@ -95,7 +95,7 @@ SPI Flash DMA
 *	@note		Compatible with MX25L6465E
 *	@author		M. Abdelmawla
 *	@version	1.0
-*/ 
+*/
 static sint8 spi_flash_read_status_reg(uint8 * val)
 {
 	sint8 ret = M2M_SUCCESS;
@@ -129,7 +129,7 @@ static sint8 spi_flash_read_status_reg(uint8 * val)
 *	@note		Compatible with MX25L6465E
 *	@author		M. Abdelmawla
 *	@version	1.0
-*/ 
+*/
 static uint8 spi_flash_read_security_reg(void)
 {
 	uint8	cmd[1];
@@ -160,7 +160,7 @@ static uint8 spi_flash_read_security_reg(void)
 *	@note		Compatible with MX25L6465E
 *	@author		M. Abdelmawla
 *	@version	1.0
-*/ 
+*/
 static sint8 spi_flash_gang_unblock(void)
 {
 	uint8	cmd[1];
@@ -190,7 +190,7 @@ static sint8 spi_flash_gang_unblock(void)
 *	@note		Compatible with MX25L6465E
 *	@author		M. Abdelmawla
 *	@version	1.0
-*/ 
+*/
 static sint8 spi_flash_clear_security_flags(void)
 {
 	uint8 cmd[1];
@@ -228,7 +228,7 @@ static sint8 spi_flash_clear_security_flags(void)
 *	@note		Compatible with MX25L6465E and should be working with other types
 *	@author		M. Abdelmawla
 *	@version	1.0
-*/ 
+*/
 static sint8 spi_flash_load_to_cortus_mem(uint32 u32MemAdr, uint32 u32FlashAdr, uint32 u32Sz)
 {
 	uint8 cmd[5];
@@ -270,7 +270,7 @@ static sint8 spi_flash_load_to_cortus_mem(uint32 u32MemAdr, uint32 u32FlashAdr, 
 *	@note		Compatible with MX25L6465E and should be working with other types
 *	@author		M. Abdelmawla
 *	@version	1.0
-*/ 
+*/
 static sint8 spi_flash_sector_erase(uint32 u32FlashAdr)
 {
 	uint8 cmd[4];
@@ -308,7 +308,7 @@ static sint8 spi_flash_sector_erase(uint32 u32FlashAdr)
 *	@note		Compatible with MX25L6465E and should be working with other types
 *	@author		M. Abdelmawla
 *	@version	1.0
-*/ 
+*/
 static sint8 spi_flash_write_enable(void)
 {
 	uint8 cmd[1];
@@ -373,7 +373,7 @@ static sint8 spi_flash_write_disable(void)
 *	@note		Compatible with MX25L6465E and should be working with other types
 *	@author		M. Abdelmawla
 *	@version	1.0
-*/ 
+*/
 static sint8 spi_flash_page_program(uint32 u32MemAdr, uint32 u32FlashAdr, uint32 u32Sz)
 {
 	uint8 cmd[4];
@@ -416,7 +416,7 @@ static sint8 spi_flash_page_program(uint32 u32MemAdr, uint32 u32FlashAdr, uint32
 *	@note		Data size must be < 64KB (limitation imposed by the bus wrapper)
 *	@author		M. Abdelmawla
 *	@version	1.0
-*/ 
+*/
 static sint8 spi_flash_read_internal(uint8 *pu8Buf, uint32 u32Addr, uint32 u32Sz)
 {
 	sint8 ret = M2M_SUCCESS;
@@ -426,7 +426,7 @@ static sint8 spi_flash_read_internal(uint8 *pu8Buf, uint32 u32Addr, uint32 u32Sz
 	ret = nm_read_block(HOST_SHARE_MEM_BASE, pu8Buf, u32Sz);
 ERR:
 	return ret;
-} 
+}
 
 /**
 *	@fn			spi_flash_pp
@@ -556,9 +556,9 @@ static void spi_flash_leave_low_power_mode(void) {
 sint8 spi_flash_enable(uint8 enable)
 {
 	sint8 s8Ret = M2M_SUCCESS;
-	if(REV(nmi_get_chipid()) >= REV_3A0) {		
+	if(REV(nmi_get_chipid()) >= REV_3A0) {
 		uint32 u32Val;
-		
+
 		/* Enable pinmux to SPI flash. */
 		s8Ret = nm_read_reg_with_ret(0x1410, &u32Val);
 		if(s8Ret != M2M_SUCCESS) {
@@ -594,7 +594,7 @@ ERR1:
 *	@note		Data size is limited by the SPI flash size only
 *	@author		M. Abdelmawla
 *	@version	1.0
-*/ 
+*/
 sint8 spi_flash_read(uint8 *pu8Buf, uint32 u32offset, uint32 u32Sz)
 {
 	sint8 ret = M2M_SUCCESS;
@@ -609,7 +609,7 @@ sint8 spi_flash_read(uint8 *pu8Buf, uint32 u32offset, uint32 u32Sz)
 			pu8Buf += FLASH_BLOCK_SIZE;
 		} while(u32Sz > FLASH_BLOCK_SIZE);
 	}
-	
+
 	ret = spi_flash_read_internal(pu8Buf, u32offset, u32Sz);
 
 ERR:
@@ -628,7 +628,7 @@ ERR:
 *	@return		Status of execution
 *	@author		M. Abdelmawla
 *	@version	1.0
-*/ 
+*/
 sint8 spi_flash_write(uint8* pu8Buf, uint32 u32Offset, uint32 u32Sz)
 {
 #ifdef PROFILING
@@ -705,7 +705,7 @@ ERR:
 *	@note		Data size is limited by the SPI flash size only
 *	@author		M. Abdelmawla
 *	@version	1.0
-*/ 
+*/
 sint8 spi_flash_erase(uint32 u32Offset, uint32 u32Sz)
 {
 	uint32 i = 0;
@@ -727,7 +727,7 @@ sint8 spi_flash_erase(uint32 u32Offset, uint32 u32Sz)
 			if(ret != M2M_SUCCESS) goto ERR;
 			ret += spi_flash_read_status_reg(&tmp);
 		}while(tmp & 0x01);
-		
+
 	}
 	M2M_PRINT("Done\r\n");
 #ifdef PROFILING
@@ -748,7 +748,7 @@ uint32 spi_flash_get_size(void)
 {
 	uint32 u32FlashId = 0, u32FlashPwr = 0;
 	static uint32 gu32InernalFlashSize= 0;
-	
+
 	if(!gu32InernalFlashSize)
 	{
 		u32FlashId = spi_flash_rdid();//spi_flash_probe();

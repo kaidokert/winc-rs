@@ -70,7 +70,7 @@ sint8 chip_apply_conf(uint32 u32Conf)
 {
 	sint8 ret = M2M_SUCCESS;
 	uint32 val32 = u32Conf;
-	
+
 #if (defined __ENABLE_PMU__) || (defined CONF_WINC_INT_PMU)
 	val32 |= rHAVE_USE_PMU_BIT;
 #endif
@@ -92,7 +92,7 @@ sint8 chip_apply_conf(uint32 u32Conf)
 	val32 |= rHAVE_RESERVED1_BIT;
 	do  {
 		nm_write_reg(rNMI_GP_REG_1, val32);
-		if(val32 != 0) {		
+		if(val32 != 0) {
 			uint32 reg = 0;
 			ret = nm_read_reg_with_ret(rNMI_GP_REG_1, &reg);
 			if(ret == M2M_SUCCESS) {
@@ -126,21 +126,21 @@ sint8 enable_interrupts(void)
 	**/
 	ret = nm_read_reg_with_ret(NMI_PIN_MUX_0, &reg);
 	if (M2M_SUCCESS != ret) goto ERR1;
-	
+
 	reg |= ((uint32) 1 << 8);
 	ret = nm_write_reg(NMI_PIN_MUX_0, reg);
 	if (M2M_SUCCESS != ret) goto ERR1;
-	
+
 	/**
 	interrupt enable
 	**/
 	ret = nm_read_reg_with_ret(NMI_INTR_ENABLE, &reg);
 	if (M2M_SUCCESS != ret) goto ERR1;
-	
+
 	reg |= ((uint32) 1 << 16);
 	ret = nm_write_reg(NMI_INTR_ENABLE, reg);
 	if (M2M_SUCCESS != ret) goto ERR1;
-ERR1:	
+ERR1:
 	return ret;
 }
 
@@ -177,7 +177,7 @@ uint32 nmi_get_chipid(void)
 
 	if (chipid == 0) {
 		uint32 rfrevid;
-		
+
 		if((nm_read_reg_with_ret(0x1000, &chipid)) != M2M_SUCCESS) {
 			chipid = 0;
 			return 0;
@@ -202,13 +202,13 @@ uint32 nmi_get_chipid(void)
 			} else /* if(rfrevid == 5) */ { /* 1002B2 */
 				chipid = 0x1002b2;
 			}
-		}else if(chipid == 0x1000F0) { 
+		}else if(chipid == 0x1000F0) {
 			if((nm_read_reg_with_ret(0x3B0000, &chipid)) != M2M_SUCCESS) {
 			chipid = 0;
 			return 0;
 			}
 		}else {
-			
+
 		}
 //#define PROBE_FLASH
 #ifdef PROBE_FLASH
@@ -283,14 +283,14 @@ sint8 chip_sleep(void)
 {
 	uint32 reg;
 	sint8 ret = M2M_SUCCESS;
-	
+
 	while(1)
 	{
 		ret = nm_read_reg_with_ret(CORT_HOST_COMM,&reg);
 		if(ret != M2M_SUCCESS) goto ERR1;
 		if((reg & NBIT0) == 0) break;
 	}
-	
+
 	/* Clear bit 1 */
 	ret = nm_read_reg_with_ret(WAKE_CLK_REG, &reg);
 	if(ret != M2M_SUCCESS)goto ERR1;
@@ -300,7 +300,7 @@ sint8 chip_sleep(void)
 		ret = nm_write_reg(WAKE_CLK_REG, reg);
 		if(ret != M2M_SUCCESS)goto ERR1;
 	}
-	
+
 	ret = nm_read_reg_with_ret(HOST_CORT_COMM, &reg);
 	if(ret != M2M_SUCCESS)goto ERR1;
 	if(reg & NBIT0)
@@ -320,21 +320,21 @@ sint8 chip_wake(void)
 
 	ret = nm_read_reg_with_ret(HOST_CORT_COMM, &reg);
 	if(ret != M2M_SUCCESS)goto _WAKE_EXIT;
-	
+
 	if(!(reg & NBIT0))
 	{
 		/*USE bit 0 to indicate host wakeup*/
 		ret = nm_write_reg(HOST_CORT_COMM, reg|NBIT0);
 		if(ret != M2M_SUCCESS)goto _WAKE_EXIT;
 	}
-		
+
 	ret = nm_read_reg_with_ret(WAKE_CLK_REG, &reg);
 	if(ret != M2M_SUCCESS)goto _WAKE_EXIT;
 	/* Set bit 1 */
 	if(!(reg & NBIT1))
 	{
 		ret = nm_write_reg(WAKE_CLK_REG, reg | NBIT1);
-		if(ret != M2M_SUCCESS) goto _WAKE_EXIT;	
+		if(ret != M2M_SUCCESS) goto _WAKE_EXIT;
 	}
 
 	do
@@ -356,10 +356,10 @@ sint8 chip_wake(void)
 			goto _WAKE_EXIT;
 		}
 	}while(1);
-	
+
 	/*workaround sometimes spi fail to read clock regs after reading/writing clockless registers*/
 	nm_bus_reset();
-	
+
 _WAKE_EXIT:
 	return ret;
 }
@@ -389,7 +389,7 @@ sint8 chip_reset_and_cpu_halt(void)
 	ret = chip_reset();
 	if(ret != M2M_SUCCESS) goto ERR1;
 	ret = cpu_halt();
-	if(ret != M2M_SUCCESS) goto ERR1;	
+	if(ret != M2M_SUCCESS) goto ERR1;
 ERR1:
 	return ret;
 }
@@ -440,7 +440,7 @@ sint8 wait_for_bootrom(uint8 arg)
 			}
 		}
 	}
-	
+
 	if(M2M_WIFI_MODE_ATE_HIGH == arg) {
 		nm_write_reg(NMI_REV_REG, M2M_ATE_FW_START_VALUE);
 		nm_write_reg(NMI_STATE_REG, NBIT20);
@@ -479,15 +479,15 @@ sint8 wait_for_firmware_start(uint8 arg)
 	uint32 u32Timeout = TIMEOUT;
 	volatile uint32 regAddress = NMI_STATE_REG;
 	volatile uint32 checkValue = M2M_FINISH_INIT_STATE;
-	
+
 	if((M2M_WIFI_MODE_ATE_HIGH == arg)||(M2M_WIFI_MODE_ATE_LOW == arg)) {
 		regAddress = NMI_REV_REG;
 		checkValue = M2M_ATE_FW_IS_UP_VALUE;
 	} else {
 		/*bypass this step*/
 	}
-	
-	
+
+
 	while (checkValue != reg)
 	{
 		nm_bsp_sleep(2); /* TODO: Why bus error if this delay is not here. */

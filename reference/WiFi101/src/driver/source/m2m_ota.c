@@ -414,4 +414,3 @@ NMI_API sint8 m2m_ota_test(void)
 	return ret;
 }
 #endif
-

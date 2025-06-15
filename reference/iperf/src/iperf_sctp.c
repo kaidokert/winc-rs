@@ -736,10 +736,10 @@ out:
  *
  * Get SCTP stream RTT.
  * Assuming that iperf3 supports only one-toone SCTP associassion, and not one-to-many associassion.
- * 
+ *
  * Main resouses used are RFC-6458, man pages for SCTP,
  * https://docs.oracle.com/cd/E19253-01/817-4415/sockets-199/index.html.
- * 
+ *
  */
 int
 iperf_sctp_get_info(struct iperf_stream *sp, struct iperf_sctp_info *sctp_info)

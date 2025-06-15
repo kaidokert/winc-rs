@@ -41,7 +41,7 @@
 
 /** \defgroup SPIFLASH Spi Flash
  * @file           spi_flash.h
- * @brief          This file describe SPI flash APIs, how to use it and limitations with each one. 
+ * @brief          This file describe SPI flash APIs, how to use it and limitations with each one.
  * @section      Example
  *                 This example illustrates a complete guide of how to use these APIs.
  * @code{.c}
@@ -54,7 +54,7 @@
 						uint8	au8FlashContent[FLASH_SECTOR_SZ] = {0};
 						uint32	u32FlashTotalSize = 0;
 						uint32	u32FlashOffset = 0;
-	
+
 						ret = m2m_wifi_download_mode();
 						if(M2M_SUCCESS != ret)
 						{
@@ -74,14 +74,14 @@
 								break;
 							}
 							memcpy(au8FlashContent, DATA_TO_REPLACE, strlen(DATA_TO_REPLACE));
-		
+
 							ret = spi_flash_erase(u32FlashOffset, FLASH_SECTOR_SZ);
 							if(M2M_SUCCESS != ret)
 							{
 								printf("Unable to erase SPI sector\r\n");
 								break;
 							}
-		
+
 							ret = spi_flash_write(au8FlashContent, u32FlashOffset, FLASH_SECTOR_SZ);
 							if(M2M_SUCCESS != ret)
 							{
@@ -90,7 +90,7 @@
 							}
 							u32FlashOffset += FLASH_SECTOR_SZ;
 						}
-	
+
 						if(M2M_SUCCESS == ret)
 						{
 							printf("Successful operations\r\n");
@@ -99,11 +99,11 @@
 						{
 							printf("Failed operations\r\n");
 						}
-	
+
 						while(1);
 						return M2M_SUCCESS;
 					}
- * @endcode  
+ * @endcode
  */
 
 #ifndef __SPI_FLASH_H__
@@ -116,7 +116,7 @@
 #ifdef ARDUINO
 #ifdef __cplusplus
 extern "C" {
-#endif 
+#endif
 #endif
 
 /**
@@ -155,13 +155,13 @@ uint32 spi_flash_get_size(void);
  *                 Address (Offset) to read from at the SPI flash.
  * @param [in]     u32Sz
  *                 Total size of data to be read in bytes
- * @warning	       
+ * @warning
  *                 - Address (offset) plus size of data must not exceed flash size.\n
  *                 - No firmware is required for reading from SPI flash.\n
- *                 - In case of there is a running firmware, it is required to pause your firmware first 
- *                   before any trial to access SPI flash to avoid any racing between host and running firmware on bus using 
+ *                 - In case of there is a running firmware, it is required to pause your firmware first
+ *                   before any trial to access SPI flash to avoid any racing between host and running firmware on bus using
  *                   @ref m2m_wifi_download_mode
- * @note           
+ * @note
  *                 - It is blocking function\n
  * @sa             m2m_wifi_download_mode, spi_flash_get_size
  * @return        The function returns @ref M2M_SUCCESS for successful operations  and a negative value otherwise.
@@ -182,20 +182,20 @@ sint8 spi_flash_read(uint8 *pu8Buf, uint32 u32Addr, uint32 u32Sz);
  *                 Address (Offset) to write at the SPI flash.
  * @param [in]     u32Sz
  *                 Total number of size of data bytes
- * @note           
+ * @note
  *                 - It is blocking function\n
- *                 - It is user's responsibility to verify that data has been written successfully 
+ *                 - It is user's responsibility to verify that data has been written successfully
  *                   by reading data again and compare it with the original.
- * @warning	       
+ * @warning
  *                 - Address (offset) plus size of data must not exceed flash size.\n
  *                 - No firmware is required for writing to SPI flash.\n
- *                 - In case of there is a running firmware, it is required to pause your firmware first 
- *                   before any trial to access SPI flash to avoid any racing between host and running firmware on bus using 
+ *                 - In case of there is a running firmware, it is required to pause your firmware first
+ *                   before any trial to access SPI flash to avoid any racing between host and running firmware on bus using
  *                   @ref m2m_wifi_download_mode.
  *                 - Before writing to any section, it is required to erase it first.
  * @sa             m2m_wifi_download_mode, spi_flash_get_size, spi_flash_erase
  * @return       The function returns @ref M2M_SUCCESS for successful operations  and a negative value otherwise.
- 
+
  */
 sint8 spi_flash_write(uint8* pu8Buf, uint32 u32Offset, uint32 u32Sz);
  /**@}*/
@@ -211,12 +211,12 @@ sint8 spi_flash_write(uint8* pu8Buf, uint32 u32Offset, uint32 u32Sz);
  *                 Address (Offset) to erase from the SPI flash.
  * @param [in]     u32Sz
  *                 Size of SPI flash required to be erased.
- * @note         It is blocking function \n  
-* @warning	       
+ * @note         It is blocking function \n
+* @warning
 *                 - Address (offset) plus size of data must not exceed flash size.\n
 *                 - No firmware is required for writing to SPI flash.\n
- *                 - In case of there is a running firmware, it is required to pause your firmware first 
- *                   before any trial to access SPI flash to avoid any racing between host and running firmware on bus using 
+ *                 - In case of there is a running firmware, it is required to pause your firmware first
+ *                   before any trial to access SPI flash to avoid any racing between host and running firmware on bus using
  *                   @ref m2m_wifi_download_mode
  *                 - It is blocking function\n
  * @sa             m2m_wifi_download_mode, spi_flash_get_size
@@ -228,6 +228,6 @@ sint8 spi_flash_erase(uint32 u32Offset, uint32 u32Sz);
 #ifdef ARDUINO
 #ifdef __cplusplus
 }
-#endif 
+#endif
 #endif
 #endif	//__SPI_FLASH_H__

@@ -23,4 +23,3 @@ top directory of the iperf3 source tree._
 * Issues fixed (if any):
 
 * Brief description of code changes (suitable for use as a commit message):
-

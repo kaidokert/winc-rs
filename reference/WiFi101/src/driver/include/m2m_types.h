@@ -197,7 +197,7 @@ MACROS
 #define M2M_LISTEN_INTERVAL 							1
 /*!< The STA uses the Listen Interval parameter to indicate to the AP how
 	many beacon intervals it shall sleep before it retrieves the queued frames
-	from the AP. 
+	from the AP.
 */
 
 #define MAX_HIDDEN_SITES 								4
@@ -291,23 +291,23 @@ MACROS
 /*======*======*======*======*
 	CONNECTION ERROR DEFINITIONS
  *======*======*======*======*/
-typedef enum { 		
-	M2M_DEFAULT_CONN_INPROGRESS = ((sint8)-23),  		
+typedef enum {
+	M2M_DEFAULT_CONN_INPROGRESS = ((sint8)-23),
 	/*!<
 	A failure that indicates that a default connection or forced connection is in progress
 	*/
-	M2M_DEFAULT_CONN_FAIL,				
+	M2M_DEFAULT_CONN_FAIL,
 	/*!<
 	A failure response that indicates that the winc failed to connect to the cached network
 	*/
-	 M2M_DEFAULT_CONN_SCAN_MISMATCH,	 													
+	 M2M_DEFAULT_CONN_SCAN_MISMATCH,
 	/*!<
-	A failure response that indicates that no one of the cached networks 
+	A failure response that indicates that no one of the cached networks
 	was found in the scan results, as a result to the function call m2m_default_connect.
 	*/
 	M2M_DEFAULT_CONN_EMPTY_LIST
 	/*!<
-	A failure response that indicates an empty network list as 
+	A failure response that indicates an empty network list as
 	a result to the function call m2m_default_connect.
 	*/
 
@@ -330,21 +330,21 @@ typedef enum {
 /*======*======*======*======*
 	OTA DEFINITIONS
  *======*======*======*======*/
- 
+
 #define OTA_STATUS_VALID					(0x12526285)
-/*!< 
+/*!<
 	Magic value updated in the Control structure in case of ROLLACK image Valid
 */
 #define OTA_STATUS_INVALID					(0x23987718)
-/*!< 
+/*!<
 	Magic value updated in the Control structure in case of ROLLACK image InValid
 */
 #define OTA_MAGIC_VALUE						(0x1ABCDEF9)
-/*!< 
+/*!<
 	Magic value set at the beginning of the OTA image header
 */
 #define M2M_MAGIC_APP 						(0xef522f61UL)
-/*!< 
+/*!<
 	Magic value set at the beginning of the Cortus OTA image header
 */
 
@@ -354,7 +354,7 @@ typedef enum {
 	Control structure format version
 */
 #define OTA_SHA256_DIGEST_SIZE 				(32)
-/*!< 
+/*!<
  Sha256 digest size in the OTA image,
  the sha256 digest is set at the beginning of image before the OTA header
  */
@@ -434,18 +434,18 @@ typedef enum {
 /*!
 @enum	\
 	tenuM2mConnChangedErrcode
-	
+
 @brief
-	
+
 */
 typedef enum {
 	 M2M_ERR_SCAN_FAIL = ((uint8)1),
 	/*!< Indicate that the WINC board has failed to perform the scan operation.
 	*/
-	 M2M_ERR_JOIN_FAIL,	 								
+	 M2M_ERR_JOIN_FAIL,
 	/*!< Indicate that the WINC board has failed to join the BSS .
 	*/
-	 M2M_ERR_AUTH_FAIL, 									
+	 M2M_ERR_AUTH_FAIL,
 	/*!< Indicate that the WINC board has failed to authenticate with the AP.
 	*/
 	 M2M_ERR_ASSOC_FAIL,
@@ -458,9 +458,9 @@ typedef enum {
 /*!
 @enum	\
 	tenuM2mWepKeyIndex
-	
+
 @brief
-	
+
 */
 typedef enum {
 	M2M_WIFI_WEP_KEY_INDEX_1 = ((uint8) 1),
@@ -474,9 +474,9 @@ typedef enum {
 /*!
 @enum	\
 	tenuM2mPwrMode
-	
+
 @brief
-	
+
 */
 typedef enum {
 	PWR_AUTO = ((uint8) 1),
@@ -490,14 +490,14 @@ typedef enum {
 }tenuM2mPwrMode;
 
 /*!
-@struct	\	
+@struct	\
 	tstrM2mPwrState
 
 @brief
 	Power Mode
 */
 typedef struct {
-	uint8	u8PwrMode; 
+	uint8	u8PwrMode;
 	/*!< power Save Mode
 	*/
 	uint8	__PAD24__[3];
@@ -507,9 +507,9 @@ typedef struct {
 /*!
 @enum	\
 	tenuM2mTxPwrLevel
-	
+
 @brief
-	
+
 */
 typedef enum {
 	TX_PWR_HIGH = ((uint8) 1),
@@ -521,14 +521,14 @@ typedef enum {
 }tenuM2mTxPwrLevel;
 
 /*!
-@struct	\	
+@struct	\
 	tstrM2mTxPwrLevel
 
 @brief
-	Tx power level 
+	Tx power level
 */
 typedef struct {
-	uint8	u8TxPwrLevel; 
+	uint8	u8TxPwrLevel;
 	/*!< Tx power level
 	*/
 	uint8	__PAD24__[3];
@@ -537,14 +537,14 @@ typedef struct {
 }tstrM2mTxPwrLevel;
 
 /*!
-@struct	\	
+@struct	\
 	tstrM2mEnableLogs
 
 @brief
 	Enable Firmware logs
 */
 typedef struct {
-	uint8	u8Enable; 
+	uint8	u8Enable;
 	/*!< Enable/Disable firmware logs
 	*/
 	uint8	__PAD24__[3];
@@ -553,7 +553,7 @@ typedef struct {
 }tstrM2mEnableLogs;
 
 /*!
-@struct	\	
+@struct	\
 	tstrM2mBatteryVoltage
 
 @brief
@@ -561,7 +561,7 @@ typedef struct {
 */
 typedef struct {
 	//Note: on SAMD D21 the size of double is 8 Bytes
-	uint16	u16BattVolt; 
+	uint16	u16BattVolt;
 	/*!< Battery Voltage
 	*/
 	uint8	__PAD16__[2];
@@ -687,13 +687,13 @@ typedef enum {
 	/*!< The API shall set power mode to one of 3 modes
 	*/
 	M2M_WIFI_REQ_SET_TX_POWER,
-	/*!<  API to set TX power. 
+	/*!<  API to set TX power.
 	*/
 	M2M_WIFI_REQ_SET_BATTERY_VOLTAGE,
-	/*!<  API to set Battery Voltage. 
+	/*!<  API to set Battery Voltage.
 	*/
 	M2M_WIFI_REQ_SET_ENABLE_LOGS,
-	/*!<  API to set Battery Voltage. 
+	/*!<  API to set Battery Voltage.
 	*/
 	M2M_WIFI_REQ_GET_SYS_TIME,
 	/*!<
@@ -708,7 +708,7 @@ typedef enum {
 	*/
 	M2M_WIFI_RESP_ETHERNET_RX_PACKET,
 	/*!< Receive Ethernet packet in bypass mode.
-	*/	
+	*/
 	M2M_WIFI_REQ_SET_MAC_MCAST,
 	/*!< Set the WINC multicast filters.
 	*/
@@ -733,7 +733,7 @@ typedef enum {
 /*!
 @enum	\
 	tenuM2mStaCmd
-	
+
 @brief
 	This enum contains all the WINC commands while in Station mode.
 */
@@ -763,7 +763,7 @@ typedef enum {
 	/*!< Request WPS start command.
 	*/
 	M2M_WIFI_REQ_START_WPS,
-	/*!< This command is for internal use by the WINC and 
+	/*!< This command is for internal use by the WINC and
 		should not be used by the host driver.
 	*/
 	M2M_WIFI_REQ_DISABLE_WPS,
@@ -773,7 +773,7 @@ typedef enum {
 	/*!< Response indicating that IP address was obtained.
 	*/
 	M2M_WIFI_RESP_IP_CONFIGURED,
-	/*!< This command is for internal use by the WINC and 
+	/*!< This command is for internal use by the WINC and
 		should not be used by the host driver.
 	*/
 	M2M_WIFI_RESP_IP_CONFLICT,
@@ -830,7 +830,7 @@ typedef enum {
 */
 typedef enum {
 	M2M_WIFI_REQ_P2P_INT_CONNECT = M2M_P2P_CMD_BASE,
-	/*!< This command is for internal use by the WINC and 
+	/*!< This command is for internal use by the WINC and
 		should not be used by the host driver.
 	*/
 	M2M_WIFI_REQ_ENABLE_P2P,
@@ -840,7 +840,7 @@ typedef enum {
 	/*!< Disable P2P mode command.
 	*/
 	M2M_WIFI_REQ_P2P_REPOST,
-	/*!< This command is for internal use by the WINC and 
+	/*!< This command is for internal use by the WINC and
 		should not be used by the host driver.
 	*/
 	M2M_WIFI_MAX_P2P_ALL
@@ -868,7 +868,7 @@ typedef enum {
 /*!
 @enum	\
 	tenuM2mOtaCmd
-	
+
 @brief
 
 */
@@ -927,7 +927,7 @@ typedef enum {
 /*!
 @enum	\
 	tenuM2mSigmaCmd
-	
+
 @brief
 
 */
@@ -1095,8 +1095,8 @@ typedef enum {
 	*/
 	M2M_PS_AUTOMATIC,
 	/*!< Power save is done automatically by the WINC.
-		This mode doesn't disable all of the WINC modules and 
-		use higher amount of power than the H_AUTOMATIC and 
+		This mode doesn't disable all of the WINC modules and
+		use higher amount of power than the H_AUTOMATIC and
 		the DEEP_AUTOMATIC modes..
 	*/
 	M2M_PS_H_AUTOMATIC,
@@ -1116,7 +1116,7 @@ typedef enum {
 /*!
 @enum	\
 	tenuM2mWifiMode
-	
+
 @brief
 	Wi-Fi Operation Mode.
 */
@@ -1157,7 +1157,7 @@ typedef enum{
 	tstrM2mWifiGainsParams
 
 @brief
-	Gain Values 
+	Gain Values
 */
 typedef struct{
 	uint16	u8PPAGFor11B;
@@ -1581,7 +1581,7 @@ typedef struct {
 
 @brief	Listen interval
 
-	It is the value of the Wi-Fi STA listen interval for power saving. It is given in units of Beacon period. 
+	It is the value of the Wi-Fi STA listen interval for power saving. It is given in units of Beacon period.
 	Periodically after the listen interval fires, the WINC is wakeup and listen to the beacon and check for any buffered frames for it from the AP.
 */
 typedef struct {
@@ -1600,7 +1600,7 @@ typedef struct {
 
 @brief	Wi-Fi Monitor Mode Filter
 
-	This structure sets the filtering criteria for WLAN packets when monitoring mode is enable. 
+	This structure sets the filtering criteria for WLAN packets when monitoring mode is enable.
 	The received packets matching the filtering parameters, are passed directly to the application.
 */
 typedef struct{
@@ -1624,7 +1624,7 @@ typedef struct{
 	*/
 	uint8 u8EnRecvHdr;
 	/*
-	 Enable recv the full hder before the payload	
+	 Enable recv the full hder before the payload
 	*/
 	uint8	__PAD16__[2];
 	/*!< Padding bytes for forcing 4-byte alignment
@@ -1639,7 +1639,7 @@ typedef struct{
 @brief	Wi-Fi RX Frame Header
 
 	The M2M application has the ability to allow Wi-Fi monitoring mode for receiving all Wi-Fi Raw frames matching a well defined filtering criteria.
-	When a target Wi-Fi packet is received, the header information are extracted and assigned in this structure. 
+	When a target Wi-Fi packet is received, the header information are extracted and assigned in this structure.
 */
 typedef struct{
 	uint8	u8FrameType;
@@ -1825,7 +1825,7 @@ typedef struct {
 	tstrM2mSetMacAddress
 
 @brief
-	Sets the MAC address from application. The WINC load the mac address from the effuse by default to the WINC configuration memory, 
+	Sets the MAC address from application. The WINC load the mac address from the effuse by default to the WINC configuration memory,
 	but that function is used to let the application overwrite the configuration memory with the mac address from the host.
 
 @note
@@ -1971,7 +1971,7 @@ typedef struct{
 	uint8	au8IPAddr[4];
 	/*!< Connection IP address */
 	uint8	au8MACAddress[6];
-	/*!< MAC address of the peer Wi-Fi station */ 
+	/*!< MAC address of the peer Wi-Fi station */
 	sint8	s8RSSI;
 	/*!< Connection RSSI signal */
 	uint8	__PAD24__[3];
@@ -1983,12 +1983,12 @@ typedef struct{
  	tstrOtaInitHdr
 
 @brief
- 	OTA Image Header 
+ 	OTA Image Header
  */
 
 typedef struct{
 	uint32 u32OtaMagicValue;
-	/*!< Magic value kept in the OTA image after the 
+	/*!< Magic value kept in the OTA image after the
 	sha256 Digest buffer to define the Start of OTA Header */
 	uint32 u32OtaPayloadSzie;
 	/*!<
@@ -1996,31 +1996,31 @@ typedef struct{
 	*/
 
 }tstrOtaInitHdr;
-	
+
 
 /*!
 @struct	\
  	tstrOtaControlSec
 
 @brief
- 	Control section structure is used to define the working image and 
+ 	Control section structure is used to define the working image and
 	the validity of the roll-back image and its offset, also both firmware versions is kept in that structure.
  */
 
 typedef struct {
 	uint32 u32OtaMagicValue;
 /*!<
-	Magic value used to ensure the structure is valid or not 
+	Magic value used to ensure the structure is valid or not
 */
 	uint32 u32OtaFormatVersion;
 /*!<
 		NA   NA   NA   Flash version   cs struct version
-		00   00   00   00              00 
+		00   00   00   00              00
 	Control structure format version, the value will be incremented in case of structure changed or updated
 */
 	uint32 u32OtaSequenceNumber;
 /*!<
-	Sequence number is used while update the control structure to keep track of how many times that section updated 
+	Sequence number is used while update the control structure to keep track of how many times that section updated
 */
 	uint32 u32OtaLastCheckTime;
 /*!<
@@ -2028,7 +2028,7 @@ typedef struct {
 */
 	uint32 u32OtaCurrentworkingImagOffset;
 /*!<
-	Current working offset in flash 
+	Current working offset in flash
 */
 	uint32 u32OtaCurrentworkingImagFirmwareVer;
 /*!<
@@ -2036,11 +2036,11 @@ typedef struct {
 */
 	uint32 u32OtaRollbackImageOffset;
 /*!<
-	Roll-back image offset in flash 
+	Roll-back image offset in flash
 */
 	uint32 u32OtaRollbackImageValidStatus;
 /*!<
-	roll-back image valid status 
+	roll-back image valid status
 */
 	uint32 u32OtaRollbackImagFirmwareVer;
 /*!<
@@ -2048,11 +2048,11 @@ typedef struct {
 */
 	uint32 u32OtaCortusAppWorkingOffset;
 /*!<
-	cortus app working offset in flash 
+	cortus app working offset in flash
 */
 	uint32 u32OtaCortusAppWorkingValidSts;
 /*!<
-	Working Cortus app valid status 
+	Working Cortus app valid status
 */
 	uint32 u32OtaCortusAppWorkingVer;
 /*!<
@@ -2060,11 +2060,11 @@ typedef struct {
 */
 	uint32 u32OtaCortusAppRollbackOffset;
 /*!<
-	cortus app rollback offset in flash 
+	cortus app rollback offset in flash
 */
 	uint32 u32OtaCortusAppRollbackValidSts;
 /*!<
-	roll-back cortus app valid status 
+	roll-back cortus app valid status
 */
 	uint32 u32OtaCortusAppRollbackVer;
 /*!<
@@ -2072,7 +2072,7 @@ typedef struct {
 */
 	uint32 u32OtaControlSecCrc;
 /*!<
-	CRC for the control structure to ensure validity 
+	CRC for the control structure to ensure validity
 */
 } tstrOtaControlSec;
 
@@ -2148,14 +2148,14 @@ typedef struct {
 	*/
 	uint8	u8OtaUpdateStatus;
 	/*!<
-	OTA_SUCCESS 						
-	OTA_ERR_WORKING_IMAGE_LOAD_FAIL		
-	OTA_ERR_INVAILD_CONTROL_SEC			
-	M2M_ERR_OTA_SWITCH_FAIL     		
-	M2M_ERR_OTA_START_UPDATE_FAIL     	
-	M2M_ERR_OTA_ROLLBACK_FAIL     		
-	M2M_ERR_OTA_INVAILD_FLASH_SIZE     	
-	M2M_ERR_OTA_INVAILD_ARG		     
+	OTA_SUCCESS
+	OTA_ERR_WORKING_IMAGE_LOAD_FAIL
+	OTA_ERR_INVAILD_CONTROL_SEC
+	M2M_ERR_OTA_SWITCH_FAIL
+	M2M_ERR_OTA_START_UPDATE_FAIL
+	M2M_ERR_OTA_ROLLBACK_FAIL
+	M2M_ERR_OTA_INVAILD_FLASH_SIZE
+	M2M_ERR_OTA_INVAILD_ARG
 	*/
 	uint8 _PAD16_[2];
 }tstrOtaUpdateStatusResp;
@@ -2315,7 +2315,7 @@ typedef struct {
 @enum\
 	tenuSslCertExpSettings
 
-@brief	SSL Certificate Expiry Validation Options	
+@brief	SSL Certificate Expiry Validation Options
 */
 typedef enum{
 	SSL_CERT_EXP_CHECK_DISABLE,
@@ -2327,7 +2327,7 @@ typedef enum{
 	SSL_CERT_EXP_CHECK_ENABLE,
 	/*!<
 		ALWAYS ON.
-		Validate certificate expiration date. If a certificate is expired or 
+		Validate certificate expiration date. If a certificate is expired or
 		there is no configured system time, the SSL connection FAILs.
 	*/
 	SSL_CERT_EXP_CHECK_EN_IF_SYS_TIME
@@ -2365,7 +2365,7 @@ typedef struct{
  */
 typedef struct{
 	uint8					au8SecStartPattern[TLS_SRV_SEC_START_PATTERN_LEN];
-	/*!< Start pattern.	*/	
+	/*!< Start pattern.	*/
 	uint32					u32nEntries;
 	/*!< Number of certificates stored in the struct.	*/
 	uint32					u32NextWriteAddr;

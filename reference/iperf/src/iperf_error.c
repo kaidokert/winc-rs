@@ -496,7 +496,7 @@ iperf_strerror(int int_errno)
             break;
         case IEHOSTDEV:
 	    snprintf(errstr, len, "host device name (ip%%<dev>) is supported (and required) only for IPv6 link-local address");
-            break;        
+            break;
 	case IENOMSG:
 	    snprintf(errstr, len, "idle timeout for receiving data");
             break;

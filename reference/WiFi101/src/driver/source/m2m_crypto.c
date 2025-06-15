@@ -54,7 +54,7 @@ MACROS
 *=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*/
 
 /*======*======*======*======*======*=======*
-* WINC SHA256 HW Engine Register Definition * 
+* WINC SHA256 HW Engine Register Definition *
 *======*======*======*======*======*========*/
 
 #define SHA_BLOCK_SIZE											(64)
@@ -185,7 +185,7 @@ DATA TYPES
 /*!
 @struct	\
 	tstrHashContext
-	
+
 @brief
 */
 typedef struct{
@@ -381,7 +381,7 @@ sint8 m2m_crypto_sha256_hash_finish(tstrM2mSha256Ctxt *pstrSha256Ctxt, uint8 *pu
 			u8IsDone = u32RegVal & NBIT0;
 		}
 		nm_read_block(u32ReadAddr, (uint8*)au32Digest, 32);
-		
+
 		/* Convert the output words to an array of bytes.
 		*/
 		u32ByteIdx = 0;
@@ -416,7 +416,7 @@ static void FlipBuffer(uint8 *pu8InBuffer, uint8 *pu8OutBuffer, uint16 u16Buffer
 }
 
 void BigInt_ModExp
-(	
+(
  uint8	*pu8X,	uint16	u16XSize,
  uint8	*pu8E,	uint16	u16ESize,
  uint8	*pu8M,	uint16	u16MSize,
@@ -436,7 +436,7 @@ void BigInt_ModExp
 
 	u16XSizeWords = (u16XSize + 3) / 4;
 	u16ESizeWords = (u16ESize + 3) / 4;
-	
+
 	u32MAddr	= u32XAddr + (u16XSizeWords * 4);
 	u32EAddr 	= u32MAddr + (u16XSizeWords * 4);
 	u32RAddr	= u32EAddr + (u16ESizeWords * 4);
@@ -451,7 +451,7 @@ void BigInt_ModExp
 
 	nm_write_block(u32RAddr,au8Tmp, u16RSize);
 
-	/* Write Input Operands to Chip Memory. 
+	/* Write Input Operands to Chip Memory.
 	*/
 	/*------- X -------*/
 	FlipBuffer(pu8X,au8Tmp,u16XSize);
@@ -473,25 +473,25 @@ void BigInt_ModExp
 	FlipBuffer(pu8M, au8Tmp, u16XSize);
 	nm_write_block(u32MAddr, au8Tmp, u16XSizeWords * 4);
 
-	/* Program the addresses of the input operands. 
+	/* Program the addresses of the input operands.
 	*/
 	nm_write_reg(BIGINT_ADDR_X, u32XAddr);
 	nm_write_reg(BIGINT_ADDR_E, u32EAddr);
 	nm_write_reg(BIGINT_ADDR_M, u32MAddr);
 	nm_write_reg(BIGINT_ADDR_R, u32RAddr);
 
-	/* Mprime. 
+	/* Mprime.
 	*/
 	nm_write_reg(BIGINT_M_PRIME,u32Mprime);
 
-	/* Length. 
+	/* Length.
 	*/
 	u32Reg	= (u16XSizeWords & 0xFF);
 	u32Reg += ((u16ESizeWords & 0xFF) << 8);
 	u32Reg += (u8EMswBits << 16);
 	nm_write_reg(BIGINT_LENGTH,u32Reg);
 
-	/* CTRL Register. 
+	/* CTRL Register.
 	*/
 	u32Reg = nm_read_reg(BIGINT_MISC_CTRL);
 	u32Reg ^= BIGINT_MISC_CTRL_CTL_START;
@@ -522,7 +522,7 @@ void BigInt_ModExp
 #define MD5_DIGEST_SIZE			(16)
 #define SHA1_DIGEST_SIZE		(20)
 
-static const uint8 au8TEncodingMD5[] = 
+static const uint8 au8TEncodingMD5[] =
 {
 	0x30, 0x20, 0x30, 0x0C, 0x06, 0x08, 0x2A, 0x86,
 	0x48, 0x86, 0xF7, 0x0D, 0x02, 0x05, 0x05, 0x00,
@@ -532,16 +532,16 @@ static const uint8 au8TEncodingMD5[] =
 */
 
 
-static const uint8 au8TEncodingSHA1[] = 
+static const uint8 au8TEncodingSHA1[] =
 {
 	0x30, 0x21, 0x30, 0x09, 0x06, 0x05, 0x2B, 0x0E,
-	0x03, 0x02, 0x1A, 0x05, 0x00, 0x04 
+	0x03, 0x02, 0x1A, 0x05, 0x00, 0x04
 };
 /*!< Fixed part of the Encoding T for the SHA-1 hash algorithm.
 */
 
 
-static const uint8 au8TEncodingSHA2[] = 
+static const uint8 au8TEncodingSHA2[] =
 {
 	0x30, 0x31, 0x30, 0x0D, 0x06, 0x09, 0x60, 0x86,
 	0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x01, 0x05,
@@ -551,7 +551,7 @@ static const uint8 au8TEncodingSHA2[] =
 */
 
 
-sint8 m2m_crypto_rsa_sign_verify(uint8 *pu8N, uint16 u16NSize, uint8 *pu8E, uint16 u16ESize, uint8 *pu8SignedMsgHash, 
+sint8 m2m_crypto_rsa_sign_verify(uint8 *pu8N, uint16 u16NSize, uint8 *pu8E, uint16 u16ESize, uint8 *pu8SignedMsgHash,
 						  uint16 u16HashLength, uint8 *pu8RsaSignature)
 {
 	sint8		s8Ret = M2M_RSA_SIGN_FAIL;
@@ -574,19 +574,19 @@ sint8 m2m_crypto_rsa_sign_verify(uint8 *pu8N, uint16 u16NSize, uint8 *pu8E, uint
 			pu8T 				= (uint8*)au8TEncodingSHA1;
 			u16TEncodingLength	= sizeof(au8TEncodingSHA1);
 		}
-		else 
+		else
 		{
 			pu8T 				= (uint8*)au8TEncodingSHA2;
 			u16TEncodingLength	= sizeof(au8TEncodingSHA2);
 		}
 		u16TLength = u16TEncodingLength + 1 + u16HashLength;
-					
+
 		/* If emLen < tLen + 11.
 		*/
 		if(u16NSize >= (u16TLength + 11))
 		{
 			uint32 	u32PSLength,u32Idx = 0;
-	
+
 			/*
 			RSA verification
 			*/
@@ -594,12 +594,12 @@ sint8 m2m_crypto_rsa_sign_verify(uint8 *pu8N, uint16 u16NSize, uint8 *pu8E, uint
 
 			u32PSLength = u16NSize - u16TLength - 3;
 
-			/* 
+			/*
 			The calculated EM must match the following pattern.
 			*======*======*======*======*======*
-			* 0x00 || 0x01 || PS || 0x00 || T  *	
+			* 0x00 || 0x01 || PS || 0x00 || T  *
 			*======*======*======*======*======*
-			Where PS is all 0xFF 
+			Where PS is all 0xFF
 			T is defined based on the hash algorithm.
 			*/
 			if((au8EM[0] == 0x00) && (au8EM[1] == 0x01))
@@ -624,7 +624,7 @@ sint8 m2m_crypto_rsa_sign_verify(uint8 *pu8N, uint16 u16NSize, uint8 *pu8E, uint
 }
 
 
-sint8 m2m_crypto_rsa_sign_gen(uint8 *pu8N, uint16 u16NSize, uint8 *pu8d, uint16 u16dSize, uint8 *pu8SignedMsgHash, 
+sint8 m2m_crypto_rsa_sign_gen(uint8 *pu8N, uint16 u16NSize, uint8 *pu8d, uint16 u16dSize, uint8 *pu8SignedMsgHash,
 					   uint16 u16HashLength, uint8 *pu8RsaSignature)
 {
 	sint8		s8Ret = M2M_RSA_SIGN_FAIL;
@@ -647,26 +647,26 @@ sint8 m2m_crypto_rsa_sign_gen(uint8 *pu8N, uint16 u16NSize, uint8 *pu8d, uint16 
 			pu8T 				= (uint8*)au8TEncodingSHA1;
 			u16TEncodingLength	= sizeof(au8TEncodingSHA1);
 		}
-		else 
+		else
 		{
 			pu8T 				= (uint8*)au8TEncodingSHA2;
 			u16TEncodingLength	= sizeof(au8TEncodingSHA2);
 		}
 		u16TLength = u16TEncodingLength + 1 + u16HashLength;
-					
+
 		/* If emLen < tLen + 11.
 		*/
 		if(u16NSize >= (u16TLength + 11))
 		{
 			uint16 	u16PSLength = 0;
-			uint16	u16Offset	= 0;	
+			uint16	u16Offset	= 0;
 
-			/* 
+			/*
 			The calculated EM must match the following pattern.
 			*======*======*======*======*======*
-			* 0x00 || 0x01 || PS || 0x00 || T  *	
+			* 0x00 || 0x01 || PS || 0x00 || T  *
 			*======*======*======*======*======*
-			Where PS is all 0xFF 
+			Where PS is all 0xFF
 			T is defined based on the hash algorithm.
 			*/
 			au8EM[u16Offset ++]	= 0;
@@ -679,7 +679,7 @@ sint8 m2m_crypto_rsa_sign_gen(uint8 *pu8N, uint16 u16NSize, uint8 *pu8d, uint16 
 			u16Offset += u16TEncodingLength;
 			au8EM[u16Offset ++] = u16HashLength;
 			m2m_memcpy(&au8EM[u16Offset], pu8SignedMsgHash, u16HashLength);
-			
+
 			/*
 			RSA Signature Generation
 			*/
@@ -733,10 +733,10 @@ static void m2m_crypto_cb(uint8 u8OpCode, uint16 u16DataSize, uint32 u32Addr)
 	gstrCryptoCtxt.u8CryptoBusy = 0;
 	if(u8OpCode == M2M_CRYPTO_RESP_SHA256_INIT)
 	{
-		tstrM2mSha256Ctxt strCtxt;	
+		tstrM2mSha256Ctxt strCtxt;
 		if (hif_receive(u32Addr, (uint8*) &strCtxt,sizeof(tstrM2mSha256Ctxt), 0) == M2M_SUCCESS)
-		{	
-			tstrCyptoResp strResp;	
+		{
+			tstrCyptoResp strResp;
 			if(hif_receive(u32Addr + sizeof(tstrM2mSha256Ctxt), (uint8*) &strResp,sizeof(tstrCyptoResp), 1) == M2M_SUCCESS)
 			{
 				if (gstrCryptoCtxt.pfAppCryptoCb)
@@ -767,7 +767,7 @@ static void m2m_crypto_cb(uint8 u8OpCode, uint16 u16DataSize, uint32 u32Addr)
 			{
 				if (gstrCryptoCtxt.pfAppCryptoCb)
 					gstrCryptoCtxt.pfAppCryptoCb(u8OpCode,&strResp,gstrCryptoCtxt.pu8Digest);
-				
+
 			}
 		}
 	}
@@ -792,7 +792,7 @@ static void m2m_crypto_cb(uint8 u8OpCode, uint16 u16DataSize, uint32 u32Addr)
 				gstrCryptoCtxt.pfAppCryptoCb(u8OpCode,&strResp,NULL);
 		}
 	}
-	else 
+	else
 	{
 		M2M_ERR("u8Code %d ??\n",u8OpCode);
 	}
@@ -801,7 +801,7 @@ static void m2m_crypto_cb(uint8 u8OpCode, uint16 u16DataSize, uint32 u32Addr)
 /*!
 @fn	\
 	sint8 m2m_crypto_init();
-	
+
 @brief	crypto initialization
 
 @param[in]	pfAppCryproCb
@@ -821,7 +821,7 @@ sint8 m2m_crypto_init(tpfAppCryproCb pfAppCryproCb)
 /*!
 @fn	\
 	sint8 m2m_sha256_hash_init(tstrM2mSha256Ctxt *psha256Ctxt);
-	
+
 @brief	SHA256 hash initialization
 
 @param[in]	psha256Ctxt
@@ -841,15 +841,15 @@ sint8 m2m_crypto_sha256_hash_init(tstrM2mSha256Ctxt *psha256Ctxt)
 /*!
 @fn	\
 	sint8 m2m_sha256_hash_update(tstrM2mSha256Ctxt *psha256Ctxt, uint8 *pu8Data, uint16 u16DataLength);
-	
+
 @brief	SHA256 hash update
 
 @param [in]	psha256Ctxt
 				Pointer to the sha256 context.
-				
+
 @param [in]	pu8Data
 				Buffer holding the data submitted to the hash.
-				
+
 @param [in]	u16DataLength
 				Size of the data bufefr in bytes.
 */
@@ -861,19 +861,19 @@ sint8 m2m_crypto_sha256_hash_update(tstrM2mSha256Ctxt *psha256Ctxt, uint8 *pu8Da
 		ret = hif_send(M2M_REQ_GROUP_CRYPTO,M2M_CRYPTO_REQ_SHA256_UPDATE|M2M_REQ_DATA_PKT,(uint8*)psha256Ctxt,sizeof(tstrM2mSha256Ctxt),pu8Data,u16DataLength,sizeof(tstrM2mSha256Ctxt) + sizeof(tstrCyptoResp));
 	}
 	return ret;
-	
+
 }
 
 
 /*!
 @fn	\
 	sint8 m2m_sha256_hash_finish(tstrM2mSha256Ctxt *psha256Ctxt, uint8 *pu8Sha256Digest);
-	
+
 @brief	SHA256 hash finalization
 
 @param[in]	psha256Ctxt
 				Pointer to a sha256 context allocated by the caller.
-				
+
 @param [in] pu8Sha256Digest
 				Buffer allocated by the caller which will hold the resultant SHA256 Digest. It must be allocated no less than M2M_SHA256_DIGEST_LEN.
 */
@@ -895,56 +895,56 @@ sint8 m2m_crypto_sha256_hash_finish(tstrM2mSha256Ctxt *psha256Ctxt, uint8 *pu8Sh
 @fn	\
 	sint8 m2m_rsa_sign_verify(uint8 *pu8N, uint16 u16NSize, uint8 *pu8E, uint16 u16ESize, uint8 *pu8SignedMsgHash, \
 		uint16 u16HashLength, uint8 *pu8RsaSignature);
-	
+
 @brief	RSA Signature Verification
 
-	The function shall request the RSA Signature verification from the WINC Firmware for the given message. The signed message shall be 
+	The function shall request the RSA Signature verification from the WINC Firmware for the given message. The signed message shall be
 	compressed to the corresponding hash algorithm before calling this function.
 	The hash type is identified by the given hash length. For example, if the hash length is 32 bytes, then it is SHA256.
 
 @param[in]	pu8N
 				RSA Key modulus n.
-				
+
 @param[in]	u16NSize
 				Size of the RSA modulus n in bytes.
-				
+
 @param[in]	pu8E
 				RSA public exponent.
-				
+
 @param[in]	u16ESize
 				Size of the RSA public exponent in bytes.
 
 @param[in]	pu8SignedMsgHash
 				The hash digest of the signed message.
-				
+
 @param[in]	u16HashLength
 				The length of the hash digest.
-				
+
 @param[out] pu8RsaSignature
 				Signature value to be verified.
 */
 
 
-sint8 m2m_crypto_rsa_sign_verify(uint8 *pu8N, uint16 u16NSize, uint8 *pu8E, uint16 u16ESize, uint8 *pu8SignedMsgHash, 
+sint8 m2m_crypto_rsa_sign_verify(uint8 *pu8N, uint16 u16NSize, uint8 *pu8E, uint16 u16ESize, uint8 *pu8SignedMsgHash,
 						  uint16 u16HashLength, uint8 *pu8RsaSignature)
 {
 	sint8 ret = M2M_ERR_FAIL;
-	if((!gstrCryptoCtxt.u8CryptoBusy) && (pu8N != NULL) && (pu8E != NULL) && (pu8RsaSignature != NULL) && (pu8SignedMsgHash != NULL) 
+	if((!gstrCryptoCtxt.u8CryptoBusy) && (pu8N != NULL) && (pu8E != NULL) && (pu8RsaSignature != NULL) && (pu8SignedMsgHash != NULL)
 	&& (u16NSize != 0) && (u16ESize != 0) && (u16HashLength != 0) && (pu8RsaSignature != NULL) )
-	
+
 	{
 		tstrRsaPayload strRsa = {0};
-		
+
 		m2m_memcpy(strRsa.au8N,pu8N,u16NSize);
 		m2m_memcpy(strRsa.au8E,pu8E,u16ESize);
 		m2m_memcpy(strRsa.au8Hash,pu8SignedMsgHash,u16HashLength);
-		
+
 		strRsa.u16Esz = u16ESize;
 		strRsa.u16Hsz = u16HashLength;
 		strRsa.u16Nsz = u16NSize;
-		
+
 		ret = hif_send(M2M_REQ_GROUP_CRYPTO,M2M_CRYPTO_REQ_RSA_SIGN_VERIFY|M2M_REQ_DATA_PKT,(uint8*)&strRsa,sizeof(tstrRsaPayload),NULL,0,0);
-		
+
 	}
 	return ret;
 }
@@ -954,57 +954,57 @@ sint8 m2m_crypto_rsa_sign_verify(uint8 *pu8N, uint16 u16NSize, uint8 *pu8E, uint
 @fn	\
 	sint8 m2m_rsa_sign_gen(uint8 *pu8N, uint16 u16NSize, uint8 *pu8d, uint16 u16dSize, uint8 *pu8SignedMsgHash, \
 		uint16 u16HashLength, uint8 *pu8RsaSignature);
-	
+
 @brief	RSA Signature Generation
 
-	The function shall request the RSA Signature generation from the WINC Firmware for the given message. The signed message shall be 
+	The function shall request the RSA Signature generation from the WINC Firmware for the given message. The signed message shall be
 	compressed to the corresponding hash algorithm before calling this function.
 	The hash type is identified by the given hash length. For example, if the hash length is 32 bytes, then it is SHA256.
 
 @param[in]	pu8N
 				RSA Key modulus n.
-				
+
 @param[in]	u16NSize
 				Size of the RSA modulus n in bytes.
-				
+
 @param[in]	pu8d
 				RSA private exponent.
-				
+
 @param[in]	u16dSize
 				Size of the RSA private exponent in bytes.
 
 @param[in]	pu8SignedMsgHash
 				The hash digest of the signed message.
-				
+
 @param[in]	u16HashLength
 				The length of the hash digest.
-				
+
 @param[out] pu8RsaSignature
 				Pointer to a user buffer allocated by teh caller shall hold the generated signature.
 */
-sint8 m2m_crypto_rsa_sign_gen(uint8 *pu8N, uint16 u16NSize, uint8 *pu8d, uint16 u16dSize, uint8 *pu8SignedMsgHash, 
+sint8 m2m_crypto_rsa_sign_gen(uint8 *pu8N, uint16 u16NSize, uint8 *pu8d, uint16 u16dSize, uint8 *pu8SignedMsgHash,
 					   uint16 u16HashLength, uint8 *pu8RsaSignature)
 {
 	sint8 ret = M2M_ERR_FAIL;
 	if((!gstrCryptoCtxt.u8CryptoBusy) && (pu8N != NULL) && (pu8d != NULL) && (pu8RsaSignature != NULL) && (pu8SignedMsgHash != NULL)
 	&& (u16NSize != 0) && (u16dSize != 0) && (u16HashLength != 0) && (pu8RsaSignature != NULL))
-	
+
 	{
 		tstrRsaPayload strRsa = {0};
-		
+
 		m2m_memcpy(strRsa.au8N,pu8N,u16NSize);
 		m2m_memcpy(strRsa.au8E,pu8d,u16dSize);
 		m2m_memcpy(strRsa.au8Hash,pu8SignedMsgHash,u16HashLength);
-		
+
 		strRsa.u16Esz = u16dSize;
 		strRsa.u16Hsz = u16HashLength;
 		strRsa.u16Nsz = u16NSize;
-		
+
 		gstrCryptoCtxt.pu8Rsa = pu8RsaSignature;
 		ret = hif_send(M2M_REQ_GROUP_CRYPTO,M2M_CRYPTO_REQ_RSA_SIGN_GEN|M2M_REQ_DATA_PKT,(uint8*)&strRsa,sizeof(tstrRsaPayload),NULL,0,0);
-		
+
 	}
-	return ret;			   
+	return ret;
 }
 
 #endif
