@@ -88,7 +88,7 @@ const ETHERNET_HEADER_LENGTH: usize = 14;
 const ETHERNET_HEADER_OFFSET: usize = 34;
 const IP_PACKET_OFFSET: usize = ETHERNET_HEADER_LENGTH + ETHERNET_HEADER_OFFSET; // - HIF_HEADER_OFFSET;
 
-pub const SOCKET_BUFFER_MAX_LENGTH: usize = 1400;
+pub const SOCKET_BUFFER_MAX_LENGTH: usize = 1500; // Receive buffer - must handle full MTU from chip (1440+ bytes observed)
 pub const PRNG_PACKET_SIZE: usize = 8;
 
 #[cfg(feature = "large_rng")]

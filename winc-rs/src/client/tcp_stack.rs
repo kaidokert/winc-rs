@@ -152,14 +152,62 @@ impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {
     }
 
     // Nb:: Blocking call, returns nb::Result when no data
-    // Todo: Bug: If a caller passes us a very large buffer that is larger than
-    // max receive buffer, this should loop through serveral packets with
-    // an offset - like send does.
+    // Handles partial reads properly - returns available data from previous packet first,
+    // then requests new packets when needed
     fn receive(
         &mut self,
         socket: &mut <Self as TcpClientStack>::TcpSocket,
         data: &mut [u8],
     ) -> Result<usize, nb::Error<<Self as TcpClientStack>::Error>> {
+        // Check if we have a previous operation with remaining data
+        let store = &mut self.callbacks.tcp_sockets;
+        if let Some((_sock, op)) = store.get(*socket) {
+            if let ClientSocketOp::AsyncOp(AsyncOp::Recv(Some(recv_result)), AsyncState::Done) = op
+            {
+                // We have completed receive data, check if there's remaining data
+                if recv_result.return_offset < recv_result.recv_len {
+                    // There's remaining data from previous packet
+                    let recv_len = recv_result.recv_len;
+                    let return_offset = recv_result.return_offset;
+                    let remaining_data = recv_len - return_offset;
+                    let copy_len = remaining_data.min(data.len());
+
+                    // Copy from recv_buffer starting at return_offset
+                    let src_slice =
+                        &self.callbacks.recv_buffer[return_offset..return_offset + copy_len];
+                    let dest_slice = &mut data[..copy_len];
+                    dest_slice.copy_from_slice(src_slice);
+
+                    // Update return_offset
+                    let recv_result = if let ClientSocketOp::AsyncOp(
+                        AsyncOp::Recv(Some(ref mut recv_result)),
+                        _,
+                    ) = op
+                    {
+                        recv_result
+                    } else {
+                        unreachable!()
+                    };
+                    recv_result.return_offset += copy_len;
+
+                    if recv_result.return_offset >= recv_result.recv_len {
+                        // All data consumed, reset for next packet
+                        debug!("All {} bytes returned, ready for next packet", recv_len);
+                        *op = ClientSocketOp::None;
+                    } else {
+                        debug!(
+                            "Partial read: returned {} of {} bytes (offset now {})",
+                            copy_len, recv_len, recv_result.return_offset
+                        );
+                    }
+
+                    self.test_hook();
+                    return Ok(copy_len);
+                }
+            }
+        }
+
+        // No remaining data, proceed with normal receive operation
         let res = Self::async_op(
             true,
             socket,
@@ -178,13 +226,38 @@ impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {
                 ))
             },
             |sock, manager, recv_buffer, asyncop| {
-                if let AsyncOp::Recv(Some(recv_result)) = asyncop {
+                if let AsyncOp::Recv(Some(ref mut recv_result)) = asyncop {
                     match recv_result.error {
                         SocketError::NoError => {
                             let recv_len = recv_result.recv_len;
-                            let dest_slice = &mut data[..recv_len];
-                            dest_slice.copy_from_slice(&recv_buffer[..recv_len]);
-                            Ok(recv_result.recv_len)
+
+                            if recv_len == 0 {
+                                // No data available
+                                Ok(0)
+                            } else {
+                                // This is a new packet, return_offset should be 0
+                                let copy_len = recv_len.min(data.len());
+
+                                // Copy from recv_buffer
+                                let dest_slice = &mut data[..copy_len];
+                                dest_slice.copy_from_slice(&recv_buffer[..copy_len]);
+
+                                // Update return_offset for potential future calls
+                                recv_result.return_offset = copy_len;
+
+                                if copy_len < recv_len {
+                                    debug!(
+                                        "Partial read: returned {} of {} bytes, {} remaining",
+                                        copy_len,
+                                        recv_len,
+                                        recv_len - copy_len
+                                    );
+                                } else {
+                                    debug!("Complete read: returned all {} bytes", recv_len);
+                                }
+
+                                Ok(copy_len)
+                            }
                         }
                         SocketError::Timeout => {
                             debug!("Timeout on receive, re-sending receive command");

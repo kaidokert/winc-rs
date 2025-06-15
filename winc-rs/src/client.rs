@@ -38,7 +38,7 @@ pub struct WincClient<'a, X: Xfer> {
 }
 
 impl<X: Xfer> WincClient<'_, X> {
-    // Max send frame length
+    // Max send frame length - conservative limit to avoid overwhelming chip buffers
     #[cfg(not(test))]
     const MAX_SEND_LENGTH: usize = 1400;
 
