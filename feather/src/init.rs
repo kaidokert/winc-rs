@@ -29,17 +29,20 @@ use hal::ehal::i2c::I2c;
 
 use super::shared::SpiBus;
 
+use cortex_m_systick_countdown::{PollingSysTick, SysTickCalibration};
+
 // Set SPI bus to 8 Mhz, about as fast as it goes
 const SPI_MHZ: u32 = 8;
 const I2C_KHZ: u32 = 400;
-
-use cortex_m_systick_countdown::{PollingSysTick, SysTickCalibration};
 
 // Chip reset sequence timing. TODO: Shorten those as much as
 // we reliably can
 const WIFI_RESET_DELAY_DOWN: u32 = 50;
 const WIFI_RESET_DELAY_UP: u32 = 20;
 const WIFI_RESET_DELAY_WAIT: u32 = 50;
+
+#[cfg(feature = "irq")]
+static EIC_IRQ_RCVD: Mutex<RefCell<bool>> = Mutex::new(RefCell::new(false));
 
 #[derive(Debug, defmt::Format)]
 pub enum FailureSource {
