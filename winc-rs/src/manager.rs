@@ -111,7 +111,7 @@ const MAX_SOCKET: usize = TCP_SOCK_MAX + UDP_SOCK_MAX;
 pub trait EventListener {
     fn on_rssi(&mut self, level: i8);
     fn on_resolve(&mut self, ip: Ipv4Addr, host: &str);
-    fn on_default_connect(&mut self, connected: bool);
+    fn on_default_connect(&mut self, connected: u8);
     fn on_dhcp(&mut self, conf: IPConf);
     fn on_connstate_changed(&mut self, state: WifiConnState, err: WifiConnError);
     fn on_connection_info(&mut self, info: ConnectionInfo);
@@ -895,7 +895,7 @@ impl<X: Xfer> Manager<X> {
                 WifiResponse::DefaultConnect => {
                     let mut def_connect = [0xff; 4];
                     self.read_block(address, &mut def_connect)?;
-                    listener.on_default_connect(def_connect[0] == 0)
+                    listener.on_default_connect(def_connect[0])
                 }
                 WifiResponse::DhcpConf => {
                     let mut result = [0xff; 20];

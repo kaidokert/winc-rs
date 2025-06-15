@@ -16,8 +16,15 @@ use hal::clock::GenericClockController;
 use hal::eic::Eic;
 #[cfg(feature = "irq")]
 use hal::eic::*;
-#[cfg(all(feature = "irq", not(feature = "irq-override")))]
+#[cfg(all(feature = "irq", not(feature = "eic-irq-override")))]
 use pac::interrupt;
+
+#[cfg(feature = "irq")]
+use core::cell::RefCell;
+#[cfg(feature = "irq")]
+use core::ops::DerefMut;
+#[cfg(feature = "irq")]
+use cortex_m::interrupt::Mutex;
 
 use hal::time::{Hertz, MegaHertz};
 
@@ -28,6 +35,9 @@ use hal::ehal::digital::OutputPin;
 use hal::ehal::i2c::I2c;
 
 use super::shared::SpiBus;
+
+#[cfg(feature = "irq")]
+static EIC_IRQ_RCVD: Mutex<RefCell<bool>> = Mutex::new(RefCell::new(false));
 
 // Set SPI bus to 4 Mhz, about as fast as it goes
 const SPI_MHZ: u32 = 4;
@@ -146,6 +156,7 @@ pub fn init() -> Result<
             NVIC::unmask(pac::interrupt::EIC);
         }
 
+        // Initialize a button on D5 pin for counter.
         let mut button_c = pins.d5.into_pull_up_ei(channels.15);
         button_c.sense(hal::eic::Sense::Fall);
         button_c.enable_interrupt();
@@ -175,7 +186,29 @@ pub fn init() -> Result<
     })
 }
 
-#[cfg(all(feature = "irq", not(feature = "irq-override")))]
+#[cfg(feature = "irq")]
+pub fn set_eic_irq_pending(state: bool) {
+    cortex_m::interrupt::free(|cs| {
+        *EIC_IRQ_RCVD.borrow(cs).borrow_mut().deref_mut() = state;
+    });
+}
+
+#[cfg(feature = "irq")]
+pub fn is_eic_irq_pending() -> bool {
+    return cortex_m::interrupt::free(|cs| *EIC_IRQ_RCVD.borrow(cs).borrow_mut().deref_mut());
+}
+
+#[cfg(all(feature = "irq", not(feature = "eic-irq-override")))]
+/// Interrupt handler for EIC (External Interrupt Controller).
+///
+/// # Note
+///
+/// If a custom EIC handler is required, enable the features
+/// `eic-irq-override` along with `irq`.
+///
+/// **Important:** Make sure to set the EIC IRQ flag by calling
+/// `set_eic_irq_pending(true)`, or the code will remain stuck in an
+/// infinite loop inside `wait_for_interrupt` located in `shared/spi_stream`.
 #[interrupt]
 fn EIC() {
     unsafe {
@@ -187,4 +220,5 @@ fn EIC() {
             eic.intflag().modify(|_, w| w.extint5().set_bit());
         }
     }
+    set_eic_irq_pending(true);
 }

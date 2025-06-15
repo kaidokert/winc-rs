@@ -41,15 +41,14 @@ required-features = ["telnet"]
 
 [[example]]
 name = "intr"
-required-features = ["irq", "irq-override"]
+required-features = ["irq", "eic-irq-override"]
 
 [features]
 iperf3 = ["demos/iperf3"]
 oled = ["dep:ssd1306"]
 telnet = ["demos/telnet"]
-# Use Interrupt instead of polling
-irq = ["wincwifi/irq"]
-irq-override = [] # If any example uses custom irq handler of EIC
+irq = ["wincwifi/irq"] # Use Interrupt instead of polling
+eic-irq-override = [] # If any example uses custom irq handler of EIC
 
 # cargo build/run
 [profile.dev]
