@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1749955974428,
+  "lastUpdate": 1750027940676,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -1201,6 +1201,40 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/kaidokert/winc-rs/commit/990163fa300ade7d754257242cfc35b36425e082"
         },
         "date": 1749955974092,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 40316,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 55788,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "kaidokert@gmail.com",
+            "name": "Kaido Kert",
+            "username": "kaidokert"
+          },
+          "committer": {
+            "email": "kaidokert@gmail.com",
+            "name": "Kaido Kert",
+            "username": "kaidokert"
+          },
+          "distinct": true,
+          "id": "681aa159d9106e536d10ed60075d375fb3b4029a",
+          "message": "Dump in Atmel studio reference",
+          "timestamp": "2025-06-15T15:51:20-07:00",
+          "tree_id": "3f29385b83bd70e15396039658afebb091ddf545",
+          "url": "https://github.com/kaidokert/winc-rs/commit/681aa159d9106e536d10ed60075d375fb3b4029a"
+        },
+        "date": 1750027940243,
         "tool": "customSmallerIsBetter",
         "benches": [
           {
