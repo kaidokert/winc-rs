@@ -5,6 +5,8 @@ use hal::ehal::digital::OutputPin;
 use wincwifi::Transfer;
 
 use super::SpiBus;
+#[cfg(feature = "irq")]
+use crate::init::{is_eic_irq_pending, set_eic_irq_pending};
 use core::mem::take;
 
 const DEFAULT_WAIT_CYCLES: u32 = 16_000; // hand tested :)
@@ -105,7 +107,12 @@ impl<CS: OutputPin, Spi: SpiBus> Transfer for SpiStream<CS, Spi> {
     /// Implementation for wait for interrupt.
     fn wait_for_interrupt(&mut self) {
         if self.interrupts_enabled {
-            cortex_m::asm::wfi();
+            loop {
+                if is_eic_irq_pending() {
+                    set_eic_irq_pending(false);
+                    break;
+                }
+            }
         }
     }
 }
