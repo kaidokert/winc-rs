@@ -497,7 +497,7 @@ where
                 let (speed, bytes_suffix, bits_speed, bits_suffix) = format_speed(bytes_per_second);
                 info!(
                     "{} Speed {} {}/s ({} {}/s)",
-                    protocol_name, speed as u32, bytes_suffix, bits_speed as u32, bits_suffix
+                    protocol_name, speed, bytes_suffix, bits_speed, bits_suffix
                 );
             } else {
                 info!(
