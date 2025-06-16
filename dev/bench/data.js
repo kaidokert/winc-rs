@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1750057916486,
+  "lastUpdate": 1750058301695,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -1405,6 +1405,40 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/kaidokert/winc-rs/commit/0b768ff855de3135886a14d4ad529f9fb86c5aac"
         },
         "date": 1750057916128,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 40272,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 54556,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "kaidokert@gmail.com",
+            "name": "Kaido Kert",
+            "username": "kaidokert"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "a7e025b98da8712b88f0f7fa9b84ca50aa345b65",
+          "message": "Socket receive fix for large payloads (#79)\n\n* TCP Socket receive fix for large payloads\n\n* Add tests for large receive handling and address UDP side too\n\n* Handle possibly missing UDP addr",
+          "timestamp": "2025-06-16T00:17:25-07:00",
+          "tree_id": "95a21d86fedac7f3da71d54740f67ba6ec5dbf77",
+          "url": "https://github.com/kaidokert/winc-rs/commit/a7e025b98da8712b88f0f7fa9b84ca50aa345b65"
+        },
+        "date": 1750058301326,
         "tool": "customSmallerIsBetter",
         "benches": [
           {
