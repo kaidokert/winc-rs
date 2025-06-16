@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1750034011343,
+  "lastUpdate": 1750037360976,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -1279,6 +1279,40 @@ window.BENCHMARK_DATA = {
           {
             "name": "iperf3_client",
             "value": 55788,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "kaidokert@gmail.com",
+            "name": "Kaido Kert",
+            "username": "kaidokert"
+          },
+          "committer": {
+            "email": "kaidokert@gmail.com",
+            "name": "Kaido Kert",
+            "username": "kaidokert"
+          },
+          "distinct": true,
+          "id": "cbc801afe92575a95666c1f42a9ef80f1126a2e5",
+          "message": "TCP Socket receive fix for large payloads",
+          "timestamp": "2025-06-15T18:27:59-07:00",
+          "tree_id": "5c314f188f49b1835f1590f0c151c0267d4699b6",
+          "url": "https://github.com/kaidokert/winc-rs/commit/cbc801afe92575a95666c1f42a9ef80f1126a2e5"
+        },
+        "date": 1750037360507,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 40316,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 54592,
             "unit": "byte"
           }
         ]
