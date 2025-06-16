@@ -148,16 +148,18 @@ pub(crate) struct RecvResult {
     pub recv_len: usize,
     pub from_addr: core::net::SocketAddrV4,
     pub error: SocketError,
+    pub return_offset: usize, // Track how much data has been returned to caller
 }
 #[cfg(feature = "defmt")]
 impl defmt::Format for RecvResult {
     fn format(&self, f: defmt::Formatter) {
         defmt::write!(
             f,
-            "recv_len: {}, from_addr: {:?}, error: {}",
+            "recv_len: {}, from_addr: {:?}, error: {}, return_offset: {}",
             self.recv_len,
             Ipv4AddrFormatWrapper::new(self.from_addr.ip()),
-            self.error
+            self.error,
+            self.return_offset
         );
     }
 }
@@ -468,6 +470,7 @@ impl EventListener for SocketCallbacks {
                     recv_len: data.len(),
                     from_addr: address,
                     error: err,
+                    return_offset: 0,
                 });
                 *asyncstate = AsyncState::Done;
                 self.recv_buffer[..data.len()].copy_from_slice(data);
@@ -512,6 +515,7 @@ impl EventListener for SocketCallbacks {
                     recv_len: data.len(),
                     from_addr: address,
                     error: err,
+                    return_offset: 0,
                 });
                 *asyncstate = AsyncState::Done;
                 self.recv_buffer[..data.len()].copy_from_slice(data);

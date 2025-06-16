@@ -152,14 +152,54 @@ impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {
     }
 
     // Nb:: Blocking call, returns nb::Result when no data
-    // Todo: Bug: If a caller passes us a very large buffer that is larger than
-    // max receive buffer, this should loop through serveral packets with
-    // an offset - like send does.
+    // Handles partial reads properly - returns available data from previous packet first,
+    // then requests new packets when needed
     fn receive(
         &mut self,
         socket: &mut <Self as TcpClientStack>::TcpSocket,
         data: &mut [u8],
     ) -> Result<usize, nb::Error<<Self as TcpClientStack>::Error>> {
+        // Check if we have a previous operation with remaining data
+        let store = &mut self.callbacks.tcp_sockets;
+        if let Some((_sock, op)) = store.get(*socket) {
+            if let ClientSocketOp::AsyncOp(
+                AsyncOp::Recv(Some(ref mut recv_result)),
+                AsyncState::Done,
+            ) = op
+            {
+                if recv_result.return_offset < recv_result.recv_len {
+                    let remaining_data = recv_result.recv_len - recv_result.return_offset;
+                    let copy_len = remaining_data.min(data.len());
+
+                    // Copy remaining data from recv_buffer
+                    data[..copy_len].copy_from_slice(
+                        &self.callbacks.recv_buffer
+                            [recv_result.return_offset..recv_result.return_offset + copy_len],
+                    );
+
+                    recv_result.return_offset += copy_len;
+
+                    // Clear operation if all data consumed
+                    if recv_result.return_offset >= recv_result.recv_len {
+                        debug!(
+                            "All {} bytes returned, ready for next packet",
+                            recv_result.recv_len
+                        );
+                        *op = ClientSocketOp::None;
+                    } else {
+                        debug!(
+                            "Partial read: returned {} of {} bytes (offset now {})",
+                            copy_len, recv_result.recv_len, recv_result.return_offset
+                        );
+                    }
+
+                    self.test_hook();
+                    return Ok(copy_len);
+                }
+            }
+        }
+
+        // No remaining data, proceed with normal receive operation
         let res = Self::async_op(
             true,
             socket,
@@ -178,13 +218,38 @@ impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {
                 ))
             },
             |sock, manager, recv_buffer, asyncop| {
-                if let AsyncOp::Recv(Some(recv_result)) = asyncop {
+                if let AsyncOp::Recv(Some(ref mut recv_result)) = asyncop {
                     match recv_result.error {
                         SocketError::NoError => {
                             let recv_len = recv_result.recv_len;
-                            let dest_slice = &mut data[..recv_len];
-                            dest_slice.copy_from_slice(&recv_buffer[..recv_len]);
-                            Ok(recv_result.recv_len)
+
+                            if recv_len == 0 {
+                                // No data available
+                                Ok(0)
+                            } else {
+                                // This is a new packet, return_offset should be 0
+                                let copy_len = recv_len.min(data.len());
+
+                                // Copy from recv_buffer
+                                let dest_slice = &mut data[..copy_len];
+                                dest_slice.copy_from_slice(&recv_buffer[..copy_len]);
+
+                                // Update return_offset for potential future calls
+                                recv_result.return_offset = copy_len;
+
+                                if copy_len < recv_len {
+                                    debug!(
+                                        "Partial read: returned {} of {} bytes, {} remaining",
+                                        copy_len,
+                                        recv_len,
+                                        recv_len - copy_len
+                                    );
+                                } else {
+                                    debug!("Complete read: returned all {} bytes", recv_len);
+                                }
+
+                                Ok(copy_len)
+                            }
                         }
                         SocketError::Timeout => {
                             debug!("Timeout on receive, re-sending receive command");
@@ -651,5 +716,198 @@ mod test {
         let socket_addr = SocketAddr::new(IpAddr::V6(Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 0)), 80);
 
         let _ = client.connect(&mut tcp_socket, socket_addr);
+    }
+
+    #[test]
+    fn test_tcp_large_payload_receive() {
+        let mut client = make_test_client();
+        let mut tcp_socket = client.socket().unwrap();
+        let socket_addr = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 80);
+        let mut recv_buffer = [0u8; 350]; // Small caller buffer
+
+        // Large packet from SPI - 1400 bytes, all 0xAA
+        let mut my_debug = |callbacks: &mut SocketCallbacks| {
+            callbacks.on_recv(
+                Socket::new(0, 0),
+                socket_addr,
+                &[0xAA; 1400], // Large packet from SPI (within buffer limit)
+                SocketError::NoError,
+            );
+        };
+        client.debug_callback = Some(&mut my_debug);
+
+        // First read should return 350 bytes (partial)
+        let first_read = nb::block!(client.receive(&mut tcp_socket, &mut recv_buffer)).unwrap();
+        assert_eq!(first_read, 350);
+        assert!(recv_buffer.iter().all(|&x| x == 0xAA));
+
+        // Second read should return next 350 bytes (partial)
+        let second_read = nb::block!(client.receive(&mut tcp_socket, &mut recv_buffer)).unwrap();
+        assert_eq!(second_read, 350);
+        assert!(recv_buffer.iter().all(|&x| x == 0xAA));
+
+        // Third read should return next 350 bytes (partial)
+        let third_read = nb::block!(client.receive(&mut tcp_socket, &mut recv_buffer)).unwrap();
+        assert_eq!(third_read, 350);
+        assert!(recv_buffer.iter().all(|&x| x == 0xAA));
+
+        // Fourth read should return remaining 350 bytes (complete)
+        let fourth_read = nb::block!(client.receive(&mut tcp_socket, &mut recv_buffer)).unwrap();
+        assert_eq!(fourth_read, 350);
+        assert!(recv_buffer.iter().all(|&x| x == 0xAA));
+
+        // Fifth read should initiate a new packet - different pattern
+        let mut my_debug = |callbacks: &mut SocketCallbacks| {
+            callbacks.on_recv(
+                Socket::new(0, 0),
+                socket_addr,
+                &[0x55; 700], // Smaller large packet
+                SocketError::NoError,
+            );
+        };
+        client.debug_callback = Some(&mut my_debug);
+
+        let fifth_read = nb::block!(client.receive(&mut tcp_socket, &mut recv_buffer)).unwrap();
+        assert_eq!(fifth_read, 350);
+        assert!(recv_buffer.iter().all(|&x| x == 0x55));
+
+        // Sixth read should return remaining 350 bytes
+        let sixth_read = nb::block!(client.receive(&mut tcp_socket, &mut recv_buffer)).unwrap();
+        assert_eq!(sixth_read, 350);
+        assert!(recv_buffer.iter().all(|&x| x == 0x55));
+
+        // No more data
+        let mut my_debug = |callbacks: &mut SocketCallbacks| {
+            callbacks.on_recv(Socket::new(0, 0), socket_addr, &[], SocketError::NoError);
+        };
+        client.debug_callback = Some(&mut my_debug);
+
+        let seventh_read = nb::block!(client.receive(&mut tcp_socket, &mut recv_buffer)).unwrap();
+        assert_eq!(seventh_read, 0);
+    }
+
+    #[test]
+    fn partial_receive_full_test() {
+        // Test case 1: 10KB data, small SPI buffer (31 bytes), large receiver buffer (2KB)
+        // This tests the scenario where SPI delivers small chunks but app has large buffers
+        run_partial_read_test(10240, 31, 2048);
+
+        // Test case 2: 10KB data, small SPI buffer (100 bytes), small receiver buffer (100 bytes)
+        // This tests equal sized buffers under the builtin buffer sizes
+        run_partial_read_test(10240, 100, 100);
+
+        // Test case 3: 10KB data, equal SPI and receiver buffers (64 bytes)
+        // Another equal size test with smaller buffers
+        run_partial_read_test(10240, 64, 64);
+
+        // Test case 4: 10KB data, large SPI buffer (1024 bytes), small receiver buffer (31 bytes)
+        // This tests large SPI chunks but tiny app reads
+        run_partial_read_test(10240, 1024, 31);
+
+        // Test case 5: 10KB data, large SPI buffer (1024 bytes), small receiver buffer (100 bytes)
+        // Large SPI with medium app reads
+        run_partial_read_test(10240, 1024, 100);
+
+        // Test case 6: 10KB data, equal larger buffers (1024 bytes each)
+        // This tests equal sized large buffers
+        run_partial_read_test(10240, 1024, 1024);
+
+        // Test case 7: 10KB data, equal large buffers (1400 bytes each - near MTU limit)
+        // This tests the largest practical equal buffer sizes
+        run_partial_read_test(10240, 1400, 1400);
+
+        // Test case 8: Edge case - tiny data, large buffers
+        run_partial_read_test(64, 1024, 1400);
+
+        // Test case 9: Edge case - data that doesn't align with 4-byte boundaries nicely
+        run_partial_read_test(9996, 97, 131); // Non-round numbers to test edge cases
+    }
+
+    fn run_partial_read_test(total_size: usize, spi_chunk_size: usize, receive_buffer_size: usize) {
+        let mut client = make_test_client();
+        let mut socket_handle = client.socket().unwrap();
+        let socket_addr = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 80);
+
+        // Prepare test data pattern
+        let mut source_data = [0u8; 10240];
+        assert!(total_size <= source_data.len());
+        let source_slice = &mut source_data[0..total_size];
+        crate::client::tests::generate_test_pattern(source_slice);
+        let expected_checksum = crate::client::tests::compute_crc16(source_slice);
+
+        // Storage for received data
+        let mut received_data = [0u8; 10240];
+        let mut app_receive_buffer = [0u8; 2048];
+        assert!(receive_buffer_size <= app_receive_buffer.len());
+
+        // Start the initial receive call to put socket in pending state
+        let initial_result = client.receive(
+            &mut socket_handle,
+            &mut app_receive_buffer[0..receive_buffer_size],
+        );
+        assert_eq!(initial_result, Err(nb::Error::WouldBlock));
+
+        let mut total_bytes_received = 0;
+        let mut spi_offset = 0;
+
+        // Simulate SPI data arriving in chunks
+        while spi_offset < total_size {
+            let chunk_end = (spi_offset + spi_chunk_size).min(total_size);
+            let chunk = &source_slice[spi_offset..chunk_end];
+
+            // Copy chunk to internal buffer and trigger callback
+            client.callbacks.recv_buffer[..chunk.len()].copy_from_slice(chunk);
+            client
+                .callbacks
+                .on_recv(Socket::new(0, 0), socket_addr, chunk, SocketError::NoError);
+
+            spi_offset = chunk_end;
+
+            // Read all available data with the specified receiver buffer size
+            loop {
+                let receive_slice = &mut app_receive_buffer[0..receive_buffer_size];
+                let read_result = client.receive(&mut socket_handle, receive_slice);
+
+                match read_result {
+                    Ok(bytes_read) => {
+                        if bytes_read == 0 {
+                            break; // No more data from this SPI chunk
+                        }
+
+                        // Copy received data to our accumulator
+                        received_data[total_bytes_received..total_bytes_received + bytes_read]
+                            .copy_from_slice(&receive_slice[0..bytes_read]);
+                        total_bytes_received += bytes_read;
+                    }
+                    Err(nb::Error::WouldBlock) => {
+                        break; // Need more SPI data
+                    }
+                    Err(e) => {
+                        panic!("Unexpected error: {:?}", e);
+                    }
+                }
+            }
+        }
+
+        // Verify all data was received correctly
+        assert_eq!(
+            total_bytes_received, total_size,
+            "Total bytes received {} != expected {} (SPI: {}, RX: {})",
+            total_bytes_received, total_size, spi_chunk_size, receive_buffer_size
+        );
+
+        let received_slice = &received_data[0..total_size];
+        let actual_checksum = crate::client::tests::compute_crc16(received_slice);
+        assert_eq!(
+            actual_checksum, expected_checksum,
+            "Checksum mismatch! (SPI: {}, RX: {})",
+            spi_chunk_size, receive_buffer_size
+        );
+
+        assert_eq!(
+            received_slice, source_slice,
+            "Data content mismatch! (SPI: {}, RX: {})",
+            spi_chunk_size, receive_buffer_size
+        );
     }
 }
