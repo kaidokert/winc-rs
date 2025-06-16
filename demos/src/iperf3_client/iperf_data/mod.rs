@@ -87,7 +87,7 @@ impl UdpSessionConfig {
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct StreamResults {
     pub id: u8,
-    pub bytes: u32,
+    pub bytes: u64,
     #[serde(default)]
     pub retransmits: u64, // Always include retransmits field for server compatibility
     pub jitter: f32,
