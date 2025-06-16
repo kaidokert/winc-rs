@@ -366,10 +366,11 @@ where
         // performance (197 Mbps vs our 16 Mbps) through intelligent pacing algorithms.
         // For optimal results, packets should be spaced based on target bitrate and
         // network feedback rather than sent in a tight loop.
-        loop {
-            // Create UDP packet with header
-            let mut buffer = [0xBB; MAX_BLOCK_LEN]; // Different pattern for UDP
 
+        // Allocate buffer once outside the loop to reduce stack pressure
+        let mut buffer = [0xBB; MAX_BLOCK_LEN]; // Different pattern for UDP
+
+        loop {
             // UDP packet header (12 bytes)
             let current_time = 0.0f32; // Simplified - would need actual timestamp
             let header = UdpPacketHeader {
