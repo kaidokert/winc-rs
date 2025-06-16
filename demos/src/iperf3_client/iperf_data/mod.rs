@@ -59,9 +59,9 @@ impl UdpPacketHeader {
 
 #[derive(Debug, Default)]
 pub struct UdpMetrics {
-    pub packets_sent: u32,
-    pub bytes_sent: u32,
-    pub errors: u32,
+    pub packets_sent: u64,
+    pub bytes_sent: u64,
+    pub errors: u64,
 }
 
 impl SessionConfig {
@@ -91,8 +91,8 @@ pub struct StreamResults {
     #[serde(default)]
     pub retransmits: u64, // Always include retransmits field for server compatibility
     pub jitter: f32,
-    pub errors: u32,
-    pub packets: u32,
+    pub errors: u64,
+    pub packets: u64,
     pub start_time: f32,
     pub end_time: f32,
 }

@@ -387,7 +387,7 @@ where
             )) {
                 Ok(_) => {
                     udp_metrics.packets_sent += 1;
-                    udp_metrics.bytes_sent += block_len as u32;
+                    udp_metrics.bytes_sent += block_len as u64;
                     debug!(
                         "-----Sent UDP packet {} ({} bytes)-----",
                         packet_id, block_len
@@ -442,7 +442,7 @@ where
     } else {
         &[StreamResults {
             id: 1,
-            bytes: full_len as u32,
+            bytes: full_len as u64,
             ..Default::default()
         }][..]
     };
