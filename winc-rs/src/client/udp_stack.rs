@@ -239,7 +239,13 @@ impl<X: Xfer> UdpClientStack for WincClient<'_, X> {
         );
         self.test_hook();
         match res {
-            Ok(len) => Ok((len, core::net::SocketAddr::V4(from_addr.unwrap()))),
+            Ok(len) => {
+                if let Some(addr) = from_addr {
+                    Ok((len, core::net::SocketAddr::V4(addr)))
+                } else {
+                    Err(nb::Error::WouldBlock)
+                }
+            }
             Err(nb::Error::Other(StackError::ContinueOperation)) => Err(nb::Error::WouldBlock),
             Err(nb::Error::Other(e)) => Err(nb::Error::Other(e)),
             Err(nb::Error::WouldBlock) => Err(nb::Error::WouldBlock),
