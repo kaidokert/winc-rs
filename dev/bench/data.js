@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1750037360976,
+  "lastUpdate": 1750040931253,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -1313,6 +1313,40 @@ window.BENCHMARK_DATA = {
           {
             "name": "iperf3_client",
             "value": 54592,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "kaidokert@gmail.com",
+            "name": "Kaido Kert",
+            "username": "kaidokert"
+          },
+          "committer": {
+            "email": "kaidokert@gmail.com",
+            "name": "Kaido Kert",
+            "username": "kaidokert"
+          },
+          "distinct": true,
+          "id": "052ad8c0079ef30f7d846809c345e54f09e7302c",
+          "message": "Add tests for large receive handling and address UDP side too",
+          "timestamp": "2025-06-15T19:27:49-07:00",
+          "tree_id": "4f07a48160239df5952e0085fd6c80ccf7223a8a",
+          "url": "https://github.com/kaidokert/winc-rs/commit/052ad8c0079ef30f7d846809c345e54f09e7302c"
+        },
+        "date": 1750040930929,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 40272,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 54556,
             "unit": "byte"
           }
         ]
