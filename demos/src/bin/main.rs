@@ -61,6 +61,10 @@ struct Iperf3Config {
     /// length of buffer to read or write
     #[arg(short = 'l', long, default_value_t = 32)]
     block_len: usize,
+
+    /// use UDP rather than TCP
+    #[arg(short = 'u', long)]
+    udp: bool,
 }
 
 #[derive(Parser)]
@@ -110,6 +114,7 @@ fn main() -> Result<(), LocalErrors> {
         env_logger::Env::default().default_filter_or(log_level.to_string()),
     )
     .init();
+    log::info!("Starting embedded-nal demo application");
 
     let ip_str = cli.ip.unwrap_or("127.0.0.1".to_string());
     let ip = parse_ip_octets(&ip_str);
@@ -152,12 +157,13 @@ fn main() -> Result<(), LocalErrors> {
                         transmit_block_len: _config.block_len,
                     }
                 };
-                iperf3_client::<65536, _, _>(
+                iperf3_client::<65536, _, _, _>(
                     &mut stack,
                     ip_addr,
                     Some(port),
                     &mut rand::rng(),
                     Some(conf),
+                    _config.udp, // Pass UDP flag directly
                 )
                 .map_err(|_| LocalErrors::IoError)?;
             }
