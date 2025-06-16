@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1750061344574,
+  "lastUpdate": 1750061852347,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -1575,6 +1575,40 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/kaidokert/winc-rs/commit/e13e05a2c4dcc280113936619c344b0f599b30c4"
         },
         "date": 1750061344217,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 40272,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 55788,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "kaidokert@gmail.com",
+            "name": "Kaido Kert",
+            "username": "kaidokert"
+          },
+          "committer": {
+            "email": "kaidokert@gmail.com",
+            "name": "Kaido Kert",
+            "username": "kaidokert"
+          },
+          "distinct": true,
+          "id": "c3a20304379672f20a36e0b4592326d384d3decc",
+          "message": "Fix missing fractional speed display",
+          "timestamp": "2025-06-16T01:16:00-07:00",
+          "tree_id": "ac22cf9ac0a4fc1897bf2674ea6599fdf8224de0",
+          "url": "https://github.com/kaidokert/winc-rs/commit/c3a20304379672f20a36e0b4592326d384d3decc"
+        },
+        "date": 1750061851957,
         "tool": "customSmallerIsBetter",
         "benches": [
           {
