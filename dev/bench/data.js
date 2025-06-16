@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1750027940676,
+  "lastUpdate": 1750034011343,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -1235,6 +1235,40 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/kaidokert/winc-rs/commit/681aa159d9106e536d10ed60075d375fb3b4029a"
         },
         "date": 1750027940243,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 40316,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 55788,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "kaidokert@gmail.com",
+            "name": "Kaido Kert",
+            "username": "kaidokert"
+          },
+          "committer": {
+            "email": "kaidokert@gmail.com",
+            "name": "Kaido Kert",
+            "username": "kaidokert"
+          },
+          "distinct": true,
+          "id": "37273c07ef192312bb923b71706e22a456b8e71c",
+          "message": "Make ASF and Arduino versions more diff-able",
+          "timestamp": "2025-06-15T17:32:30-07:00",
+          "tree_id": "bd172c70d8e2044715931f5f1d070140d796219b",
+          "url": "https://github.com/kaidokert/winc-rs/commit/37273c07ef192312bb923b71706e22a456b8e71c"
+        },
+        "date": 1750034010883,
         "tool": "customSmallerIsBetter",
         "benches": [
           {
