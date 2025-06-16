@@ -162,42 +162,34 @@ impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {
         // Check if we have a previous operation with remaining data
         let store = &mut self.callbacks.tcp_sockets;
         if let Some((_sock, op)) = store.get(*socket) {
-            if let ClientSocketOp::AsyncOp(AsyncOp::Recv(Some(recv_result)), AsyncState::Done) = op
+            if let ClientSocketOp::AsyncOp(
+                AsyncOp::Recv(Some(ref mut recv_result)),
+                AsyncState::Done,
+            ) = op
             {
-                // We have completed receive data, check if there's remaining data
                 if recv_result.return_offset < recv_result.recv_len {
-                    // There's remaining data from previous packet
-                    let recv_len = recv_result.recv_len;
-                    let return_offset = recv_result.return_offset;
-                    let remaining_data = recv_len - return_offset;
+                    let remaining_data = recv_result.recv_len - recv_result.return_offset;
                     let copy_len = remaining_data.min(data.len());
 
-                    // Copy from recv_buffer starting at return_offset
-                    let src_slice =
-                        &self.callbacks.recv_buffer[return_offset..return_offset + copy_len];
-                    let dest_slice = &mut data[..copy_len];
-                    dest_slice.copy_from_slice(src_slice);
+                    // Copy remaining data from recv_buffer
+                    data[..copy_len].copy_from_slice(
+                        &self.callbacks.recv_buffer
+                            [recv_result.return_offset..recv_result.return_offset + copy_len],
+                    );
 
-                    // Update return_offset
-                    let recv_result = if let ClientSocketOp::AsyncOp(
-                        AsyncOp::Recv(Some(ref mut recv_result)),
-                        _,
-                    ) = op
-                    {
-                        recv_result
-                    } else {
-                        unreachable!()
-                    };
                     recv_result.return_offset += copy_len;
 
+                    // Clear operation if all data consumed
                     if recv_result.return_offset >= recv_result.recv_len {
-                        // All data consumed, reset for next packet
-                        debug!("All {} bytes returned, ready for next packet", recv_len);
+                        debug!(
+                            "All {} bytes returned, ready for next packet",
+                            recv_result.recv_len
+                        );
                         *op = ClientSocketOp::None;
                     } else {
                         debug!(
                             "Partial read: returned {} of {} bytes (offset now {})",
-                            copy_len, recv_len, recv_result.return_offset
+                            copy_len, recv_result.recv_len, recv_result.return_offset
                         );
                     }
 
@@ -724,5 +716,73 @@ mod test {
         let socket_addr = SocketAddr::new(IpAddr::V6(Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 0)), 80);
 
         let _ = client.connect(&mut tcp_socket, socket_addr);
+    }
+
+    #[test]
+    fn test_tcp_large_payload_receive() {
+        let mut client = make_test_client();
+        let mut tcp_socket = client.socket().unwrap();
+        let socket_addr = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 80);
+        let mut recv_buffer = [0u8; 350]; // Small caller buffer
+
+        // Large packet from SPI - 1400 bytes, all 0xAA
+        let mut my_debug = |callbacks: &mut SocketCallbacks| {
+            callbacks.on_recv(
+                Socket::new(0, 0),
+                socket_addr,
+                &[0xAA; 1400], // Large packet from SPI (within buffer limit)
+                SocketError::NoError,
+            );
+        };
+        client.debug_callback = Some(&mut my_debug);
+
+        // First read should return 350 bytes (partial)
+        let first_read = nb::block!(client.receive(&mut tcp_socket, &mut recv_buffer)).unwrap();
+        assert_eq!(first_read, 350);
+        assert!(recv_buffer.iter().all(|&x| x == 0xAA));
+
+        // Second read should return next 350 bytes (partial)
+        let second_read = nb::block!(client.receive(&mut tcp_socket, &mut recv_buffer)).unwrap();
+        assert_eq!(second_read, 350);
+        assert!(recv_buffer.iter().all(|&x| x == 0xAA));
+
+        // Third read should return next 350 bytes (partial)
+        let third_read = nb::block!(client.receive(&mut tcp_socket, &mut recv_buffer)).unwrap();
+        assert_eq!(third_read, 350);
+        assert!(recv_buffer.iter().all(|&x| x == 0xAA));
+
+        // Fourth read should return remaining 350 bytes (complete)
+        let fourth_read = nb::block!(client.receive(&mut tcp_socket, &mut recv_buffer)).unwrap();
+        assert_eq!(fourth_read, 350);
+        assert!(recv_buffer.iter().all(|&x| x == 0xAA));
+
+        // Fifth read should initiate a new packet - different pattern
+        let mut my_debug = |callbacks: &mut SocketCallbacks| {
+            callbacks.on_recv(
+                Socket::new(0, 0),
+                socket_addr,
+                &[0x55; 700], // Smaller large packet
+                SocketError::NoError,
+            );
+        };
+        client.debug_callback = Some(&mut my_debug);
+
+        let fifth_read = nb::block!(client.receive(&mut tcp_socket, &mut recv_buffer)).unwrap();
+        assert_eq!(fifth_read, 350);
+        assert!(recv_buffer.iter().all(|&x| x == 0x55));
+
+        // Sixth read should return remaining 350 bytes
+        let sixth_read = nb::block!(client.receive(&mut tcp_socket, &mut recv_buffer)).unwrap();
+        assert_eq!(sixth_read, 350);
+        assert!(recv_buffer.iter().all(|&x| x == 0x55));
+
+        // No more data
+        let mut my_debug = |callbacks: &mut SocketCallbacks| {
+            callbacks.on_recv(Socket::new(0, 0), socket_addr, &[], SocketError::NoError);
+        };
+        client.debug_callback = Some(&mut my_debug);
+
+        let seventh_read = nb::block!(client.receive(&mut tcp_socket, &mut recv_buffer)).unwrap();
+        assert_eq!(seventh_read, 0);
     }
 }

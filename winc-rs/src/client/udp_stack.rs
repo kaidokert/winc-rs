@@ -145,6 +145,38 @@ impl<X: Xfer> UdpClientStack for WincClient<'_, X> {
         socket: &mut Self::UdpSocket,
         buffer: &mut [u8],
     ) -> nb::Result<(usize, core::net::SocketAddr), Self::Error> {
+        // Check if we have a previous operation with remaining data
+        let store = &mut self.callbacks.udp_sockets;
+        if let Some((_sock, op)) = store.get(*socket) {
+            if let ClientSocketOp::AsyncOp(
+                AsyncOp::RecvFrom(Some(ref mut recv_result)),
+                AsyncState::Done,
+            ) = op
+            {
+                if recv_result.return_offset < recv_result.recv_len {
+                    let remaining_data = recv_result.recv_len - recv_result.return_offset;
+                    let copy_len = remaining_data.min(buffer.len());
+
+                    // Copy remaining data from recv_buffer
+                    buffer[..copy_len].copy_from_slice(
+                        &self.callbacks.recv_buffer
+                            [recv_result.return_offset..recv_result.return_offset + copy_len],
+                    );
+
+                    recv_result.return_offset += copy_len;
+                    let from_addr = recv_result.from_addr;
+
+                    // Clear operation if all data consumed
+                    if recv_result.return_offset >= recv_result.recv_len {
+                        *op = ClientSocketOp::None;
+                    }
+
+                    self.test_hook();
+                    return Ok((copy_len, core::net::SocketAddr::V4(from_addr)));
+                }
+            }
+        }
+        let mut from_addr = None;
         let res = Self::async_op(
             false,
             socket,
@@ -163,16 +195,30 @@ impl<X: Xfer> UdpClientStack for WincClient<'_, X> {
                 ))
             },
             |sock, manager, recv_buffer, asyncop| {
-                if let AsyncOp::RecvFrom(Some(recv_result)) = asyncop {
+                if let AsyncOp::RecvFrom(Some(ref mut recv_result)) = asyncop {
                     match recv_result.error {
                         SocketError::NoError => {
                             let recv_len = recv_result.recv_len;
-                            let dest_slice = &mut buffer[..recv_len];
-                            dest_slice.copy_from_slice(&recv_buffer[..recv_len]);
-                            Ok((
-                                recv_result.recv_len,
-                                core::net::SocketAddr::V4(recv_result.from_addr),
-                            ))
+                            from_addr = Some(recv_result.from_addr);
+                            if recv_len == 0 {
+                                Ok(0)
+                            } else {
+                                let copy_len = recv_len.min(buffer.len());
+                                let dest_slice = &mut buffer[..copy_len];
+                                dest_slice.copy_from_slice(&recv_buffer[..copy_len]);
+                                recv_result.return_offset = copy_len;
+                                if copy_len < recv_len {
+                                    debug!(
+                                        "Partial read: returned {} of {} bytes, {} remaining",
+                                        copy_len,
+                                        recv_len,
+                                        recv_len - copy_len
+                                    );
+                                } else {
+                                    debug!("Complete read: returned all {} bytes", recv_len);
+                                }
+                                Ok(copy_len)
+                            }
                         }
                         SocketError::Timeout => {
                             debug!("Timeout on receive, re-sending receive command");
@@ -192,7 +238,12 @@ impl<X: Xfer> UdpClientStack for WincClient<'_, X> {
             },
         );
         self.test_hook();
-        res
+        match res {
+            Ok(len) => Ok((len, core::net::SocketAddr::V4(from_addr.unwrap()))),
+            Err(nb::Error::Other(StackError::ContinueOperation)) => Err(nb::Error::WouldBlock),
+            Err(nb::Error::Other(e)) => Err(nb::Error::Other(e)),
+            Err(nb::Error::WouldBlock) => Err(nb::Error::WouldBlock),
+        }
     }
 
     // Not a blocking call
@@ -515,5 +566,64 @@ mod test {
         let result = nb::block!(client.receive(&mut udp_socket, &mut recv_buff));
 
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_udp_large_payload_receive() {
+        let mut client = make_test_client();
+        let mut udp_socket = client.socket().unwrap();
+        let socket_addr = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 80);
+        let mut recv_buffer = [0u8; 256]; // Small caller buffer
+
+        // Large packet from SPI - 1024 bytes, all 0xAA
+        let mut my_debug = |callbacks: &mut SocketCallbacks| {
+            callbacks.on_recvfrom(
+                Socket::new(7, 0),
+                socket_addr,
+                &[0xAA; 1024], // Large packet from SPI
+                SocketError::NoError,
+            );
+        };
+        client.debug_callback = Some(&mut my_debug);
+
+        // First read should return 256 bytes (partial)
+        let first_read = nb::block!(client.receive(&mut udp_socket, &mut recv_buffer)).unwrap();
+        assert_eq!(first_read, (256, core::net::SocketAddr::V4(socket_addr)));
+        assert!(recv_buffer.iter().all(|&x| x == 0xAA));
+
+        // Second read should return next 256 bytes (partial)
+        let second_read = nb::block!(client.receive(&mut udp_socket, &mut recv_buffer)).unwrap();
+        assert_eq!(second_read, (256, core::net::SocketAddr::V4(socket_addr)));
+        assert!(recv_buffer.iter().all(|&x| x == 0xAA));
+
+        // Third read should return next 256 bytes (partial)
+        let third_read = nb::block!(client.receive(&mut udp_socket, &mut recv_buffer)).unwrap();
+        assert_eq!(third_read, (256, core::net::SocketAddr::V4(socket_addr)));
+        assert!(recv_buffer.iter().all(|&x| x == 0xAA));
+
+        // Fourth read should return remaining 256 bytes (complete)
+        let fourth_read = nb::block!(client.receive(&mut udp_socket, &mut recv_buffer)).unwrap();
+        assert_eq!(fourth_read, (256, core::net::SocketAddr::V4(socket_addr)));
+        assert!(recv_buffer.iter().all(|&x| x == 0xAA));
+
+        // Fifth read should initiate a new packet - different pattern
+        let mut my_debug = |callbacks: &mut SocketCallbacks| {
+            callbacks.on_recvfrom(
+                Socket::new(7, 0),
+                socket_addr,
+                &[0x55; 512], // Smaller large packet
+                SocketError::NoError,
+            );
+        };
+        client.debug_callback = Some(&mut my_debug);
+
+        let fifth_read = nb::block!(client.receive(&mut udp_socket, &mut recv_buffer)).unwrap();
+        assert_eq!(fifth_read, (256, core::net::SocketAddr::V4(socket_addr)));
+        assert!(recv_buffer.iter().all(|&x| x == 0x55));
+
+        // Sixth read should return remaining 256 bytes
+        let sixth_read = nb::block!(client.receive(&mut udp_socket, &mut recv_buffer)).unwrap();
+        assert_eq!(sixth_read, (256, core::net::SocketAddr::V4(socket_addr)));
+        assert!(recv_buffer.iter().all(|&x| x == 0x55));
     }
 }
