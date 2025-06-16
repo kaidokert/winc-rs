@@ -228,6 +228,25 @@ mod test_shared {
 
 #[cfg(test)]
 mod tests {
+    // Helper function to compute CRC16 for test data integrity verification
+    pub(crate) fn compute_crc16(input: &[u8]) -> u16 {
+        use crc_any::CRC;
+        let mut crc = CRC::crc16aug_ccitt();
+        crc.digest(&[0x99, 0xc0]); // reset crc to 0xFFFF
+        crc.digest(input);
+        crc.get_crc() as u16
+    }
+
+    // Generate a predictable, sequential pattern of u32 values for testing
+    pub(crate) fn generate_test_pattern(buffer: &mut [u8]) {
+        assert!(buffer.len() % 4 == 0, "Buffer size must be a multiple of 4");
+        let mut val: u32 = 0;
+        for chunk in buffer.chunks_mut(4) {
+            chunk.copy_from_slice(&val.to_be_bytes());
+            val = val.wrapping_add(1);
+        }
+    }
+
     #[test]
     fn test_winc_client() {}
 }
