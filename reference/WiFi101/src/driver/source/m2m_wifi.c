@@ -1,44 +1,4 @@
-/**
- *
- * \file
- *
- * \brief This module contains M2M Wi-Fi APIs implementation.
- *
- * Copyright (c) 2016-2017 Atmel Corporation. All rights reserved.
- *
- * \asf_license_start
- *
- * \page License
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are met:
- *
- * 1. Redistributions of source code must retain the above copyright notice,
- *    this list of conditions and the following disclaimer.
- *
- * 2. Redistributions in binary form must reproduce the above copyright notice,
- *    this list of conditions and the following disclaimer in the documentation
- *    and/or other materials provided with the distribution.
- *
- * 3. The name of Atmel may not be used to endorse or promote products derived
- *    from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY ATMEL "AS IS" AND ANY EXPRESS OR IMPLIED
- * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
- * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT ARE
- * EXPRESSLY AND SPECIFICALLY DISCLAIMED. IN NO EVENT SHALL ATMEL BE LIABLE FOR
- * ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
- * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
- * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
- * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
- * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
- * ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
- *
- * \asf_license_stop
- *
- */
-
+// <license>
 #include "driver/include/m2m_wifi.h"
 #include "driver/source/m2m_hif.h"
 #include "driver/source/nmasic.h"
@@ -672,6 +632,7 @@ sint8 m2m_wifi_disconnect(void)
 {
 	return hif_send(M2M_REQ_GROUP_WIFI, M2M_WIFI_REQ_DISCONNECT, NULL, 0, NULL, 0,0);
 }
+
 sint8 m2m_wifi_set_mac_address(uint8 au8MacAddress[6])
 {
 	tstrM2mSetMacAddress strTmp;
@@ -697,6 +658,7 @@ sint8 m2m_wifi_request_dhcp_client(void)
 	/*legacy API should be removed */
 	return 0;
 }
+
 sint8 m2m_wifi_request_dhcp_server(uint8* addr)
 {
 #ifdef ARDUINO
@@ -953,6 +915,7 @@ sint8 m2m_wifi_p2p_disconnect(void)
 	ret = hif_send(M2M_REQ_GROUP_WIFI, M2M_WIFI_REQ_DISABLE_P2P, NULL, 0, NULL, 0, 0);
 	return ret;
 }
+
 sint8 m2m_wifi_enable_ap(CONST tstrM2MAPConfig* pstrM2MAPConfig)
 {
 	sint8 ret = M2M_ERR_FAIL;
@@ -1079,7 +1042,7 @@ sint8 m2m_wifi_get_mac_address(uint8 *pu8MacAddr)
 @param [in]  index
 			 Index for the requested result, the index range start from 0 till number of AP's found
 @sa          tstrM2mWifiscanResult,m2m_wifi_get_num_ap_found,m2m_wifi_request_scan
-@return      The function shall return M2M_SUCCESE for success and a negative value otherwise
+@return      The function shall return M2M_SUCCESS for success and a negative value otherwise
 @pre         m2m_wifi_request_scan need to be called first, then m2m_wifi_get_num_ap_found
 			 to get the number of AP's found
 @warning     Function used only in STA mode only. the scan result updated only if scan request called,
@@ -1149,7 +1112,7 @@ sint8 m2m_wifi_set_sleep_mode(uint8 PsTyp, uint8 BcastEn)
 }
 /*!
 @fn	        NMI_API sint8 m2m_wifi_request_sleep(void)
-@brief	    Request from WINC1500 device to Sleep for specific time in the M2M_PS_MANUAL Power save mode (only).
+@brief      Request from WINC device to Sleep for specific time in the M2M_PS_MANUAL Power save mode (only).
 @param [in]	u32SlpReqTime
 			Request Sleep in ms
 @return     The function SHALL return M2M_SUCCESS for success and a negative value otherwise.
@@ -1171,7 +1134,7 @@ sint8 m2m_wifi_request_sleep(uint32 u32SlpReqTime)
 }
 /*!
 @fn			NMI_API sint8 m2m_wifi_set_device_name(uint8 *pu8DeviceName, uint8 u8DeviceNameLength);
-@brief		Set the WINC1500 device name which is used as P2P device name.
+@brief      Sets the WINC device name. The name string is used as a device name in DHCP hostname (option 12).
 @param [in]	pu8DeviceName
 			Buffer holding the device name.
 @param [in]	u8DeviceNameLength
@@ -1309,11 +1272,11 @@ sint8 m2m_wifi_set_sytem_time(uint32 u32UTCSeconds)
 	return hif_send(M2M_REQ_GROUP_WIFI, M2M_WIFI_REQ_SET_SYS_TIME, (uint8*)&u32UTCSeconds, sizeof(tstrSystemTime), NULL, 0, 0);
 }
 /*!
- * @fn             NMI_API sint8 m2m_wifi_get_sytem_time(void);
+ * @fn             NMI_API sint8 m2m_wifi_get_system_time(void);
  * @see            m2m_wifi_enable_sntp
  			  		tstrSystemTime
  * @note         get the system time from the sntp client
- *		         using the API \ref m2m_wifi_get_sytem_time.
+ *		         using the API \ref m2m_wifi_get_system_time.
  * @return        The function returns @ref M2M_SUCCESS for successful operations and a negative value otherwise.
  */
 sint8 m2m_wifi_get_sytem_time(void)
@@ -1334,7 +1297,7 @@ sint8 m2m_wifi_enable_sntp(uint8 bEnable)
 @param [in]	u8PwrMode
 			Change the WINC power profile to different mode
 			PWR_LOW1/PWR_LOW2/PWR_HIGH/PWR_AUTO (tenuM2mPwrMode)
-@return		The function SHALL return M2M_SUCCESE for success and a negative value otherwise.
+@return		The function SHALL return M2M_SUCCESS for success and a negative value otherwise.
 @sa			tenuM2mPwrMode
 @pre		m2m_wifi_init
 @warning	must be called after the initializations and before any connection request and can't be changed in run time,
@@ -1352,7 +1315,7 @@ sint8 m2m_wifi_set_power_profile(uint8 u8PwrMode)
 @brief		set the TX power tenuM2mTxPwrLevel
 @param [in]	u8TxPwrLevel
 			change the TX power tenuM2mTxPwrLevel
-@return		The function SHALL return M2M_SUCCESE for success and a negative value otherwise.
+@return		The function SHALL return M2M_SUCCESS for success and a negative value otherwise.
 @sa			tenuM2mTxPwrLevel
 @pre		m2m_wifi_init
 @warning
@@ -1372,7 +1335,7 @@ sint8 m2m_wifi_set_tx_power(uint8 u8TxPwrLevel)
 			enhance the firmware start-up time and performance)
 @param [in]	u8Enable
 			Set 1 to enable the logs 0 for disable
-@return		The function SHALL return M2M_SUCCESE for success and a negative value otherwise.
+@return		The function SHALL return M2M_SUCCESS for success and a negative value otherwise.
 @sa			__DISABLE_FIRMWARE_LOGS__ (build option to disable logs from initializations)
 @pre		m2m_wifi_init
 @warning
@@ -1392,7 +1355,7 @@ sint8 m2m_wifi_enable_firmware_logs(uint8 u8Enable)
 			enhance the firmware start-up time and performance)
 @param [in]	u16BattVoltx100
 			battery voltage multiplied by 100
-@return		The function SHALL return M2M_SUCCESE for success and a negative value otherwise.
+@return		The function SHALL return M2M_SUCCESS for success and a negative value otherwise.
 @sa			__DISABLE_FIRMWARE_LOGS__ (build option to disable logs from initializations)
 @pre		m2m_wifi_init
 @warning
@@ -1412,7 +1375,7 @@ sint8 m2m_wifi_set_battery_voltage(uint16 u16BattVoltx100)
 		  	 Size of the required random bytes to be generated.
 @param [in]    pu8PrngBuff
 		        Pointer to user allocated buffer.
-@return           The function SHALL return M2M_SUCCESE for success and a negative value otherwise.
+@return           The function SHALL return M2M_SUCCESS for success and a negative value otherwise.
 */
 sint8 m2m_wifi_prng_get_random_bytes(uint8 * pu8PrngBuff,uint16 u16PrngSize)
 {
@@ -1460,7 +1423,6 @@ NMI_API sint8 m2m_wifi_enable_mac_mcast(uint8* pu8MulticastMacAddress, uint8 u8A
 	}
 
 	return s8ret;
-
 }
 
 /*!

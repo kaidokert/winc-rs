@@ -1,44 +1,4 @@
-/**
- *
- * \file
- *
- * \brief WINC Driver Common API Declarations.
- *
- * Copyright (c) 2016-2017 Atmel Corporation. All rights reserved.
- *
- * \asf_license_start
- *
- * \page License
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are met:
- *
- * 1. Redistributions of source code must retain the above copyright notice,
- *    this list of conditions and the following disclaimer.
- *
- * 2. Redistributions in binary form must reproduce the above copyright notice,
- *    this list of conditions and the following disclaimer in the documentation
- *    and/or other materials provided with the distribution.
- *
- * 3. The name of Atmel may not be used to endorse or promote products derived
- *    from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY ATMEL "AS IS" AND ANY EXPRESS OR IMPLIED
- * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
- * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT ARE
- * EXPRESSLY AND SPECIFICALLY DISCLAIMED. IN NO EVENT SHALL ATMEL BE LIABLE FOR
- * ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
- * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
- * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
- * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
- * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
- * ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
- *
- * \asf_license_stop
- *
- */
-
+// <license>
 #ifndef _NM_COMMON_H_
 #define _NM_COMMON_H_
 
@@ -70,7 +30,7 @@
 #define M2M_ERR_INVALID_ARG				 ((sint8)-15)
 #define M2M_ERR_INVALID					((sint8)-16)
 
-/*i2c MAASTER ERR*/
+/*I2C MASTER ERR*/
 #define I2C_ERR_LARGE_ADDRESS 	  0xE1UL	/*the address exceed the max addressing mode in i2c flash*/
 #define I2C_ERR_TX_ABRT 		  0xE2UL	/*NO ACK from slave*/
 #define I2C_ERR_OVER_SIZE 		  0xE3UL	/**/
@@ -124,14 +84,22 @@
 #define DATA_PKT_OFFSET	4
 
 #ifndef BIG_ENDIAN
+/*! Most significant byte of 32bit word (LE) */
 #define BYTE_0(word)   					((uint8)(((word) >> 0 	) & 0x000000FFUL))
+/*! Second most significant byte of 32bit word (LE) */
 #define BYTE_1(word)  	 				((uint8)(((word) >> 8 	) & 0x000000FFUL))
+/*! Third most significant byte of 32bit word (LE) */
 #define BYTE_2(word)   					((uint8)(((word) >> 16) & 0x000000FFUL))
+/*! Least significant byte of 32bit word (LE) */
 #define BYTE_3(word)   					((uint8)(((word) >> 24) & 0x000000FFUL))
 #else
+/*! Most significant byte of 32bit word (BE) */
 #define BYTE_0(word)   					((uint8)(((word) >> 24) & 0x000000FFUL))
+/*! Second most significant byte of 32bit word (BE) */
 #define BYTE_1(word)  	 				((uint8)(((word) >> 16) & 0x000000FFUL))
+/*! Third most significant byte of 32bit word (BE) */
 #define BYTE_2(word)   					((uint8)(((word) >> 8 	) & 0x000000FFUL))
+/*! Least significant byte of 32bit word (BE) */
 #define BYTE_3(word)   					((uint8)(((word) >> 0 	) & 0x000000FFUL))
 #endif
 
@@ -139,12 +107,95 @@
 #ifdef __cplusplus
      extern "C" {
  #endif
+
+/*!
+ * @ingroup     COMMONAPI
+ * @fn          void m2m_memcpy(uint8* pDst, uint8* pSrc, uint32 sz);
+ * @brief       Copy specified number of bytes from source buffer to destination buffer.
+ * @param [in]  sz
+ *                  Number of data bytes to copy.
+ * @param [in]  pSrc
+ *                  Source buffer.
+ * @param [out] pDst
+ *                  Destination buffer.
+ * @return      None
+ */
 NMI_API void m2m_memcpy(uint8* pDst,uint8* pSrc,uint32 sz);
+
+/*!
+ * @ingroup     COMMONAPI
+ * @fn          void m2m_memset(uint8* pBuf, uint8 val, uint32 sz);
+ * @brief       Set specified number of data bytes in specified data buffer to specified value.
+ * @param [in]  sz
+ *                  Number of data bytes (in specified data buffer whose values are to be set to the specified value).
+ * @param [in]  val
+ *                  The specified value (to which data bytes in data buffer will be set).
+ * @param [out] pBuf
+ *                  The specified data buffer (whose data bytes will be set to the specified value).
+ * @return      None
+ */
 NMI_API void m2m_memset(uint8* pBuf,uint8 val,uint32 sz);
+
+/*!
+ * @ingroup     COMMONAPI
+ * @fn          uint16 m2m_strlen(uint8 * pcStr);
+ * @brief       Returns the length of a null terminated string buffer.
+ * @param [in]  pcStr
+ *                  Null terminated string buffer.
+ * @return      Length of the string in the specified string buffer.
+ */
 NMI_API uint16 m2m_strlen(uint8 * pcStr);
+
+/*!
+ * @ingroup     COMMONAPI
+ * @fn          sint8 m2m_memcmp(uint8 *pu8Buff1, uint8 *pu8Buff2, uint32 u32Size);
+ * @brief       Compare specified number of data bytes in pu8Buff1 and pu8Buff2 and decide if they all match.
+ * @param [in]  u32Size
+ *                  Number of data bytes to compare.
+ * @param [in]  pu8Buff1
+ *                  One of two data buffers for the comparison.
+ * @param [in]  pu8Buff2
+ *                  One of two data buffers for the comparison.
+ * @return      Zero if matched, one if not matched.
+ */
 NMI_API sint8 m2m_memcmp(uint8 *pu8Buff1,uint8 *pu8Buff2 ,uint32 u32Size);
+
+/*!
+ * @ingroup     COMMONAPI
+ * @fn          uint8 m2m_strncmp(uint8 *pcS1, uint8 *pcS2, uint16 u16Len);
+ * @brief       Compare specified number of data bytes in string buffers pcS1 and pcS2.
+ * @param [in]  u16Len
+ *                  Number of data bytes to compare.
+ * @param [in]  pcS1
+ *                  First of two string buffers for the comparison.
+ * @param [in]  pcS2
+ *                  Second of two string buffers for the comparison.
+ * @return      0 if matched, -1 if the first non-matching byte in pcS1 is smaller than that in pcS2, +1 if it is bigger.
+ */
 NMI_API uint8 m2m_strncmp(uint8 *pcS1, uint8 *pcS2, uint16 u16Len);
+
+/*!
+ * @ingroup     COMMONAPI
+ * @fn          uint8 * m2m_strstr(uint8 *pcIn, uint8 *pcStr);
+ * @brief       Find the occurrence of pcStr string in pcIn string.
+ * @param [in]  pcStr
+ *                  One of two string buffers.
+ * @param [in]  pcIn
+ *                  One of two string buffers.
+ * @return      If pcStr string is part of pcIn string return a valid pointer to the start of pcStr within pcIn. If not, a NULL Pointer is returned.
+ */
 NMI_API uint8 * m2m_strstr(uint8 *pcIn, uint8 *pcStr);
+
+/*!
+ * @ingroup     COMMONAPI
+ * @fn          uint8 m2m_checksum(uint8* buf, int sz);
+ * @brief       Calculates checksum for the specified number of data bytes in specified data buffer.
+ * @param [in]  sz
+ *                  Number of data bytes used in the checksum calculation.
+ * @param [in]  buf
+ *                  The specified data buffer (whose data bytes will be used to calculate the checksum).
+ * @return      The calculated checksum.
+ */
 NMI_API uint8 m2m_checksum(uint8* buf, int sz);
 
 #ifdef __cplusplus

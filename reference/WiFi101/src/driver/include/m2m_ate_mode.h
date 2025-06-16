@@ -1,44 +1,4 @@
-/**
- *
- * \file
- *
- * \brief WINC ATE Test Driver Interface.
- *
- * Copyright (c) 2016-2017 Atmel Corporation. All rights reserved.
- *
- * \asf_license_start
- *
- * \page License
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are met:
- *
- * 1. Redistributions of source code must retain the above copyright notice,
- *    this list of conditions and the following disclaimer.
- *
- * 2. Redistributions in binary form must reproduce the above copyright notice,
- *    this list of conditions and the following disclaimer in the documentation
- *    and/or other materials provided with the distribution.
- *
- * 3. The name of Atmel may not be used to endorse or promote products derived
- *    from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY ATMEL "AS IS" AND ANY EXPRESS OR IMPLIED
- * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
- * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT ARE
- * EXPRESSLY AND SPECIFICALLY DISCLAIMED. IN NO EVENT SHALL ATMEL BE LIABLE FOR
- * ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
- * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
- * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
- * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
- * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
- * ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
- *
- * \asf_license_stop
- *
- */
-
+// <license>
 #ifdef _M2M_ATE_FW_
 
 #ifndef _M2M_ATE_MODE_H_
@@ -49,6 +9,7 @@ INCLUDES
 *=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*/
 #include "common/include/nm_common.h"
 #include "driver/include/m2m_types.h"
+
 
 /** \defgroup m2m_ate ATE
 */
@@ -70,7 +31,7 @@ Maximum number of all rates (b,g and n)
 /*!< Minimum number of length for each frame
  */
 #define M2M_ATE_SUCCESS					(M2M_SUCCESS)
-/*!< No Error and operation has been completed successfully.
+/*!< No Error and operation completed successfully.
 */
 #define M2M_ATE_ERR_VALIDATE			(M2M_ERR_FAIL)
 /*!< Error in parameters passed to functions.
@@ -186,7 +147,7 @@ typedef enum {
  */
 typedef enum {
 	M2M_ATE_TX_DPD_DYNAMIC	= 0x00,
-	/*!< Dynamic mode indicates that DPD values will be set dynamically from a lookup table pre-set with the DPD coefficents.
+	/*!< Dynamic mode indicates that DPD values will be set dynamically from a lookup table pre-set with the DPD coefficients.
 	*/
 	M2M_ATE_TX_DPD_BYPASS	= 0x01,
 	/*!< Bypass mode indicates that the DPD control will be bypassed.
@@ -247,10 +208,10 @@ typedef enum {
  */
 typedef enum {
 	M2M_ATE_TX_MODE_NORM	= 0x00,
-	/*!< When the TX source is set to PHY,normal mode indicates that continous transmission is disabled.
+	/*!< When the TX source is set to PHY,normal mode indicates that continuous transmission is disabled.
 	*/
 	M2M_ATE_TX_MODE_CW		= 0x01,
-	/*!< When the TX source is set to PHY, continous mode indicates that transmission sequences occur back to back in a continous wave from the PHY layer.
+	/*!< When the TX source is set to PHY, continuous mode indicates that transmission sequences occur back to back in a continuous wave from the PHY layer.
 	*/
 }tenuM2mAteTxMode;
 
@@ -334,7 +295,7 @@ typedef struct {
 
 /*!
  *@struct	tstrM2mAteRxStatus
- *@brief	Used to save recieve test case configuration
+ *@brief	Used to save receive test case configuration
  *@see    tenuM2mAteRxPwrMode
  */
 typedef struct {
@@ -407,7 +368,7 @@ typedef struct {
 	/*!< Set to 0 to use the XO offset provided in xo_offset_x1000. Set to 1 to use XO offset programmed on WINC efuse.
 	*/
 	uint8    self_mac_addr[6];
-	/*!< Set to the self mac address required to be overriden.
+	/*!< Set to the self mac address required to be overridden.
 	*/
 	uint8    peer_mac_addr[6];
 	/*!< Set to the source mac address expected to filter frames from.

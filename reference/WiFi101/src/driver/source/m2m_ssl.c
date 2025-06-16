@@ -1,44 +1,4 @@
-/**
- *
- * \file
- *
- * \brief This module contains M2M Wi-Fi APIs implementation.
- *
- * Copyright (c) 2017 Atmel Corporation. All rights reserved.
- *
- * \asf_license_start
- *
- * \page License
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are met:
- *
- * 1. Redistributions of source code must retain the above copyright notice,
- *    this list of conditions and the following disclaimer.
- *
- * 2. Redistributions in binary form must reproduce the above copyright notice,
- *    this list of conditions and the following disclaimer in the documentation
- *    and/or other materials provided with the distribution.
- *
- * 3. The name of Atmel may not be used to endorse or promote products derived
- *    from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY ATMEL "AS IS" AND ANY EXPRESS OR IMPLIED
- * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
- * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT ARE
- * EXPRESSLY AND SPECIFICALLY DISCLAIMED. IN NO EVENT SHALL ATMEL BE LIABLE FOR
- * ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
- * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
- * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
- * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
- * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
- * ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
- *
- * \asf_license_stop
- *
- */
-
+// <license>
 /*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*
 INCLUDES
 *=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*/
@@ -62,8 +22,8 @@ FUNCTION PROTOTYPES
 *=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*/
 
 /*!
-	@fn	\	m2m_ssl_cb(uint8 u8OpCode, uint16 u16DataSize, uint32 u32Addr)
-	@brief		SSL callback function
+@fn         void m2m_ssl_cb(uint8 u8OpCode, uint16 u16DataSize, uint32 u32Addr)
+@brief      Internal SSL callback function.
 	@param [in]	u8OpCode
 				HIF Opcode type.
 	@param [in]	u16DataSize
@@ -113,15 +73,15 @@ static void m2m_ssl_cb(uint8 u8OpCode, uint16 u16DataSize, uint32 u32Addr)
 
 
 /*!
-	@fn	\	 m2m_ssl_handshake_rsp(tstrEccReqInfo* strECCResp, uint8* pu8RspDataBuff, uint16 u16RspDataSz)
-	@brief	 Sends ECC responses to the WINC
-	@param [in]	strECCResp
-				ECC Response struct.
-	@param [in]	pu8RspDataBuffe
-				Pointer of the response data to be sent.
-	@param [in]	u16RspDataSz
-				Response data size.
-	@return		The function SHALL return 0 for success and a negative value otherwise.
+@fn         NMI_API sint8 m2m_ssl_handshake_rsp(tstrEccReqInfo* strECCResp, uint8* pu8RspDataBuff, uint16 u16RspDataSz)
+@brief      Sends ECC responses to the WINC.
+@param[in]  strECCResp
+                ECC Response struct.
+@param[in]  pu8RspDataBuff
+                Pointer of the response data to be sent.
+@param[in]  u16RspDataSz
+                Response data size.
+@return     The function returns @ref M2M_SUCCESS for success and a negative value otherwise.
 */
 NMI_API sint8 m2m_ssl_handshake_rsp(tstrEccReqInfo* strECCResp, uint8* pu8RspDataBuff, uint16 u16RspDataSz)
 {
@@ -133,13 +93,13 @@ NMI_API sint8 m2m_ssl_handshake_rsp(tstrEccReqInfo* strECCResp, uint8* pu8RspDat
 }
 
 /*!
-	@fn	\	m2m_ssl_send_certs_to_winc(uint8* sector_buffer, uint32 sector_size)
-	@brief	Sends certificates to the WINC
-	@param [in]	pu8Buffer
-				Pointer to the certificates.
-	@param [in]	u32BufferSz
-				Size of the certificates.
-	@return		The function SHALL return 0 for success and a negative value otherwise.
+@fn         NMI_API sint8 m2m_ssl_send_certs_to_winc(uint8 *pu8Buffer, uint32 u32BufferSz)
+@brief      Sends certificates to the WINC
+@param[in]  pu8Buffer
+                Pointer to the certificates.
+@param[in]  u32BufferSz
+                Size of the certificates.
+@return     The function returns @ref M2M_SUCCESS for success and a negative value otherwise.
 */
 NMI_API sint8 m2m_ssl_send_certs_to_winc(uint8* pu8Buffer, uint32 u32BufferSz)
 {

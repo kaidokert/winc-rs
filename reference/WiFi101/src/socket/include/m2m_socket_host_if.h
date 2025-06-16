@@ -1,43 +1,4 @@
-/**
- *
- * \file
- *
- * \brief BSD compatible socket interface internal types.
- *
- * Copyright (c) 2016-2017 Atmel Corporation. All rights reserved.
- *
- * \asf_license_start
- *
- * \page License
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are met:
- *
- * 1. Redistributions of source code must retain the above copyright notice,
- *    this list of conditions and the following disclaimer.
- *
- * 2. Redistributions in binary form must reproduce the above copyright notice,
- *    this list of conditions and the following disclaimer in the documentation
- *    and/or other materials provided with the distribution.
- *
- * 3. The name of Atmel may not be used to endorse or promote products derived
- *    from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY ATMEL "AS IS" AND ANY EXPRESS OR IMPLIED
- * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
- * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT ARE
- * EXPRESSLY AND SPECIFICALLY DISCLAIMED. IN NO EVENT SHALL ATMEL BE LIABLE FOR
- * ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
- * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
- * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
- * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
- * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
- * ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
- *
- * \asf_license_stop
- *
- */
+// <license>
 #ifndef __M2M_SOCKET_HOST_IF_H__
 #define __M2M_SOCKET_HOST_IF_H__
 
@@ -76,7 +37,7 @@ MACROS
 
 #define SOCKET_CMD_INVALID					0x00
 /*!<
-	Invlaid Socket command value.
+	Invalid Socket command value.
 */
 
 
@@ -112,7 +73,7 @@ MACROS
 
 #define SOCKET_CMD_RECV						0x46
 /*!<
-	Socket Recieve command value.
+	Socket Receive command value.
 */
 
 
@@ -124,7 +85,7 @@ MACROS
 
 #define SOCKET_CMD_RECVFROM					0x48
 /*!<
-	Socket RecieveFrom command value.
+	Socket ReceiveFrom command value.
 */
 
 
@@ -154,7 +115,7 @@ MACROS
 
 #define SOCKET_CMD_SSL_RECV					0x4D
 /*!<
-	SSL-Socket Recieve command value.
+	SSL-Socket Receive command value.
 */
 
 
@@ -374,7 +335,8 @@ typedef struct{
 
 
 /*!
-@struct
+@struct \
+  tstrRecvReply
 @brief
 */
 typedef struct{

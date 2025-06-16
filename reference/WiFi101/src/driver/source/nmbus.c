@@ -1,43 +1,4 @@
-/**
- *
- * \file
- *
- * \brief This module contains NMC1000 bus APIs implementation.
- *
- * Copyright (c) 2016-2017 Atmel Corporation. All rights reserved.
- *
- * \asf_license_start
- *
- * \page License
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are met:
- *
- * 1. Redistributions of source code must retain the above copyright notice,
- *    this list of conditions and the following disclaimer.
- *
- * 2. Redistributions in binary form must reproduce the above copyright notice,
- *    this list of conditions and the following disclaimer in the documentation
- *    and/or other materials provided with the distribution.
- *
- * 3. The name of Atmel may not be used to endorse or promote products derived
- *    from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY ATMEL "AS IS" AND ANY EXPRESS OR IMPLIED
- * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
- * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT ARE
- * EXPRESSLY AND SPECIFICALLY DISCLAIMED. IN NO EVENT SHALL ATMEL BE LIABLE FOR
- * ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
- * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
- * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
- * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
- * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
- * ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
- *
- * \asf_license_stop
- *
- */
+// <license>
 #ifndef CORTUS_APP
 
 #include "nmbus.h"
@@ -92,7 +53,7 @@ sint8 nm_bus_reset(void)
 	return nm_spi_reset();
 #elif defined (CONF_WINC_USE_I2C)
 #else
-#error "Plesae define bus usage"
+#error "Please define bus usage"
 #endif
 
 	return ret;
@@ -136,7 +97,7 @@ uint32 nm_read_reg(uint32 u32Addr)
 #elif defined (CONF_WINC_USE_I2C)
 	return nm_i2c_read_reg(u32Addr);
 #else
-#error "Plesae define bus usage"
+#error "Please define bus usage"
 #endif
 
 }
@@ -162,7 +123,7 @@ sint8 nm_read_reg_with_ret(uint32 u32Addr, uint32* pu32RetVal)
 #elif defined (CONF_WINC_USE_I2C)
 	return nm_i2c_read_reg_with_ret(u32Addr,pu32RetVal);
 #else
-#error "Plesae define bus usage"
+#error "Please define bus usage"
 #endif
 }
 
@@ -187,7 +148,7 @@ sint8 nm_write_reg(uint32 u32Addr, uint32 u32Val)
 #elif defined (CONF_WINC_USE_I2C)
 	return nm_i2c_write_reg(u32Addr,u32Val);
 #else
-#error "Plesae define bus usage"
+#error "Please define bus usage"
 #endif
 }
 
@@ -200,7 +161,7 @@ static sint8 p_nm_read_block(uint32 u32Addr, uint8 *puBuf, uint16 u16Sz)
 #elif defined (CONF_WINC_USE_I2C)
 	return nm_i2c_read_block(u32Addr,puBuf,u16Sz);
 #else
-#error "Plesae define bus usage"
+#error "Please define bus usage"
 #endif
 
 }
@@ -253,7 +214,7 @@ static sint8 p_nm_write_block(uint32 u32Addr, uint8 *puBuf, uint16 u16Sz)
 #elif defined (CONF_WINC_USE_I2C)
 	return nm_i2c_write_block(u32Addr,puBuf,u16Sz);
 #else
-#error "Plesae define bus usage"
+#error "Please define bus usage"
 #endif
 
 }

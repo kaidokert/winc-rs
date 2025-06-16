@@ -1,44 +1,4 @@
-/**
- *
- * \file
- *
- * \brief WINC BSP API Declarations.
- *
- * Copyright (c) 2015 Atmel Corporation. All rights reserved.
- *
- * \asf_license_start
- *
- * \page License
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are met:
- *
- * 1. Redistributions of source code must retain the above copyright notice,
- *    this list of conditions and the following disclaimer.
- *
- * 2. Redistributions in binary form must reproduce the above copyright notice,
- *    this list of conditions and the following disclaimer in the documentation
- *    and/or other materials provided with the distribution.
- *
- * 3. The name of Atmel may not be used to endorse or promote products derived
- *    from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY ATMEL "AS IS" AND ANY EXPRESS OR IMPLIED
- * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
- * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT ARE
- * EXPRESSLY AND SPECIFICALLY DISCLAIMED. IN NO EVENT SHALL ATMEL BE LIABLE FOR
- * ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
- * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
- * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
- * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
- * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
- * ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
- *
- * \asf_license_stop
- *
- */
-
+// <license>
 /** \defgroup nm_bsp BSP
  */
 /**@defgroup  BSPDefine Defines
@@ -50,7 +10,7 @@
 
 #define NMI_API
 /*!<
-*        Attribute used to define memory section to map Functions in host memory.
+ *  Attribute used to define the memory section to map Functions in host memory.
 */
 #define CONST const
 
@@ -72,13 +32,12 @@ typedef void (*tpfNmBspIsr)(void);
 #define NULL ((void*)0)
 #endif
 /*!<
-*    Void Pointer to '0' in case of NULL is not defined.
+*   Void Pointer to '0' in case NULL is not defined.
 */
-
 
 #define BSP_MIN(x,y) ((x)>(y)?(y):(x))
 /*!<
-*     Computes the minimum of \b x and \b y.
+*     Computes the minimum value between \b x and \b y.
 */
 
  //@}
@@ -110,6 +69,7 @@ typedef unsigned short	uint16;
 typedef unsigned long	uint32;
 
 
+
   /*!
  * @ingroup Data Types
  * @typedef      signed char		sint8;
@@ -134,7 +94,6 @@ typedef signed long		sint32;
  //@}
 
 #ifndef CORTUS_APP
-
 
 #ifdef __cplusplus
 extern "C"{
@@ -232,10 +191,8 @@ void nm_bsp_sleep(uint32 u32TimeMsec);
  * @param [in]   tpfNmBspIsr  pfIsr
  *               Pointer to ISR handler in HIF
  * @warning      Make sure that ISR for IRQ pin for WINC is disabled by default in your implementation.
- * @note         Implementation of this function is host dependent and called by HIF layer.
  * @see          tpfNmBspIsr
  * @return       None
-
  */
 void nm_bsp_register_isr(tpfNmBspIsr pfIsr);
 /**@}*/
@@ -243,18 +200,22 @@ void nm_bsp_register_isr(tpfNmBspIsr pfIsr);
 
 /** @defgroup NmBspInterruptCtrl nm_bsp_interrupt_ctrl
 *     @ingroup BSPAPI
-*    Synchronous enable/disable interrupts function
+ *      Synchronous enable/disable of WINC to host interrupts.
+ *  @{
 */
-/**@{*/
 /*!
- * @fn           void nm_bsp_interrupt_ctrl(uint8);
- * @brief        Enable/Disable interrupts
+ * @fn          void nm_bsp_interrupt_ctrl(uint8 u8Enable);
+ * @brief       Enable/Disable interrupts from the WINC.
+ * @details     This function can be used to enable/disable the WINC to host interrupts, depending on how
+ *              the driver is implemented. It is an internal driver function and shouldn't be called by
+ *              the application.
  * @param [in]   u8Enable
- *               '0' disable interrupts. '1' enable interrupts
- * @see          tpfNmBspIsr
+ *                  - '0' disable interrupts.
+ *                  - '1' enable interrupts.
+ * @pre         The interrupt must be registered using @ref nm_bsp_register_isr first.
  * @note         Implementation of this function is host dependent and called by HIF layer.
+ * @see         tpfNmBspIsr, nm_bsp_register_isr
  * @return       None
-
  */
 void nm_bsp_interrupt_ctrl(uint8 u8Enable);
   /**@}*/
@@ -265,19 +226,28 @@ void nm_bsp_interrupt_ctrl(uint8 u8Enable);
 
 #endif
 
+/**
+ * @addtogroup BSPDefine
+ * @{
+ */
 #ifdef _NM_BSP_BIG_END
+/*! Switch endianness of 32bit word (In the case that Host is BE) */
 #define NM_BSP_B_L_32(x) \
 ((((x) & 0x000000FF) << 24) + \
 (((x) & 0x0000FF00) << 8)  + \
 (((x) & 0x00FF0000) >> 8)   + \
 (((x) & 0xFF000000) >> 24))
+
+/*! Switch endianness of 16bit word (In the case that Host is BE) */
 #define NM_BSP_B_L_16(x) \
 ((((x) & 0x00FF) << 8) + \
 (((x)  & 0xFF00) >> 8))
 #else
+/*! Retain endianness of 32bit word (In the case that Host is LE) */
 #define NM_BSP_B_L_32(x)  (x)
+/*! Retain endianness of 16bit word (In the case that Host is LE) */
 #define NM_BSP_B_L_16(x)  (x)
 #endif
-
+/**@}*/     //BSPDefine
 
 #endif	/*_NM_BSP_H_*/

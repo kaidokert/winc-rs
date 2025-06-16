@@ -1,44 +1,4 @@
-/**
- *
- * \file
- *
- * \brief This module contains M2M host interface APIs implementation.
- *
- * Copyright (c) 2016-2017 Atmel Corporation. All rights reserved.
- *
- * \asf_license_start
- *
- * \page License
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are met:
- *
- * 1. Redistributions of source code must retain the above copyright notice,
- *    this list of conditions and the following disclaimer.
- *
- * 2. Redistributions in binary form must reproduce the above copyright notice,
- *    this list of conditions and the following disclaimer in the documentation
- *    and/or other materials provided with the distribution.
- *
- * 3. The name of Atmel may not be used to endorse or promote products derived
- *    from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY ATMEL "AS IS" AND ANY EXPRESS OR IMPLIED
- * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
- * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT ARE
- * EXPRESSLY AND SPECIFICALLY DISCLAIMED. IN NO EVENT SHALL ATMEL BE LIABLE FOR
- * ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
- * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
- * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
- * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
- * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
- * ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
- *
- * \asf_license_stop
- *
- */
-
+// <license>
 #include "common/include/nm_common.h"
 #include "driver/source/nmbus.h"
 #include "bsp/include/nm_bsp.h"
@@ -117,7 +77,6 @@ static sint8 hif_set_rx_done(void)
 #endif
 ERR1:
 	return ret;
-
 }
 /**
 *	@fn			static void m2m_hif_cb(uint8 u8OpCode, uint16 u16DataSize, uint32 u32Addr)
@@ -241,7 +200,6 @@ sint8 hif_chip_sleep(void)
 		{
 			ret = chip_sleep();
 			if(ret != M2M_SUCCESS)goto ERR1;
-
 		}
 		else
 		{
@@ -415,11 +373,10 @@ sint8 hif_send(uint8 u8Gid,uint8 u8Opcode,uint8 *pu8CtrlBuf,uint16 u16CtrlBufSiz
 			ret = M2M_ERR_MEM_ALLOC;
 			goto ERR2;
 		}
-
 	}
 	else
 	{
-		M2M_ERR("(HIF)Fail to wakup the chip\n");
+		M2M_ERR("(HIF)Failed to wakeup the chip\n");
 		goto ERR2;
 	}
 	/*actual sleep ret = M2M_SUCCESS*/
@@ -432,7 +389,6 @@ ERR2:
 	/*logical error*/
 	return ret;
 }
-
 /**
 *	@fn		hif_isr
 *	@brief	Host interface interrupt service routine
@@ -612,7 +568,7 @@ static sint8 hif_isr(void)
 	}
 	else
 	{
-		M2M_ERR("(hif) Fail to Read interrupt reg\n");
+		M2M_ERR("(hif) Failed to Read interrupt reg\n");
 		goto ERR1;
 	}
 
@@ -662,7 +618,7 @@ sint8 hif_handle_isr(void)
 }
 /*
 *	@fn		hif_receive
-*	@brief	Host interface interrupt serviece routine
+*	@brief	Host interface interrupt service routine
 *	@param [in]	u32Addr
 *				Receive start address
 *	@param [out]	pu8Buf
@@ -694,13 +650,13 @@ sint8 hif_receive(uint32 u32Addr, uint8 *pu8Buf, uint16 u16Sz, uint8 isDone)
 	if(u16Sz > gstrHifCxt.u32RxSize)
 	{
 		ret = M2M_ERR_FAIL;
-		M2M_ERR("APP Requested Size is larger than the recived buffer size <%u><%lu>\n",u16Sz, gstrHifCxt.u32RxSize);
+		M2M_ERR("APP Requested Size is larger than the received buffer size <%u><%lu>\n",u16Sz, gstrHifCxt.u32RxSize);
 		goto ERR1;
 	}
 	if((u32Addr < gstrHifCxt.u32RxAddr)||((u32Addr + u16Sz)>(gstrHifCxt.u32RxAddr + gstrHifCxt.u32RxSize)))
 	{
 		ret = M2M_ERR_FAIL;
-		M2M_ERR("APP Requested Address beyond the recived buffer address and length\n");
+		M2M_ERR("APP Requested Address beyond the received buffer address and length\n");
 		goto ERR1;
 	}
 
@@ -721,7 +677,7 @@ ERR1:
 
 /**
 *	@fn		hif_register_cb
-*	@brief	To set Callback function for every compantent Component
+*	@brief	To set Callback function for every component
 *	@param [in]	u8Grp
 *				Group to which the Callback function should be set.
 *	@param [in]	fn

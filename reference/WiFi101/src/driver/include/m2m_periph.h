@@ -1,44 +1,4 @@
-/**
- *
- * \file
- *
- * \brief WINC Peripherals Application Interface.
- *
- * Copyright (c) 2016 Atmel Corporation. All rights reserved.
- *
- * \asf_license_start
- *
- * \page License
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are met:
- *
- * 1. Redistributions of source code must retain the above copyright notice,
- *    this list of conditions and the following disclaimer.
- *
- * 2. Redistributions in binary form must reproduce the above copyright notice,
- *    this list of conditions and the following disclaimer in the documentation
- *    and/or other materials provided with the distribution.
- *
- * 3. The name of Atmel may not be used to endorse or promote products derived
- *    from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY ATMEL "AS IS" AND ANY EXPRESS OR IMPLIED
- * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
- * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT ARE
- * EXPRESSLY AND SPECIFICALLY DISCLAIMED. IN NO EVENT SHALL ATMEL BE LIABLE FOR
- * ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
- * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
- * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
- * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
- * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
- * ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
- *
- * \asf_license_stop
- *
- */
-
+// <license>
 #ifndef _M2M_PERIPH_H_
 #define _M2M_PERIPH_H_
 
@@ -88,7 +48,6 @@ typedef enum {
 	M2M_PERIPH_GPIO18, /*!< GPIO18 pad	*/
 	M2M_PERIPH_GPIO_MAX
 } tenuGpioNum;
-
 
 /*!
 @enum	\
@@ -232,16 +191,16 @@ NMI_API sint8 m2m_periph_init(tstrPerphInitParam * param);
 	NMI_API sint8 m2m_periph_gpio_set_dir(uint8 u8GpioNum, uint8 u8GpioDir);
 
 @brief
-	Configure a specific NMC1500 pad as a GPIO and sets its direction (input or output).
+    Configure a specific WINC15x0 pad as a GPIO and sets its direction (input or output).
 
 @param [in]	u8GpioNum
-				GPIO number. Allowed values are defined in tenuGpioNum.
+    GPIO number. Allowed values are defined in @ref tenuGpioNum.
 
 @param [in]	u8GpioDir
 				GPIO direction: Zero = input. Non-zero = output.
 
 @return
-	The function SHALL return 0 for success and a negative value otherwise.
+    The function returns @ref M2M_SUCCESS for success and a negative value otherwise.
 
 @sa
 	tenuGpioNum
@@ -253,10 +212,10 @@ NMI_API sint8 m2m_periph_gpio_set_dir(uint8 u8GpioNum, uint8 u8GpioDir);
 	NMI_API sint8 m2m_periph_gpio_set_val(uint8 u8GpioNum, uint8 u8GpioVal);
 
 @brief
-	Set an NMC1500 GPIO output level high or low.
+    Set an WINC15x0 GPIO output level high or low.
 
 @param [in]	u8GpioNum
-				GPIO number. Allowed values are defined in tenuGpioNum.
+    GPIO number. Allowed values are defined in @ref tenuGpioNum.
 
 @param [in]	u8GpioVal
 				GPIO output value. Zero = low, non-zero = high.
@@ -274,16 +233,16 @@ NMI_API sint8 m2m_periph_gpio_set_val(uint8 u8GpioNum, uint8 u8GpioVal);
 	NMI_API sint8 m2m_periph_gpio_get_val(uint8 u8GpioNum, uint8 * pu8GpioVal);
 
 @brief
-	Read an NMC1500 GPIO input level.
+    Read an WINC15x0 GPIO input level.
 
 @param [in]	u8GpioNum
-				GPIO number. Allowed values are defined in tenuGpioNum.
+    GPIO number. Allowed values are defined in @ref tenuGpioNum.
 
 @param [out] pu8GpioVal
 				GPIO input value. Zero = low, non-zero = high.
 
 @return
-	The function SHALL return 0 for success and a negative value otherwise.
+    The function returns @ref M2M_SUCCESS for success and a negative value otherwise.
 
 @sa
 	tenuGpioNum
@@ -388,15 +347,14 @@ NMI_API sint8 m2m_periph_i2c_master_read(uint8 u8SlaveAddr, uint8 * pu8Buf, uint
 @brief
 	Control the programmable pull-up resistor on the chip pads .
 
-
 @param [in]	pinmask
-				Write operation bitwise-ORed mask for which pads to control. Allowed values are defined in tenuPullupMask.
+    Write operation bitwise-ORed mask for which pads to control. Allowed values are defined in @ref tenuPullupMask.
 
 @param [in]	enable
 				Set to 0 to disable pull-up resistor. Non-zero will enable the pull-up.
 
 @return
-	The function SHALL return 0 for success and a negative value otherwise.
+    The function returns @ref M2M_SUCCESS for success and a negative value otherwise.
 
 @sa
 	tenuPullupMask

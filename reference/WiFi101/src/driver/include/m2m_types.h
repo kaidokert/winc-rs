@@ -1,44 +1,4 @@
-/**
- *
- * \file
- *
- * \brief WINC Application Interface Internal Types.
- *
- * Copyright (c) 2016-2017 Atmel Corporation. All rights reserved.
- *
- * \asf_license_start
- *
- * \page License
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are met:
- *
- * 1. Redistributions of source code must retain the above copyright notice,
- *    this list of conditions and the following disclaimer.
- *
- * 2. Redistributions in binary form must reproduce the above copyright notice,
- *    this list of conditions and the following disclaimer in the documentation
- *    and/or other materials provided with the distribution.
- *
- * 3. The name of Atmel may not be used to endorse or promote products derived
- *    from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY ATMEL "AS IS" AND ANY EXPRESS OR IMPLIED
- * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
- * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT ARE
- * EXPRESSLY AND SPECIFICALLY DISCLAIMED. IN NO EVENT SHALL ATMEL BE LIABLE FOR
- * ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
- * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
- * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
- * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
- * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
- * ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
- *
- * \asf_license_stop
- *
- */
-
+// <license>
 #ifndef __M2M_WIFI_TYPES_H__
 #define __M2M_WIFI_TYPES_H__
 
@@ -46,7 +6,6 @@
 /*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*
 INCLUDES
 *=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*/
-
 #ifndef	_BOOT_
 #ifndef _FIRMWARE_
 #include "common/include/nm_common.h"
@@ -151,8 +110,6 @@ MACROS
 /*!< Driver svn version.
 */
 
-
-
 #if !defined(M2M_RELEASE_VERSION_MAJOR_NO) || !defined(M2M_RELEASE_VERSION_MINOR_NO)
 #error Undefined version number
 #endif
@@ -163,7 +120,7 @@ MACROS
 
 
 #define M2M_MAC_ADDRES_LEN                               6
-/*!< The size fo 802 MAC address.
+/*!< The size of the 802 MAC address.
  */
 
 #define M2M_ETHERNET_HDR_OFFSET							34
@@ -172,21 +129,25 @@ MACROS
 
 
 #define M2M_ETHERNET_HDR_LEN							14
-/*!< Length of the Etherenet header in bytes.
+/*!< Length of the Ethernet header in bytes.
 */
 
 
 #define M2M_MAX_SSID_LEN 								33
-/*!< Maximum size for the Wi-Fi SSID including the NULL termination.
+/*!< 1 more than the max SSID length.
+	This matches the size of SSID buffers (max SSID length + 1-byte length field).
  */
 
 
 #define M2M_MAX_PSK_LEN           						65
-/*!< Maximum size for the WPA PSK including the NULL termination.
+/*!< 1 more than the WPA PSK length (in ASCII format).
+	This matches the size of the WPA PSK/Passphrase buffer (max ASCII contents + 1-byte length field).
+	Alternatively it matches the WPA PSK length (in ASCII format) + 1 byte NULL termination.
  */
 
 #define M2M_MIN_PSK_LEN           						9
-/*!< Maximum size for the WPA PSK including the NULL termination.
+/*!< 1 more than the minimum WPA PSK Passphrase length.
+	It matches the minimum WPA PSK Passphrase length + 1 byte NULL termination.
  */
 
 #define M2M_DEVICE_NAME_MAX								48
@@ -202,7 +163,7 @@ MACROS
 
 #define MAX_HIDDEN_SITES 								4
 /*!<
-	max number of hidden SSID suuported by scan request
+	max number of hidden SSID supported by scan request
 */
 
 
@@ -265,20 +226,21 @@ MACROS
 */
 
 #define WEP_40_KEY_STRING_SIZE 								((uint8)10)
-/*!< Indicate the wep key size in bytes for 40 bit string passphrase.
+/*!< The string length of a 40-bit wep key.
+*/
+#define WEP_104_KEY_STRING_SIZE 							((uint8)26)
+/*!< The string length of a 104-bit wep key.
 */
 
-#define WEP_104_KEY_STRING_SIZE 							((uint8)26)
-/*!< Indicate the wep key size in bytes for 104 bit string passphrase.
-*/
 #define WEP_KEY_MAX_INDEX									((uint8)4)
-/*!< Indicate the max key index value for WEP authentication
+/*!< WEP key index is in the range 1 to 4 inclusive. (This is decremented to
+ * result in an index in the range 0 to 3 on air.)
 */
 #define M2M_SHA256_CONTEXT_BUFF_LEN							(128)
 /*!< sha256 context size
 */
 #define M2M_SCAN_DEFAULT_NUM_SLOTS							(2)
-/*!< The default. number of scan slots performed by the WINC board.
+/*!< The default number of scan slots used by the WINC board.
 */
 #define M2M_SCAN_DEFAULT_SLOT_TIME							(30)
 /*!< The default. duration in miliseconds of a scan slots performed by the WINC board.
@@ -482,16 +444,16 @@ typedef enum {
 	PWR_AUTO = ((uint8) 1),
 	/*!< FW will decide the best power mode to use internally. */
 	PWR_LOW1,
-	/*low power mode #1*/
+    /*!< Low power mode #1 */
 	PWR_LOW2,
-	/*low power mode #2*/
+    /*!< Low power mode #2 */
 	PWR_HIGH
-	/* high power mode*/
+    /*!< High power mode */
 }tenuM2mPwrMode;
 
 /*!
 @struct	\
-	tstrM2mPwrState
+    tstrM2mPwrMode
 
 @brief
 	Power Mode
@@ -601,7 +563,7 @@ typedef enum{
 	tenuM2mConfigCmd
 
 @brief
-	This enum contains all the host commands used to configure the WINC board.
+	This enum contains host commands used to configure the WINC board.
 
 */
 typedef enum {
@@ -660,10 +622,10 @@ typedef enum {
 	*/
 	M2M_WIFI_RESP_MEMORY_RECOVER,
 	/*!<
-	 * Reserved for debuging
+     * Reserved for debugging
 	 * */
 	M2M_WIFI_REQ_CUST_INFO_ELEMENT,
-	/*!< Add Custom ELement to Beacon Managament Frame.
+    /*!< Add Custom Element to Beacon Management Frame.
 	*/
 	M2M_WIFI_REQ_SCAN,
 	/*!< Request scan command.
@@ -675,7 +637,7 @@ typedef enum {
 	/*!< Request Scan results command.
 	*/
 	M2M_WIFI_RESP_SCAN_RESULT,
-	/*!< Request Scan results resopnse.
+    /*!< Request Scan results response.
 	*/
 	M2M_WIFI_REQ_SET_SCAN_OPTION,
 	/*!< Set Scan options "slot time, slot number .. etc" .
@@ -722,7 +684,7 @@ typedef enum {
 	/*!< Request scan with list of hidden SSID plus the broadcast scan.
 	*/
 	M2M_WIFI_REQ_SET_GAINS,
-	/*!< Request set the PPA gain
+    /*!< Request to set the PPA gain
 	*/
 	M2M_WIFI_REQ_PASSIVE_SCAN,
 	/*!< Request a passivr scan command.
@@ -735,11 +697,11 @@ typedef enum {
 	tenuM2mStaCmd
 
 @brief
-	This enum contains all the WINC commands while in Station mode.
+	This enum contains WINC commands while in Station mode.
 */
 typedef enum {
 	M2M_WIFI_REQ_CONNECT = M2M_STA_CMD_BASE,
-	/*!< Connect with AP command.
+	/*!< Connect with AP command. This command is deprecated in favour of @ref M2M_WIFI_REQ_CONN.
 	*/
 	M2M_WIFI_REQ_DEFAULT_CONNECT,
 	/*!< Connect with default AP command.
@@ -806,7 +768,7 @@ typedef enum {
 	tenuM2mApCmd
 
 @brief
-	This enum contains all the WINC commands while in AP mode.
+	This enum contains WINC commands while in AP mode.
 */
 typedef enum {
 	M2M_WIFI_REQ_ENABLE_AP = M2M_AP_CMD_BASE,
@@ -853,7 +815,7 @@ typedef enum {
 	tenuM2mServerCmd
 
 @brief
-	This enum contains all the WINC commands while in PS mode.
+	This enum contains WINC commands while in PS mode.
 	These command are currently not supported.
 */
 typedef enum {
@@ -862,8 +824,6 @@ typedef enum {
 	M2M_WIFI_REQ_SERVER_INIT,
 	M2M_WIFI_MAX_SERVER_ALL
 }tenuM2mServerCmd;
-
-
 
 /*!
 @enum	\
@@ -901,8 +861,8 @@ typedef enum {
 	M2M_CRYPTO_RESP_SHA256_INIT,
 	M2M_CRYPTO_REQ_SHA256_UPDATE,
 	M2M_CRYPTO_RESP_SHA256_UPDATE,
-	M2M_CRYPTO_REQ_SHA256_FINSIH,
-	M2M_CRYPTO_RESP_SHA256_FINSIH,
+	M2M_CRYPTO_REQ_SHA256_FINISH,
+	M2M_CRYPTO_RESP_SHA256_FINISH,
 	M2M_CRYPTO_REQ_RSA_SIGN_GEN,
 	M2M_CRYPTO_RESP_RSA_SIGN_GEN,
 	M2M_CRYPTO_REQ_RSA_SIGN_VERIFY,
@@ -1131,7 +1091,7 @@ typedef enum {
 	/*!< Config Mode in LOW POWER means to run production test firmware version which is known as ATE (Burst) firmware.
 	 */
 	M2M_WIFI_MODE_ETHERNET,
-	/*!< etherent Mode
+	/*!< ethernet Mode
 	 */
 	M2M_WIFI_MODE_MAX
 }tenuM2mWifiMode;
@@ -1161,7 +1121,7 @@ typedef enum{
 */
 typedef struct{
 	uint16	u8PPAGFor11B;
-	/*!< PPA gain for 11B (as the RF document represenation)
+	/*!< PPA gain for 11B (as the RF document representation)
 	PPA_AGC<0:2> Every bit have 3dB gain control each.
 	for example:
 	1 ->3db
@@ -1362,7 +1322,7 @@ typedef struct{
 	tstrM2MScanOption
 
 @brief
-	Scan options and configurations.
+    This struct contains the configuration options for Wi-Fi scan.
 
 @sa
 	tenuM2mScanCh
@@ -1402,7 +1362,7 @@ typedef struct {
 	/*|< Specifies the number of channels allowed in the region (e.g. North America = 11 ... etc.).
 	*/
 	uint8 __PAD16__[2];
-
+	/*!< Padding bytes for forcing 4-byte alignment */
 }tstrM2MScanRegion;
 
 /*!
@@ -1424,7 +1384,10 @@ typedef struct {
 	/*!< Reserved for future use.
 	*/
 	uint16 	u16PassiveScanTime;
-	/*!< Passive Scan Timeout in ms. The field is ignored for active scan.
+    /*!< The length of each scan slot in milliseconds. Refers to passive scan only.
+         The device listens for beacons during this time.
+         Valid settings are in the range 10<=PassiveScanTime<=1200.
+         Default setting is @ref M2M_SCAN_DEFAULT_PASSIVE_SLOT_TIME.
 	*/
 }tstrM2MScan;
 
@@ -1624,7 +1587,7 @@ typedef struct{
 	*/
 	uint8 u8EnRecvHdr;
 	/*
-	 Enable recv the full hder before the payload
+	 Enable receive the full header before the payload
 	*/
 	uint8	__PAD16__[2];
 	/*!< Padding bytes for forcing 4-byte alignment
@@ -1729,8 +1692,7 @@ typedef struct {
 @brief	AP Configuration
 
 	This structure holds the configuration parameters for the M2M AP mode. It should be set by the application when
-	it requests to enable the M2M AP operation mode. The M2M AP mode currently supports only WEP security (with
-	the NO Security option available of course).
+    it requests to enable the M2M AP operation mode. This mode supports either open, WEP or WPA/WPA2 mixed mode security types.
 */
 typedef struct {
 	/*!<
@@ -1752,7 +1714,7 @@ typedef struct {
 	/*!< Wep key
 	*/
 	uint8 	u8SecType;
-	/*!< Security type: Open or WEP or WPA in the current implementation
+    /*!< Security type: Open, WEP or WPA/WPA2 mixed mode
 	*/
 	uint8 	u8SsidHide;
 	/*!< SSID Status "Hidden(1)/Visible(0)"
@@ -1862,17 +1824,17 @@ typedef struct {
  	tstrM2MIPConfig
 
 @brief
- 	Static IP configuration.
+ 	IP configuration (static/DHCP). The same structure is used for DCHP callback as well as static IP configuration.
 
 @note
  	All member IP addresses are expressed in Network Byte Order (eg. "192.168.10.1" will be expressed as 0x010AA8C0).
  */
 typedef struct {
 	uint32 	u32StaticIP;
-	/*!< The static IP assigned to the device.
+	/*!< If DHCP callback, this is the IP address obtained from the DHCP. In static IP config, this is the assigned to the device from the application.
 	*/
 	uint32 	u32Gateway;
-	/*!< IP of the Default internet gateway.
+	/*!< IP of the default internet gateway.
 	*/
 	uint32 	u32DNS;
 	/*!< IP for the DNS server.
@@ -1881,7 +1843,7 @@ typedef struct {
 	/*!< Subnet mask for the local area network.
 	*/
 	uint32 u32DhcpLeaseTime;
-	/*!< Dhcp Lease Time in sec
+	/*!< DHCP Lease Time in sec. This field is is ignored in static IP configuration.
 	*/
 } tstrM2MIPConfig;
 
@@ -2268,17 +2230,11 @@ typedef struct{
 */
 typedef struct {
 	uint8	u8DataLen;
-	/*!<
-		Length of certificate data (maximum possible is @ref TLS_CRL_DATA_MAX_LEN)
-	*/
+    /*!< Length of certificate data (maximum possible is @ref TLS_CRL_DATA_MAX_LEN) */
 	uint8	au8Data[TLS_CRL_DATA_MAX_LEN];
-	/*!<
-		Certificate data
-	*/
+    /*!< Certificate data */
 	uint8	__PAD24__[3];
-	/*!<
-		Padding bytes for forcing 4-byte alignment
-	*/
+    /*!< Padding bytes for forcing 4-byte alignment */
 }tstrTlsCrlEntry;
 
 /*!
@@ -2290,25 +2246,15 @@ typedef struct {
 */
 typedef struct {
 	uint8			u8CrlType;
-	/*!<
-		Type of certificate data contained in list
-	*/
+    /*!< Type of certificate data contained in list */
 	uint8			u8Rsv1;
-	/*!<
-		Reserved for future use
-	*/
+    /*!< Reserved for future use */
 	uint8			u8Rsv2;
-	/*!<
-		Reserved for future use
-	*/
+    /*!< Reserved for future use */
 	uint8			u8Rsv3;
-	/*!<
-		Reserved for future use
-	*/
+    /*!< Reserved for future use */
 	tstrTlsCrlEntry	astrTlsCrl[TLS_CRL_MAX_ENTRIES];
-	/*!<
-		List entries
-	*/
+    /*!< List entries */
 }tstrTlsCrlInfo;
 
  /*!
