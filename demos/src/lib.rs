@@ -9,6 +9,7 @@ use log::{debug, error, info, trace};
 pub mod coap_client;
 pub mod http_client;
 pub mod http_server;
+pub mod http_speed_test;
 #[cfg(feature = "iperf3")]
 pub mod iperf3_client;
 pub mod tcp_server;
