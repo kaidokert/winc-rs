@@ -417,8 +417,8 @@ where
     read_control(stack, &mut control_socket, Cmds::TestRunning, delay_ms)?;
     info!("-----Test running ({})-----", protocol_name);
 
-    let mut to_send = full_len as isize;
-    let mut packet_id = 1u32;
+    let mut to_send = full_len as u64;
+    let mut packet_id = 1u64;
 
     if use_udp {
         // UDP data transfer using the same socket from handshake
@@ -440,7 +440,7 @@ where
             let header = UdpPacketHeader {
                 tv_sec: current_time as u32,
                 tv_usec: 0, // Simplified - fractional seconds would be computed here
-                id: packet_id as i32,
+                id: (packet_id as i32).min(i32::MAX),
             };
             let header_bytes = header.to_bytes();
             buffer[..12].copy_from_slice(&header_bytes);
@@ -465,14 +465,30 @@ where
             }
 
             packet_id += 1;
-            to_send -= block_len as isize;
-            if to_send <= 0 {
+            to_send = to_send.saturating_sub(block_len as u64);
+            if to_send == 0 {
                 break;
             }
 
             // Simple pacing to prevent flooding the network stack
             delay_ms(1);
         }
+
+        // Send final sentinel packet with negative id to mark end of test
+        let sentinel_header = UdpPacketHeader {
+            tv_sec: 0,
+            tv_usec: 0,
+            id: -(packet_id as i32).min(i32::MAX),
+        };
+        let sentinel_bytes = sentinel_header.to_bytes();
+        buffer[..12].copy_from_slice(&sentinel_bytes);
+
+        // Send minimal sentinel packet (just header)
+        let _ = block!(UdpClientStack::send(stack, &mut udp_socket, &buffer[..12]));
+        debug!(
+            "-----Sent UDP sentinel packet with id {}-----",
+            sentinel_header.id
+        );
     } else {
         // TCP data transfer using the same socket from handshake
         let mut transport_socket = tcp_socket_option.unwrap();
@@ -485,8 +501,8 @@ where
                 &buffer[..block_len]
             ))?;
             debug!("-----Sent {} bytes-----", block_len);
-            to_send -= block_len as isize;
-            if to_send <= 0 {
+            to_send = to_send.saturating_sub(block_len as u64);
+            if to_send == 0 {
                 break;
             }
         }
