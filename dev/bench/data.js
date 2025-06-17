@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1750130501471,
+  "lastUpdate": 1750134486041,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -1653,6 +1653,40 @@ window.BENCHMARK_DATA = {
           {
             "name": "iperf3_client",
             "value": 55788,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "kaidokert@gmail.com",
+            "name": "Kaido Kert",
+            "username": "kaidokert"
+          },
+          "committer": {
+            "email": "kaidokert@gmail.com",
+            "name": "Kaido Kert",
+            "username": "kaidokert"
+          },
+          "distinct": true,
+          "id": "cf8c58d2b40ff0cdb003b18f02548012fd6ec299",
+          "message": "Add delay loops and minimal throttling, fix u64 issues",
+          "timestamp": "2025-06-16T21:27:05-07:00",
+          "tree_id": "325151ba63a56b2caff0b63ae8b9cb415cebe442",
+          "url": "https://github.com/kaidokert/winc-rs/commit/cf8c58d2b40ff0cdb003b18f02548012fd6ec299"
+        },
+        "date": 1750134485543,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 40272,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 55888,
             "unit": "byte"
           }
         ]
