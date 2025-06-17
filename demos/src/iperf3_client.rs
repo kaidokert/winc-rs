@@ -480,10 +480,11 @@ where
         }
 
         // Send final sentinel packet with negative id to mark end of test
+        // Use the ID of the last sent packet (packet_id - 1)
         let sentinel_header = UdpPacketHeader {
             tv_sec: 0,
             tv_usec: 0,
-            id: -packet_id_to_i32(packet_id),
+            id: -packet_id_to_i32(packet_id - 1),
         };
         let sentinel_bytes = sentinel_header.to_bytes();
         buffer[..12].copy_from_slice(&sentinel_bytes);
