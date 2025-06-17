@@ -180,13 +180,13 @@ fn main() -> Result<(), LocalErrors> {
             };
 
             let test_config = SpeedTestConfig {
-                server_host: TEST_SERVER_HOST,
+                server_host: config.server.as_deref().unwrap_or(TEST_SERVER_HOST),
                 test_file,
                 report_interval: config.report_interval,
             };
 
             println!("=== HTTP Speed Test ===");
-            println!("Server: {} ({})", TEST_SERVER_HOST, server_addr);
+            println!("Server: {} ({})", test_config.server_host, server_addr);
             println!("File: {}", test_file);
 
             // Create timing function using std::time::Instant
