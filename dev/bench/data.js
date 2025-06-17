@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1750144476110,
+  "lastUpdate": 1750144991672,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -2017,6 +2017,40 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/kaidokert/winc-rs/commit/99516649fab483308da344e2da3befe8decede70"
         },
         "date": 1750144475774,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 40272,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 55720,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "kaidokert@gmail.com",
+            "name": "Kaido Kert",
+            "username": "kaidokert"
+          },
+          "committer": {
+            "email": "kaidokert@gmail.com",
+            "name": "Kaido Kert",
+            "username": "kaidokert"
+          },
+          "distinct": true,
+          "id": "694d2852207b9bcb7342b9e08eb31849f6b5ac8b",
+          "message": "Fix up correct test server host in demos",
+          "timestamp": "2025-06-17T00:16:46-07:00",
+          "tree_id": "96f169d9282db6a9bbcd391416a924d9e1d23240",
+          "url": "https://github.com/kaidokert/winc-rs/commit/694d2852207b9bcb7342b9e08eb31849f6b5ac8b"
+        },
+        "date": 1750144990689,
         "tool": "customSmallerIsBetter",
         "benches": [
           {
