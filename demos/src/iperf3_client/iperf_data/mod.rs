@@ -211,11 +211,11 @@ mod tests {
         let results = SessionResults::<1> {
             streams: heapless::Vec::from_slice(&[StreamResults {
                 id: 1,
-                bytes: u32::MAX,
+                bytes: u64::MAX,
                 retransmits: u64::MAX,
                 jitter: f32::MAX,
-                errors: u32::MAX,
-                packets: u32::MAX,
+                errors: u64::MAX,
+                packets: u64::MAX,
                 start_time: 10000.0,
                 end_time: 10000.0,
             }])
