@@ -91,6 +91,37 @@ impl<X: Xfer> ChipAccess<X> {
         }
     }
 
+    fn read_cmd_response(
+        &mut self,
+        expected: &[u8],
+        resp_header: bool,
+        msg: &'static str,
+    ) -> Result<(), Error> {
+        let mut counter: u32 = 10;
+        let mut rdbuf = [0xFF; 1];
+
+        while counter > 0 {
+            self.xfer.recv(&mut rdbuf)?;
+            trace!("Cmd Bytes: {:x}", HexWrap { v: &rdbuf });
+
+            if resp_header {
+                rdbuf[0] = (rdbuf[0] >> 4) & 0x0f
+            }
+
+            match self.protocol_verify(msg, &rdbuf, expected) {
+                Ok(_) => break,
+                Err(e) => {
+                    counter -= 1;
+                    if counter == 0 {
+                        return Err(e);
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
+
     pub fn switch_to_high_speed(&mut self) {
         self.xfer.switch_to_high_speed();
     }
@@ -105,20 +136,14 @@ impl<X: Xfer> ChipAccess<X> {
             self.xfer.send(&cmd[..4])?;
         }
 
-        let mut rdbuf = [0xFF; 1];
-        self.xfer.recv(&mut rdbuf)?;
-        trace!("Cmd Bytes: {:x}", HexWrap { v: &rdbuf });
-        self.protocol_verify("single_reg_read:cmd", &rdbuf, &[Cmd::RegRead as u8])?;
+        // Command / Control Response
+        self.read_cmd_response(&[Cmd::RegRead as u8], false, "single_reg_read:cmd")?;
 
-        self.xfer.recv(&mut rdbuf)?;
-        trace!("Status Zero Bytes: {:x}", HexWrap { v: &rdbuf });
-        self.protocol_verify("single_reg_read:zero", &rdbuf, &[0])?;
+        // State Response
+        self.read_cmd_response(&[0], false, "single_reg_read:zero")?;
 
-        self.xfer.recv(&mut rdbuf)?;
-        trace!("Data ack Bytes: {:x}", HexWrap { v: &rdbuf });
-        // todo: chould check for low bits
-        rdbuf[0] &= 0xF0; // DATA_START_CTRL reg value. Lower bits are start/mid/end indicator
-        self.protocol_verify("single_reg_read:ack", &rdbuf, &[0xF0])?;
+        // Data Response Header
+        self.read_cmd_response(&[0xf], true, "single_reg_read:ack")?;
 
         let mut data_buf = [0x00; 4];
         self.xfer.recv(&mut data_buf)?;
@@ -162,15 +187,12 @@ impl<X: Xfer> ChipAccess<X> {
             self.xfer.send(&cmd[..8])?;
         }
 
-        let mut rdbuf = [0x0; 1];
-        self.xfer.recv(&mut rdbuf)?;
-        trace!("Cmd Bytes: {:x}", HexWrap { v: &rdbuf });
-        self.protocol_verify("single_reg_write:cmd echo", &rdbuf, &[Cmd::RegWrite as u8])?;
+        // check command
+        self.read_cmd_response(&[Cmd::RegWrite as u8], false, "single_reg_write:cmd echo")?;
 
-        rdbuf[0] = 0;
-        self.xfer.recv(&mut rdbuf)?;
-        trace!("Status zero Bytes: {:x}", HexWrap { v: &rdbuf });
-        self.protocol_verify("single_reg_write:zero echo", &rdbuf, &[0])?;
+        // check zero
+        self.read_cmd_response(&[0], false, "single_reg_write:zero echo")?;
+
         // note : response doesn't have ACK or CRC
         Ok(())
     }
@@ -230,18 +252,15 @@ impl<X: Xfer> ChipAccess<X> {
         } else {
             self.xfer.send(&cmd[..7])?;
         }
-        let mut rdbuf = [0x0; 1];
-        self.xfer.recv(&mut rdbuf)?;
-        trace!("Cmd Bytes: {:x}", HexWrap { v: &rdbuf });
-        self.protocol_verify("dma_block_write:cmd", &rdbuf, &[Cmd::DmaWrite as u8])?;
 
-        rdbuf[0] = 0;
-        self.xfer.recv(&mut rdbuf)?;
-        trace!("Status Zero Bytes: {:x}", HexWrap { v: &rdbuf });
-        self.protocol_verify("dma_block_write:zero", &rdbuf, &[0])?;
+        // Command / Control Response
+        self.read_cmd_response(&[Cmd::DmaWrite as u8], false, "dma_block_write:cmd")?;
+
+        // State Response
+        self.read_cmd_response(&[0], false, "dma_block_write:zero")?;
 
         trace!("Sending F3 marker");
-        self.xfer.send(&[0xf3])?; // todo: could be 1/2/3, depending on conditions
+        self.xfer.send(&[0xf1])?; // todo: could be 1/2/3, depending on conditions
 
         trace!("Sending data ...");
         self.xfer.send(data)?;

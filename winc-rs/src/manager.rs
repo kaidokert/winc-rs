@@ -180,6 +180,24 @@ impl Default for BootState {
     }
 }
 impl<X: Xfer> Manager<X> {
+    /// Disables CRC checking for communication with the chip.
+    fn disable_xfer_crc(&mut self, _chip_id: u32) -> Result<(), Error> {
+        debug!("Disabling CRC");
+        let mut conf = self.chip.single_reg_read(Regs::SpiConfig.into())?;
+        conf &= !0xc; // disable crc checking
+        conf &= !0x70;
+        conf |= 0x5 << 4;
+        self.chip.single_reg_write(Regs::SpiConfig.into(), conf)?;
+        self.set_crc_state(false);
+
+        // Reverify the chip-id to check the communciation is working okay
+        let chip_id = self.chip_id()?;
+        if chip_id != _chip_id {
+            return Err(Error::Failed);
+        }
+        Ok(())
+    }
+
     pub fn from_xfer(xfer: X) -> Self {
         Self {
             not_a_reg_ctrl_4_dma: 0xbf0000,
@@ -239,7 +257,9 @@ impl<X: Xfer> Manager<X> {
         debug!("Waiting for chip start .. stage: {:?}", state.stage);
         match state.stage {
             BootStage::Start => {
-                debug!("chip id {:x} rev:{:x}", self.chip_id()?, self.chip_rev()?);
+                let chip_id = self.chip_id()?;
+                debug!("chip id {:x} rev:{:x}", chip_id, self.chip_rev()?);
+                self.disable_xfer_crc(chip_id)?;
                 self.configure_spi_packetsize()?;
                 state.stage = BootStage::StartBootrom;
                 state.loop_value = 0;
@@ -252,6 +272,7 @@ impl<X: Xfer> Manager<X> {
                 if efuse != 0 {
                     state.stage = BootStage::Stage2;
                 }
+                self.delay_us(1000);
             }
             BootStage::Stage2 => {
                 let host_wait = self.chip.single_reg_read(Regs::WaitForHost.into())? & 0x1;
@@ -266,6 +287,7 @@ impl<X: Xfer> Manager<X> {
                 if state.loop_value >= MAX_LOOPS {
                     return Err(Error::BootRomStart);
                 }
+                self.delay_us(1000);
                 let host_wait = self.chip.single_reg_read(Regs::BootRom.into())?;
                 if host_wait == FINISH_BOOT_ROM {
                     state.stage = BootStage::Stage4;
