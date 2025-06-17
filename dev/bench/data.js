@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1750139055071,
+  "lastUpdate": 1750139177406,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -1847,6 +1847,40 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/kaidokert/winc-rs/commit/9cc95077d7c83e766f4cfc291b3282538cc9992b"
         },
         "date": 1750139054724,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 40272,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 55928,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "kaidokert@gmail.com",
+            "name": "Kaido Kert",
+            "username": "kaidokert"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "b3a6c2f4c1da118920e02f6470418c5fcb7061b9",
+          "message": "Udp iperf (#78)\n\n* UDP IPerf implementation",
+          "timestamp": "2025-06-16T22:45:18-07:00",
+          "tree_id": "587d1c7ae286e982a708c214d1edf2a45953210b",
+          "url": "https://github.com/kaidokert/winc-rs/commit/b3a6c2f4c1da118920e02f6470418c5fcb7061b9"
+        },
+        "date": 1750139176563,
         "tool": "customSmallerIsBetter",
         "benches": [
           {
