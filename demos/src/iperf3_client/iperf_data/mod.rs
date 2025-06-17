@@ -28,7 +28,7 @@ pub struct SessionConfig {
 
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct UdpSessionConfig {
-    pub udp: bool,
+    pub udp: u8,
     pub omit: u32,
     pub time: u32,
     pub num: u64,

@@ -8,3 +8,4 @@ feather/.vscode/settings.json
 nodefmt/
 winc-rs/tarpaulin-report.html
 .vscode/
+.venv/

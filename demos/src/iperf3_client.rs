@@ -294,7 +294,7 @@ where
     // Create protocol-specific configuration
     if use_udp {
         let udp_conf = UdpSessionConfig {
-            udp: true,
+            udp: 1,
             omit: 0,
             time: 3, // Default 3 seconds - could be made configurable
             num: 0,  // When using time, num should be 0
