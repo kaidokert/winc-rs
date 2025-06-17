@@ -22,8 +22,8 @@ pub enum Cmds {
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct SessionConfig {
     pub tcp: u8,
-    pub num: usize,
-    pub len: usize,
+    pub num: u64,
+    pub len: u64,
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -31,10 +31,10 @@ pub struct UdpSessionConfig {
     pub udp: bool,
     pub omit: u32,
     pub time: u32,
-    pub num: usize,
+    pub num: u64,
     pub blockcount: u32,
     pub parallel: u32,
-    pub len: usize,
+    pub len: u64,
     pub bandwidth: u32,
     pub pacing_timer: u32,
     pub client_version: heapless::String<16>,
@@ -44,15 +44,15 @@ pub struct UdpSessionConfig {
 pub struct UdpPacketHeader {
     pub tv_sec: u32,
     pub tv_usec: u32,
-    pub id: u32,
+    pub id: i32,
 }
 
 impl UdpPacketHeader {
     pub fn to_bytes(&self) -> [u8; 12] {
         let mut bytes = [0u8; 12];
-        bytes[0..4].copy_from_slice(&self.tv_sec.to_be_bytes());
-        bytes[4..8].copy_from_slice(&self.tv_usec.to_be_bytes());
-        bytes[8..12].copy_from_slice(&self.id.to_be_bytes());
+        bytes[0..4].copy_from_slice(&self.id.to_be_bytes());
+        bytes[4..8].copy_from_slice(&self.tv_sec.to_be_bytes());
+        bytes[8..12].copy_from_slice(&self.tv_usec.to_be_bytes());
         bytes
     }
 }

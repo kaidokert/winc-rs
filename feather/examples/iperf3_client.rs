@@ -162,6 +162,7 @@ where
             &mut fake_rng,
             Some(conf),
             use_udp,
+            &mut delay_ms,
         )?;
 
         loop {

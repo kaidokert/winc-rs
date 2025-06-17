@@ -5,6 +5,9 @@ use std_embedded_nal::Stack;
 
 #[cfg(feature = "iperf3")]
 use demos::iperf3_client::{iperf3_client, Conf, TestConfig};
+#[cfg(feature = "iperf3")]
+use std::{thread, time::Duration};
+
 use demos::{
     coap_client::coap_client, http_client::http_client, http_server::http_server,
     tcp_server::tcp_server, telnet_shell::telnet_shell, udp_client::udp_client,
@@ -157,6 +160,9 @@ fn main() -> Result<(), LocalErrors> {
                         transmit_block_len: _config.block_len,
                     }
                 };
+                let mut delay_ms = |ms: u32| {
+                    thread::sleep(Duration::from_millis(ms as u64));
+                };
                 iperf3_client::<65536, _, _, _>(
                     &mut stack,
                     ip_addr,
@@ -164,6 +170,7 @@ fn main() -> Result<(), LocalErrors> {
                     &mut rand::rng(),
                     Some(conf),
                     _config.udp, // Pass UDP flag directly
+                    &mut delay_ms,
                 )
                 .map_err(|_| LocalErrors::IoError)?;
             }

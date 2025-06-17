@@ -1,7 +1,7 @@
 use core::net::{IpAddr, SocketAddr};
 
 use super::{debug, error, info};
-use embedded_nal::nb::block;
+use embedded_nal::nb::{self, block};
 use embedded_nal::{TcpClientStack, UdpClientStack};
 use iperf_data::{
     Cmds, SessionConfig, SessionResults, StreamResults, UdpMetrics, UdpPacketHeader,
@@ -10,6 +10,29 @@ use iperf_data::{
 pub use rand_core::RngCore;
 
 mod iperf_data;
+
+macro_rules! block_timeout {
+    ($e:expr, $delay:expr, $max_attempts:expr) => {{
+        let mut attempts = 0;
+        loop {
+            #[allow(unreachable_patterns)]
+            match $e {
+                Err(nb::Error::Other(e)) => {
+                    #[allow(unreachable_code)]
+                    break Err(nb::Error::Other(e));
+                }
+                Err(nb::Error::WouldBlock) => {
+                    attempts += 1;
+                    if attempts > $max_attempts {
+                        break Err(nb::Error::WouldBlock);
+                    }
+                    $delay(10);
+                }
+                Ok(x) => break Ok(x),
+            }
+        }
+    }};
+}
 
 const DEFAULT_PORT: u16 = 5201;
 
@@ -20,6 +43,7 @@ pub enum Errors {
     UDP,
     UnexpectedResponse,
     JsonTooLarge,
+    Timeout,
 }
 
 #[cfg(not(feature = "defmt"))]
@@ -89,7 +113,12 @@ fn format_speed(bytes_per_second: f32) -> (f32, &'static str, f32, &'static str)
     (speed, suffixes[suffix_index], bits_speed, bits_suffix)
 }
 
-fn read_control<T, S>(stack: &mut T, mut control_socket: &mut S, cmd: Cmds) -> Result<(), Errors>
+fn read_control<T, S>(
+    stack: &mut T,
+    mut control_socket: &mut S,
+    cmd: Cmds,
+    delay_ms: &mut impl FnMut(u32),
+) -> Result<(), Errors>
 where
     T: TcpClientStack<TcpSocket = S> + ?Sized,
     T::Error: TcpError,
@@ -98,7 +127,11 @@ where
     let mut read_cmd: [u8; 1] = [0];
     debug!("Waiting for control command: {:?} ({})", cmd, fx);
 
-    match block!(stack.receive(&mut control_socket, &mut read_cmd)) {
+    match block_timeout!(
+        stack.receive(&mut control_socket, &mut read_cmd),
+        delay_ms,
+        50
+    ) {
         Ok(_) => {
             debug!("Received control byte: {}", read_cmd[0]);
             if fx == read_cmd[0] {
@@ -111,10 +144,16 @@ where
                 return Err(Errors::UnexpectedResponse);
             }
         }
-        Err(e) => {
-            error!("Failed to receive control command {:?}", cmd);
-            return Err(e.into());
-        }
+        Err(e) => match e {
+            nb::Error::WouldBlock => {
+                error!("Timeout waiting for control command {:?}", cmd);
+                return Err(Errors::Timeout);
+            }
+            nb::Error::Other(_) => {
+                error!("Failed to receive control command {:?}", cmd);
+                return Err(Errors::TCP);
+            }
+        },
     }
     Ok(())
 }
@@ -183,6 +222,7 @@ pub fn iperf3_client<const MAX_BLOCK_LEN: usize, T, S, US>(
     rng: &mut dyn RngCore,
     config: Option<TestConfig>,
     use_udp: bool,
+    delay_ms: &mut impl FnMut(u32),
 ) -> Result<(), Errors>
 where
     T: TcpClientStack<TcpSocket = S> + UdpClientStack<UdpSocket = US> + ?Sized,
@@ -217,11 +257,29 @@ where
     let mut control_socket = TcpClientStack::socket(stack)?;
     let remote = SocketAddr::new(IpAddr::V4(server_addr), port.unwrap_or(DEFAULT_PORT));
     info!(
-        "-----Connecting to {} ({} test)-----",
+        "-----Connecting to {}.{}.{}.{}:{} ({} test)-----",
+        server_addr.octets()[0],
+        server_addr.octets()[1],
+        server_addr.octets()[2],
+        server_addr.octets()[3],
         remote.port(),
         protocol_name
     );
-    block!(TcpClientStack::connect(stack, &mut control_socket, remote))?;
+    block_timeout!(
+        TcpClientStack::connect(stack, &mut control_socket, remote),
+        delay_ms,
+        300
+    )
+    .map_err(|e| match e {
+        nb::Error::WouldBlock => {
+            error!("Timeout connecting to TCP control socket");
+            Errors::Timeout
+        }
+        nb::Error::Other(_) => {
+            error!("Failed to connect to TCP control socket");
+            Errors::TCP
+        }
+    })?;
     info!("-----Socket connected-----");
 
     let cookie = make_cookie(rng);
@@ -231,7 +289,7 @@ where
         core::str::from_utf8(&cookie).unwrap()
     );
 
-    read_control(stack, &mut control_socket, Cmds::ParamExchange)?;
+    read_control(stack, &mut control_socket, Cmds::ParamExchange, delay_ms)?;
 
     // Create protocol-specific configuration
     if use_udp {
@@ -242,7 +300,7 @@ where
             num: 0,  // When using time, num should be 0
             blockcount: 0,
             parallel: 1,
-            len: block_len,
+            len: block_len as u64,
             bandwidth: 1048576, // 1 Mbps default
             pacing_timer: 1000,
             client_version: heapless::String::try_from("3.19").unwrap(),
@@ -252,15 +310,15 @@ where
     } else {
         let tcp_conf = SessionConfig {
             tcp: 1,
-            num: full_len,
-            len: block_len,
+            num: full_len as u64,
+            len: block_len as u64,
         };
         let json = tcp_conf.serde_json().unwrap();
         send_json(stack, &mut control_socket, &json)?;
     }
     info!("-----Sent param exchange ({})-----", protocol_name);
 
-    read_control(stack, &mut control_socket, Cmds::CreateStreams)?;
+    read_control(stack, &mut control_socket, Cmds::CreateStreams, delay_ms)?;
     debug!("-----Received CreateStreams command-----");
 
     // Create data connection immediately after CreateStreams as iperf3 expects
@@ -297,14 +355,20 @@ where
         // Wait for UDP connect reply
         let mut reply_buf = [0u8; 4];
         debug!("-----Waiting for UDP connect reply-----");
-        let (reply_len, _) = block!(UdpClientStack::receive(
-            stack,
-            &mut udp_socket,
-            &mut reply_buf
-        ))
-        .map_err(|e| {
-            error!("Failed to receive UDP connect reply: {:?}", e);
-            Errors::UDP
+        let (reply_len, _) = block_timeout!(
+            UdpClientStack::receive(stack, &mut udp_socket, &mut reply_buf),
+            delay_ms,
+            50
+        )
+        .map_err(|e| match e {
+            nb::Error::WouldBlock => {
+                error!("Timeout waiting for UDP connect reply");
+                Errors::Timeout
+            }
+            nb::Error::Other(_) => {
+                error!("Failed to receive UDP connect reply");
+                Errors::UDP
+            }
         })?;
 
         if reply_len == 4 {
@@ -348,9 +412,9 @@ where
         tcp_socket_option = Some(transport_socket);
     }
 
-    read_control(stack, &mut control_socket, Cmds::TestStart)?;
+    read_control(stack, &mut control_socket, Cmds::TestStart, delay_ms)?;
     debug!("-----Test started-----");
-    read_control(stack, &mut control_socket, Cmds::TestRunning)?;
+    read_control(stack, &mut control_socket, Cmds::TestRunning, delay_ms)?;
     info!("-----Test running ({})-----", protocol_name);
 
     let mut to_send = full_len as isize;
@@ -376,7 +440,7 @@ where
             let header = UdpPacketHeader {
                 tv_sec: current_time as u32,
                 tv_usec: 0, // Simplified - fractional seconds would be computed here
-                id: packet_id,
+                id: packet_id as i32,
             };
             let header_bytes = header.to_bytes();
             buffer[..12].copy_from_slice(&header_bytes);
@@ -405,6 +469,9 @@ where
             if to_send <= 0 {
                 break;
             }
+
+            // Simple pacing to prevent flooding the network stack
+            delay_ms(1);
         }
     } else {
         // TCP data transfer using the same socket from handshake
@@ -428,7 +495,7 @@ where
     }
 
     send_cmd(stack, &mut control_socket, Cmds::TestEnd)?;
-    read_control(stack, &mut control_socket, Cmds::ExchangeResults)?;
+    read_control(stack, &mut control_socket, Cmds::ExchangeResults, delay_ms)?;
 
     // Create results based on protocol
     let results = if use_udp {
@@ -461,7 +528,7 @@ where
     debug!("-----Doing recv_json-----");
     match recv_json(stack, &mut control_socket, &mut remote_results_buffer) {
         Ok(remote_results) => {
-            read_control(stack, &mut control_socket, Cmds::DisplayResults)?;
+            read_control(stack, &mut control_socket, Cmds::DisplayResults, delay_ms)?;
 
             let (session_results, _): (SessionResults<1>, usize) =
                 match serde_json_core::from_str(remote_results) {
