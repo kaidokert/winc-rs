@@ -498,8 +498,10 @@ where
         // TCP data transfer using the same socket from handshake
         let mut transport_socket = tcp_socket_option.unwrap();
 
+        // Allocate buffer once outside the loop to reduce stack pressure
+        let buffer = [0xAA; MAX_BLOCK_LEN]; // Different pattern from UDP (0xBB)
+
         loop {
-            let buffer = [0xAA; MAX_BLOCK_LEN];
             block!(TcpClientStack::send(
                 stack,
                 &mut transport_socket,
