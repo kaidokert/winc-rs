@@ -136,6 +136,9 @@ where
         let test_port = option_env!("TEST_IPERF_PORT").unwrap_or(DEFAULT_IPERF_PORT);
         let port = u16::from_str(test_port).unwrap_or(12345);
 
+        let use_udp = option_env!("TEST_IPERF_UDP").unwrap_or("false");
+        let use_udp = bool::from_str(use_udp).unwrap_or(false);
+
         let numbytes = match option_env!("NUM_BYTES") {
             Some(numbytes) => numbytes.parse::<usize>().unwrap(),
             None => 256,
@@ -152,12 +155,14 @@ where
 
         let systick = SYST::get_current();
         let mut fake_rng = FakeRng { init: systick };
-        iperf3_client::<MAX_BLOCK_LEN, _, _>(
+        iperf3_client::<MAX_BLOCK_LEN, _, _, _>(
             &mut stack,
             server_addr,
             Some(port),
             &mut fake_rng,
             Some(conf),
+            use_udp,
+            &mut delay_ms,
         )?;
 
         loop {
