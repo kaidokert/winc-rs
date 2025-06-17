@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1750136611757,
+  "lastUpdate": 1750138004278,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -1745,6 +1745,40 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/kaidokert/winc-rs/commit/e71bee135f6e57f55fa2c24c9eea4b284d9966f7"
         },
         "date": 1750136610841,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 40272,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 55904,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "kaidokert@gmail.com",
+            "name": "Kaido Kert",
+            "username": "kaidokert"
+          },
+          "committer": {
+            "email": "kaidokert@gmail.com",
+            "name": "Kaido Kert",
+            "username": "kaidokert"
+          },
+          "distinct": true,
+          "id": "eccc30973f0a8eeb75f34adce6debd64e6f3b98c",
+          "message": "Deal with packet id/overflow",
+          "timestamp": "2025-06-16T22:22:55-07:00",
+          "tree_id": "fc27d1260f543267b61208ee0e75c36562e6e0e3",
+          "url": "https://github.com/kaidokert/winc-rs/commit/eccc30973f0a8eeb75f34adce6debd64e6f3b98c"
+        },
+        "date": 1750138003821,
         "tool": "customSmallerIsBetter",
         "benches": [
           {
