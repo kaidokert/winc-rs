@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1750135923651,
+  "lastUpdate": 1750136611757,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -1721,6 +1721,40 @@ window.BENCHMARK_DATA = {
           {
             "name": "iperf3_client",
             "value": 55888,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "kaidokert@gmail.com",
+            "name": "Kaido Kert",
+            "username": "kaidokert"
+          },
+          "committer": {
+            "email": "kaidokert@gmail.com",
+            "name": "Kaido Kert",
+            "username": "kaidokert"
+          },
+          "distinct": true,
+          "id": "e71bee135f6e57f55fa2c24c9eea4b284d9966f7",
+          "message": "Sentinel packet on UDP",
+          "timestamp": "2025-06-16T22:02:29-07:00",
+          "tree_id": "c11482988e624f3ddaf56b739f6e626528226e40",
+          "url": "https://github.com/kaidokert/winc-rs/commit/e71bee135f6e57f55fa2c24c9eea4b284d9966f7"
+        },
+        "date": 1750136610841,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 40272,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 55904,
             "unit": "byte"
           }
         ]
