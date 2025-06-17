@@ -36,6 +36,11 @@ macro_rules! block_timeout {
 
 const DEFAULT_PORT: u16 = 5201;
 
+/// Safely converts a u64 packet_id to i32, clamping to i32::MAX to prevent overflow
+fn packet_id_to_i32(packet_id: u64) -> i32 {
+    packet_id.min(i32::MAX as u64) as i32
+}
+
 #[derive(Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum Errors {
@@ -440,7 +445,7 @@ where
             let header = UdpPacketHeader {
                 tv_sec: current_time as u32,
                 tv_usec: 0, // Simplified - fractional seconds would be computed here
-                id: (packet_id as i32).min(i32::MAX),
+                id: packet_id_to_i32(packet_id),
             };
             let header_bytes = header.to_bytes();
             buffer[..12].copy_from_slice(&header_bytes);
@@ -478,7 +483,7 @@ where
         let sentinel_header = UdpPacketHeader {
             tv_sec: 0,
             tv_usec: 0,
-            id: -(packet_id as i32).min(i32::MAX),
+            id: -packet_id_to_i32(packet_id),
         };
         let sentinel_bytes = sentinel_header.to_bytes();
         buffer[..12].copy_from_slice(&sentinel_bytes);
