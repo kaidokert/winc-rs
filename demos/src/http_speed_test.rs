@@ -40,6 +40,17 @@ impl<'a> Default for SpeedTestConfig<'a> {
     }
 }
 
+#[allow(dead_code)]
+#[derive(Debug)]
+struct WrapError(httparse::Error);
+
+#[cfg(feature = "defmt")]
+impl defmt::Format for WrapError {
+    fn format(&self, fmt: defmt::Formatter) {
+        defmt::write!(fmt, "<later>")
+    }
+}
+
 pub struct SpeedTestResult {
     pub total_bytes: u32,
     pub elapsed_seconds: f32,
@@ -136,27 +147,29 @@ where
                     info!("Download started - first bytes received");
                 }
 
-                // Simple header detection - look for \r\n\r\n
+                // Simple header detection
                 if !header_complete {
                     let response_slice = &buffer[..bytes_received];
-                    if let Ok(response_str) = core::str::from_utf8(response_slice) {
-                        debug!("HTTP Response start: {}", response_str);
-
-                        if response_str.contains("\r\n\r\n") {
+                    let mut headers = [httparse::EMPTY_HEADER; 16];
+                    let mut response = httparse::Response::new(&mut headers);
+                    match response.parse(response_slice) {
+                        Ok(httparse::Status::Complete(size)) => {
+                            info!(
+                                "HTTP headers complete code {} ( size  {} )",
+                                response.code.unwrap_or(0),
+                                size
+                            );
                             header_complete = true;
-                            info!("HTTP headers complete");
-
-                            // Check for HTTP error status
-                            if response_str.contains("HTTP/1.1 404") {
-                                error!("HTTP 404 - File not found!");
-                            } else if response_str.contains("HTTP/1.1 200") {
-                                info!("HTTP 200 - OK");
-                            } else {
-                                let status_line = &response_str
-                                    [..response_str.find("\r\n").unwrap_or(50).min(50)];
-                                info!("HTTP response: {}", status_line);
-                            }
                         }
+                        Ok(httparse::Status::Partial) => {
+                            error!("HTTP response not complete");
+                        }
+                        Err(e) => {
+                            error!("-----Error parsing response: {:?}-----", WrapError(e));
+                        }
+                    }
+                    if !matches!(response.code, Some(200)) {
+                        error!("HTTP response code: {:?}", response.code);
                     }
                 }
 
