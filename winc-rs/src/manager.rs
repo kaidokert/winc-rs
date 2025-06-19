@@ -846,7 +846,17 @@ impl<X: Xfer> Manager<X> {
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
     }
 
+    pub fn dispatch_events_may_wait<T: EventListener>(
+        &mut self,
+        listener: &mut T,
+    ) -> Result<(), Error> {
+        #[cfg(feature = "irq")]
+        self.chip.wait_for_interrupt();
+        self.dispatch_events_new(listener)
+    }
+
     pub fn dispatch_events_new<T: EventListener>(&mut self, listener: &mut T) -> Result<(), Error> {
+        // clear the interrupt pending register
         let res = self.is_interrupt_pending()?;
         if !res.0 {
             return Ok(());

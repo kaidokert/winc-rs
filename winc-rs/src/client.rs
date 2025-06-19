@@ -93,12 +93,34 @@ impl<X: Xfer> WincClient<'_, X> {
         }
     }
 
+    /// Poll the chip for new events.
+    ///
+    /// # Returns
+    ///
+    /// * `()` - No error occurred while polling the chip for new events.
+    /// * `StackError` - An error occurred while polling the chip for new events.
     fn dispatch_events(&mut self) -> Result<(), StackError> {
         self.test_hook();
         self.manager
             .dispatch_events_new(&mut self.callbacks)
             .map_err(StackError::DispatchError)
     }
+
+    /// Poll the chip for new events. If "irq" is enabled, it will wait for an interrupt on the IRQ
+    /// pin of the WiFi chip before polling for new events. If "irq" is not enabled,
+    /// it will poll the chip for new events without waiting.
+    ///
+    /// # Returns
+    ///
+    /// * `()` - No error occurred while polling for new events.
+    /// * `StackError` - An error occurred while polling for new events.
+    fn dispatch_events_may_wait(&mut self) -> Result<(), StackError> {
+        self.test_hook();
+        self.manager
+            .dispatch_events_may_wait(&mut self.callbacks)
+            .map_err(StackError::DispatchError)
+    }
+
     fn wait_with_timeout<F, T>(
         &mut self,
         timeout: u32,
@@ -156,7 +178,7 @@ impl<X: Xfer> WincClient<'_, X> {
             ClientSocketOp::None | ClientSocketOp::New => {
                 *op = init_callback(sock, manager)?;
                 manager
-                    .dispatch_events_new(callbacks)
+                    .dispatch_events_may_wait(callbacks)
                     .map_err(StackError::DispatchError)?;
                 Err(nb::Error::WouldBlock)
             }
@@ -170,13 +192,13 @@ impl<X: Xfer> WincClient<'_, X> {
                         Err(nb::Error::Other(StackError::OpFailed(SocketError::Timeout)))
                     } else {
                         manager
-                            .dispatch_events_new(callbacks)
+                            .dispatch_events_may_wait(callbacks)
                             .map_err(StackError::DispatchError)?;
                         Err(nb::Error::WouldBlock)
                     }
                 } else {
                     manager
-                        .dispatch_events_new(callbacks)
+                        .dispatch_events_may_wait(callbacks)
                         .map_err(StackError::DispatchError)?;
                     Err(nb::Error::WouldBlock)
                 }

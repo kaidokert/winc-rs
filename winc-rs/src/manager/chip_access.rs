@@ -91,6 +91,13 @@ impl<X: Xfer> ChipAccess<X> {
         }
     }
 
+    #[cfg(feature = "irq")]
+    /// Wait for Interrupt on IRQ Pin
+    pub fn wait_for_interrupt(&mut self) {
+        #[cfg(not(test))]
+        self.xfer.wait_for_interrupt()
+    }
+
     pub fn switch_to_high_speed(&mut self) {
         self.xfer.switch_to_high_speed();
     }

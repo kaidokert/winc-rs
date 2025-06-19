@@ -34,6 +34,9 @@ pub trait Xfer {
     /// Optional delay, roughly in microseconds
     /// Note/TODO: This will be deprecated
     fn delay_us(&mut self, _delay: u32) {}
+    #[cfg(feature = "irq")]
+    /// Optionally wait for an interrupt from IRQ pin
+    fn wait_for_interrupt(&mut self) {}
 }
 
 // Blanket implementation
