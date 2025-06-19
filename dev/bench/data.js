@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1750303560871,
+  "lastUpdate": 1750303839847,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -2255,6 +2255,40 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/kaidokert/winc-rs/commit/19adffff349ea3ac2eedb3c045fa7491750bcc24"
         },
         "date": 1750303559902,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 40276,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 55748,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "kaidokert@gmail.com",
+            "name": "Kaido Kert",
+            "username": "kaidokert"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "ab0ad9009753df9d45d8d16f3241eaaa0d5a42f6",
+          "message": "Change SPI default speed to 8mhz (#84)\n\n* Change SPI default speed to 8mhz",
+          "timestamp": "2025-06-18T20:29:36-07:00",
+          "tree_id": "230dac96831b8a2cc5535d8ab8a0683d60afc9d8",
+          "url": "https://github.com/kaidokert/winc-rs/commit/ab0ad9009753df9d45d8d16f3241eaaa0d5a42f6"
+        },
+        "date": 1750303839004,
         "tool": "customSmallerIsBetter",
         "benches": [
           {
