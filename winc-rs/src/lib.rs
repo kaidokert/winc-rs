@@ -1,4 +1,4 @@
-// Copyright 2025 Google LLC
+// Copyright 2023 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -77,8 +77,6 @@ pub use client::WincClient;
 pub use manager::AuthType;
 pub use manager::ConnectionInfo;
 pub use manager::FirmwareInfo;
-#[cfg(feature = "irq")]
-pub use manager::IrqInfo;
 pub use manager::{
     AccessPoint, Credentials, HostName, S8Password, S8Username, Ssid, WifiChannel, WpaKey,
 };

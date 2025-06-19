@@ -10,28 +10,21 @@ use bsp::periph_alias;
 use bsp::pin_alias;
 use core::convert::Infallible;
 #[cfg(feature = "irq")]
-use cortex_m::peripheral::NVIC;
+use cortex_m::{peripheral::NVIC, interrupt::Mutex};
 use hal::clock::GenericClockController;
 #[cfg(feature = "irq")]
-use hal::eic::Eic;
-#[cfg(feature = "irq")]
-use hal::eic::*;
+use hal::{eic::Eic, eic::*};
 #[cfg(all(feature = "irq", not(feature = "eic-irq-override")))]
 use pac::interrupt;
 
 #[cfg(feature = "irq")]
-use core::cell::RefCell;
-#[cfg(feature = "irq")]
-use core::ops::DerefMut;
-#[cfg(feature = "irq")]
-use cortex_m::interrupt::Mutex;
+use core::{cell::RefCell, ops::DerefMut};
 
 use hal::time::{Hertz, MegaHertz};
 
 use hal::prelude::*;
 
-use hal::ehal::digital::InputPin;
-use hal::ehal::digital::OutputPin;
+use hal::ehal::digital::{InputPin, OutputPin};
 use hal::ehal::i2c::I2c;
 
 use super::shared::SpiBus;
@@ -96,9 +89,7 @@ pub fn init() -> Result<
     FailureSource,
 > {
     let mut peripherals = Peripherals::take().ok_or(FailureSource::Periph)?;
-    #[cfg(not(feature = "irq"))]
-    let core = CorePeripherals::take().ok_or(FailureSource::Core)?;
-    #[cfg(feature = "irq")]
+    #[allow(unused_mut)]
     let mut core = CorePeripherals::take().ok_or(FailureSource::Core)?;
 
     let mut clocks = GenericClockController::with_internal_32kosc(
