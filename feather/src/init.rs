@@ -32,8 +32,8 @@ use super::shared::SpiBus;
 #[cfg(feature = "irq")]
 static EIC_IRQ_RCVD: Mutex<RefCell<bool>> = Mutex::new(RefCell::new(false));
 
-// Set SPI bus to 4 Mhz, about as fast as it goes
-const SPI_MHZ: u32 = 4;
+// Set SPI bus to 8 Mhz, about as fast as it goes
+const SPI_MHZ: u32 = 8;
 const I2C_KHZ: u32 = 400;
 
 use cortex_m_systick_countdown::{PollingSysTick, SysTickCalibration};
