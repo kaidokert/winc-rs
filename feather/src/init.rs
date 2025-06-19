@@ -21,7 +21,7 @@ use hal::ehal::i2c::I2c;
 use super::shared::SpiBus;
 
 // Set SPI bus to 4 Mhz, about as fast as it goes
-const SPI_MHZ: u32 = 4;
+const SPI_MHZ: u32 = 8;
 const I2C_KHZ: u32 = 400;
 
 use cortex_m_systick_countdown::{PollingSysTick, SysTickCalibration};
