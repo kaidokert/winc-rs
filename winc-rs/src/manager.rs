@@ -1,4 +1,4 @@
-// Copyright 2025 Google LLC
+// Copyright 2023 Google LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -111,7 +111,7 @@ const MAX_SOCKET: usize = TCP_SOCK_MAX + UDP_SOCK_MAX;
 pub trait EventListener {
     fn on_rssi(&mut self, level: i8);
     fn on_resolve(&mut self, ip: Ipv4Addr, host: &str);
-    fn on_default_connect(&mut self, connected: u8);
+    fn on_default_connect(&mut self, connected: bool);
     fn on_dhcp(&mut self, conf: IPConf);
     fn on_connstate_changed(&mut self, state: WifiConnState, err: WifiConnError);
     fn on_connection_info(&mut self, info: ConnectionInfo);
@@ -146,21 +146,10 @@ pub trait EventListener {
     fn on_provisioning(&mut self, ssid: Ssid, key: WpaKey, security: AuthType, status: bool);
 }
 
-/// Structure to hold debug information for IRQ.
-#[cfg(feature = "irq")]
-#[derive(Debug, PartialEq, Clone, Default)]
-#[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub struct IrqInfo {
-    interrupt_counter: u32,
-    no_interrupt_polls: u32,
-}
-
 pub struct Manager<X: Xfer> {
     // cached addresses
     not_a_reg_ctrl_4_dma: u32, // todo: make this dynamic/proper
     chip: ChipAccess<X>,
-    #[cfg(feature = "irq")]
-    pub irq_info: IrqInfo,
 }
 
 /// The stages of the boot process
@@ -195,8 +184,6 @@ impl<X: Xfer> Manager<X> {
         Self {
             not_a_reg_ctrl_4_dma: 0xbf0000,
             chip: ChipAccess::new(xfer),
-            #[cfg(feature = "irq")]
-            irq_info: IrqInfo::default(),
         }
     }
     #[cfg(test)]
@@ -364,10 +351,6 @@ impl<X: Xfer> Manager<X> {
         Ok((val & 0x1 == 0x1, val))
     }
     fn clear_interrupt_pending(&mut self, ctrlreg: u32) -> Result<(), Error> {
-        #[cfg(feature = "irq")]
-        {
-            self.irq_info.interrupt_counter += 1;
-        }
         let setval = ctrlreg & !1;
         self.chip
             .single_reg_write(Regs::WifiHostRcvCtrl0.into(), setval)
@@ -876,11 +859,6 @@ impl<X: Xfer> Manager<X> {
         // clear the interrupt pending register
         let res = self.is_interrupt_pending()?;
         if !res.0 {
-            #[cfg(feature = "irq")]
-            {
-                self.irq_info.no_interrupt_polls += 1;
-            }
-
             return Ok(());
         }
         self.clear_interrupt_pending(res.1)?;
@@ -895,7 +873,7 @@ impl<X: Xfer> Manager<X> {
                 WifiResponse::DefaultConnect => {
                     let mut def_connect = [0xff; 4];
                     self.read_block(address, &mut def_connect)?;
-                    listener.on_default_connect(def_connect[0])
+                    listener.on_default_connect(def_connect[0] == 0)
                 }
                 WifiResponse::DhcpConf => {
                     let mut result = [0xff; 20];

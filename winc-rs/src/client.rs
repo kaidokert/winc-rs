@@ -95,11 +95,6 @@ impl<X: Xfer> WincClient<'_, X> {
         self.manager.delay_us(delay)
     }
 
-    #[cfg(feature = "irq")]
-    pub fn get_irq_info(&mut self) -> crate::manager::IrqInfo {
-        self.manager.irq_info.clone()
-    }
-
     fn get_next_session_id(&mut self) -> u16 {
         let ret = self.next_session_id;
         self.next_session_id += 1;

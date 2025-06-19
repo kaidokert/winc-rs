@@ -267,13 +267,8 @@ impl EventListener for SocketCallbacks {
         self.dns_resolved_addr = Some(Some(ip));
     }
 
-    fn on_default_connect(&mut self, connected: u8) {
-        debug!("client: got connected {}", (connected == 0));
-
-        if (self.state == WifiModuleState::ConnectingToAp) && (connected != 0) {
-            self.state = WifiModuleState::ConnectionFailed;
-            self.connection_state.conn_error = Some((255 /* Max value of u8 */ - connected).into());
-        }
+    fn on_default_connect(&mut self, connected: bool) {
+        debug!("client: got connected {}", connected)
     }
     fn on_dhcp(&mut self, conf: crate::manager::IPConf) {
         debug!("client: on_dhcp: IP config: {}", conf);

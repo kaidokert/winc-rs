@@ -57,7 +57,11 @@ impl<CS: OutputPin, Spi: SpiBus> SpiStream<CS, Spi> {
                 OutputPin::set_low(&mut cs).ok();
                 cortex_m::asm::delay(self.wait_cycles);
             }
-            self.spi.transfer_in_place(buf)?;
+            let result = self.spi.transfer_in_place(buf);
+            if let Err(e) = result {
+                self.cs.get_or_insert(cs);
+                return Err(e);
+            }
             cortex_m::asm::delay(self.wait_cycles);
             if end {
                 OutputPin::set_high(&mut cs).ok();
@@ -107,12 +111,10 @@ impl<CS: OutputPin, Spi: SpiBus> Transfer for SpiStream<CS, Spi> {
     /// Implementation for wait for interrupt.
     fn wait_for_interrupt(&mut self) {
         if self.interrupts_enabled {
-            loop {
-                if is_eic_irq_pending() {
-                    set_eic_irq_pending(false);
-                    break;
-                }
+            if !is_eic_irq_pending() {
+                cortex_m::asm::wfi();
             }
+            set_eic_irq_pending(false);
         }
     }
 }

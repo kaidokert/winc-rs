@@ -64,7 +64,6 @@ pub enum WifiConnError {
     AuthFail,
     AssocFail,
     ConnInProgress,
-    ConnListEmpty,
 }
 
 impl From<u8> for WifiConnError {
@@ -75,11 +74,6 @@ impl From<u8> for WifiConnError {
             3 => Self::AuthFail,
             4 => Self::AssocFail,
             5 => Self::ConnInProgress,
-            /* Error codes for default connection response */
-            23 => Self::ConnInProgress,
-            22 => Self::JoinFail,
-            21 => Self::ScanFail,
-            20 => Self::ConnListEmpty,
             _ => Self::Unhandled,
         }
     }
