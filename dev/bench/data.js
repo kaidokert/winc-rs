@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1750303113694,
+  "lastUpdate": 1750303261710,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -2153,6 +2153,40 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/kaidokert/winc-rs/commit/299f2451e6dda947232f8686c32c4d74b5ccd547"
         },
         "date": 1750303113244,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 40272,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 55752,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "kaidokert@gmail.com",
+            "name": "Kaido Kert",
+            "username": "kaidokert"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "691bfef68a8ba7137f20d98996248f4e9f6b1d73",
+          "message": "Add HTTP download speed test (#81)\n\n* Add HTTP download speed test\n\n* Clean up IP parsing\n\n* Add a note about PipeClosed not working",
+          "timestamp": "2025-06-18T20:19:56-07:00",
+          "tree_id": "8ffaf2490c00180b7f5afd9dfce622a31a0941f6",
+          "url": "https://github.com/kaidokert/winc-rs/commit/691bfef68a8ba7137f20d98996248f4e9f6b1d73"
+        },
+        "date": 1750303260876,
         "tool": "customSmallerIsBetter",
         "benches": [
           {
