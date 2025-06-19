@@ -10,7 +10,7 @@ use bsp::periph_alias;
 use bsp::pin_alias;
 use core::convert::Infallible;
 #[cfg(feature = "irq")]
-use cortex_m::{peripheral::NVIC, interrupt::Mutex};
+use cortex_m::{interrupt::Mutex, peripheral::NVIC};
 use hal::clock::GenericClockController;
 #[cfg(feature = "irq")]
 use hal::{eic::Eic, eic::*};
