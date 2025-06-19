@@ -5,33 +5,34 @@ use std_embedded_nal::Stack;
 
 #[cfg(feature = "iperf3")]
 use demos::iperf3_client::{iperf3_client, Conf, TestConfig};
+use std::{str::FromStr, time::Instant};
 #[cfg(feature = "iperf3")]
 use std::{thread, time::Duration};
 
 use demos::{
-    coap_client::coap_client, http_client::http_client, http_server::http_server,
-    tcp_server::tcp_server, telnet_shell::telnet_shell, udp_client::udp_client,
+    coap_client::coap_client,
+    http_client::http_client,
+    http_server::http_server,
+    http_speed_test::{
+        speed_test, SpeedTestConfig, TEST_FILE_10MB, TEST_FILE_1MB, TEST_SERVER_HOST,
+        TEST_SERVER_IP, TEST_SERVER_PORT,
+    },
+    tcp_server::tcp_server,
+    telnet_shell::telnet_shell,
+    udp_client::udp_client,
     udp_server::udp_server,
 };
 
 use log::Level;
 
+// TODO: Remove this fn and just use Ipv4Addr::from_str directly
 pub fn parse_ip_octets(ip: &str) -> [u8; 4] {
     let mut octets = [0; 4];
-    let mut octet_index = 0;
-    let mut current_value = 0;
-
-    ip.bytes().for_each(|byte| match byte {
-        b'0'..=b'9' => current_value = current_value * 10 + (byte - b'0'),
-        b'.' => {
-            octets[octet_index] = current_value;
-            octet_index += 1;
-            current_value = 0;
-        }
-        _ => {}
-    });
-
-    octets[octet_index] = current_value;
+    let addr = core::net::Ipv4Addr::from_str(ip).unwrap();
+    octets[0] = addr.octets()[0];
+    octets[1] = addr.octets()[1];
+    octets[2] = addr.octets()[2];
+    octets[3] = addr.octets()[3];
     octets
 }
 
@@ -43,6 +44,7 @@ enum Mode {
     TcpServer,
     CoapClient,
     HttpServer,
+    HttpSpeedTest(HttpSpeedTestConfig),
     Iperf3Client(Iperf3Config), // Embed the config directly in the mode
     TelnetServer,
 }
@@ -68,6 +70,21 @@ struct Iperf3Config {
     /// use UDP rather than TCP
     #[arg(short = 'u', long)]
     udp: bool,
+}
+
+#[derive(Parser, Clone, Debug)]
+struct HttpSpeedTestConfig {
+    /// Test file to download (1mb or 10mb)
+    #[arg(short = 'f', long, default_value = "1mb")]
+    file_size: String,
+
+    /// Server to test against
+    #[arg(short = 's', long)]
+    server: Option<String>,
+
+    /// Report progress every N receive calls
+    #[arg(short = 'r', long, default_value_t = 32)]
+    report_interval: u32,
 }
 
 #[derive(Parser)]
@@ -145,6 +162,59 @@ fn main() -> Result<(), LocalErrors> {
         }
         Mode::HttpServer => {
             http_server(&mut stack, port).map_err(|_| LocalErrors::IoError)?;
+        }
+        Mode::HttpSpeedTest(config) => {
+            // Determine server IP and port
+            let server_ip = if let Some(ref server) = config.server {
+                parse_ip_octets(server)
+            } else {
+                parse_ip_octets(TEST_SERVER_IP)
+            };
+            let server_addr = Ipv4Addr::new(server_ip[0], server_ip[1], server_ip[2], server_ip[3]);
+            let server_port = cli.port.unwrap_or(TEST_SERVER_PORT);
+
+            // Determine test file
+            let test_file = match config.file_size.as_str() {
+                "10mb" => TEST_FILE_10MB,
+                _ => TEST_FILE_1MB, // Default to 1MB
+            };
+
+            let test_config = SpeedTestConfig {
+                server_host: config.server.as_deref().unwrap_or(TEST_SERVER_HOST),
+                test_file,
+                report_interval: config.report_interval,
+            };
+
+            println!("=== HTTP Speed Test ===");
+            println!("Server: {} ({})", test_config.server_host, server_addr);
+            println!("File: {}", test_file);
+
+            // Create timing function using std::time::Instant
+            let start_time = Instant::now();
+            let get_elapsed_seconds = || start_time.elapsed().as_secs_f32();
+
+            match speed_test(
+                &mut stack,
+                server_addr,
+                server_port,
+                test_config,
+                get_elapsed_seconds,
+            ) {
+                Ok(result) => {
+                    println!("=== Test Results ===");
+                    println!("Total downloaded: {} bytes", result.total_bytes);
+                    println!("Time elapsed: {:.2} seconds", result.elapsed_seconds);
+                    println!(
+                        "Average speed: {:.1} KB/s ({:.1} Mbits/s)",
+                        result.average_speed_kbps,
+                        result.average_speed_kbps * 8.0 / 1024.0
+                    );
+                }
+                Err(e) => {
+                    eprintln!("Speed test failed: {:?}", e);
+                    return Err(LocalErrors::IoError);
+                }
+            }
         }
         Mode::Iperf3Client(_config) => {
             #[cfg(feature = "iperf3")]
