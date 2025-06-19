@@ -86,7 +86,11 @@ where
     info!("Connected to server");
 
     // Build HTTP GET request dynamically
-    let mut request_buffer = [0u8; 256];
+    let mut request_buffer = [0u8; 512];
+    assert!(
+        config.test_file.len() + config.server_host.len() < request_buffer.len() - 64,
+        "HTTP request too large"
+    );
     let request_str = "GET ";
     let mut pos = 0;
 
