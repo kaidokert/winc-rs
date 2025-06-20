@@ -58,22 +58,30 @@ impl From<Regs> for u32 {
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[derive(Debug, PartialEq)]
 pub enum WifiConnError {
-    Unhandled,
+    NoError,
     ScanFail,
     JoinFail,
     AuthFail,
     AssocFail,
     ConnInProgress,
+    ConnListEmpty,
+    Unhandled,
 }
 
 impl From<u8> for WifiConnError {
     fn from(val: u8) -> Self {
         match val {
+            0 => Self::NoError,
             1 => Self::ScanFail,
             2 => Self::JoinFail,
             3 => Self::AuthFail,
             4 => Self::AssocFail,
             5 => Self::ConnInProgress,
+            /* Error codes for default connection response */
+            232 => Self::ConnInProgress,
+            233 => Self::JoinFail,
+            234 => Self::ScanFail,
+            235 => Self::ConnListEmpty,
             _ => Self::Unhandled,
         }
     }
