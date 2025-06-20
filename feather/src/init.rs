@@ -186,7 +186,7 @@ pub fn set_eic_irq_pending(state: bool) {
 
 #[cfg(feature = "irq")]
 pub fn is_eic_irq_pending() -> bool {
-    return cortex_m::interrupt::free(|cs| *EIC_IRQ_RCVD.borrow(cs).borrow_mut().deref_mut());
+    return cortex_m::interrupt::free(|cs| *EIC_IRQ_RCVD.borrow(cs).borrow());
 }
 
 #[cfg(all(feature = "irq", not(feature = "eic-irq-override")))]
