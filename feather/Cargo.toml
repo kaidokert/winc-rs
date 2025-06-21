@@ -44,7 +44,6 @@ iperf3 = ["demos/iperf3"]
 oled = ["dep:ssd1306"]
 telnet = ["demos/telnet"]
 irq = ["wincwifi/irq"] # Use Interrupt instead of polling
-eic-irq-override = [] # If any example uses custom irq handler of EIC
 
 # cargo build/run
 [profile.dev]

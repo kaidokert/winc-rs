@@ -13,9 +13,7 @@ use core::convert::Infallible;
 use cortex_m::{interrupt::Mutex, peripheral::NVIC};
 use hal::clock::GenericClockController;
 #[cfg(feature = "irq")]
-use hal::{eic::Eic, eic::*};
-#[cfg(all(feature = "irq", not(feature = "eic-irq-override")))]
-use pac::interrupt;
+use hal::{eic::Eic, eic::*, pac::interrupt};
 
 #[cfg(feature = "irq")]
 use core::{cell::RefCell, ops::DerefMut};
@@ -184,17 +182,8 @@ pub fn is_eic_irq_pending() -> bool {
     return cortex_m::interrupt::free(|cs| *EIC_IRQ_RCVD.borrow(cs).borrow());
 }
 
-#[cfg(all(feature = "irq", not(feature = "eic-irq-override")))]
+#[cfg(feature = "irq")]
 /// Interrupt handler for EIC (External Interrupt Controller).
-///
-/// # Note
-///
-/// If a custom EIC handler is required, enable the features
-/// `eic-irq-override` along with `irq`.
-///
-/// **Important:** Make sure to set the EIC IRQ flag by calling
-/// `set_eic_irq_pending(true)`, or the code will remain stuck in an
-/// infinite loop inside `wait_for_interrupt` located in `shared/spi_stream`.
 #[interrupt]
 fn EIC() {
     unsafe {
@@ -206,5 +195,9 @@ fn EIC() {
             eic.intflag().modify(|_, w| w.extint5().set_bit());
         }
     }
+    // The EIC IRQ can occur before we enter low-power mode
+    // `cortex_m::asm::wfi()`, so set the `EIC_IRQ_RCVD` flag
+    // to avoid entering low-power mode if the interrupt has
+    // already been received.
     set_eic_irq_pending(true);
 }
