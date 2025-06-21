@@ -40,6 +40,8 @@ name = "telnet_shell"
 required-features = ["telnet"]
 
 [features]
+# Do most of development and testing with IRQ enabled
+default = ["irq"]
 iperf3 = ["demos/iperf3"]
 oled = ["dep:ssd1306"]
 telnet = ["demos/telnet"]

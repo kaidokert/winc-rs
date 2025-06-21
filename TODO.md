@@ -33,3 +33,4 @@
    [ ] Add multi-stream test mode ( up to 7 TCP, 3 UDP sockets )
 - [ ] Make it work with Arduino/Adafruit bootloader ( at 8 kilobyte start address )
 - [ ] Implement an async version of this - WIP, initial demo added
+- [x] Interrupt pin wired up with optional "irq" feature. Polling still also works
