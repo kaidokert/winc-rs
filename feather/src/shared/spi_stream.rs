@@ -54,6 +54,7 @@ impl<CS: OutputPin, Spi: SpiBus> SpiStream<CS, Spi> {
             trace!("send: {=[u8]:#x}", buf);
 
             if start {
+                // Pin errors are Infallible, safe to discard
                 OutputPin::set_low(&mut cs).ok();
                 cortex_m::asm::delay(self.wait_cycles);
             }
@@ -64,6 +65,7 @@ impl<CS: OutputPin, Spi: SpiBus> SpiStream<CS, Spi> {
             }
             cortex_m::asm::delay(self.wait_cycles);
             if end {
+                // Pin errors are Infallible, safe to discard
                 OutputPin::set_high(&mut cs).ok();
             }
 

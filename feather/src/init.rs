@@ -146,11 +146,6 @@ pub fn init() -> Result<
             core.NVIC.set_priority(pac::interrupt::EIC, 1);
             NVIC::unmask(pac::interrupt::EIC);
         }
-
-        // Initialize a button on D5 pin for counter.
-        let mut button_c = pins.d5.into_pull_up_ei(channels.15);
-        button_c.sense(hal::eic::Sense::Fall);
-        button_c.enable_interrupt();
     }
 
     OutputPin::set_high(&mut ena)?; // Enable pin for the WiFi module, by default pulled down low, set HIGH to enable WiFi
@@ -173,7 +168,7 @@ pub fn init() -> Result<
         i2c,
         button_a: pins.d9.into_pull_up_input(),
         button_b: pins.d6.into_pull_up_input(),
-        button_c: pins.d0.into_pull_up_input(),
+        button_c: pins.d5.into_pull_up_input(),
     })
 }
 
