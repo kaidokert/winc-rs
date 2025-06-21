@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1750530646127,
+  "lastUpdate": 1750539142042,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -2333,6 +2333,40 @@ window.BENCHMARK_DATA = {
           {
             "name": "iperf3_client",
             "value": 55884,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "142439476+umarbinzahid@users.noreply.github.com",
+            "name": "Umar Bin Zahid",
+            "username": "umarbinzahid"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "c8f9f9d8000603ea057acc66813325906a9e58d4",
+          "message": "Support for IRQ (#85)\n\n* Added support for IRQ.",
+          "timestamp": "2025-06-21T13:51:27-07:00",
+          "tree_id": "066d106d0d0b41e210831e42dbdbaf8e5dc490f1",
+          "url": "https://github.com/kaidokert/winc-rs/commit/c8f9f9d8000603ea057acc66813325906a9e58d4"
+        },
+        "date": 1750539141129,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 40492,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 56000,
             "unit": "byte"
           }
         ]
