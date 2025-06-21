@@ -75,7 +75,11 @@ fn from_c_byte_str<const N: usize>(input: [u8; N]) -> Result<ArrayString<N>, cor
 }
 
 fn from_c_byte_slice<const N: usize>(input: &[u8]) -> Result<ArrayString<N>, StrError> {
-    let mut ret = ArrayString::<N>::from_str(core::str::from_utf8(input)?)?;
+    let slice = match core::str::from_utf8(input) {
+        Err(err) => core::str::from_utf8(&input[..err.valid_up_to()])?,
+        Ok(s) => s,
+    };
+    let mut ret = ArrayString::<N>::from_str(slice)?;
     if let Some(i) = &ret.find('\0') {
         ret.truncate(*i);
     }
