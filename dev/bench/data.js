@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1750303839847,
+  "lastUpdate": 1750530646127,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -2299,6 +2299,40 @@ window.BENCHMARK_DATA = {
           {
             "name": "iperf3_client",
             "value": 55748,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "142439476+umarbinzahid@users.noreply.github.com",
+            "name": "Umar Bin Zahid",
+            "username": "umarbinzahid"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "a70cfae594fd9682e8fc14e68c3ec5fe6c285e5a",
+          "message": "Added error handling for default connect response (#86)\n\n* Added error handling for the default connect response and fixed a bug in the state transition of `WifiModuleState`.\n\n* Fixed the panic caused by an unhandled connection error.",
+          "timestamp": "2025-06-21T11:29:45-07:00",
+          "tree_id": "12a3934ad945e239cd49ee73037b6b874770cef8",
+          "url": "https://github.com/kaidokert/winc-rs/commit/a70cfae594fd9682e8fc14e68c3ec5fe6c285e5a"
+        },
+        "date": 1750530645440,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 40376,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 55884,
             "unit": "byte"
           }
         ]
