@@ -4,7 +4,7 @@ use embedded_nal::nb;
 
 use crate::error;
 use crate::manager::{AccessPoint, AuthType, FirmwareInfo, IPConf, ScanResult};
-use crate::manager::{Credentials, HostName, ProvisioningInfo};
+use crate::manager::{Credentials, HostName, ProvisioningInfo, WifiConnError};
 
 use super::PingResult;
 use super::StackError;
@@ -99,7 +99,11 @@ impl<X: Xfer> WincClient<'_, X> {
                 // Change the state to `Unconnected` so that the client can make subsequent connection requests.
                 self.callbacks.state = WifiModuleState::Unconnected;
                 Err(nb::Error::Other(StackError::ApJoinFailed(
-                    self.callbacks.connection_state.conn_error.take().unwrap(),
+                    self.callbacks
+                        .connection_state
+                        .conn_error
+                        .take()
+                        .unwrap_or(WifiConnError::Unhandled),
                 )))
             }
             WifiModuleState::ConnectedToAp => {
