@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1750540462543,
+  "lastUpdate": 1750540779133,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -2391,6 +2391,40 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/kaidokert/winc-rs/commit/dda94657fa3e33469b5ba1fdb01802627ef4b7c2"
         },
         "date": 1750540462193,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 40804,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 56264,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "kaidokert@gmail.com",
+            "name": "Kaido Kert",
+            "username": "kaidokert"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "263c8f68271e6f01f4366ed7a0d279d6e500dec2",
+          "message": "Make a 0.2.2 release (#87)",
+          "timestamp": "2025-06-21T14:18:44-07:00",
+          "tree_id": "693f725dcc7f823679180d4b54d3bad21c2eeb3b",
+          "url": "https://github.com/kaidokert/winc-rs/commit/263c8f68271e6f01f4366ed7a0d279d6e500dec2"
+        },
+        "date": 1750540778772,
         "tool": "customSmallerIsBetter",
         "benches": [
           {
