@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1750830202886,
+  "lastUpdate": 1750830928620,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -2469,6 +2469,40 @@ window.BENCHMARK_DATA = {
           {
             "name": "iperf3_client",
             "value": 67228,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "kaidokert@gmail.com",
+            "name": "Kaido Kert",
+            "username": "kaidokert"
+          },
+          "committer": {
+            "email": "kaidokert@gmail.com",
+            "name": "Kaido Kert",
+            "username": "kaidokert"
+          },
+          "distinct": true,
+          "id": "892b8b2d7ef25cc93a68ae79c834d0843cb165ea",
+          "message": "Better singleton, fix config macros",
+          "timestamp": "2025-06-24T22:54:20-07:00",
+          "tree_id": "6a2ec347bdb0bd4d30106519682ecc1f843fe593",
+          "url": "https://github.com/kaidokert/winc-rs/commit/892b8b2d7ef25cc93a68ae79c834d0843cb165ea"
+        },
+        "date": 1750830928184,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 52064,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 67240,
             "unit": "byte"
           }
         ]
