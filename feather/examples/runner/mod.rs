@@ -1,6 +1,7 @@
 use embedded_nal::{Dns, TcpClientStack, TcpFullStack, UdpClientStack, UdpFullStack};
 use feather::hal::ehal::digital::OutputPin;
 use feather::{
+    debug, info,
     init::init,
     shared::{create_countdowns, delay_fn, SpiStream},
 };
@@ -49,7 +50,7 @@ pub fn connect_and_run(
     execute: impl FnOnce(ReturnClient, core::net::Ipv4Addr) -> Result<(), wincwifi::StackError>,
 ) -> Result<(), wincwifi::StackError> {
     if let Ok(mut ini) = init() {
-        defmt::println!("{}", message);
+        info!("{}", message);
 
         let mut cnt = create_countdowns(&ini.delay_tick);
         let red_led = &mut ini.red_led;
@@ -63,7 +64,7 @@ pub fn connect_and_run(
             match stack.start_wifi_module() {
                 Ok(_) => break,
                 Err(nb::Error::WouldBlock) => {
-                    defmt::debug!("Waiting start .. {}", v);
+                    debug!("Waiting start .. {}", v);
                     v += 1;
                     delay_ms(5)
                 }
@@ -71,7 +72,7 @@ pub fn connect_and_run(
             }
         }
 
-        defmt::debug!("Chip started..");
+        debug!("Chip started..");
 
         let ssid = option_env!("TEST_SSID").unwrap_or(DEFAULT_TEST_SSID);
         let password = option_env!("TEST_PASSWORD").unwrap_or(DEFAULT_TEST_PASSWORD);
@@ -80,17 +81,17 @@ pub fn connect_and_run(
             delay_ms(50);
             stack.heartbeat()?;
         }
-        defmt::debug!("Connecting to AP.. {} {}", ssid, password);
+        debug!("Connecting to AP.. {} {}", ssid, password);
         nb::block!(stack.connect_to_ap(ssid, password, false))?;
 
-        defmt::debug!("Getting IP settings..");
+        debug!("Getting IP settings..");
         let info = nb::block!(stack.get_ip_settings())?;
         let my_ip = info.ip;
         for _ in 0..10 {
             delay_ms(50);
             stack.heartbeat()?;
         }
-        defmt::info!("Running the demo..");
+        info!("Running the demo..");
         match client_type {
             ClientType::Tcp => execute(ReturnClient::Tcp(&mut stack), my_ip)?,
             ClientType::Udp => execute(ReturnClient::Udp(&mut stack), my_ip)?,

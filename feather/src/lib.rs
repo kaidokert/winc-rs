@@ -9,10 +9,10 @@ compile_error!("Features 'defmt' and 'log' are mutually exclusive. Enable only o
 compile_error!("Must enable either 'defmt' or 'log' feature for logging support.");
 
 #[cfg(feature = "defmt")]
-pub use defmt::{info, trace};
+pub use defmt::{debug, error, info, trace, warn};
 
 #[cfg(feature = "log")]
-pub use log::{info, trace};
+pub use log::{debug, error, info, trace, warn};
 
 #[cfg(feature = "defmt")]
 use defmt_rtt as _; // global logger

@@ -6,6 +6,7 @@
 
 use feather as bsp;
 use feather::init::init;
+use feather::{debug, error, info};
 
 use bsp::shared::SpiStream;
 use core::str;
@@ -20,7 +21,7 @@ const DEFAULT_PROVISIONING_TIMEOUT_IN_MINS: u32 = 15;
 
 fn program() -> Result<(), StackError> {
     if let Ok(mut ini) = init() {
-        defmt::println!("Hello, Winc Provisioning");
+        info!("Hello, Winc Provisioning");
         let red_led = &mut ini.red_led;
 
         let mut cnt = create_countdowns(&ini.delay_tick);
@@ -39,7 +40,7 @@ fn program() -> Result<(), StackError> {
             match stack.start_wifi_module() {
                 Ok(_) => break,
                 Err(nb::Error::WouldBlock) => {
-                    defmt::debug!("Waiting start .. {}", v);
+                    debug!("Waiting start .. {}", v);
                     v += 1;
                     delay_ms(5)
                 }
@@ -49,7 +50,7 @@ fn program() -> Result<(), StackError> {
         // Configure the access point with WPA/WPA2 security using the provided SSID and password.
         let access_point = AccessPoint::wpa(&ap_ssid, &ap_password);
         // Start the provising mode.
-        defmt::println!(
+        info!(
             "Starting Provisioning Mode for {} minutes",
             DEFAULT_PROVISIONING_TIMEOUT_IN_MINS
         );
@@ -63,27 +64,27 @@ fn program() -> Result<(), StackError> {
         // Check for provisioning information is receieved for 15 minutes.
         match result {
             Ok(info) => {
-                defmt::info!("Credentials received from provisioning; connecting to access point.");
+                info!("Credentials received from provisioning; connecting to access point.");
                 let key: &str = match info.key {
                     Credentials::Open => "",
                     Credentials::WpaPSK(ref _key) => _key.as_str(),
                     _ => {
-                        defmt::error!("Invalid Authentication type");
+                        error!("Invalid Authentication type");
                         return Err(StackError::Unexpected);
                     }
                 };
                 // Connect to access point.
                 nb::block!(stack.connect_to_ap(info.ssid.as_str(), key, false))?;
-                defmt::info!("Connected to AP");
+                info!("Connected to AP");
             }
             Err(err) => {
                 if err == StackError::GeneralTimeout {
-                    defmt::error!(
+                    error!(
                         "No information was received for 15 minutes. Stopping provisioning mode."
                     );
                     stack.stop_provisioning_mode()?;
                 } else {
-                    defmt::error!("Provisioning Failed");
+                    error!("Provisioning Failed");
                 }
             }
         }
@@ -102,10 +103,10 @@ fn program() -> Result<(), StackError> {
 #[cortex_m_rt::entry]
 fn main() -> ! {
     if let Err(err) = program() {
-        defmt::error!("Error: {}", err);
+        error!("Error: {}", err);
         panic!("Error in main program");
     } else {
-        defmt::info!("Good exit")
+        info!("Good exit")
     };
     loop {}
 }

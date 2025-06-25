@@ -6,6 +6,7 @@
 
 use feather as bsp;
 use feather::init::init;
+use feather::{debug, error, info};
 
 use bsp::shared::SpiStream;
 use feather::hal::ehal::digital::OutputPin;
@@ -14,7 +15,7 @@ use wincwifi::{StackError, WincClient};
 
 fn program() -> Result<(), StackError> {
     if let Ok(mut ini) = init() {
-        defmt::println!("Hello, Winc PRNG");
+        info!("Hello, Winc PRNG");
         let red_led = &mut ini.red_led;
 
         let mut cnt = create_countdowns(&ini.delay_tick);
@@ -27,7 +28,7 @@ fn program() -> Result<(), StackError> {
             match stack.start_wifi_module() {
                 Ok(_) => break,
                 Err(nb::Error::WouldBlock) => {
-                    defmt::debug!("Waiting start .. {}", v);
+                    debug!("Waiting start .. {}", v);
                     v += 1;
                     delay_ms(5)
                 }
@@ -37,7 +38,10 @@ fn program() -> Result<(), StackError> {
 
         let mut random_bytes: [u8; 32] = [0; 32];
         nb::block!(stack.get_random_bytes(&mut random_bytes))?;
-        defmt::info!("Got the Random bytes: {}", random_bytes);
+        #[cfg(feature = "defmt")]
+        info!("Got the Random bytes: {}", random_bytes);
+        #[cfg(feature = "log")]
+        info!("Got the Random bytes: {:?}", random_bytes);
 
         loop {
             delay_ms(200);
@@ -53,10 +57,10 @@ fn program() -> Result<(), StackError> {
 #[cortex_m_rt::entry]
 fn main() -> ! {
     if let Err(err) = program() {
-        defmt::error!("Error: {}", err);
+        error!("Error: {}", err);
         panic!("Error in main program");
     } else {
-        defmt::info!("Good exit")
+        info!("Good exit")
     };
     loop {}
 }

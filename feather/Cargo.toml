@@ -55,7 +55,7 @@ irq = ["wincwifi/irq"] # Use Interrupt instead of polling
 usb-device = ["dep:usb-device"]
 usbd-serial = ["dep:usbd-serial"]
 usb = ["dep:usb-device", "dep:usbd-serial", "feather_m0/usb", "dep:ehal_02"] # USB CDC device functionality
-log = ["usb", "dep:log"] # USB logging (mutually exclusive with defmt)
+log = ["usb", "dep:log", "demos/log", "wincwifi/log"] # USB logging (mutually exclusive with defmt)
 defmt = ["dep:defmt", "dep:defmt-rtt", "panic-probe/print-defmt", "wincwifi/defmt", "demos/defmt"]
 
 # cargo build/run

@@ -4,6 +4,7 @@
 
 use embedded_nal::UdpClientStack;
 use feather as bsp;
+use feather::{error, info};
 
 mod runner;
 
@@ -27,7 +28,7 @@ fn main() -> ! {
         ClientType::Udp,
         |stack: ReturnClient, _: core::net::Ipv4Addr| -> Result<(), StackError> {
             if let ReturnClient::Udp(stack) = stack {
-                defmt::info!("In UDP client stack thing");
+                info!("In UDP client stack thing");
                 let test_ip = option_env!("TEST_IP").unwrap_or(DEFAULT_TEST_IP);
                 let ip_values: [u8; 4] = parse_ip_octets(test_ip);
                 let ip = core::net::Ipv4Addr::new(
@@ -38,17 +39,17 @@ fn main() -> ! {
                 );
                 let test_port = option_env!("TEST_PORT").unwrap_or(DEFAULT_TEST_PORT);
                 let port = u16::from_str(test_port).unwrap_or(12345);
-                defmt::info!("---- Starting UDP client ---- ");
+                info!("---- Starting UDP client ---- ");
 
                 coap_client::coap_client(stack, ip, port)?;
-                defmt::info!("---- HTTP UDP done ---- ");
+                info!("---- HTTP UDP done ---- ");
             }
             Ok(())
         },
     ) {
-        defmt::error!("Something went wrong {}", something)
+        error!("Something went wrong {}", something);
     } else {
-        defmt::info!("Good exit")
+        info!("Good exit")
     };
     loop {}
 }

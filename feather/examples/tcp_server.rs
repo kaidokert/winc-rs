@@ -6,6 +6,7 @@
 
 use core::str::FromStr;
 use feather as bsp;
+use feather::{error, info};
 
 use wincwifi::StackError;
 
@@ -18,7 +19,6 @@ const DEFAULT_TEST_SSID: &str = "network";
 const DEFAULT_TEST_PASSWORD: &str = "password";
 const DEFAULT_TEST_PORT: &str = "12345";
 
-use defmt::info;
 // Todo: tftp client
 #[cortex_m_rt::entry]
 
@@ -38,9 +38,9 @@ fn main() -> ! {
             Ok(())
         },
     ) {
-        defmt::error!("Something went wrong {}", something)
+        error!("Something went wrong {}", something);
     } else {
-        defmt::info!("Good exit")
+        info!("Good exit")
     };
 
     loop {}

@@ -16,6 +16,7 @@ use demos::http_speed_test::{
     speed_test, SpeedTestConfig, TEST_FILE_1MB, TEST_SERVER_HOST, TEST_SERVER_IP, TEST_SERVER_PORT,
 };
 use feather as bsp;
+use feather::{error, info};
 use wincwifi::StackError;
 
 // Global counter for SYSTICK overflows
@@ -64,9 +65,9 @@ fn main() -> ! {
                 let test_host = option_env!("TEST_HOST").unwrap_or(TEST_SERVER_HOST);
                 let test_file = option_env!("TEST_FILE").unwrap_or(TEST_FILE_1MB);
 
-                defmt::info!("=== Starting WiFi Speed Test ===");
-                defmt::info!("Server: {} ({})", test_host, test_ip);
-                defmt::info!("File: {}", test_file);
+                info!("=== Starting WiFi Speed Test ===");
+                info!("Server: {} ({})", test_host, test_ip);
+                info!("File: {}", test_file);
 
                 let config = SpeedTestConfig {
                     server_host: test_host,
@@ -77,10 +78,10 @@ fn main() -> ! {
                 match speed_test(stack, ip, port, config, get_elapsed_seconds) {
                     // Detailed results are printed in the test
                     Ok(_result) => {
-                        defmt::info!("=== Speed Test Complete ===");
+                        info!("=== Speed Test Complete ===");
                     }
                     Err(e) => {
-                        defmt::error!("Speed test failed: {:?}", e);
+                        error!("Speed test failed: {:?}", e);
                         return Err(StackError::Unexpected);
                     }
                 }
@@ -88,9 +89,9 @@ fn main() -> ! {
             Ok(())
         },
     ) {
-        defmt::error!("Speed test failed: {}", something)
+        error!("Speed test failed: {}", something);
     } else {
-        defmt::info!("Speed test completed successfully")
+        info!("Speed test completed successfully")
     };
 
     loop {

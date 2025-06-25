@@ -6,6 +6,7 @@
 
 use feather as bsp;
 use feather::init::init;
+use feather::{debug, error, info};
 
 use bsp::shared::SpiStream;
 use feather::hal::ehal::digital::OutputPin;
@@ -14,7 +15,7 @@ use wincwifi::{StackError, WincClient};
 
 fn program() -> Result<(), StackError> {
     if let Ok(mut ini) = init() {
-        defmt::println!("Hello, Winc scan");
+        info!("Hello, Winc scan");
         let red_led = &mut ini.red_led;
 
         let mut cnt = create_countdowns(&ini.delay_tick);
@@ -27,7 +28,7 @@ fn program() -> Result<(), StackError> {
             match stack.start_wifi_module() {
                 Ok(_) => break,
                 Err(nb::Error::WouldBlock) => {
-                    defmt::debug!("Waiting start .. {}", v);
+                    debug!("Waiting start .. {}", v);
                     v += 1;
                     delay_ms(5)
                 }
@@ -36,14 +37,25 @@ fn program() -> Result<(), StackError> {
         }
 
         delay_ms(1000);
-        defmt::info!("Scanning for access points ..");
+        info!("Scanning for access points ..");
         let num_aps = nb::block!(stack.scan())?;
-        defmt::info!("Scan done, aps:{}", num_aps);
+        info!("Scan done, aps:{}", num_aps);
 
         for i in 0..num_aps {
             let result = nb::block!(stack.get_scan_result(i))?;
-            defmt::info!(
+            #[cfg(feature = "defmt")]
+            info!(
                 "Scan strings: [{}] '{}' rssi:{} ch:{} {} {=[u8]:#x}",
+                i,
+                result.ssid.as_str(),
+                result.rssi,
+                result.channel,
+                result.auth,
+                result.bssid
+            );
+            #[cfg(feature = "log")]
+            info!(
+                "Scan strings: [{}] '{}' rssi:{} ch:{} {:?} {:?}",
                 i,
                 result.ssid.as_str(),
                 result.rssi,
@@ -67,10 +79,10 @@ fn program() -> Result<(), StackError> {
 #[cortex_m_rt::entry]
 fn main() -> ! {
     if let Err(err) = program() {
-        defmt::error!("Error: {}", err);
+        error!("Error: {}", err);
         panic!("Error in main program");
     } else {
-        defmt::info!("Good exit")
+        info!("Good exit")
     };
     loop {}
 }

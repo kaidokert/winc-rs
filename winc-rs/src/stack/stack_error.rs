@@ -77,3 +77,36 @@ impl From<nb::Error<StackError>> for StackError {
         }
     }
 }
+
+impl core::fmt::Display for StackError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            StackError::WouldBlock => write!(f, "Operation would block"),
+            StackError::GeneralTimeout => write!(f, "General timeout"),
+            StackError::ConnectTimeout => write!(f, "TCP connection timed out"),
+            StackError::RecvTimeout => write!(f, "Receive timeout"),
+            StackError::SendTimeout => write!(f, "Send timeout"),
+            StackError::OutOfSockets => write!(f, "Out of sockets"),
+            StackError::SocketAlreadyInUse => write!(f, "Socket already in use"),
+            StackError::CloseFailed => write!(f, "Close failed"),
+            StackError::Unexpected => write!(f, "Unexpected error"),
+            StackError::DispatchError(_) => write!(f, "Dispatch error"),
+            StackError::ConnectSendFailed(_) => write!(f, "Connect send failed"),
+            StackError::ReceiveFailed(_) => write!(f, "Receive failed"),
+            StackError::SendSendFailed(_) => write!(f, "Send send failed"),
+            StackError::SendCloseFailed(_) => write!(f, "Send close failed"),
+            StackError::BindFailed(_) => write!(f, "Bind failed"),
+            StackError::WincWifiFail(_) => write!(f, "WincWifi fail"),
+            StackError::OpFailed(_) => write!(f, "Operation failed"),
+            StackError::DnsTimeout => write!(f, "DNS lookup timed out"),
+            StackError::DnsFailed => write!(f, "DNS lookup failed"),
+            StackError::InvalidState => write!(f, "Invalid state"),
+            StackError::AlreadyConnected => write!(f, "Already connected"),
+            StackError::ApJoinFailed(_) => write!(f, "Access point join failed"),
+            StackError::ApScanFailed(_) => write!(f, "Access point scan failed"),
+            StackError::ContinueOperation => write!(f, "Continue operation"),
+            StackError::SocketNotFound => write!(f, "Socket not found"),
+            StackError::InvalidParameters => write!(f, "Invalid parameters"),
+        }
+    }
+}

@@ -50,7 +50,8 @@ async-std = { version= "1.13", features= ["attributes"] }
 test-log = "0.2.11"
 
 [features]
-std=["dep:log"]
+log = ["dep:log"]
+std = ["log"]
 defmt = ["dep:defmt"]
 default = ["std","async"]
 embedded-nal-async = ["dep:embedded-nal-async"]

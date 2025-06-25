@@ -11,6 +11,7 @@
 use core::net::IpAddr;
 
 use feather as bsp;
+use feather::{error, info};
 
 use embedded_nal::Dns;
 use wincwifi::StackError;
@@ -26,21 +27,17 @@ where
     T: Dns + ?Sized,
     T::Error: From<embedded_nal::nb::Error<T::Error>>,
 {
-    defmt::info!("DNS lookup for: {}", host);
+    info!("DNS lookup for: {}", host);
     let ip = nb::block!(stack.get_host_by_name(host, embedded_nal::AddrType::IPv4));
     match ip {
         Ok(IpAddr::V4(ip)) => {
             let octets = ip.octets();
-            defmt::println!(
+            info!(
                 "DNS: {} -> {}.{}.{}.{}",
-                host,
-                octets[0],
-                octets[1],
-                octets[2],
-                octets[3]
+                host, octets[0], octets[1], octets[2], octets[3]
             )
         }
-        _ => defmt::error!("DNS failed: {}", host),
+        _ => error!("DNS failed: {}", host),
     }
 
     Ok(())
@@ -61,9 +58,9 @@ fn main() -> ! {
             Ok(())
         },
     ) {
-        defmt::error!("Something went wrong {}", something)
+        error!("Something went wrong {}", something);
     } else {
-        defmt::info!("Good exit")
+        info!("Good exit")
     };
     loop {}
 }

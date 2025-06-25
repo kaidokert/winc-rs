@@ -30,6 +30,7 @@ required-features = ["std"]
 
 [features]
 default = ["std","telnet"]
+log = ["dep:log"]
 std = ["log", "rand"]
 defmt = ["dep:defmt", "heapless/defmt-03"]
 iperf3 = ["dep:serde-json-core", "dep:heapless", "dep:serde", "dep:rand_core"]

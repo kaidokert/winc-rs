@@ -1,9 +1,17 @@
 // make this no_std
 #![no_std]
 
-#[cfg(not(feature = "std"))]
+// Compile-time checks for logging features
+#[cfg(all(feature = "defmt", feature = "log"))]
+compile_error!("Features 'defmt' and 'log' are mutually exclusive. Enable only one for logging.");
+
+#[cfg(not(any(feature = "defmt", feature = "log")))]
+compile_error!("Must enable either 'defmt' or 'log' feature for logging support.");
+
+#[cfg(feature = "defmt")]
 use defmt::{debug, error, info, trace};
-#[cfg(feature = "std")]
+
+#[cfg(feature = "log")]
 use log::{debug, error, info, trace};
 
 pub mod coap_client;

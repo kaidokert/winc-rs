@@ -12,6 +12,7 @@ use bsp::hal::ehal as embedded_hal;
 use bsp::hal::ehal::{digital::InputPin, digital::OutputPin};
 
 use feather::init::init;
+use feather::{error, info};
 
 use core::fmt::Write;
 use ssd1306::mode::DisplayConfig;
@@ -22,7 +23,8 @@ use ssd1306::Ssd1306;
 
 use embedded_hal::digital::ErrorKind;
 
-#[derive(Debug, defmt::Format)]
+#[derive(Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum MyError {
     PinError(ErrorKind),
     DisplayError,
@@ -36,7 +38,7 @@ impl<T: embedded_hal::digital::Error> From<T> for MyError {
 
 fn program() -> Result<(), MyError> {
     if let Ok(ini) = init() {
-        defmt::println!("Hello, OLED!");
+        info!("Hello, OLED!");
         let interface = I2CDisplayInterface::new(ini.i2c);
 
         let mut display = Ssd1306::new(interface, DisplaySize128x32, DisplayRotation::Rotate0)
@@ -63,11 +65,9 @@ fn program() -> Result<(), MyError> {
             let new_btn_states = [btn_a.is_low()?, btn_b.is_low()?, btn_c.is_low()?];
             if new_btn_states != btn_states {
                 btn_states = new_btn_states;
-                defmt::println!(
+                info!(
                     "Button states: A: {:?}, B: {:?}, C: {:?}",
-                    btn_states[0],
-                    btn_states[1],
-                    btn_states[2]
+                    btn_states[0], btn_states[1], btn_states[2]
                 );
                 display.clear().map_err(|_| MyError::DisplayError)?;
                 write!(
@@ -88,10 +88,10 @@ fn program() -> Result<(), MyError> {
 #[cortex_m_rt::entry]
 fn main() -> ! {
     if let Err(err) = program() {
-        defmt::error!("Error: {:?}", err);
+        error!("Error: {:?}", err);
         panic!("Error in main program");
     } else {
-        defmt::info!("Good exit")
+        info!("Good exit")
     };
     loop {}
 }

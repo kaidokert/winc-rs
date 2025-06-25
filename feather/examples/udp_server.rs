@@ -7,6 +7,7 @@
 use embedded_nal::UdpFullStack;
 
 use feather as bsp;
+use feather::{error, info};
 mod runner;
 use core::str::FromStr;
 
@@ -36,9 +37,9 @@ fn main() -> ! {
             Ok(())
         },
     ) {
-        defmt::error!("Something went wrong {}", something)
+        error!("Something went wrong {}", something);
     } else {
-        defmt::info!("Good exit")
+        info!("Good exit")
     };
 
     loop {}

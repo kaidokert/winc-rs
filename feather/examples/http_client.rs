@@ -8,6 +8,7 @@
 use bsp::shared::parse_ip_octets;
 use core::str::FromStr;
 use feather as bsp;
+use feather::{error, info};
 use wincwifi::StackError;
 
 use core::net::Ipv4Addr;
@@ -37,16 +38,16 @@ fn main() -> ! {
 
                 let test_host = option_env!("TEST_HOST");
 
-                defmt::info!("---- Starting HTTP client ---- ");
+                info!("---- Starting HTTP client ---- ");
                 http_client::http_client(stack, ip, port, test_host)?;
-                defmt::info!("---- HTTP Client done ---- ");
+                info!("---- HTTP Client done ---- ");
             }
             Ok(())
         },
     ) {
-        defmt::error!("Something went wrong {}", something)
+        error!("Something went wrong {}", something);
     } else {
-        defmt::info!("Good exit")
+        info!("Good exit")
     };
     loop {}
 }
