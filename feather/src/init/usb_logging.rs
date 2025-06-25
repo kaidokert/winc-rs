@@ -20,15 +20,9 @@ mod usb_device_impl {
         usb_allocator: UsbBusAllocator<UsbBus>,
         nvic: &mut cortex_m::peripheral::NVIC,
     ) {
-        // Function-level static - much simpler without Option wrapper
-        static mut USB_ALLOCATOR: Option<UsbBusAllocator<UsbBus>> = None;
-
         cortex_m::interrupt::free(|cs| {
-            let alloc = unsafe {
-                USB_ALLOCATOR = Some(usb_allocator);
-                #[allow(static_mut_refs)]
-                USB_ALLOCATOR.as_ref().unwrap()
-            };
+            // Use cortex_m::singleton! for safe 'static allocation
+            let alloc = cortex_m::singleton!(: UsbBusAllocator<UsbBus> = usb_allocator).unwrap();
 
             let usb_serial = SerialPort::new(alloc);
             let usb_device = UsbDeviceBuilder::new(alloc, UsbVidPid(0x16c0, 0x27dd))
@@ -94,9 +88,8 @@ mod logging_impl {
         fn log(&self, record: &log::Record) {
             cortex_m::interrupt::free(|_cs| {
                 if let Some(serial) = USB_SERIAL.borrow(_cs).borrow_mut().as_mut() {
-                    let buffer = [0u8; 128];
                     let mut cursor = FormatBuffer {
-                        buffer: buffer.clone(),
+                        buffer: [0u8; 128],
                         pos: 0,
                     };
                     let _ = core::fmt::write(
