@@ -6,6 +6,7 @@
 use bsp::hal::ehal::digital::OutputPin;
 use bsp::hal::prelude::*;
 use feather as bsp;
+use feather::info;
 use feather::init::init;
 
 #[cortex_m_rt::entry]
@@ -13,7 +14,7 @@ fn main() -> ! {
     if let Ok(mut ini) = init() {
         let delay = &mut ini.delay_tick;
         let red_led = &mut ini.red_led;
-        defmt::println!("Hello, blinky!");
+        info!("Hello, blinky!");
         loop {
             delay.delay_ms(200u32);
             red_led.set_high().unwrap();

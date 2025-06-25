@@ -1,5 +1,4 @@
 use super::hal;
-use defmt::trace;
 
 use hal::ehal::digital::OutputPin;
 use wincwifi::Transfer;
@@ -51,7 +50,8 @@ impl<CS: OutputPin, Spi: SpiBus> SpiStream<CS, Spi> {
 
     fn transfer(&mut self, buf: &mut [u8], start: bool, end: bool) -> Result<(), Spi::Error> {
         if let Some(mut cs) = take(&mut self.cs) {
-            trace!("send: {=[u8]:#x}", buf);
+            #[cfg(feature = "defmt")]
+            defmt::trace!("send: {=[u8]:#x}", buf);
 
             if start {
                 // Pin errors are Infallible, safe to discard
@@ -70,7 +70,8 @@ impl<CS: OutputPin, Spi: SpiBus> SpiStream<CS, Spi> {
             }
 
             self.cs.get_or_insert(cs);
-            trace!("recv: {=[u8]:#x}", buf);
+            #[cfg(feature = "defmt")]
+            defmt::trace!("recv: {=[u8]:#x}", buf);
         }
         Ok(())
     }
@@ -80,7 +81,8 @@ impl<CS: OutputPin, Spi: SpiBus> Transfer for SpiStream<CS, Spi> {
     fn recv(&mut self, dest: &mut [u8]) -> Result<(), wincwifi::CommError> {
         self.transfer(dest, true, true)
             .map_err(|_| wincwifi::CommError::ReadError)?;
-        trace!("Stream: read {} {=[u8]:#x} bytes", dest.len(), dest);
+        #[cfg(feature = "defmt")]
+        defmt::trace!("Stream: read {} {=[u8]:#x} bytes", dest.len(), dest);
         Ok(())
     }
 
@@ -95,7 +97,8 @@ impl<CS: OutputPin, Spi: SpiBus> Transfer for SpiStream<CS, Spi> {
             let is_first = i == 0;
             let is_last = chunk.len() < TRANSFER_SIZE || i == src.len() / TRANSFER_SIZE;
 
-            trace!("Stream: writing {=[u8]:#x} bytes", chunk);
+            #[cfg(feature = "defmt")]
+            defmt::trace!("Stream: writing {=[u8]:#x} bytes", chunk);
             self.transfer(tmp_slice, is_first, is_last)
                 .map_err(|_| wincwifi::CommError::WriteError)?;
         }

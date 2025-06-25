@@ -11,10 +11,10 @@ harness = false
 [dependencies]
 cortex-m = { version = "0.7.3", features = ["critical-section-single-core"] }
 cortex-m-rt = "0.7.0"
-defmt = "0.3"
+defmt = { version ="0.3" , optional = true }
+defmt-rtt = { version = "0.4", optional = true }
 
-defmt-rtt = "0.4"
-panic-probe = { version = "0.3.0", features = ["print-defmt"] }
+panic-probe = { version = "0.3.0" }
 
 feather_m0 = { version = "0.18" , features=["winc"]}
 embedded-hal = { version= "1", features = ["defmt-03"]}
@@ -23,9 +23,15 @@ nb = { version = "1.0"}
 cortex-m-systick-countdown = "0.1.0"
 
 embedded-nal = "=0.9.0"
-wincwifi = { path = "../winc-rs", default-features = false, features=["defmt"] }
-demos = { path = "../demos", default-features = false, features=["defmt"] }
+wincwifi = { path = "../winc-rs", default-features = false }
+demos = { path = "../demos", default-features = false }
 ssd1306 = { version = "0.10", optional = true }
+usb-device = { version = "0.3", optional = true }
+usbd-serial = { version = "0.2", optional = true }
+log = { version = "0.4.27", optional = true }
+
+ehal_02 = { package= "embedded-hal", version = "0.2.4", optional = true }
+
 
 [[example]]
 name = "iperf3_client"
@@ -41,11 +47,16 @@ required-features = ["telnet"]
 
 [features]
 # Do most of development and testing with IRQ enabled
-default = ["irq"]
+default = ["irq","usb","defmt"] # Use defmt by default, or switch to "log" for USB logging
 iperf3 = ["demos/iperf3"]
 oled = ["dep:ssd1306"]
 telnet = ["demos/telnet"]
 irq = ["wincwifi/irq"] # Use Interrupt instead of polling
+usb-device = ["dep:usb-device"]
+usbd-serial = ["dep:usbd-serial"]
+usb = ["dep:usb-device", "dep:usbd-serial", "feather_m0/usb", "dep:ehal_02"] # USB CDC device functionality
+log = ["usb", "dep:log", "wincwifi/defmt", "demos/defmt"] # USB logging (mutually exclusive with defmt)
+defmt = ["dep:defmt", "dep:defmt-rtt", "panic-probe/print-defmt", "wincwifi/defmt", "demos/defmt"]
 
 # cargo build/run
 [profile.dev]

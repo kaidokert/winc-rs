@@ -13,7 +13,10 @@ use core::convert::Infallible;
 use cortex_m::{interrupt::Mutex, peripheral::NVIC};
 use hal::clock::GenericClockController;
 #[cfg(feature = "irq")]
-use hal::{eic::Eic, eic::*, pac::interrupt};
+use hal::{eic::Eic, eic::*};
+
+#[cfg(feature = "irq")]
+use hal::pac::interrupt;
 
 #[cfg(feature = "irq")]
 use core::{cell::RefCell, ops::DerefMut};
@@ -29,6 +32,13 @@ use super::shared::SpiBus;
 
 use cortex_m_systick_countdown::{PollingSysTick, SysTickCalibration};
 
+#[cfg(feature = "usb")]
+mod usb_logging;
+#[cfg(feature = "log")]
+use usb_logging::initialize_usb_logging;
+#[cfg(feature = "usb")]
+use usb_logging::setup_usb_device;
+
 // Set SPI bus to 8 Mhz, about as fast as it goes
 const SPI_MHZ: u32 = 8;
 const I2C_KHZ: u32 = 400;
@@ -42,7 +52,8 @@ const WIFI_RESET_DELAY_WAIT: u32 = 50;
 #[cfg(feature = "irq")]
 static EIC_IRQ_RCVD: Mutex<RefCell<bool>> = Mutex::new(RefCell::new(false));
 
-#[derive(Debug, defmt::Format)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[derive(Debug)]
 pub enum FailureSource {
     Periph,
     Core,
@@ -157,6 +168,20 @@ pub fn init() -> Result<
     OutputPin::set_high(&mut rst)?;
     OutputPin::set_high(&mut cs)?; // CS: pull low for transaction, high to end
     del.delay_ms(WIFI_RESET_DELAY_WAIT);
+
+    #[cfg(feature = "usb")]
+    {
+        #[cfg(feature = "log")]
+        initialize_usb_logging();
+        let usb_allocator = bsp::usb_allocator(
+            peripherals.usb,
+            &mut clocks,
+            &mut pm,
+            pins.usb_dm,
+            pins.usb_dp,
+        );
+        setup_usb_device(usb_allocator, &mut core.NVIC);
+    }
 
     Ok(InitResult {
         delay_tick: del,

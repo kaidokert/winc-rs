@@ -1,0 +1,132 @@
+#[cfg(feature = "usb")]
+mod usb_device_impl {
+    use super::super::hal::pac::interrupt;
+    use core::cell::RefCell;
+    use cortex_m::interrupt::Mutex;
+    use feather_m0::hal::usb::UsbBus;
+    use usb_device::bus::UsbBusAllocator;
+    use usb_device::device::UsbDevice;
+    use usb_device::prelude::{UsbDeviceBuilder, UsbVidPid};
+    use usb_device::{device::StringDescriptors, LangID};
+    use usbd_serial::SerialPort;
+    use usbd_serial::USB_CLASS_CDC;
+
+    // USB globals
+    static USB_BUS: Mutex<RefCell<Option<UsbDevice<UsbBus>>>> = Mutex::new(RefCell::new(None));
+    pub(super) static USB_SERIAL: Mutex<RefCell<Option<SerialPort<UsbBus>>>> =
+        Mutex::new(RefCell::new(None));
+
+    pub fn setup_usb_device(
+        usb_allocator: UsbBusAllocator<UsbBus>,
+        nvic: &mut cortex_m::peripheral::NVIC,
+    ) {
+        // Function-level static - much simpler without Option wrapper
+        static mut USB_ALLOCATOR: Option<UsbBusAllocator<UsbBus>> = None;
+
+        cortex_m::interrupt::free(|cs| {
+            let alloc = unsafe {
+                USB_ALLOCATOR = Some(usb_allocator);
+                #[allow(static_mut_refs)]
+                USB_ALLOCATOR.as_ref().unwrap()
+            };
+
+            let usb_serial = SerialPort::new(alloc);
+            let usb_device = UsbDeviceBuilder::new(alloc, UsbVidPid(0x16c0, 0x27dd))
+                .strings(&[StringDescriptors::new(LangID::EN_US)
+                    .manufacturer("Adafruit")
+                    .product("Feather M0 WiFi")
+                    .serial_number("987654321")])
+                .expect("Failed to set strings")
+                .device_class(USB_CLASS_CDC)
+                .build();
+
+            USB_BUS.borrow(cs).replace(Some(usb_device));
+            USB_SERIAL.borrow(cs).replace(Some(usb_serial));
+        });
+
+        unsafe {
+            nvic.set_priority(interrupt::USB, 1);
+            cortex_m::peripheral::NVIC::unmask(interrupt::USB);
+        }
+    }
+
+    // USB interrupt handler
+    #[interrupt]
+    fn USB() {
+        cortex_m::interrupt::free(|cs| {
+            if let Some(bus) = USB_BUS.borrow(cs).borrow_mut().as_mut() {
+                if let Some(serial) = USB_SERIAL.borrow(cs).borrow_mut().as_mut() {
+                    bus.poll(&mut [serial]);
+                }
+            }
+        });
+    }
+}
+
+#[cfg(feature = "log")]
+mod logging_impl {
+    use super::usb_device_impl::USB_SERIAL;
+
+    // Minimal buffer wrapper for formatting
+    struct FormatBuffer {
+        buffer: [u8; 128],
+        pos: usize,
+    }
+
+    impl core::fmt::Write for FormatBuffer {
+        fn write_str(&mut self, s: &str) -> core::fmt::Result {
+            let bytes = s.as_bytes();
+            let remaining = self.buffer.len() - self.pos;
+            let len = bytes.len().min(remaining);
+
+            self.buffer[self.pos..self.pos + len].copy_from_slice(&bytes[..len]);
+            self.pos += len;
+            Ok(())
+        }
+    }
+
+    struct UsbLogger {}
+
+    impl log::Log for UsbLogger {
+        fn enabled(&self, _: &log::Metadata) -> bool {
+            true
+        }
+        fn log(&self, record: &log::Record) {
+            cortex_m::interrupt::free(|_cs| {
+                if let Some(serial) = USB_SERIAL.borrow(_cs).borrow_mut().as_mut() {
+                    let buffer = [0u8; 128];
+                    let mut cursor = FormatBuffer {
+                        buffer: buffer.clone(),
+                        pos: 0,
+                    };
+                    let _ = core::fmt::write(
+                        &mut cursor,
+                        format_args!("[{}] {}\r\n", record.level(), record.args()),
+                    );
+                    let result_slice = &cursor.buffer[..cursor.pos];
+                    serial.write(result_slice).ok();
+                }
+            });
+        }
+        fn flush(&self) {}
+    }
+
+    // Global logger instance
+    static GLOBAL_LOGGER: UsbLogger = UsbLogger {};
+
+    pub fn initialize_usb_logging() {
+        unsafe {
+            cortex_m::interrupt::free(|_cs| {
+                let _ = log::set_logger_racy(&GLOBAL_LOGGER);
+                log::set_max_level_racy(log::LevelFilter::Trace);
+            });
+        }
+    }
+}
+
+// Public interface
+#[cfg(feature = "usb")]
+pub use usb_device_impl::setup_usb_device;
+
+#[cfg(feature = "log")]
+pub use logging_impl::initialize_usb_logging;

@@ -31,9 +31,28 @@ jobs:
     - name: Run tests
       working-directory: winc-rs
       run: cargo test --verbose
-    - name: Build feather
+    # Test feather crate with different logging feature combinations
+    - name: Build feather with defmt only
       working-directory: feather
-      run: cargo build --verbose --lib --bins --examples
+      run: cargo build --verbose --lib --no-default-features --features "irq,defmt"
+    - name: Build feather with USB + defmt
+      working-directory: feather
+      run: cargo build --verbose --lib --no-default-features --features "irq,usb,defmt"
+    - name: Build feather with USB + log
+      working-directory: feather
+      run: cargo build --verbose --lib --no-default-features --features "irq,usb,log"
+    - name: Build feather examples (default features)
+      working-directory: feather
+      run: cargo build --verbose --examples
+    - name: Verify mutual exclusivity (defmt + log should fail)
+      working-directory: feather
+      run: |
+        if cargo build --lib --no-default-features --features "irq,defmt,log" 2>/dev/null; then
+          echo "ERROR: defmt + log should not compile together"
+          exit 1
+        else
+          echo "SUCCESS: defmt + log correctly rejected"
+        fi
     - name: Build feather_async
       working-directory: feather_async
       run: cargo build --verbose --lib --bins --examples
