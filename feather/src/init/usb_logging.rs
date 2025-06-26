@@ -82,8 +82,8 @@ mod logging_impl {
     struct UsbLogger {}
 
     impl log::Log for UsbLogger {
-        fn enabled(&self, _: &log::Metadata) -> bool {
-            true
+        fn enabled(&self, metadata: &log::Metadata) -> bool {
+            metadata.level() <= get_usb_log_level()
         }
         fn log(&self, record: &log::Record) {
             cortex_m::interrupt::free(|_cs| {
@@ -107,11 +107,33 @@ mod logging_impl {
     // Global logger instance
     static GLOBAL_LOGGER: UsbLogger = UsbLogger {};
 
+    fn get_usb_log_level() -> log::Level {
+        // Check environment variable at compile time
+        match option_env!("FEATHER_USB_LOG") {
+            Some("error") => log::Level::Error,
+            Some("warn") => log::Level::Warn,
+            Some("info") => log::Level::Info,
+            Some("debug") => log::Level::Debug,
+            Some("trace") => log::Level::Trace,
+            _ => log::Level::Info, // Default to Info level
+        }
+    }
+
+    fn get_usb_log_level_filter() -> log::LevelFilter {
+        match get_usb_log_level() {
+            log::Level::Error => log::LevelFilter::Error,
+            log::Level::Warn => log::LevelFilter::Warn,
+            log::Level::Info => log::LevelFilter::Info,
+            log::Level::Debug => log::LevelFilter::Debug,
+            log::Level::Trace => log::LevelFilter::Trace,
+        }
+    }
+
     pub fn initialize_usb_logging() {
         unsafe {
             cortex_m::interrupt::free(|_cs| {
                 let _ = log::set_logger_racy(&GLOBAL_LOGGER);
-                log::set_max_level_racy(log::LevelFilter::Trace);
+                log::set_max_level_racy(get_usb_log_level_filter());
             });
         }
     }

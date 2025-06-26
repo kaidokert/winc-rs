@@ -33,3 +33,9 @@ use panic_probe as _;
 fn panic() -> ! {
     cortex_m::asm::udf()
 }
+
+#[cfg(all(feature = "log", not(feature = "defmt")))]
+#[panic_handler]
+fn panic(_info: &core::panic::PanicInfo) -> ! {
+    cortex_m::asm::udf()
+}
