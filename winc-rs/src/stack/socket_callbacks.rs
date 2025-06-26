@@ -345,7 +345,7 @@ impl EventListener for SocketCallbacks {
     }
     fn on_scan_done(&mut self, num_aps: u8, err: WifiConnError) {
         debug!("Scan done, aps:{} error:{}", num_aps, err);
-        if err != WifiConnError::Unhandled {
+        if err != WifiConnError::NoError {
             self.connection_state.conn_error = Some(err);
         }
         self.connection_state.scan_number_aps = Some(Some(num_aps));

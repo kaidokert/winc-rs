@@ -463,6 +463,19 @@ impl<X: Xfer> Manager<X> {
         Ok(())
     }
 
+    /// Prepares and writes the HIF header.
+    ///
+    /// # Arguments
+    ///
+    /// * `grp` - Request group ID (e.g., WiFi, IP, OTA, HIF).
+    /// * `opcode` - Operation ID.
+    /// * `payload` - Request/Control Buffer to be sent.
+    /// * `data_packet` - Request data from chip or not.
+    ///
+    /// # Returns
+    ///
+    /// * `()` - HIF header is successfully prepared and sent to chip.
+    /// * `Error` - if any error occured while preparing or writing HIF header.
     fn write_hif_header(
         &mut self,
         grp: HifGroup,
@@ -514,16 +527,28 @@ impl<X: Xfer> Manager<X> {
         )?;
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
     }
-    // TODO: send other than WPA credentials
+
+    /// Sends a Connect request to chip.
+    ///
+    /// # Arguments
+    ///
+    /// * `ssid` - The SSID (network name), up to 32 bytes.
+    /// * `credentials` - Security credentials (e.g., passphrase or authentication data).
+    /// * `channel` - Wi-Fi RF channel.
+    /// * `dont_save_credentials` - Whether to save credentials or not.
+    ///
+    /// # Returns
+    ///
+    /// * `()` - If the request is successfully sent.
+    /// * `Error` - If an error occurred while preparing or sending the connect request.
     pub fn send_connect(
         &mut self,
-        auth: AuthType,
-        ssid: &str,
-        password: &str,
-        channel: u16,
+        ssid: &Ssid,
+        credentials: &Credentials,
+        channel: WifiChannel,
         dont_save_credentials: bool,
     ) -> Result<(), Error> {
-        let arr = write_connect_request(auth, ssid, password, channel, dont_save_credentials)?;
+        let arr = write_connect_request(ssid, credentials, channel, dont_save_credentials)?;
         self.write_hif_header(
             HifGroup::Wifi(WifiResponse::Unhandled),
             WifiRequest::Connect,

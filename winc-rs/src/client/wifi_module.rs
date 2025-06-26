@@ -3,7 +3,7 @@ use crate::errors::Error;
 use embedded_nal::nb;
 
 use crate::error;
-use crate::manager::{AccessPoint, AuthType, FirmwareInfo, IPConf, ScanResult};
+use crate::manager::{AccessPoint, AuthType, FirmwareInfo, IPConf, ScanResult, Ssid, WifiChannel};
 use crate::manager::{Credentials, HostName, ProvisioningInfo, WifiConnError};
 
 use super::PingResult;
@@ -118,28 +118,30 @@ impl<X: Xfer> WincClient<'_, X> {
         self.connect_to_ap_impl(|inner_self: &mut Self| inner_self.manager.send_default_connect())
     }
 
-    /// Connect to access point with given SSID and password, with WPA2 security
+    /// Connect to access point with given SSID and credentials.
     ///
     /// # Arguments
     ///
     /// * `ssid` - The SSID of the access point to connect to.
-    /// * `password` - The password of the access point to connect to.
+    /// * `credentials` - Security credentials (e.g., passphrase or authentication data).
+    /// * `channel` - Wi-Fi RF channel.
     /// * `save_credentials` - Whether to save the credentials to the module.
     ///
+    /// # Returns
+    ///
+    /// * `()` - Successfully connected to access point.
+    /// * `StackError` - If an error occurs while connecting with access point.
     pub fn connect_to_ap(
         &mut self,
-        ssid: &str,
-        password: &str,
+        ssid: &Ssid,
+        credentials: &Credentials,
+        channel: WifiChannel,
         save_credentials: bool,
     ) -> nb::Result<(), StackError> {
         self.connect_to_ap_impl(|inner_self: &mut Self| {
-            inner_self.manager.send_connect(
-                AuthType::WpaPSK,
-                ssid,
-                password,
-                0xFF,
-                !save_credentials,
-            )
+            inner_self
+                .manager
+                .send_connect(ssid, credentials, channel, !save_credentials)
         })
     }
 
@@ -500,12 +502,14 @@ mod tests {
     #[test]
     fn test_connect_to_ap_success() {
         let mut client = make_test_client();
+        let ssid = Ssid::from("test").unwrap();
+        let key = Credentials::WpaPSK(WpaKey::from("test").unwrap());
         client.callbacks.state = WifiModuleState::Unconnected;
         let mut my_debug = |callbacks: &mut SocketCallbacks| {
             callbacks.on_connstate_changed(WifiConnState::Connected, WifiConnError::Unhandled);
         };
         client.debug_callback = Some(&mut my_debug);
-        let result = nb::block!(client.connect_to_ap("test", "test", false));
+        let result = nb::block!(client.connect_to_ap(&ssid, &key, WifiChannel::Channel1, false));
         assert_eq!(result, Ok(()));
     }
 
@@ -514,7 +518,7 @@ mod tests {
         let mut client = make_test_client();
         client.callbacks.state = WifiModuleState::Unconnected;
         let mut my_debug = |callbacks: &mut SocketCallbacks| {
-            callbacks.on_scan_done(5, WifiConnError::Unhandled);
+            callbacks.on_scan_done(5, WifiConnError::NoError);
         };
         client.debug_callback = Some(&mut my_debug);
         let result = nb::block!(client.scan());

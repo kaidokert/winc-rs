@@ -12,7 +12,7 @@ use bsp::shared::SpiStream;
 use core::str;
 use feather::hal::ehal::digital::OutputPin;
 use feather::shared::{create_countdowns, delay_fn};
-use wincwifi::{AccessPoint, Credentials, HostName, Ssid, StackError, WincClient, WpaKey};
+use wincwifi::{AccessPoint, HostName, Ssid, StackError, WifiChannel, WincClient, WpaKey};
 
 const DEFAULT_TEST_SSID: &str = "winc_network";
 const DEFAULT_TEST_PASSWORD: &str = "password";
@@ -65,16 +65,13 @@ fn program() -> Result<(), StackError> {
         match result {
             Ok(info) => {
                 info!("Credentials received from provisioning; connecting to access point.");
-                let key: &str = match info.key {
-                    Credentials::Open => "",
-                    Credentials::WpaPSK(ref _key) => _key.as_str(),
-                    _ => {
-                        error!("Invalid Authentication type");
-                        return Err(StackError::Unexpected);
-                    }
-                };
                 // Connect to access point.
-                nb::block!(stack.connect_to_ap(info.ssid.as_str(), key, false))?;
+                nb::block!(stack.connect_to_ap(
+                    &info.ssid,
+                    &info.key,
+                    WifiChannel::ChannelAll,
+                    false
+                ))?;
                 info!("Connected to AP");
             }
             Err(err) => {

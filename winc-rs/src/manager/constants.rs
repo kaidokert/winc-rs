@@ -18,7 +18,7 @@ pub const MAX_SSID_LEN: usize = 32;
 pub(crate) const MAX_WEP_KEY_LEN: usize = 26;
 /// Maximum length for the WPA PSK Key.
 pub const MAX_PSK_KEY_LEN: usize = 63;
-/// Maximum length for Device domain name for provisioning mode.
+/// Maximum length for device domain name for provisioning mode.
 pub const MAX_HOST_NAME_LEN: usize = 63;
 /// Packet size of the Start Provisioning Mode request.
 pub(crate) const START_PROVISION_PACKET_SIZE: usize = 204;
@@ -28,6 +28,8 @@ pub(crate) const PROVISIONING_INFO_PACKET_SIZE: usize = 100;
 pub const MAX_S802_PASSWORD_LEN: usize = 40;
 /// Maximum username length for the Enterprise mode.
 pub const MAX_S802_USERNAME_LEN: usize = 20;
+/// Packet size of connect request packet.
+pub(crate) const CONNECT_AP_PACKET_SIZE: usize = 108;
 
 pub enum Regs {
     SpiConfig = 0xE824,

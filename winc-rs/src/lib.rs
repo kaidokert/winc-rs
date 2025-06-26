@@ -34,15 +34,17 @@
 //!
 //! Basic usage:
 //! ```no_run
-//! # use wincwifi::WincClient;
+//! # use wincwifi::{WincClient, WifiChannel, Ssid, Credentials, WpaKey};
 //! # use embedded_nal::{nb, AddrType, Dns};
 //! # fn del_fn(ms: u32) {}
 //! # let mut buffer = [0; 1];
 //! # let mut spi = buffer.as_mut_slice();
 //! // spi: something that implements the protocol transfer
 //! let mut client = WincClient::new(spi);
+//! let ssid = Ssid::from("ssid").unwrap();
+//! let key = Credentials::WpaPSK(WpaKey::from("password").unwrap());
 //! nb::block!(client.start_wifi_module());
-//! nb::block!(client.connect_to_ap("ssid", "password", false));
+//! nb::block!(client.connect_to_ap(&ssid, &key, WifiChannel::ChannelAll, false));
 //! nb::block!(client.get_host_by_name("google.com", AddrType::IPv4));
 //! loop {
 //!     client.heartbeat(); // periodically poll the chip
