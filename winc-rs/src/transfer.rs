@@ -14,7 +14,7 @@
 
 use crate::readwrite::{Read, Write};
 
-use crate::errors::Error;
+use crate::errors::CommError;
 
 /// Trait for reading and writing data
 pub(crate) trait ReadWrite: Read + Write {}
@@ -25,9 +25,9 @@ impl<U> ReadWrite for U where U: Read + Write {}
 /// There is an example SPI implementantion in demo crate.
 pub trait Xfer {
     /// Receive data from the chip
-    fn recv(&mut self, dest: &mut [u8]) -> Result<(), Error>;
+    fn recv(&mut self, dest: &mut [u8]) -> Result<(), CommError>;
     /// Send data to the chip
-    fn send(&mut self, src: &[u8]) -> Result<(), Error>;
+    fn send(&mut self, src: &[u8]) -> Result<(), CommError>;
     /// Optionally reduce bus wait times after initialization.
     /// This speeds up the overall communications
     fn switch_to_high_speed(&mut self) {}
@@ -44,11 +44,11 @@ impl<U> Xfer for U
 where
     U: ReadWrite,
 {
-    fn recv(&mut self, dest: &mut [u8]) -> Result<(), Error> {
-        self.read_exact(dest).map_err(|_| Error::ReadError)
+    fn recv(&mut self, dest: &mut [u8]) -> Result<(), CommError> {
+        self.read_exact(dest).map_err(|_| CommError::ReadError)
     }
-    fn send(&mut self, src: &[u8]) -> Result<(), Error> {
-        self.write(src).map_err(|_| Error::WriteError)?;
+    fn send(&mut self, src: &[u8]) -> Result<(), CommError> {
+        self.write(src).map_err(|_| CommError::WriteError)?;
         Ok(())
     }
 }

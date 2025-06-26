@@ -25,8 +25,8 @@ use super::net_types::{HostName, Ssid};
 use arrayvec::ArrayString;
 
 use crate::error;
+use crate::errors::CommError;
 use crate::HexWrap;
-use crate::StrError;
 use core::str::FromStr;
 
 #[cfg(feature = "defmt")]
@@ -74,7 +74,7 @@ fn from_c_byte_str<const N: usize>(input: [u8; N]) -> Result<ArrayString<N>, cor
     Ok(ret)
 }
 
-fn from_c_byte_slice<const N: usize>(input: &[u8]) -> Result<ArrayString<N>, StrError> {
+fn from_c_byte_slice<const N: usize>(input: &[u8]) -> Result<ArrayString<N>, CommError> {
     let slice = match core::str::from_utf8(input) {
         Err(err) => core::str::from_utf8(&input[..err.valid_up_to()])?,
         Ok(s) => s,

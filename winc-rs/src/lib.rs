@@ -101,40 +101,6 @@ mod async_client;
 #[cfg(feature = "async")]
 pub use async_client::AsyncClient;
 
-// TODO: Merge this into CommError
-#[derive(Debug, PartialEq)]
-pub enum StrError {
-    Utf8Error(core::str::Utf8Error),
-    CapacityError(arrayvec::CapacityError),
-}
-
-impl From<core::str::Utf8Error> for StrError {
-    fn from(v: core::str::Utf8Error) -> Self {
-        Self::Utf8Error(v)
-    }
-}
-
-impl From<arrayvec::CapacityError> for StrError {
-    fn from(v: arrayvec::CapacityError) -> Self {
-        Self::CapacityError(v)
-    }
-}
-
-#[cfg(feature = "defmt")]
-impl defmt::Format for StrError {
-    fn format(&self, f: defmt::Formatter) {
-        match self {
-            Self::Utf8Error(e) => defmt::write!(
-                f,
-                "UTF-8 error: invalid sequence at position {}, error length: {:?}",
-                e.valid_up_to(),
-                e.error_len()
-            ),
-            Self::CapacityError(_) => defmt::write!(f, "Capacity error: array full"),
-        }
-    }
-}
-
 pub(crate) struct HexWrap<'a> {
     v: &'a [u8],
 }
