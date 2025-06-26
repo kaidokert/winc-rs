@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1750907413632,
+  "lastUpdate": 1750908143281,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -2595,6 +2595,40 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/kaidokert/winc-rs/commit/7d681eae3d2d47d359cccf4f1d2aa0e110b26228"
         },
         "date": 1750907413275,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 52032,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 67256,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "kaidokert@gmail.com",
+            "name": "Kaido Kert",
+            "username": "kaidokert"
+          },
+          "committer": {
+            "email": "kaidokert@gmail.com",
+            "name": "Kaido Kert",
+            "username": "kaidokert"
+          },
+          "distinct": true,
+          "id": "8796c6a891a9670d42c0df4aa7b49c5da9a5c8e7",
+          "message": "Conditional import",
+          "timestamp": "2025-06-25T20:18:59-07:00",
+          "tree_id": "26d06bf86c8beab43d52d7a313512921fdb21129",
+          "url": "https://github.com/kaidokert/winc-rs/commit/8796c6a891a9670d42c0df4aa7b49c5da9a5c8e7"
+        },
+        "date": 1750908142406,
         "tool": "customSmallerIsBetter",
         "benches": [
           {
