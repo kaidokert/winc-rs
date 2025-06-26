@@ -76,7 +76,7 @@ mod readwrite;
 mod socket;
 mod stack;
 mod transfer;
-pub use errors::Error as CommError;
+pub use errors::CommError;
 pub use transfer::Xfer as Transfer;
 
 pub use client::PingResult;

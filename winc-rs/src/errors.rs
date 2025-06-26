@@ -134,7 +134,3 @@ impl defmt::Format for CommError {
         }
     }
 }
-
-/// Backward compatibility alias for CommError
-/// TODO: Remove this alias and update all usages to CommError
-pub type Error = CommError;

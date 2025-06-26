@@ -13,7 +13,7 @@
 // limitations under the License.
 
 /// Low-level chip manager
-use crate::errors::Error;
+use crate::errors::CommError as Error;
 use core::fmt::Debug;
 
 use crate::socket::Socket;

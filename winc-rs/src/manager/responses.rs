@@ -18,14 +18,13 @@ use core::net::{Ipv4Addr, SocketAddrV4};
 use super::constants::MAX_HOST_NAME_LEN;
 use super::constants::{AuthType, PingError, SocketError, MAX_PSK_KEY_LEN, MAX_SSID_LEN};
 use super::WpaKey;
-use crate::errors::Error;
+use crate::errors::CommError as Error;
 type ErrType<'a> = ReadExactError<<&'a [u8] as Read>::ReadError>;
 
 use super::net_types::{HostName, Ssid};
 use arrayvec::ArrayString;
 
 use crate::error;
-use crate::errors::CommError;
 use crate::HexWrap;
 use core::str::FromStr;
 
@@ -74,7 +73,7 @@ fn from_c_byte_str<const N: usize>(input: [u8; N]) -> Result<ArrayString<N>, cor
     Ok(ret)
 }
 
-fn from_c_byte_slice<const N: usize>(input: &[u8]) -> Result<ArrayString<N>, CommError> {
+fn from_c_byte_slice<const N: usize>(input: &[u8]) -> Result<ArrayString<N>, Error> {
     let slice = match core::str::from_utf8(input) {
         Err(err) => core::str::from_utf8(&input[..err.valid_up_to()])?,
         Ok(s) => s,

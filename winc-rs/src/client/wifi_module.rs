@@ -1,4 +1,4 @@
-use crate::errors::Error;
+use crate::errors::CommError as Error;
 
 use embedded_nal::nb;
 
@@ -74,7 +74,7 @@ impl<X: Xfer> WincClient<'_, X> {
 
     fn connect_to_ap_impl(
         &mut self,
-        connect_fn: impl FnOnce(&mut Self) -> Result<(), crate::errors::Error>,
+        connect_fn: impl FnOnce(&mut Self) -> Result<(), crate::errors::CommError>,
     ) -> nb::Result<(), StackError> {
         match self.callbacks.state {
             WifiModuleState::Reset | WifiModuleState::Starting | WifiModuleState::Disconnecting => {
@@ -436,7 +436,7 @@ mod tests {
     use super::*;
     use crate::client::{test_shared::*, SocketCallbacks};
     //use crate::manager::Error::BootRomStart;
-    use crate::errors::Error;
+    use crate::errors::CommError as Error;
     use crate::manager::Ssid;
     use crate::manager::{EventListener, PingError, WifiConnError, WifiConnState};
     use crate::{ConnectionInfo, Credentials, S8Password, S8Username, WifiChannel, WpaKey};
