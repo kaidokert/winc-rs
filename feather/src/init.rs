@@ -13,10 +13,7 @@ use core::convert::Infallible;
 use cortex_m::{interrupt::Mutex, peripheral::NVIC};
 use hal::clock::GenericClockController;
 #[cfg(feature = "irq")]
-use hal::{eic::Eic, eic::*};
-
-#[cfg(feature = "irq")]
-use hal::pac::interrupt;
+use hal::{eic::Eic, eic::*, pac::interrupt};
 
 #[cfg(feature = "irq")]
 use core::{cell::RefCell, ops::DerefMut};
