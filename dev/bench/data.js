@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1750913576382,
+  "lastUpdate": 1750914053681,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -2697,6 +2697,40 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/kaidokert/winc-rs/commit/505b6745ef0d9fd00c1ebdfd6a2fd4fec676568e"
         },
         "date": 1750913575517,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 51976,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 67204,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "kaidokert@gmail.com",
+            "name": "Kaido Kert",
+            "username": "kaidokert"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "e2cecb8066ba05d2957cd0e8fccdee768ce2d87a",
+          "message": "Add USB-serial logging (#88)\n\n* Add USB-serial logging #20",
+          "timestamp": "2025-06-25T21:59:50-07:00",
+          "tree_id": "a734a5f2ad2d6ad3204ed9a6a8499ffc162a43a4",
+          "url": "https://github.com/kaidokert/winc-rs/commit/e2cecb8066ba05d2957cd0e8fccdee768ce2d87a"
+        },
+        "date": 1750914052801,
         "tool": "customSmallerIsBetter",
         "benches": [
           {
