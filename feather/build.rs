@@ -16,8 +16,7 @@ fn main() {
 
     println!("cargo:rustc-link-arg=--nmagic");
     println!("cargo:rustc-link-arg=-Tlink.x");
-    let defmt_feature = env::var("CARGO_CFG_FEATURE").unwrap_or_default();
-    if defmt_feature.contains("defmt") {
+    if env::var("CARGO_FEATURE_DEFMT").is_ok() {
         println!("cargo:rustc-link-arg=-Tdefmt.x");
     }
 }

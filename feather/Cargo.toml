@@ -17,7 +17,7 @@ defmt-rtt = { version = "0.4", optional = true }
 panic-probe = { version = "0.3.0" }
 
 feather_m0 = { version = "0.18" , features=["winc"]}
-embedded-hal = { version= "1", features = ["defmt-03"]}
+embedded-hal = { version= "1", default-features = false }
 nb = { version = "1.0"}
 
 cortex-m-systick-countdown = "0.1.0"
@@ -56,7 +56,7 @@ usb-device = ["dep:usb-device"]
 usbd-serial = ["dep:usbd-serial"]
 usb = ["dep:usb-device", "dep:usbd-serial", "feather_m0/usb", "dep:ehal_02"] # USB CDC device functionality
 log = ["usb", "dep:log", "demos/log", "wincwifi/log"] # USB logging (mutually exclusive with defmt)
-defmt = ["dep:defmt", "dep:defmt-rtt", "panic-probe/print-defmt", "wincwifi/defmt", "demos/defmt"]
+defmt = ["dep:defmt", "dep:defmt-rtt", "panic-probe/print-defmt", "embedded-hal/defmt-03", "wincwifi/defmt", "demos/defmt"]
 
 # cargo build/run
 [profile.dev]
