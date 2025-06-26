@@ -23,6 +23,7 @@ pub use feather_m0 as bsp;
 pub mod init;
 pub mod shared;
 
+#[cfg(feature = "defmt")]
 use panic_probe as _;
 
 // same panicking *behavior* as `panic-probe` but doesn't print a panic message
