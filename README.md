@@ -13,7 +13,7 @@ Tested on [Adafruit Feather M0 WiFi](https://www.adafruit.com/product/3010).
 [feather](https://github.com/kaidokert/winc-rs/tree/main/feather) dir has examples running on the Feather board.
 [feather_async](https://github.com/kaidokert/winc-rs/tree/main/feather_async) has async demos, using [embassy-executor](https://crates.io/crates/embassy-executor).
 
-[demos](https://github.com/kaidokert/winc-rs/tree/main/demos/src) are the & testing programs that Feather examples use, written with
+[demos](https://github.com/kaidokert/winc-rs/tree/main/demos/src) are the networking and testing programs that Feather examples use, written with
 [embedded-nal](https://github.com/rust-embedded/embedded-nal).
 These are also separately runnable with `std-embedded-nal` crate.
 
