@@ -8,20 +8,20 @@
 Code to interface with ATWINC1500 Wifi chip from Rust.
 Tested on [Adafruit Feather M0 WiFi](https://www.adafruit.com/product/3010).
 
-[winc-rs](https://github.com/kaidokert/winc-rs/tree/main/winc-rs) is the crate that implements chip access, see its [README](winc-rs/README.md) for more info.
+[winc-rs](https://github.com/kaidokert/winc-rs/tree/main/winc-rs) is the crate that implements chip access, see its [docs](https://docs.rs/wincwifi/latest/wincwifi/) for more info.
 
 [feather](https://github.com/kaidokert/winc-rs/tree/main/feather) dir has examples running on the Feather board.
 [feather_async](https://github.com/kaidokert/winc-rs/tree/main/feather_async) has async demos, using [embassy-executor](https://crates.io/crates/embassy-executor).
 
 [demos](https://github.com/kaidokert/winc-rs/tree/main/demos/src) are the networking and testing programs that Feather examples use, written with
-[embedded-nal](https://github.com/rust-embedded/embedded-nal).
+[embedded-nal](https://github.com/rust-embedded-community/embedded-nal).
 These are also separately runnable with `std-embedded-nal` crate.
 
 ## Contributing
 
-See [`CONTRIBUTING.md`](CONTRIBUTING.md) for details.
+See [`CONTRIBUTING.md`](https://github.com/kaidokert/winc-rs/blob/main/CONTRIBUTING.md) for details.
 
-See [`DEVELOPMENT.md`](DEVELOPMENT.md) for development setup, and `TODO.md` for backlog of issues to be addressed.
+See [`DEVELOPMENT.md`](https://github.com/kaidokert/winc-rs/blob/main/DEVELOPMENT.md) for development setup, and `TODO.md` for backlog of issues to be addressed.
 
 ## License
 

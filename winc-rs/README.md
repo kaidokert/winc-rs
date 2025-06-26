@@ -19,8 +19,6 @@ For example programs, see [feather/](https://github.com/kaidokert/winc-rs/tree/m
 
 ### TODO list
 
-- Test coverage in core code
-- client.rs needs some cleanup and refactoring
 - TODOs in code
 - More examples ( tftp, iperf3, mqtt, ntp etc)
 - Maybe a set of non-Feather demos on Rasberry Pi connected module
