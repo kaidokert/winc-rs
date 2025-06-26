@@ -73,3 +73,29 @@ impl<T> From<ReadExactError<T>> for Error {
         Error::BufferReadError
     }
 }
+
+impl core::fmt::Display for Error {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let msg = match self {
+            Self::Failed => "Operation failed",
+            Self::BufferError => "Buffer error",
+            Self::VectorCapacityError => "Vector capacity error",
+            Self::ProtocolByteError(loc, byte, expected, actual) => {
+                return write!(
+                    f,
+                    "Protocol byte error at {}, byte {}: expected {:#x}, got {:#x}",
+                    loc, byte, expected, actual
+                );
+            }
+            Self::ReadError => "Read error",
+            Self::WriteError => "Write error",
+            Self::BufferReadError => "Buffer read error",
+            Self::UnexpectedAddressFamily => "Unexpected address family",
+            Self::Str(err) => return write!(f, "String error: {:?}", err),
+            Self::BootRomStart => "WiFi module boot ROM start failed",
+            Self::FirmwareStart => "WiFi module firmware start failed",
+            Self::HifSendFailed => "HIF send failed",
+        };
+        f.write_str(msg)
+    }
+}

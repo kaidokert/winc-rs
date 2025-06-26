@@ -390,6 +390,27 @@ impl From<u8> for SocketError {
     }
 }
 
+impl core::fmt::Display for SocketError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let msg = match self {
+            Self::Unhandled => "Unhandled socket error",
+            Self::NoError => "No error",
+            Self::InvalidAddress => "Invalid address",
+            Self::AddrAlreadyInUse => "Address already in use",
+            Self::MaxTcpSock => "Maximum TCP sockets reached",
+            Self::MaxUdpSock => "Maximum UDP sockets reached",
+            Self::InvalidArg => "Invalid argument",
+            Self::MaxListenSock => "Maximum listen sockets reached",
+            Self::Invalid => "Invalid socket",
+            Self::AddrIsRequired => "Address is required",
+            Self::ConnAborted => "Connection aborted",
+            Self::Timeout => "Socket timeout",
+            Self::BufferFull => "Buffer full",
+        };
+        f.write_str(msg)
+    }
+}
+
 // Wi-Fi RF Channels
 #[repr(u8)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
