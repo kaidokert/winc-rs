@@ -18,13 +18,13 @@ pub enum StackError {
     SocketAlreadyInUse,
     CloseFailed,
     Unexpected,
-    DispatchError(crate::errors::Error),
-    ConnectSendFailed(crate::errors::Error),
-    ReceiveFailed(crate::errors::Error),
-    SendSendFailed(crate::errors::Error),
-    SendCloseFailed(crate::errors::Error),
-    BindFailed(crate::errors::Error),
-    WincWifiFail(crate::errors::Error),
+    DispatchError(crate::errors::CommError),
+    ConnectSendFailed(crate::errors::CommError),
+    ReceiveFailed(crate::errors::CommError),
+    SendSendFailed(crate::errors::CommError),
+    SendCloseFailed(crate::errors::CommError),
+    BindFailed(crate::errors::CommError),
+    WincWifiFail(crate::errors::CommError),
     OpFailed(SocketError),
     /// DNS lookup timed out
     DnsTimeout,
@@ -57,8 +57,8 @@ impl From<SocketError> for StackError {
     }
 }
 
-impl From<crate::errors::Error> for StackError {
-    fn from(inner: crate::errors::Error) -> Self {
+impl From<crate::errors::CommError> for StackError {
+    fn from(inner: crate::errors::CommError) -> Self {
         Self::WincWifiFail(inner)
     }
 }

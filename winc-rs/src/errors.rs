@@ -13,23 +13,20 @@
 // limitations under the License.
 
 use crate::readwrite::{BufferOverflow, ReadExactError};
-use crate::StrError;
-use arrayvec::CapacityError;
 
 /// Low-level chip communication errors
-#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[derive(Debug, PartialEq)]
-pub enum Error {
+pub enum CommError {
     Failed,
     BufferError,
-    VectorCapacityError,
     // From where, which byte, expected, actual
     ProtocolByteError(&'static str, usize, u8, u8),
     ReadError,
     WriteError,
     BufferReadError,
     UnexpectedAddressFamily, // AF wasn't set to AF_INET in response,
-    Str(StrError),
+    Utf8Error(core::str::Utf8Error),
+    CapacityError(arrayvec::CapacityError),
     /// Wifi module boot rom start failed
     BootRomStart,
     /// Wifi module firmware failed to start
@@ -38,48 +35,41 @@ pub enum Error {
     HifSendFailed,
 }
 
-impl From<core::convert::Infallible> for Error {
+impl From<core::convert::Infallible> for CommError {
     fn from(_: core::convert::Infallible) -> Self {
         unreachable!("Infallible error")
     }
 }
 
-impl From<StrError> for Error {
-    fn from(v: StrError) -> Self {
-        Self::Str(v)
-    }
-}
-
-impl From<core::str::Utf8Error> for Error {
+impl From<core::str::Utf8Error> for CommError {
     fn from(v: core::str::Utf8Error) -> Self {
-        Self::Str(StrError::Utf8Error(v))
+        Self::Utf8Error(v)
     }
 }
 
-impl From<BufferOverflow> for Error {
+impl From<arrayvec::CapacityError> for CommError {
+    fn from(v: arrayvec::CapacityError) -> Self {
+        Self::CapacityError(v)
+    }
+}
+
+impl From<BufferOverflow> for CommError {
     fn from(_: BufferOverflow) -> Self {
-        Error::BufferError
+        CommError::BufferError
     }
 }
 
-impl From<CapacityError> for Error {
-    fn from(_: CapacityError) -> Self {
-        Error::VectorCapacityError
-    }
-}
-
-impl<T> From<ReadExactError<T>> for Error {
+impl<T> From<ReadExactError<T>> for CommError {
     fn from(_: ReadExactError<T>) -> Self {
-        Error::BufferReadError
+        CommError::BufferReadError
     }
 }
 
-impl core::fmt::Display for Error {
+impl core::fmt::Display for CommError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let msg = match self {
             Self::Failed => "Operation failed",
             Self::BufferError => "Buffer error",
-            Self::VectorCapacityError => "Vector capacity error",
             Self::ProtocolByteError(loc, byte, expected, actual) => {
                 return write!(
                     f,
@@ -91,11 +81,46 @@ impl core::fmt::Display for Error {
             Self::WriteError => "Write error",
             Self::BufferReadError => "Buffer read error",
             Self::UnexpectedAddressFamily => "Unexpected address family",
-            Self::Str(err) => return write!(f, "String error: {:?}", err),
+            Self::Utf8Error(err) => return write!(f, "UTF-8 error: {}", err),
+            Self::CapacityError(err) => return write!(f, "Capacity error: {}", err),
             Self::BootRomStart => "WiFi module boot ROM start failed",
             Self::FirmwareStart => "WiFi module firmware start failed",
             Self::HifSendFailed => "HIF send failed",
         };
         f.write_str(msg)
+    }
+}
+
+#[cfg(feature = "defmt")]
+impl defmt::Format for CommError {
+    fn format(&self, f: defmt::Formatter) {
+        match self {
+            Self::Failed => defmt::write!(f, "Operation failed"),
+            Self::BufferError => defmt::write!(f, "Buffer error"),
+            Self::ProtocolByteError(loc, byte, expected, actual) => {
+                defmt::write!(
+                    f,
+                    "Protocol byte error at {}, byte {}: expected {:#x}, got {:#x}",
+                    loc,
+                    byte,
+                    expected,
+                    actual
+                );
+            }
+            Self::ReadError => defmt::write!(f, "Read error"),
+            Self::WriteError => defmt::write!(f, "Write error"),
+            Self::BufferReadError => defmt::write!(f, "Buffer read error"),
+            Self::UnexpectedAddressFamily => defmt::write!(f, "Unexpected address family"),
+            Self::Utf8Error(err) => defmt::write!(
+                f,
+                "UTF-8 error: invalid sequence at position {}, error length: {:?}",
+                err.valid_up_to(),
+                err.error_len()
+            ),
+            Self::CapacityError(_) => defmt::write!(f, "Capacity error: array full"),
+            Self::BootRomStart => defmt::write!(f, "WiFi module boot ROM start failed"),
+            Self::FirmwareStart => defmt::write!(f, "WiFi module firmware start failed"),
+            Self::HifSendFailed => defmt::write!(f, "HIF send failed"),
+        }
     }
 }

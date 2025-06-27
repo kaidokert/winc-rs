@@ -28,7 +28,7 @@ where
         embedded_io::ErrorKind::Other
     }
 }
-impl<'a, T, E> From<E> for ErrWrap<T, E>
+impl<T, E> From<E> for ErrWrap<T, E>
 where
     T: TcpFullStack<Error = E> + Sized,
     E: core::fmt::Debug,

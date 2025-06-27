@@ -413,7 +413,7 @@ impl core::fmt::Display for SocketError {
     }
 }
 
-// Wi-Fi RF Channels
+/// Wi-Fi RF Channels
 #[repr(u8)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum WifiChannel {

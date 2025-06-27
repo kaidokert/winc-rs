@@ -73,10 +73,10 @@ mod tests {
     }
 
     impl Xfer for MockTransfer {
-        fn recv(&mut self, _: &mut [u8]) -> Result<(), crate::errors::Error> {
+        fn recv(&mut self, _: &mut [u8]) -> Result<(), crate::errors::CommError> {
             Ok(())
         }
-        fn send(&mut self, _: &[u8]) -> Result<(), crate::errors::Error> {
+        fn send(&mut self, _: &[u8]) -> Result<(), crate::errors::CommError> {
             Ok(())
         }
     }
