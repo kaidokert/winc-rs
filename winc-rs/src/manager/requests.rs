@@ -30,8 +30,10 @@ use super::{AccessPoint, Credentials, HostName};
 ///
 /// # Arguments
 ///
-/// * `client` - Configuration to conenct with access point.
-/// * `store_cred` - Option whether to store credentials or not.
+/// * `ssid` - The SSID (network name), up to 32 bytes.
+/// * `credentials` - Security credentials (e.g., passphrase or authentication data).
+/// * `channel` - Wi-Fi RF channel.
+/// * `dont_save_credentials` - Whether to save credentials or not.
 ///
 /// # Returns
 ///
