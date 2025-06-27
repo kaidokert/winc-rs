@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1750998394949,
+  "lastUpdate": 1750998629233,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -2969,6 +2969,40 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/kaidokert/winc-rs/commit/df20b5bb1cd34aa2ed362d357074dd56315c59e9"
         },
         "date": 1750998394000,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 52448,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 67912,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "kaidokert@gmail.com",
+            "name": "Kaido Kert",
+            "username": "kaidokert"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "b785df3f76a1f0c6b39b04d233b75a3202de8b01",
+          "message": "Cleaner api (#90)\n\n* Rename Error to CommError",
+          "timestamp": "2025-06-26T21:29:18-07:00",
+          "tree_id": "c66863f1e7aa55ecd52205318b6c415abb580e04",
+          "url": "https://github.com/kaidokert/winc-rs/commit/b785df3f76a1f0c6b39b04d233b75a3202de8b01"
+        },
+        "date": 1750998628853,
         "tool": "customSmallerIsBetter",
         "benches": [
           {
