@@ -127,7 +127,7 @@ where
         let mut menu_buffer = [0; 128];
         let mut context = Context { close: false };
         let output = Output {
-            stack: stack,
+            stack,
             sock: client_sock,
         };
         let mut runner = Runner::new(root_menu, &mut menu_buffer, output, &mut context);

@@ -1,5 +1,7 @@
 // make this no_std
 #![no_std]
+// Dual logging system compatibility: defmt doesn't support modern format syntax
+#![allow(clippy::uninlined_format_args)]
 
 // Compile-time checks for logging features
 #[cfg(all(feature = "defmt", feature = "log"))]

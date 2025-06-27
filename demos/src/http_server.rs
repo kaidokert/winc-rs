@@ -3,7 +3,7 @@ use embedded_nal::nb::block;
 use embedded_nal::TcpFullStack;
 
 use super::SocketAddrWrap;
-fn usize_to_decimal_string<'a>(value: usize, buffer: &'a mut [u8]) -> &'a str {
+fn usize_to_decimal_string(value: usize, buffer: &mut [u8]) -> &str {
     if buffer.len() < 20 {
         return ""; // Return empty string if buffer is too small
     }

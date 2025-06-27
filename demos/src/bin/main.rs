@@ -141,7 +141,7 @@ fn main() -> Result<(), LocalErrors> {
     let ip_addr = Ipv4Addr::new(ip[0], ip[1], ip[2], ip[3]);
     let port = cli.port.unwrap_or(80);
 
-    let mut stack = Stack::default();
+    let mut stack = Stack;
 
     match cli.mode {
         Mode::HttpClient => {
@@ -187,7 +187,7 @@ fn main() -> Result<(), LocalErrors> {
 
             println!("=== HTTP Speed Test ===");
             println!("Server: {} ({})", test_config.server_host, server_addr);
-            println!("File: {}", test_file);
+            println!("File: {test_file}");
 
             // Create timing function using std::time::Instant
             let start_time = Instant::now();
@@ -211,7 +211,7 @@ fn main() -> Result<(), LocalErrors> {
                     );
                 }
                 Err(e) => {
-                    eprintln!("Speed test failed: {:?}", e);
+                    eprintln!("Speed test failed: {e:?}");
                     return Err(LocalErrors::IoError);
                 }
             }

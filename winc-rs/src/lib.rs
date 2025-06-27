@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Dual logging system compatibility: defmt doesn't support modern format syntax
+#![allow(clippy::uninlined_format_args)]
+
 //! ATWINC1500 Wifi module library
 //!
 //! NOTE: This very much Work In Progress
