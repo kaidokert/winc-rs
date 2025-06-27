@@ -19,7 +19,6 @@ use crate::readwrite::{BufferOverflow, ReadExactError};
 pub enum CommError {
     Failed,
     BufferError,
-    VectorCapacityError,
     // From where, which byte, expected, actual
     ProtocolByteError(&'static str, usize, u8, u8),
     ReadError,
@@ -71,7 +70,6 @@ impl core::fmt::Display for CommError {
         let msg = match self {
             Self::Failed => "Operation failed",
             Self::BufferError => "Buffer error",
-            Self::VectorCapacityError => "Vector capacity error",
             Self::ProtocolByteError(loc, byte, expected, actual) => {
                 return write!(
                     f,
@@ -99,7 +97,6 @@ impl defmt::Format for CommError {
         match self {
             Self::Failed => defmt::write!(f, "Operation failed"),
             Self::BufferError => defmt::write!(f, "Buffer error"),
-            Self::VectorCapacityError => defmt::write!(f, "Vector capacity error"),
             Self::ProtocolByteError(loc, byte, expected, actual) => {
                 defmt::write!(
                     f,
