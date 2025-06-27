@@ -83,15 +83,8 @@ impl core::fmt::Display for CommError {
             Self::WriteError => "Write error",
             Self::BufferReadError => "Buffer read error",
             Self::UnexpectedAddressFamily => "Unexpected address family",
-            Self::Utf8Error(err) => {
-                return write!(
-                    f,
-                    "UTF-8 error: invalid sequence at position {}, error length: {:?}",
-                    err.valid_up_to(),
-                    err.error_len()
-                )
-            }
-            Self::CapacityError(_) => return write!(f, "Capacity error: array full"),
+            Self::Utf8Error(err) => return write!(f, "UTF-8 error: {}", err),
+            Self::CapacityError(err) => return write!(f, "Capacity error: {}", err),
             Self::BootRomStart => "WiFi module boot ROM start failed",
             Self::FirmwareStart => "WiFi module firmware start failed",
             Self::HifSendFailed => "HIF send failed",
