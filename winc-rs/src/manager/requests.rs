@@ -44,7 +44,7 @@ pub fn write_connect_request(
     credentials: &Credentials,
     channel: WifiChannel,
     dont_save_creds: bool,
-) -> Result<[u8; 108], BufferOverflow> {
+) -> Result<[u8; CONNECT_AP_PACKET_SIZE], BufferOverflow> {
     let mut result = [0u8; CONNECT_AP_PACKET_SIZE];
     let mut slice = result.as_mut_slice();
 
