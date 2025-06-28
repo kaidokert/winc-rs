@@ -16,8 +16,13 @@
 pub const MAX_SSID_LEN: usize = 32;
 /// Length for 104 bit string passpharase.
 pub(crate) const MAX_WEP_KEY_LEN: usize = 26;
+#[cfg(feature = "wep")]
+/// Length for 40 bit string passpharase.
+pub(crate) const MIN_WEP_KEY_LEN: usize = 10;
 /// Maximum length for the WPA PSK Key.
 pub const MAX_PSK_KEY_LEN: usize = 63;
+/// Minimum length for the WPA PSK Key.
+pub(crate) const MIN_PSK_KEY_LEN: usize = 8;
 /// Maximum length for device domain name for provisioning mode.
 pub const MAX_HOST_NAME_LEN: usize = 63;
 /// Packet size of the Start Provisioning Mode request.

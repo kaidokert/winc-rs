@@ -18,11 +18,11 @@ use arrayvec::ArrayString;
 
 use super::constants::{
     AuthType, WifiChannel, MAX_HOST_NAME_LEN, MAX_PSK_KEY_LEN, MAX_S802_PASSWORD_LEN,
-    MAX_S802_USERNAME_LEN, MAX_SSID_LEN, MAX_WEP_KEY_LEN,
+    MAX_S802_USERNAME_LEN, MAX_SSID_LEN, MAX_WEP_KEY_LEN, MIN_PSK_KEY_LEN,
 };
 
 #[cfg(feature = "wep")]
-use super::constants::WepKeyIndex;
+use super::constants::{WepKeyIndex, MIN_WEP_KEY_LEN};
 use core::net::Ipv4Addr;
 
 /// Default IP address "192.168.1.1" for access point and provisioning mode.
@@ -109,6 +109,7 @@ impl From<Credentials> for u8 {
 }
 
 impl Credentials {
+    /// Get the length of password stored in the Credentials.
     pub fn key_len(&self) -> usize {
         match self {
             Credentials::Open => 0,
@@ -117,6 +118,65 @@ impl Credentials {
             Credentials::WpaPSK(key) => key.len(),
             Credentials::S802_1X(_, key) => key.len(),
         }
+    }
+
+    /// Generates WPA-PSK credentials from a password.
+    ///
+    /// # Arguments
+    ///
+    /// * `password` - The WPA-PSK passphrase. Must be at least 8 bytes and no more than 63 bytes long.
+    ///
+    /// # Returns
+    ///
+    /// * `Credentials::WpaPSK` - Configured WPA-PSK credentials on success.
+    /// * `StackError` - If any parameter validation fails.
+    pub fn from_wpa(password: &str) -> Result<Self, StackError> {
+        if password.len() < MIN_PSK_KEY_LEN {
+            return Err(StackError::InvalidParameters);
+        }
+
+        WpaKey::from(password)
+            .map(Self::WpaPSK)
+            .map_err(|_| StackError::InvalidParameters)
+    }
+
+    /// Generates 802.1X credentials from a username and password.
+    ///
+    /// # Arguments
+    ///
+    /// * `username` - The RADIUS server username. Must not exceed 20 bytes.
+    /// * `password` - The RADIUS server password. Must not exceed 40 bytes.
+    ///
+    /// # Returns
+    ///
+    /// * `Credentials::S802_1X` - Configured 802.1X credentials on success.
+    /// * `StackError` - If any parameter validation fails.
+    pub fn from_s802(username: &str, password: &str) -> Result<Self, StackError> {
+        let username = S8Username::from(username).map_err(|_| StackError::InvalidParameters)?;
+        let password = S8Password::from(password).map_err(|_| StackError::InvalidParameters)?;
+        Ok(Self::S802_1X(username, password))
+    }
+
+    #[cfg(feature = "wep")]
+    /// Generates WEP credentials from a WEP key and key index.
+    ///
+    /// # Arguments
+    ///
+    /// * `key` - The WEP key. Must be 10 bytes for 40-bit or 26 bytes for 104-bit.
+    /// * `key_index` - The index of the WEP key to use.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(Credentials::WEP)` - Configured WEP credentials on success.
+    /// * `Err(StackError)` - If parameter validation fails.
+    pub fn from_wep(key: &str, key_index: WepKeyIndex) -> Result<Self, StackError> {
+        if key.len() != MAX_WEP_KEY_LEN && key.len() != MIN_WEP_KEY_LEN {
+            return Err(StackError::InvalidParameters);
+        }
+
+        WepKey::from(key)
+            .map(|key| Credentials::Wep(key, key_index))
+            .map_err(|_| StackError::InvalidParameters)
     }
 }
 
@@ -380,5 +440,93 @@ mod tests {
         ap.set_ssid_hidden(true);
 
         assert_eq!(ap.ssid_hidden, true);
+    }
+
+    #[test]
+    fn test_wpa_credentials_with_short_password() {
+        let result = Credentials::from_wpa("pass");
+        assert_eq!(result.err(), Some(StackError::InvalidParameters));
+    }
+
+    #[test]
+    fn test_wpa_credentials_with_long_password() {
+        let long_password = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+        let result = Credentials::from_wpa(long_password);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_wpa_credentials_with_valid_password() {
+        let result = Credentials::from_wpa("ABCDEFGHIJKLM");
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_s802_credentials_invalid_username() {
+        let username = "abcdefghijklmnopqrst123";
+        let password = "abcdefghijklmnopqrstuvwxyz1234567890ABCD";
+        let result = Credentials::from_s802(username, password);
+        assert_eq!(result.err(), Some(StackError::InvalidParameters));
+    }
+
+    #[test]
+    fn test_s802_credentials_invalid_password() {
+        let username = "abcdefghijklmnopqrst";
+        let password = "abcdefghijklmnopqrstuvwxyz1234567890ABC123D";
+        let result = Credentials::from_s802(username, password);
+        assert_eq!(result.err(), Some(StackError::InvalidParameters));
+    }
+
+    #[test]
+    fn test_s802_credentials_valid() {
+        let username = "abcdefghijklmnopqrst";
+        let password = "abcdefghijklmnopqrstuvwxyz1234567890ABCD";
+        let result = Credentials::from_s802(username, password);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_s802_key_len() {
+        let username = "abcdefghijklmnopqrst";
+        let password = "abcdefghijklmnopqrstuvwxyz1234567890ABCD";
+        let result = Credentials::from_s802(username, password);
+        assert!(result.is_ok());
+
+        assert_eq!(result.unwrap().key_len(), password.len());
+    }
+
+    #[test]
+    fn test_s802_auth_type() {
+        let username = "abcdefghijklmnopqrst";
+        let password = "abcdefghijklmnopqrstuvwxyz1234567890ABCD";
+        let result = Credentials::from_s802(username, password);
+        assert!(result.is_ok());
+
+        let s802_auth: u8 = result.unwrap().into();
+
+        assert_eq!(s802_auth, <AuthType as Into<u8>>::into(AuthType::S802_1X));
+    }
+
+    #[cfg(feature = "wep")]
+    #[test]
+    fn test_wep_credentials_with_small_key() {
+        let result = Credentials::from_wep("ABCDEFG", WepKeyIndex::Key1);
+        assert!(result.is_err());
+    }
+
+    #[cfg(feature = "wep")]
+    #[test]
+    fn test_wep_credentials_with_large_key() {
+        let long_password = "ABCDEFGlmnopqrstuvwxyz0123456789+/";
+        let result = Credentials::from_wep(long_password, WepKeyIndex::Key2);
+        assert!(result.is_err());
+    }
+
+    #[cfg(feature = "wep")]
+    #[test]
+    fn test_wep_credentials_with_104_bit_key() {
+        let key = "0123456789ABCDEF0123456789";
+        let result = Credentials::from_wep(key, WepKeyIndex::Key3);
+        assert!(result.is_ok());
     }
 }

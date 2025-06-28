@@ -8,7 +8,7 @@ use feather::{
 
 use wincwifi::Handle;
 
-use wincwifi::{Credentials, Ssid, WifiChannel, WincClient, WpaKey};
+use wincwifi::{Credentials, Ssid, WifiChannel, WincClient};
 
 use crate::{DEFAULT_TEST_PASSWORD, DEFAULT_TEST_SSID};
 
@@ -75,15 +75,14 @@ pub fn connect_and_run(
         debug!("Chip started..");
 
         let ssid = Ssid::from(option_env!("TEST_SSID").unwrap_or(DEFAULT_TEST_SSID)).unwrap();
-        let password =
-            WpaKey::from(option_env!("TEST_PASSWORD").unwrap_or(DEFAULT_TEST_PASSWORD)).unwrap();
-        let credentials = Credentials::WpaPSK(password);
+        let password = option_env!("TEST_PASSWORD").unwrap_or(DEFAULT_TEST_PASSWORD);
+        let credentials = Credentials::from_wpa(password)?;
 
         for _ in 0..10 {
             delay_ms(50);
             stack.heartbeat()?;
         }
-        debug!("Connecting to AP.. {} {}", ssid.as_str(), password.as_str());
+        debug!("Connecting to AP.. {} {}", ssid.as_str(), password);
         nb::block!(stack.connect_to_ap(&ssid, &credentials, WifiChannel::ChannelAll, false))?;
 
         debug!("Getting IP settings..");

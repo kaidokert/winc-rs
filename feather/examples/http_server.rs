@@ -14,7 +14,7 @@ use feather::{debug, error, info};
 const DEFAULT_TEST_SSID: &str = "network";
 const DEFAULT_TEST_PASSWORD: &str = "password";
 
-use wincwifi::{Credentials, Ssid, StackError, WifiChannel, WincClient, WpaKey};
+use wincwifi::{Credentials, Ssid, StackError, WifiChannel, WincClient};
 
 use demos::http_server;
 
@@ -30,13 +30,12 @@ fn program() -> Result<(), StackError> {
         let mut delay_ms = delay_fn(&mut cnt.0);
 
         let ssid = Ssid::from(option_env!("TEST_SSID").unwrap_or(DEFAULT_TEST_SSID)).unwrap();
-        let password =
-            WpaKey::from(option_env!("TEST_PASSWORD").unwrap_or(DEFAULT_TEST_PASSWORD)).unwrap();
-        let credentials = Credentials::WpaPSK(password);
+        let password = option_env!("TEST_PASSWORD").unwrap_or(DEFAULT_TEST_PASSWORD);
+        let credentials = Credentials::from_wpa(password)?;
         info!(
             "Connecting to network: {} with password: {}",
             ssid.as_str(),
-            password.as_str()
+            password
         );
         let mut stack = WincClient::new(SpiStream::new(ini.cs, ini.spi));
 
