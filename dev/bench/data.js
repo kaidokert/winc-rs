@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1751070905706,
+  "lastUpdate": 1751135722529,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -3110,6 +3110,40 @@ window.BENCHMARK_DATA = {
           {
             "name": "http_server",
             "value": 52448,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 67912,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "142439476+umarbinzahid@users.noreply.github.com",
+            "name": "Umar Bin Zahid",
+            "username": "umarbinzahid"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "fcedefdaeca599098c6eefeec5fbfbfbc8e99fa4",
+          "message": "Support for network security types in client mode.  (#91)\n\nThis PR adds the following changes:\n\n    Add support for other Wi-Fi security modes for connecting to the access point.\n    Bug fix for the scan mode.\n    Added APIs to generate credentials for the required authentication and added the relevant test cases as well",
+          "timestamp": "2025-06-28T11:34:18-07:00",
+          "tree_id": "1f902b2b9c415d109193aef40df326d775506bb5",
+          "url": "https://github.com/kaidokert/winc-rs/commit/fcedefdaeca599098c6eefeec5fbfbfbc8e99fa4"
+        },
+        "date": 1751135722248,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 52512,
             "unit": "byte"
           },
           {
