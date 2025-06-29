@@ -896,10 +896,6 @@ impl<X: Xfer> Manager<X> {
 
     /// Sends a request to disable Access Point mode.
     ///
-    /// # Arguments
-    ///
-    /// * `ap` - Configuration parameters for the access point, including SSID, password, authentication type, etc.
-    ///
     /// # Returns
     ///
     /// * `()` - If the request is successfully sent.

@@ -291,7 +291,7 @@ impl EventListener for SocketCallbacks {
         match self.connection_state.conn_state {
             WifiConnState::Connected => {
                 if self.state != WifiModuleState::Provisioning
-                    || self.state != WifiModuleState::AccessPoint
+                    && self.state != WifiModuleState::AccessPoint
                 {
                     self.state = WifiModuleState::ConnectedToAp;
                 }
@@ -304,7 +304,7 @@ impl EventListener for SocketCallbacks {
                         self.connection_state.conn_state, self.connection_state.conn_error
                     );
                 } else if self.state != WifiModuleState::Provisioning
-                    || self.state != WifiModuleState::AccessPoint
+                    && self.state != WifiModuleState::AccessPoint
                 {
                     self.state = WifiModuleState::Unconnected;
                 }
