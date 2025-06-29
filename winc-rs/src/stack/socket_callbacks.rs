@@ -36,6 +36,7 @@ pub(crate) enum WifiModuleState {
     ConnectionFailed,
     Disconnecting,
     Provisioning,
+    AccessPoint,
 }
 
 /// Ping operation results
@@ -289,7 +290,9 @@ impl EventListener for SocketCallbacks {
 
         match self.connection_state.conn_state {
             WifiConnState::Connected => {
-                if self.state != WifiModuleState::Provisioning {
+                if self.state != WifiModuleState::Provisioning
+                    || self.state != WifiModuleState::AccessPoint
+                {
                     self.state = WifiModuleState::ConnectedToAp;
                 }
             }
@@ -300,7 +303,9 @@ impl EventListener for SocketCallbacks {
                         "on_connstate_changed FAILED: {:?} {:?}",
                         self.connection_state.conn_state, self.connection_state.conn_error
                     );
-                } else if self.state != WifiModuleState::Provisioning {
+                } else if self.state != WifiModuleState::Provisioning
+                    || self.state != WifiModuleState::AccessPoint
+                {
                     self.state = WifiModuleState::Unconnected;
                 }
             }

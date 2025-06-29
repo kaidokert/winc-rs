@@ -871,6 +871,49 @@ impl<X: Xfer> Manager<X> {
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
     }
 
+    /// Sends a request to enable Access Point mode.
+    ///
+    /// # Arguments
+    ///
+    /// * `ap` - Configuration parameters for the access point, including SSID, password, authentication type, etc.
+    ///
+    /// # Returns
+    ///
+    /// * `()` - If the request is successfully sent.
+    /// * `Error` - If an error occurs during packet preparation or sending.
+    pub fn send_enable_access_point(&mut self, ap: &AccessPoint) -> Result<(), Error> {
+        let req = write_en_ap_req(ap)?;
+        self.write_hif_header(
+            HifGroup::Wifi(WifiResponse::Unhandled),
+            WifiRequest::EnableAp,
+            &req,
+            true,
+        )?;
+        self.chip
+            .dma_block_write(self.not_a_reg_ctrl_4_dma + HIF_HEADER_OFFSET as u32, &req)?;
+        self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
+    }
+
+    /// Sends a request to disable Access Point mode.
+    ///
+    /// # Arguments
+    ///
+    /// * `ap` - Configuration parameters for the access point, including SSID, password, authentication type, etc.
+    ///
+    /// # Returns
+    ///
+    /// * `()` - If the request is successfully sent.
+    /// * `Error` - If an error occurs during packet preparation or sending.
+    pub fn send_disable_access_point(&mut self) -> Result<(), Error> {
+        self.write_hif_header(
+            HifGroup::Wifi(WifiResponse::Unhandled),
+            WifiRequest::DisableAp,
+            &[],
+            false,
+        )?;
+        self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
+    }
+
     pub fn dispatch_events_may_wait<T: EventListener>(
         &mut self,
         listener: &mut T,
@@ -1063,6 +1106,8 @@ impl<X: Xfer> Manager<X> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use constants::ENABLE_AP_PACKET_SIZE;
 
     #[test]
     fn test_hif_header() {
@@ -1298,7 +1343,7 @@ mod tests {
 
         assert_eq!(mgr.send_prng(0x2000_65DC, 16), Ok(()));
 
-        assert_eq!(buff[CMD_OFFSET], 0x1F);
+        assert_eq!(buff[CMD_OFFSET], WifiRequest::GetPrng.into());
 
         let slice = &buff[DATA_OFFSET..DATA_OFFSET + PRNG_PACKET_SIZE];
 
@@ -1310,5 +1355,57 @@ mod tests {
                 0x00, 0x00 // void
             ]
         )
+    }
+
+    #[test]
+    fn test_send_enable_ap() {
+        let mut buff = [0u8; 300];
+        let mut writer = buff.as_mut_slice();
+        let mut mgr = make_manager(&mut writer);
+        let ssid = Ssid::from("ssid").unwrap();
+        let key = WpaKey::from("password").unwrap();
+        let ap = AccessPoint::wpa(&ssid, &key);
+
+        assert_eq!(mgr.send_enable_access_point(&ap), Ok(()));
+
+        assert_eq!(buff[CMD_OFFSET], WifiRequest::EnableAp.into());
+
+        let slice = &buff[DATA_OFFSET..DATA_OFFSET + ENABLE_AP_PACKET_SIZE];
+
+        assert_eq!(
+            slice,
+            &[
+                // Ssid
+                0x73, 0x73, 0x69, 0x64, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x01, // Wifi Channel
+                0x00, // Wep Key Index
+                0x08, // Wep/WPA Key Size
+                // Wep Key
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x02, // Security Type
+                0x00, // SSID Hidden
+                0xC0, 0xA8, 0x01, 0x01, // AP IP
+                // WPA Key
+                0x70, 0x61, 0x73, 0x73, 0x77, 0x6F, 0x72, 0x64, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Padding
+                0x00, 0x00
+            ]
+        )
+    }
+
+    #[test]
+    fn test_send_disable_ap() {
+        let mut buff = [0u8; 73];
+        let mut writer = buff.as_mut_slice();
+        let mut mgr = make_manager(&mut writer);
+
+        assert_eq!(mgr.send_disable_access_point(), Ok(()));
+
+        assert_eq!(buff[CMD_OFFSET], WifiRequest::DisableAp.into());
     }
 }

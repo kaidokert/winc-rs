@@ -45,7 +45,7 @@
 //! // spi: something that implements the protocol transfer
 //! let mut client = WincClient::new(spi);
 //! let ssid = Ssid::from("ssid").unwrap();
-//! let key = Credentials::WpaPSK(WpaKey::from("password").unwrap());
+//! let key = Credentials::from_wpa("password").unwrap();
 //! nb::block!(client.start_wifi_module());
 //! nb::block!(client.connect_to_ap(&ssid, &key, WifiChannel::ChannelAll, false));
 //! nb::block!(client.get_host_by_name("google.com", AddrType::IPv4));

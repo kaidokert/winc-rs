@@ -20,7 +20,8 @@ use crate::socket::Socket;
 use core::net::{Ipv4Addr, SocketAddrV4};
 
 use super::constants::{
-    AuthType, WifiChannel, CONNECT_AP_PACKET_SIZE, START_PROVISION_PACKET_SIZE,
+    AuthType, WifiChannel, CONNECT_AP_PACKET_SIZE, ENABLE_AP_PACKET_SIZE,
+    START_PROVISION_PACKET_SIZE,
 };
 
 use super::net_types::{Ssid, WepKey};
@@ -372,6 +373,74 @@ pub fn write_start_provisioning_req(
     Ok(req)
 }
 
+/// Prepares the packet to enable the access point mode.
+///
+/// # Arguments
+///
+/// * `ap` - An `AccessPoint` struct containing the SSID, passphrase, and other network details.
+///
+/// # Returns
+///
+/// * `[u8; ENABLE_AP_PACKET_SIZE])` - The access point mode request packet as a fixed-size byte array.
+/// * `BufferOverflow` - If the input data exceeds allowed size or the buffer limit.
+pub fn write_en_ap_req(ap: &AccessPoint) -> Result<[u8; ENABLE_AP_PACKET_SIZE], BufferOverflow> {
+    let mut req = [0u8; ENABLE_AP_PACKET_SIZE];
+    let mut slice = req.as_mut_slice();
+
+    // Set parameters for WEP
+    let wep_key_index: u8;
+    let wep_key: WepKey;
+    #[cfg(feature = "wep")]
+    {
+        if let Credentials::Wep(key, index) = ap.key {
+            wep_key_index = index.into();
+            wep_key = key;
+        } else {
+            wep_key_index = 0;
+            wep_key = WepKey::new();
+        }
+    }
+
+    #[cfg(not(feature = "wep"))]
+    {
+        wep_key_index = 0;
+        wep_key = WepKey::new();
+    }
+
+    // Set parameters for WPA-PSK
+    let wpa_key = if let Credentials::WpaPSK(key) = ap.key {
+        key
+    } else {
+        WpaKey::new()
+    };
+
+    // dhcp
+    let dhcp: u32 = ap.ip.into();
+
+    // SSID (33 bytes)
+    slice.write(ap.ssid.as_bytes())?;
+    slice = &mut req[33..];
+    // WiFi channel (1 byte)
+    slice.write(&[(ap.channel).into()])?;
+    // Wep key Index (1 byte)
+    slice.write(&[wep_key_index])?;
+    // Wep/WPA key size (1 byte)
+    slice.write(&[ap.key.key_len() as u8])?;
+    // Wep key (27 bytes)
+    slice.write(wep_key.as_bytes())?;
+    slice = &mut req[63..];
+    // Security type (1 byte)
+    slice.write(&[(ap.key).into()])?;
+    // SSID visibility (1 byte)
+    slice.write(&[ap.ssid_hidden as u8])?;
+    // dhcp server (4 byte)
+    slice.write(&dhcp.to_be_bytes())?;
+    // WPA key (65 byte)
+    slice.write(wpa_key.as_bytes())?;
+
+    Ok(req)
+}
+
 #[cfg(test)]
 mod tests {
     use crate::{S8Password, S8Username, Ssid};
@@ -639,5 +708,27 @@ mod tests {
         let result = write_start_provisioning_req(&access_point, &hostname, false).unwrap();
 
         assert_eq!(result, valid_req);
+    }
+
+    #[test]
+    fn test_write_en_ap_req() {
+        let valid_req: [u8; ENABLE_AP_PACKET_SIZE] = [
+            /* Ssid */ 116, 101, 115, 116, 95, 115, 115, 105, 100, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, /* Wifi Channel */ 1,
+            /* Wep key Index */ 0, /* Wep/Wpa Key Size */ 13, /* Wep key */ 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            /* Security Type */ 2, /* ssid hidden */ 0, /* DHCP Server */ 0xC0,
+            0xA8, 0x01, 0x01, /* WPA Key */ 116, 101, 115, 116, 95, 112, 97, 115, 115, 119,
+            111, 114, 100, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            /* padding */ 0, 0,
+        ];
+        let ap_ssid = Ssid::from("test_ssid").unwrap();
+        let psk = WpaKey::from("test_password").unwrap();
+        let access_point = AccessPoint::wpa(&ap_ssid, &psk);
+
+        let result = write_en_ap_req(&access_point);
+
+        assert_eq!(result.ok(), Some(valid_req))
     }
 }

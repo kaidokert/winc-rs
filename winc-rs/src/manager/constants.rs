@@ -35,6 +35,8 @@ pub const MAX_S802_PASSWORD_LEN: usize = 40;
 pub const MAX_S802_USERNAME_LEN: usize = 20;
 /// Packet size of connect request packet.
 pub(crate) const CONNECT_AP_PACKET_SIZE: usize = 108;
+/// Packet size of enable access point request.
+pub(crate) const ENABLE_AP_PACKET_SIZE: usize = 136;
 
 pub enum Regs {
     SpiConfig = 0xE824,
@@ -197,6 +199,14 @@ pub enum WifiRequest {
     SendWifiPacket = 0x38,   // M2M_WIFI_REQ_SEND_WIFI_PACKET + tstrM2MWifiTxPacketInfo + data
     LsnInt = 0x39,           // M2M_WIFI_REQ_LSN_INT + tstrM2mLsnInt
     Doze = 0x3A,             // M2M_WIFI_REQ_DOZE + tstrM2mSlpReqTime
+    EnableAp = 0x46,         // M2M_WIFI_REQ_ENABLE_AP + tstrM2MAPConfig
+    DisableAp = 0x47,        // M2M_WIFI_REQ_DISABLE_AP
+}
+
+impl From<WifiRequest> for u8 {
+    fn from(val: WifiRequest) -> Self {
+        val as Self
+    }
 }
 
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]

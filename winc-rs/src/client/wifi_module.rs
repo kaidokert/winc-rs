@@ -77,10 +77,7 @@ impl<X: Xfer> WincClient<'_, X> {
         connect_fn: impl FnOnce(&mut Self) -> Result<(), crate::errors::CommError>,
     ) -> nb::Result<(), StackError> {
         match self.callbacks.state {
-            WifiModuleState::Reset | WifiModuleState::Starting | WifiModuleState::Disconnecting => {
-                Err(nb::Error::Other(StackError::InvalidState))
-            }
-            WifiModuleState::Unconnected | WifiModuleState::Provisioning => {
+            WifiModuleState::Unconnected => {
                 self.operation_countdown = AP_CONNECT_TIMEOUT_MILLISECONDS;
                 self.callbacks.state = WifiModuleState::ConnectingToAp;
                 connect_fn(self).map_err(|x| nb::Error::Other(StackError::WincWifiFail(x)))?;
@@ -110,6 +107,7 @@ impl<X: Xfer> WincClient<'_, X> {
                 info!("connect_to_ap: got Connected to AP");
                 Ok(())
             }
+            _ => Err(nb::Error::Other(StackError::InvalidState)),
         }
     }
 
@@ -427,6 +425,53 @@ impl<X: Xfer> WincClient<'_, X> {
 
         // change the state to unconnected
         self.callbacks.state = WifiModuleState::Unconnected;
+        Ok(())
+    }
+
+    /// Enable the Access Point mode.
+    ///
+    /// # Arguments
+    ///
+    /// * `ap` - An `AccessPoint` struct containing the SSID, password, and other network details.
+    ///
+    /// # Returns
+    ///
+    /// * `()` - Access point mode is successfully enabled.
+    /// * `StackError` - If an error occurs while enabling access point mode.
+    pub fn enable_access_point(&mut self, ap: &AccessPoint) -> Result<(), StackError> {
+        if self.callbacks.state == WifiModuleState::Unconnected {
+            let auth: AuthType = ap.key.into();
+            if auth == AuthType::S802_1X {
+                error!("Enterprise Security is not supported in access point mode");
+                return Err(StackError::InvalidParameters);
+            }
+            self.manager
+                .send_enable_access_point(ap)
+                .map_err(StackError::WincWifiFail)?;
+            self.callbacks.state = WifiModuleState::AccessPoint;
+        } else {
+            return Err(StackError::InvalidState);
+        }
+
+        Ok(())
+    }
+
+    /// Disable the Access Point mode.
+    ///
+    /// # Returns
+    ///
+    /// * `()` - Access point mode is successfully disbaled.
+    /// * `StackError` - If an error occurs while disabling access point mode.
+    pub fn disable_access_point(&mut self) -> Result<(), StackError> {
+        if self.callbacks.state == WifiModuleState::AccessPoint {
+            self.manager
+                .send_disable_access_point()
+                .map_err(StackError::WincWifiFail)?;
+            self.callbacks.state = WifiModuleState::Unconnected;
+        } else {
+            return Err(StackError::InvalidState);
+        }
+
         Ok(())
     }
 }
@@ -892,5 +937,76 @@ mod tests {
         let result = client.stop_provisioning_mode();
 
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_enable_access_point_success() {
+        // test client
+        let mut client = make_test_client();
+        // set the module state to unconnected.
+        client.callbacks.state = WifiModuleState::Unconnected;
+        let ssid = Ssid::from("ssid").unwrap();
+        let ap = AccessPoint::open(&ssid);
+        let result = client.enable_access_point(&ap);
+
+        assert!(result.is_ok());
+        assert_eq!(client.callbacks.state, WifiModuleState::AccessPoint);
+    }
+
+    #[test]
+    fn test_enable_access_point_invalid_security() {
+        // test client
+        let mut client = make_test_client();
+        // set the module state to unconnected.
+        client.callbacks.state = WifiModuleState::Unconnected;
+        let ssid = Ssid::from("ssid").unwrap();
+        let key = Credentials::from_s802("username", "password").unwrap();
+        let ap = AccessPoint {
+            ssid: &ssid,
+            key: key,
+            channel: WifiChannel::Channel1,
+            ssid_hidden: false,
+            ip: Ipv4Addr::new(192, 168, 1, 1),
+        };
+        let result = client.enable_access_point(&ap);
+
+        assert_eq!(result.err(), Some(StackError::InvalidParameters));
+    }
+
+    #[test]
+    fn test_enable_access_point_invalid_state() {
+        // test client
+        let mut client = make_test_client();
+        // set the module state to unconnected.
+        client.callbacks.state = WifiModuleState::Provisioning;
+        let ssid = Ssid::from("ssid").unwrap();
+        let ap = AccessPoint::open(&ssid);
+        let result = client.enable_access_point(&ap);
+
+        assert_eq!(result.err(), Some(StackError::InvalidState));
+    }
+
+    #[test]
+    fn test_disable_access_point_success() {
+        // test client
+        let mut client = make_test_client();
+        // set the module state to unconnected.
+        client.callbacks.state = WifiModuleState::AccessPoint;
+
+        let result = client.disable_access_point();
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_disable_access_point_fail() {
+        // test client
+        let mut client = make_test_client();
+        // set the module state to unconnected.
+        client.callbacks.state = WifiModuleState::Unconnected;
+
+        let result = client.disable_access_point();
+
+        assert_eq!(result.err(), Some(StackError::InvalidState));
     }
 }
