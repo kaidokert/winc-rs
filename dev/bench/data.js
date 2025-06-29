@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1751135722529,
+  "lastUpdate": 1751236144683,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -3149,6 +3149,40 @@ window.BENCHMARK_DATA = {
           {
             "name": "iperf3_client",
             "value": 67912,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "142439476+umarbinzahid@users.noreply.github.com",
+            "name": "Umar Bin Zahid",
+            "username": "umarbinzahid"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "77f3dd8973f2d0ee9015c25cde7965b4254bac4b",
+          "message": "Support for the Access Point mode. (#93)\n\n* Added support for the Access Point mode.",
+          "timestamp": "2025-06-29T15:28:02-07:00",
+          "tree_id": "6ebb7e424eaa3d986b08cb7b325bf321b8da51f8",
+          "url": "https://github.com/kaidokert/winc-rs/commit/77f3dd8973f2d0ee9015c25cde7965b4254bac4b"
+        },
+        "date": 1751236144156,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 52504,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 67932,
             "unit": "byte"
           }
         ]
