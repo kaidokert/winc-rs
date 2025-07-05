@@ -47,7 +47,7 @@ impl<X: Xfer> WincClient<'_, X> {
 
     const TCP_SOCKET_BACKLOG: u8 = 4;
     const LISTEN_TIMEOUT: u32 = 100;
-    const BIND_TIMEOUT: u32 = 100;
+    const BIND_TIMEOUT: u32 = 2000;
     // This only impacts for interval for loops, but doesn't actually
     // cause timeouts, as all calls are non-blocking.
     const CONNECT_TIMEOUT: u32 = 1000;
