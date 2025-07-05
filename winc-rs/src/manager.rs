@@ -820,7 +820,7 @@ impl<X: Xfer> Manager<X> {
         let req = write_ssl_setsockopt_req(socket, option)?;
 
         self.write_hif_header(
-            HifGroup::Ip(IpCode::SetSocketOption),
+            HifGroup::Ip(IpCode::SslSetSockOpt),
             WifiRequest::Restart,
             &req,
             false,

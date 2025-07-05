@@ -39,7 +39,7 @@ impl<X: Xfer> WincClient<'_, X> {
         socket: &Handle,
         option: &SocketOptions,
     ) -> Result<(), StackError> {
-        // Receive timeout are not handled in winc stack not by module.
+        // Receive timeout are handled by winc stack not by module.
         if matches!(
             option,
             SocketOptions::Tcp(TcpSockOpts::ReceiveTimeout(_))
