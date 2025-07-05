@@ -336,7 +336,7 @@ impl SocketOptions {
     /// # Returns
     ///
     /// * `SocketOption::Udp(UdpSockOpts::ReceiveTimeout` - The configured socket option.
-    pub fn set_udp_recieve_timeout(timeout: u32) -> Self {
+    pub fn set_udp_receive_timeout(timeout: u32) -> Self {
         Self::Udp(UdpSockOpts::ReceiveTimeout(timeout))
     }
 
@@ -349,7 +349,7 @@ impl SocketOptions {
     /// # Returns
     ///
     /// * `SocketOption::Tcp(TcpSockOpts::ReceiveTimeout` - The configured socket option.
-    pub fn set_tcp_recieve_timeout(timeout: u32) -> Self {
+    pub fn set_tcp_receive_timeout(timeout: u32) -> Self {
         Self::Tcp(TcpSockOpts::ReceiveTimeout(timeout))
     }
 
@@ -367,8 +367,8 @@ impl SocketOptions {
         if hostname.len() > MAX_HOST_NAME_LEN {
             return Err(StackError::InvalidParameters);
         }
-        let _host = HostName::from(hostname).unwrap();
-        Ok(Self::Tcp(TcpSockOpts::Ssl(SslSockOpts::SetSni(_host))))
+        let host = HostName::from(hostname).map_err(|_| StackError::InvalidParameters)?;
+        Ok(Self::Tcp(TcpSockOpts::Ssl(SslSockOpts::SetSni(host))))
     }
 }
 

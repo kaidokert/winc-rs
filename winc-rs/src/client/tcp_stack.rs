@@ -50,14 +50,22 @@ impl<X: Xfer> WincClient<'_, X> {
 
         match option {
             SocketOptions::Udp(_) => {
-                let (sock, _) = self.callbacks.udp_sockets.get(*socket).unwrap();
+                let (sock, _) = self
+                    .callbacks
+                    .udp_sockets
+                    .get(*socket)
+                    .ok_or(StackError::InvalidParameters)?;
                 self.manager
                     .send_setsockopt(*sock, option)
                     .map_err(StackError::WincWifiFail)?;
             }
 
             SocketOptions::Tcp(opts) => {
-                let (sock, _) = self.callbacks.tcp_sockets.get(*socket).unwrap();
+                let (sock, _) = self
+                    .callbacks
+                    .tcp_sockets
+                    .get(*socket)
+                    .ok_or(StackError::InvalidParameters)?;
 
                 match opts {
                     TcpSockOpts::Ssl(ssl_opts) => {

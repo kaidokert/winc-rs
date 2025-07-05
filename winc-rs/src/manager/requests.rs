@@ -275,7 +275,7 @@ pub fn write_ssl_setsockopt_req(
     let mut slice = result.as_mut_slice();
 
     // get value
-    let value = option.get_value().unwrap();
+    let value = option.get_value().ok_or(BufferOverflow)?;
 
     // Socket Identifier (1 byte) and Socket Option (1 byte)
     slice.write(&[socket.v, (*option).into()])?;
