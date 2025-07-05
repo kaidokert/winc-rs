@@ -7,7 +7,7 @@ use super::StackError;
 use super::WincClient;
 
 use super::Xfer;
-use crate::manager::SocketError;
+use crate::manager::{SocketError, SocketOptions, TcpSockOpts, UdpSockOpts};
 use crate::stack::socket_callbacks::SendRequest;
 use crate::stack::socket_callbacks::{AsyncOp, AsyncState};
 use crate::{debug, info};
@@ -16,17 +16,64 @@ use embedded_nal::nb;
 use crate::stack::sock_holder::SocketStore;
 
 impl<X: Xfer> WincClient<'_, X> {
-    /// Todo: actually implement this
+    fn set_sock_rcv_timeout(
+        &mut self,
+        _socket: &Handle,
+        _option: &SocketOptions,
+    ) -> Result<(), StackError> {
+        todo!()
+    }
+    /// Sets the specified socket option on the given socket.
+    ///
+    /// # Arguments
+    ///
+    /// * `socket` - A handle to the socket to configure.
+    /// * `option` - The socket option to set.
+    ///
+    /// # Returns
+    ///
+    /// * `()` - If the socket option was successfully applied.
+    /// * `StackError` - If an error occurs while applying the socket option.
     pub fn set_socket_option(
         &mut self,
         socket: &Handle,
-        option: u8,
-        value: u32,
+        option: &SocketOptions,
     ) -> Result<(), StackError> {
-        let (sock, _op) = self.callbacks.tcp_sockets.get(*socket).unwrap();
-        self.manager
-            .send_setsockopt(*sock, option, value)
-            .map_err(StackError::WincWifiFail)?;
+        // Receive timeout are not handled in winc stack not by module.
+        if matches!(
+            option,
+            SocketOptions::Tcp(TcpSockOpts::ReceiveTimeout(_))
+                | SocketOptions::Udp(UdpSockOpts::ReceiveTimeout(_))
+        ) {
+            self.set_sock_rcv_timeout(socket, option)?;
+        }
+
+        match option {
+            SocketOptions::Udp(_) => {
+                let (sock, _) = self.callbacks.udp_sockets.get(*socket).unwrap();
+                self.manager
+                    .send_setsockopt(*sock, option)
+                    .map_err(StackError::WincWifiFail)?;
+            }
+
+            SocketOptions::Tcp(opts) => {
+                let (sock, _) = self.callbacks.tcp_sockets.get(*socket).unwrap();
+
+                match opts {
+                    TcpSockOpts::Ssl(ssl_opts) => {
+                        self.manager
+                            .send_ssl_setsockopt(*sock, ssl_opts)
+                            .map_err(StackError::WincWifiFail)?;
+                    }
+                    _ => {
+                        self.manager
+                            .send_setsockopt(*sock, option)
+                            .map_err(StackError::WincWifiFail)?;
+                    }
+                }
+            }
+        }
+
         Ok(())
     }
 }

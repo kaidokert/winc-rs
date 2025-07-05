@@ -33,10 +33,14 @@ pub(crate) const PROVISIONING_INFO_PACKET_SIZE: usize = 100;
 pub const MAX_S802_PASSWORD_LEN: usize = 40;
 /// Maximum username length for the Enterprise mode.
 pub const MAX_S802_USERNAME_LEN: usize = 20;
-/// Packet size of connect request packet.
+/// Packet size of connect request.
 pub(crate) const CONNECT_AP_PACKET_SIZE: usize = 108;
 /// Packet size of enable access point request.
 pub(crate) const ENABLE_AP_PACKET_SIZE: usize = 136;
+/// Packet size to set socket option request.
+pub(crate) const SET_SOCK_OPTS_PACKET_SIZE: usize = 8;
+/// Packet size to set SSL socket option request.
+pub(crate) const SET_SSL_SOCK_OPTS_PACKET_SIZE: usize = 72;
 
 pub enum Regs {
     SpiConfig = 0xE824,
