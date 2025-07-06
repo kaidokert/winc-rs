@@ -37,6 +37,15 @@ pub const MAX_S802_USERNAME_LEN: usize = 20;
 pub(crate) const CONNECT_AP_PACKET_SIZE: usize = 108;
 /// Packet size of enable access point request.
 pub(crate) const ENABLE_AP_PACKET_SIZE: usize = 136;
+/// Maximum size of buffer size for TCP stack.
+pub(crate) const SOCKET_BUFFER_MAX_LENGTH: usize = 1500; // Receive buffer - must handle full MTU from chip (1440+ bytes observed)
+/// Packet Size of get random bytes request.
+pub(crate) const PRNG_PACKET_SIZE: usize = 8;
+// Maximum length supported by the chip in one iteration.
+#[cfg(feature = "large_rng")]
+pub(crate) const PRNG_DATA_LENGTH: usize = 1600 - 4 - PRNG_PACKET_SIZE;
+#[cfg(not(feature = "large_rng"))]
+pub(crate) const PRNG_DATA_LENGTH: usize = 32;
 
 pub enum Regs {
     SpiConfig = 0xE824,
@@ -157,7 +166,8 @@ impl core::fmt::Display for WifiConnState {
     }
 }
 
-#[allow(dead_code)] // Todo: once complete maybe can remove
+/// Wifi Request IDs.
+#[derive(Copy, Clone)]
 pub enum WifiRequest {
     Restart = 0x01,            // implemented
     SetMacAddress = 0x02,      // M2M_WIFI_REQ_SET_MAC_ADDRESS
@@ -232,9 +242,7 @@ pub enum WifiResponse {
     WifiRxPacket,     // M2M_WIFI_RESP_WIFI_RX_PACKET + tstrM2MWifiRxPacketInfo + data
     // MemoryRecover,   // M2M_WIFI_RESP_MEMORY_RECOVER + 4-byte buffer (commented out in code)
     // IpConfigured,    // M2M_WIFI_RESP_IP_CONFIGURED + no specific data (internal use)
-/* No OTA, Crypto and SSL for now
-    OtaNotifUpdateInfo, // M2M_OTA_RESP_NOTIF_UPDATE_INFO + tstrOtaUpdateInfo (OTA mode)
-    OtaUpdateStatus,    // M2M_OTA_RESP_UPDATE_STATUS + tstrOtaUpdateStatusResp (OTA mode)
+/* No Crypto and SSL for now
     CryptoSha256Init,   // M2M_CRYPTO_RESP_SHA256_INIT + tstrCyptoResp (crypto mode)
     CryptoSha256Update, // M2M_CRYPTO_RESP_SHA256_UPDATE + tstrCyptoResp (crypto mode)
     CryptoSha256Finish, // M2M_CRYPTO_RESP_SHA256_FINSIH + tstrCyptoResp (crypto mode, typo in original)
@@ -343,6 +351,51 @@ impl From<u8> for IpCode {
             0x55 => Self::SslExpCheck,
             _ => Self::Unhandled,
         }
+    }
+}
+
+//#[cfg(feature = "ota")]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[derive(Debug, PartialEq, Default)]
+/// OTA HiF Response ID.
+pub enum OtaResponse {
+    #[default]
+    Unhandled,
+    OtaNotifyUpdateInfo = 0x6A, // M2M_OTA_RESP_NOTIF_UPDATE_INFO + tstrOtaUpdateInfo (OTA mode)
+    OtaUpdateStatus = 0x6B,     // M2M_OTA_RESP_UPDATE_STATUS + tstrOtaUpdateStatusResp (OTA mode)
+}
+
+//#[cfg(feature = "ota")]
+impl From<u8> for OtaResponse {
+    fn from(v: u8) -> Self {
+        match v {
+            0x6A => Self::OtaNotifyUpdateInfo,
+            0x6B => Self::OtaUpdateStatus,
+            _ => Self::Unhandled,
+        }
+    }
+}
+
+//#[cfg(feature = "ota")]
+#[derive(Copy, Clone)]
+pub enum OtaRequest {
+    SetUrl = 0x64,                    // M2M_OTA_REQ_NOTIF_SET_URL
+    NotifyUpdate = 0x65,              // M2M_OTA_REQ_NOTIF_CHECK_FOR_UPDATE
+    ScheduleToNotify = 0x66,          // M2M_OTA_REQ_NOTIF_SCHED
+    StartFirmwareUpdate = 0x67,       // M2M_OTA_REQ_START_FW_UPDATE
+    SwitchFirmware = 0x68,            // M2M_OTA_REQ_SWITCH_FIRMWARE
+    RollbackFirmware = 0x69,          // M2M_OTA_REQ_ROLLBACK_FW
+    RequestTest = 0x6C,               // M2M_OTA_REQ_TEST
+    StartCortusFirmwareUpdate = 0x6D, // M2M_OTA_REQ_START_CRT_UPDATE
+    SwitchCortusFrimware = 0x6E,      // M2M_OTA_REQ_SWITCH_CRT_IMG
+    RollbackCortusFirmware = 0x6F,    // M2M_OTA_REQ_ROLLBACK_CRT
+    Abort = 0x70,                     // M2M_OTA_REQ_ABORT
+}
+
+//#[cfg(feature = "ota")]
+impl From<OtaRequest> for u8 {
+    fn from(val: OtaRequest) -> Self {
+        val as u8
     }
 }
 

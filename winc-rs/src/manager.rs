@@ -21,6 +21,7 @@ use crate::transfer::Xfer;
 
 mod chip_access;
 mod constants;
+mod event_listener;
 mod net_types;
 mod requests;
 mod responses;
@@ -29,9 +30,15 @@ use crate::{debug, trace};
 use chip_access::ChipAccess;
 #[cfg(feature = "wep")]
 pub use constants::WepKeyIndex;
+//#[cfg(feature = "ota")]
+pub use constants::OtaRequest;
 pub use constants::{AuthType, PingError, SocketError, WifiChannel, WifiConnError, WifiConnState}; // todo response shouldn't be leaking
-use constants::{IpCode, Regs, WifiResponse};
-use constants::{WifiRequest, PROVISIONING_INFO_PACKET_SIZE};
+use constants::{IpCode, Regs, WifiRequest, WifiResponse};
+
+pub(crate) use constants::{PRNG_DATA_LENGTH, SOCKET_BUFFER_MAX_LENGTH};
+
+//#[cfg(feature = "ota")]
+use constants::OtaResponse;
 
 pub use net_types::{
     AccessPoint, Credentials, HostName, ProvisioningInfo, S8Password, S8Username, Ssid, WpaKey,
@@ -51,11 +58,34 @@ pub use responses::FirmwareInfo;
 
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[derive(Debug, PartialEq, Default)]
-enum HifGroup {
+pub(crate) enum HifGroup {
     #[default]
     Unhandled,
     Wifi(WifiResponse),
     Ip(IpCode),
+    //#[cfg(feature = "ota")]
+    Ota(OtaResponse),
+}
+
+/// HIF Request Group.
+#[derive(Copy, Clone)]
+enum HifRequest {
+    Wifi(WifiRequest),
+    Ip(IpCode),
+    //#[cfg(feature = "ota")]
+    Ota(OtaRequest),
+}
+
+/// Implementation to convert `HifRequest` to `u8` value.
+impl From<HifRequest> for u8 {
+    fn from(v: HifRequest) -> Self {
+        match v {
+            HifRequest::Wifi(_) => 1,
+            HifRequest::Ip(_) => 2,
+            //#[cfg(feature = "ota")]
+            HifRequest::Ota(_) => 4,
+        }
+    }
 }
 
 impl From<[u8; 2]> for HifGroup {
@@ -63,6 +93,8 @@ impl From<[u8; 2]> for HifGroup {
         match v[0] {
             1 => Self::Wifi(v[1].into()),
             2 => Self::Ip(v[1].into()),
+            //#[cfg(feature = "ota")]
+            4 => Self::Ota(v[1].into()),
             _ => Self::Unhandled,
         }
     }
@@ -72,6 +104,8 @@ impl From<HifGroup> for u8 {
         match v {
             HifGroup::Wifi(_) => 1,
             HifGroup::Ip(_) => 2,
+            //#[cfg(feature = "ota")]
+            HifGroup::Ota(_) => 4,
             _ => 0xFF,
         }
     }
@@ -87,17 +121,6 @@ const HIF_HEADER_OFFSET: usize = 8;
 const ETHERNET_HEADER_LENGTH: usize = 14;
 const ETHERNET_HEADER_OFFSET: usize = 34;
 const IP_PACKET_OFFSET: usize = ETHERNET_HEADER_LENGTH + ETHERNET_HEADER_OFFSET; // - HIF_HEADER_OFFSET;
-
-pub const SOCKET_BUFFER_MAX_LENGTH: usize = 1500; // Receive buffer - must handle full MTU from chip (1440+ bytes observed)
-pub const PRNG_PACKET_SIZE: usize = 8;
-
-#[cfg(feature = "large_rng")]
-// Maximum length supported by the chip in one iteration.
-pub(crate) const PRNG_DATA_LENGTH: usize = 1600 - 4 - PRNG_PACKET_SIZE;
-
-#[cfg(not(feature = "large_rng"))]
-pub(crate) const PRNG_DATA_LENGTH: usize = 32;
-
 const HIF_SEND_RETRIES: usize = 1000;
 
 // todo this needs to be used
@@ -467,8 +490,7 @@ impl<X: Xfer> Manager<X> {
     ///
     /// # Arguments
     ///
-    /// * `grp` - Request group ID (e.g., WiFi, IP, OTA, HIF).
-    /// * `opcode` - Operation ID.
+    /// * `req_id` - HIF Request ID (e.g., WiFi, IP, OTA, HIF).
     /// * `payload` - Request/Control Buffer to be sent.
     /// * `data_packet` - Request data from chip or not.
     ///
@@ -478,21 +500,22 @@ impl<X: Xfer> Manager<X> {
     /// * `Error` - if any error occured while preparing or writing HIF header.
     fn write_hif_header(
         &mut self,
-        grp: HifGroup,
-        opcode: WifiRequest,
+        req_id: HifRequest,
         payload: &[u8],
         data_packet: bool,
     ) -> Result<(), Error> {
         // todo: this may depend on offsets
         let pkglen = (payload.len() + HIF_HEADER_OFFSET).to_le_bytes();
         assert_eq!(pkglen[1], 0);
-        // todo: clean this up. Should just be HifGroup 2 bytes
-        let opp = match grp {
-            HifGroup::Wifi(_) => opcode as u8,
-            HifGroup::Ip(code) => code as u8,
-            _ => todo!(),
+        // Request/Opertion ID.
+        let opp = match req_id {
+            HifRequest::Wifi(opcode) => opcode as u8,
+            HifRequest::Ip(opcode) => opcode as u8,
+            //#[cfg(feature = "ota")]
+            HifRequest::Ota(opcode) => opcode as u8,
         };
-        let grpval = grp.into();
+        // Group ID.
+        let grpval = req_id.into();
         self.prep_for_hif_send(
             grpval,
             opp,
@@ -519,12 +542,7 @@ impl<X: Xfer> Manager<X> {
     }
 
     pub fn send_default_connect(&mut self) -> Result<(), Error> {
-        self.write_hif_header(
-            HifGroup::Wifi(WifiResponse::Unhandled),
-            WifiRequest::DefaultConnect,
-            &[],
-            false,
-        )?;
+        self.write_hif_header(HifRequest::Wifi(WifiRequest::DefaultConnect), &[], false)?;
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
     }
 
@@ -549,44 +567,24 @@ impl<X: Xfer> Manager<X> {
         dont_save_credentials: bool,
     ) -> Result<(), Error> {
         let arr = write_connect_request(ssid, credentials, channel, dont_save_credentials)?;
-        self.write_hif_header(
-            HifGroup::Wifi(WifiResponse::Unhandled),
-            WifiRequest::Connect,
-            &arr,
-            false,
-        )?;
+        self.write_hif_header(HifRequest::Wifi(WifiRequest::Connect), &arr, false)?;
         self.chip
             .dma_block_write(self.not_a_reg_ctrl_4_dma + HIF_HEADER_OFFSET as u32, &arr)?;
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
     }
 
     pub fn send_get_current_rssi(&mut self) -> Result<(), Error> {
-        self.write_hif_header(
-            HifGroup::Wifi(WifiResponse::Unhandled),
-            WifiRequest::CurrentRssi,
-            &[],
-            false,
-        )?;
+        self.write_hif_header(HifRequest::Wifi(WifiRequest::CurrentRssi), &[], false)?;
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
     }
 
     pub fn send_get_conn_info(&mut self) -> Result<(), Error> {
-        self.write_hif_header(
-            HifGroup::Wifi(WifiResponse::Unhandled),
-            WifiRequest::GetConnInfo,
-            &[],
-            false,
-        )?;
+        self.write_hif_header(HifRequest::Wifi(WifiRequest::GetConnInfo), &[], false)?;
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
     }
     pub fn send_scan(&mut self, channel: u8, scantime: u16) -> Result<(), Error> {
         let req = write_scan_req(channel, scantime)?;
-        self.write_hif_header(
-            HifGroup::Wifi(WifiResponse::Unhandled),
-            WifiRequest::Scan,
-            &req,
-            false,
-        )?;
+        self.write_hif_header(HifRequest::Wifi(WifiRequest::Scan), &req, false)?;
         self.chip
             .dma_block_write(self.not_a_reg_ctrl_4_dma + HIF_HEADER_OFFSET as u32, &req)?;
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
@@ -594,12 +592,7 @@ impl<X: Xfer> Manager<X> {
 
     pub fn send_get_scan_result(&mut self, index: u8) -> Result<(), Error> {
         let req = [index, 0, 0, 0];
-        self.write_hif_header(
-            HifGroup::Wifi(WifiResponse::Unhandled),
-            WifiRequest::ScanResult,
-            &req,
-            false,
-        )?;
+        self.write_hif_header(HifRequest::Wifi(WifiRequest::ScanResult), &req, false)?;
         self.chip
             .dma_block_write(self.not_a_reg_ctrl_4_dma + HIF_HEADER_OFFSET as u32, &req)?;
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
@@ -615,12 +608,7 @@ impl<X: Xfer> Manager<X> {
         marker: u8,
     ) -> Result<(), Error> {
         let req = write_ping_req(dest, ttl, count, marker)?;
-        self.write_hif_header(
-            HifGroup::Ip(IpCode::Ping),
-            WifiRequest::Restart,
-            &req,
-            false,
-        )?;
+        self.write_hif_header(HifRequest::Ip(IpCode::Ping), &req, false)?;
         self.chip
             .dma_block_write(self.not_a_reg_ctrl_4_dma + HIF_HEADER_OFFSET as u32, &req)?;
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
@@ -629,12 +617,7 @@ impl<X: Xfer> Manager<X> {
     pub fn send_gethostbyname(&mut self, host: &str) -> Result<(), Error> {
         let mut buffer = [0x0u8; 64];
         let req = write_gethostbyname_req(host, &mut buffer)?;
-        self.write_hif_header(
-            HifGroup::Ip(IpCode::DnsResolve),
-            WifiRequest::Restart,
-            req,
-            false,
-        )?;
+        self.write_hif_header(HifRequest::Ip(IpCode::DnsResolve), req, false)?;
         self.chip
             .dma_block_write(self.not_a_reg_ctrl_4_dma + HIF_HEADER_OFFSET as u32, req)?;
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
@@ -642,24 +625,14 @@ impl<X: Xfer> Manager<X> {
     pub fn send_bind(&mut self, socket: Socket, address: SocketAddrV4) -> Result<(), Error> {
         // todo: address family is useless here
         let req = write_bind_req(socket, 2, address)?;
-        self.write_hif_header(
-            HifGroup::Ip(IpCode::Bind),
-            WifiRequest::Restart,
-            &req,
-            false,
-        )?;
+        self.write_hif_header(HifRequest::Ip(IpCode::Bind), &req, false)?;
         self.chip
             .dma_block_write(self.not_a_reg_ctrl_4_dma + HIF_HEADER_OFFSET as u32, &req)?;
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
     }
     pub fn send_listen(&mut self, socket: Socket, backlog: u8) -> Result<(), Error> {
         let req = write_listen_req(socket, backlog)?;
-        self.write_hif_header(
-            HifGroup::Ip(IpCode::Listen),
-            WifiRequest::Restart,
-            &req,
-            false,
-        )?;
+        self.write_hif_header(HifRequest::Ip(IpCode::Listen), &req, false)?;
         self.chip
             .dma_block_write(self.not_a_reg_ctrl_4_dma + HIF_HEADER_OFFSET as u32, &req)?;
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
@@ -671,12 +644,7 @@ impl<X: Xfer> Manager<X> {
         address: SocketAddrV4,
     ) -> Result<(), Error> {
         let req = write_connect_req(socket, 2, address, 0)?;
-        self.write_hif_header(
-            HifGroup::Ip(IpCode::Connect),
-            WifiRequest::Restart,
-            &req,
-            false,
-        )?;
+        self.write_hif_header(HifRequest::Ip(IpCode::Connect), &req, false)?;
         self.chip
             .dma_block_write(self.not_a_reg_ctrl_4_dma + HIF_HEADER_OFFSET as u32, &req)?;
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
@@ -691,12 +659,7 @@ impl<X: Xfer> Manager<X> {
         const UDP_IP_HEADER_LENGTH: usize = 28;
         const UDP_TX_PACKET_OFFSET: usize = IP_PACKET_OFFSET + UDP_IP_HEADER_LENGTH;
         let req = write_sendto_req(socket, 2, address, data.len())?;
-        self.write_hif_header(
-            HifGroup::Ip(IpCode::SendTo),
-            WifiRequest::Restart,
-            &req,
-            true,
-        )?;
+        self.write_hif_header(HifRequest::Ip(IpCode::SendTo), &req, true)?;
         self.chip
             .dma_block_write(self.not_a_reg_ctrl_4_dma + HIF_HEADER_OFFSET as u32, &req)?;
         self.chip.dma_block_write(
@@ -717,7 +680,7 @@ impl<X: Xfer> Manager<X> {
             SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), 0),
             data.len(),
         )?;
-        self.write_hif_header(HifGroup::Ip(IpCode::Send), WifiRequest::Restart, &req, true)?;
+        self.write_hif_header(HifRequest::Ip(IpCode::Send), &req, true)?;
         self.chip
             .dma_block_write(self.not_a_reg_ctrl_4_dma + HIF_HEADER_OFFSET as u32, &req)?;
         self.chip.dma_block_write(
@@ -729,12 +692,7 @@ impl<X: Xfer> Manager<X> {
 
     pub fn send_recv(&mut self, socket: Socket, timeout: u32) -> Result<(), Error> {
         let req = write_recv_req(socket, timeout)?;
-        self.write_hif_header(
-            HifGroup::Ip(IpCode::Recv),
-            WifiRequest::Restart,
-            &req,
-            false,
-        )?;
+        self.write_hif_header(HifRequest::Ip(IpCode::Recv), &req, false)?;
         self.chip
             .dma_block_write(self.not_a_reg_ctrl_4_dma + HIF_HEADER_OFFSET as u32, &req)?;
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
@@ -742,12 +700,7 @@ impl<X: Xfer> Manager<X> {
 
     pub fn send_recvfrom(&mut self, socket: Socket, timeout: u32) -> Result<(), Error> {
         let req = write_recv_req(socket, timeout)?;
-        self.write_hif_header(
-            HifGroup::Ip(IpCode::RecvFrom),
-            WifiRequest::Restart,
-            &req,
-            false,
-        )?;
+        self.write_hif_header(HifRequest::Ip(IpCode::RecvFrom), &req, false)?;
         self.chip
             .dma_block_write(self.not_a_reg_ctrl_4_dma + HIF_HEADER_OFFSET as u32, &req)?;
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
@@ -755,12 +708,7 @@ impl<X: Xfer> Manager<X> {
 
     pub fn send_close(&mut self, socket: Socket) -> Result<(), Error> {
         let req = write_close_req(socket)?;
-        self.write_hif_header(
-            HifGroup::Ip(IpCode::Close),
-            WifiRequest::Restart,
-            &req,
-            false,
-        )?;
+        self.write_hif_header(HifRequest::Ip(IpCode::Close), &req, false)?;
         self.chip
             .dma_block_write(self.not_a_reg_ctrl_4_dma + HIF_HEADER_OFFSET as u32, &req)?;
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
@@ -773,24 +721,14 @@ impl<X: Xfer> Manager<X> {
         value: u32,
     ) -> Result<(), Error> {
         let req = write_setsockopt_req(socket, option, value)?;
-        self.write_hif_header(
-            HifGroup::Ip(IpCode::SetSocketOption),
-            WifiRequest::Restart,
-            &req,
-            false,
-        )?;
+        self.write_hif_header(HifRequest::Ip(IpCode::SetSocketOption), &req, false)?;
         self.chip
             .dma_block_write(self.not_a_reg_ctrl_4_dma + HIF_HEADER_OFFSET as u32, &req)?;
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
     }
 
     pub fn send_disconnect(&mut self) -> Result<(), Error> {
-        self.write_hif_header(
-            HifGroup::Wifi(WifiResponse::Unhandled),
-            WifiRequest::Disconnect,
-            &[],
-            false,
-        )?;
+        self.write_hif_header(HifRequest::Wifi(WifiRequest::Disconnect), &[], false)?;
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
     }
 
@@ -812,12 +750,7 @@ impl<X: Xfer> Manager<X> {
     /// * `Error` - If an error occurred during the PRNG packet request or preparation.
     pub fn send_prng(&mut self, addr: u32, len: u16) -> Result<(), Error> {
         let req = write_prng_req(addr, len)?;
-        self.write_hif_header(
-            HifGroup::Wifi(WifiResponse::Unhandled),
-            WifiRequest::GetPrng,
-            &req,
-            true,
-        )?;
+        self.write_hif_header(HifRequest::Wifi(WifiRequest::GetPrng), &req, true)?;
         self.chip
             .dma_block_write(self.not_a_reg_ctrl_4_dma + HIF_HEADER_OFFSET as u32, &req)?;
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
@@ -845,8 +778,7 @@ impl<X: Xfer> Manager<X> {
     ) -> Result<(), Error> {
         let req = write_start_provisioning_req(ap, hostname, http_redirect)?;
         self.write_hif_header(
-            HifGroup::Wifi(WifiResponse::Unhandled),
-            WifiRequest::StartProvisionMode,
+            HifRequest::Wifi(WifiRequest::StartProvisionMode),
             &req,
             true,
         )?;
@@ -862,12 +794,7 @@ impl<X: Xfer> Manager<X> {
     /// * `()` - If the request is successfully sent.
     /// * `Error` - If an error occurs during packet preparation or transmission.
     pub fn send_stop_provisioning(&mut self) -> Result<(), Error> {
-        self.write_hif_header(
-            HifGroup::Wifi(WifiResponse::Unhandled),
-            WifiRequest::StopProvisionMode,
-            &[],
-            false,
-        )?;
+        self.write_hif_header(HifRequest::Wifi(WifiRequest::StopProvisionMode), &[], false)?;
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
     }
 
@@ -883,12 +810,7 @@ impl<X: Xfer> Manager<X> {
     /// * `Error` - If an error occurs during packet preparation or sending.
     pub fn send_enable_access_point(&mut self, ap: &AccessPoint) -> Result<(), Error> {
         let req = write_en_ap_req(ap)?;
-        self.write_hif_header(
-            HifGroup::Wifi(WifiResponse::Unhandled),
-            WifiRequest::EnableAp,
-            &req,
-            true,
-        )?;
+        self.write_hif_header(HifRequest::Wifi(WifiRequest::EnableAp), &req, true)?;
         self.chip
             .dma_block_write(self.not_a_reg_ctrl_4_dma + HIF_HEADER_OFFSET as u32, &req)?;
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
@@ -901,199 +823,51 @@ impl<X: Xfer> Manager<X> {
     /// * `()` - If the request is successfully sent.
     /// * `Error` - If an error occurs during packet preparation or sending.
     pub fn send_disable_access_point(&mut self) -> Result<(), Error> {
-        self.write_hif_header(
-            HifGroup::Wifi(WifiResponse::Unhandled),
-            WifiRequest::DisableAp,
-            &[],
-            false,
+        self.write_hif_header(HifRequest::Wifi(WifiRequest::DisableAp), &[], false)?;
+        self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
+    }
+
+    //#[cfg(feature = "ota")]
+    /// Send a request to start the OTA update for either winc1500 network stack or cortus processor.
+    ///
+    /// # Arguments
+    ///
+    /// * `server_url` - Server URL from where firware image will be downloaded.
+    /// * `crt_ota` - Whether the OTA update is for cortus processor or winc1500 stack.
+    ///
+    /// # Returns
+    ///
+    /// * `()` - If the request is successfully sent.
+    /// * `Error` - If an error occurs during packet preparation or sending.
+    pub fn send_start_ota_update(&mut self, server_url: &[u8], crt_ota: bool) -> Result<(), Error> {
+        // Check whether request is for Cortus or for network stack.
+        let req_id = if crt_ota {
+            OtaRequest::StartCortusFirmwareUpdate
+        } else {
+            OtaRequest::StartFirmwareUpdate
+        };
+        self.write_hif_header(HifRequest::Ota(req_id), server_url, false)?;
+        self.chip.dma_block_write(
+            self.not_a_reg_ctrl_4_dma + HIF_HEADER_OFFSET as u32,
+            server_url,
         )?;
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
     }
 
-    pub fn dispatch_events_may_wait<T: EventListener>(
-        &mut self,
-        listener: &mut T,
-    ) -> Result<(), Error> {
-        #[cfg(feature = "irq")]
-        self.chip.wait_for_interrupt();
-        self.dispatch_events_new(listener)
-    }
-
-    pub fn dispatch_events_new<T: EventListener>(&mut self, listener: &mut T) -> Result<(), Error> {
-        // clear the interrupt pending register
-        let res = self.is_interrupt_pending()?;
-        if !res.0 {
-            return Ok(());
-        }
-        self.clear_interrupt_pending(res.1)?;
-        let (hif, _len, address) = self.read_hif_header(res.1)?;
-        match hif {
-            HifGroup::Wifi(e) => match e {
-                WifiResponse::CurrentRssi => {
-                    let mut result = [0xff; 4];
-                    self.read_block(address, &mut result)?;
-                    listener.on_rssi(result[0] as i8)
-                }
-                WifiResponse::DefaultConnect => {
-                    let mut def_connect = [0xff; 4];
-                    self.read_block(address, &mut def_connect)?;
-                    listener.on_default_connect(def_connect[0].into())
-                }
-                WifiResponse::DhcpConf => {
-                    let mut result = [0xff; 20];
-                    self.read_block(address, &mut result)?;
-                    listener.on_dhcp(read_dhcp_conf(&result)?)
-                }
-                WifiResponse::ConStateChanged => {
-                    let mut connstate = [0xff; 4];
-                    self.read_block(address, &mut connstate)?;
-                    listener.on_connstate_changed(connstate[0].into(), connstate[1].into());
-                }
-                WifiResponse::ConnInfo => {
-                    let mut conninfo = [0xff; 48];
-                    self.read_block(address, &mut conninfo)?;
-                    listener.on_connection_info(conninfo.into())
-                }
-                WifiResponse::ScanResult => {
-                    let mut result = [0xff; 44];
-                    self.read_block(address, &mut result)?;
-                    listener.on_scan_result(result.into())
-                }
-                WifiResponse::ScanDone => {
-                    let mut result = [0xff; 0x4];
-                    self.read_block(address, &mut result)?;
-                    listener.on_scan_done(result[0], result[1].into())
-                }
-                WifiResponse::ClientInfo => {
-                    unimplemented!("PS mode not yet supported")
-                }
-                // could translate to embedded-time, or core::Duration. No core::Systemtime exists
-                // or chrono::
-                WifiResponse::GetSysTime => {
-                    let mut result = [0xff; 8];
-                    self.read_block(address, &mut result)?;
-                    listener.on_system_time(
-                        (result[1] as u16 * 256u16) + result[0] as u16,
-                        result[2],
-                        result[3],
-                        result[4],
-                        result[5],
-                        result[6],
-                    );
-                }
-                WifiResponse::IpConflict => {
-                    // replies with 4 bytes of conflicted IP
-                    let mut result = [0xff; 4];
-                    self.read_block(address, &mut result)?;
-                    listener.on_ip_conflict(u32::from_be_bytes(result).into());
-                }
-                WifiResponse::ProvisionInfo => {
-                    let mut response = [0u8; PROVISIONING_INFO_PACKET_SIZE];
-                    // read the provisioning info
-                    self.read_block(address, &mut response)?;
-                    let res = read_provisioning_reply(&response)?;
-                    listener.on_provisioning(res.0, res.1, (res.2).into(), res.3);
-                }
-                WifiResponse::GetPrng => {
-                    let mut response = [0; PRNG_DATA_LENGTH];
-                    // read the prng packet
-                    self.read_block(address, &mut response[0..PRNG_PACKET_SIZE])?;
-
-                    let (_, len) = read_prng_reply(&response)?;
-                    // read the random bytes
-                    self.read_block(
-                        address + PRNG_PACKET_SIZE as u32,
-                        &mut response[0..len as usize],
-                    )?;
-                    listener.on_prng(&response[0..len as usize]);
-                }
-                WifiResponse::Unhandled
-                | WifiResponse::Wps
-                | WifiResponse::EthernetRxPacket
-                | WifiResponse::WifiRxPacket => {
-                    panic!("Unhandled Wifi HIF")
-                }
-            },
-            HifGroup::Ip(e) => match e {
-                IpCode::DnsResolve => {
-                    let mut result = [0; 68];
-                    self.read_block(address, &mut result)?;
-                    let rep = read_dns_reply(&result)?;
-                    listener.on_resolve(rep.0, &rep.1);
-                }
-                IpCode::Ping => {
-                    let mut result = [0; 20];
-                    self.read_block(address, &mut result)?;
-                    let rep = read_ping_reply(&result)?;
-                    listener.on_ping(rep.0, rep.1, rep.2, rep.3, rep.4, rep.5)
-                }
-                IpCode::Bind => {
-                    let mut result = [0; 4];
-                    self.read_block(address, &mut result)?;
-                    let rep = read_common_socket_reply(&result)?;
-                    listener.on_bind(rep.0, rep.1);
-                }
-                IpCode::Listen => {
-                    let mut result = [0; 4];
-                    self.read_block(address, &mut result)?;
-                    let rep = read_common_socket_reply(&result)?;
-                    listener.on_listen(rep.0, rep.1);
-                }
-                IpCode::Accept => {
-                    let mut result = [0; 12];
-                    self.read_block(address, &mut result)?;
-                    let rep = read_accept_reply(&result)?;
-                    listener.on_accept(rep.0, rep.1, rep.2, rep.3);
-                }
-                IpCode::Connect => {
-                    let mut result = [0; 4];
-                    self.read_block(address, &mut result)?;
-                    let rep = read_common_socket_reply(&result)?;
-                    listener.on_connect(rep.0, rep.1)
-                }
-                IpCode::SendTo => {
-                    let mut result = [0; 8];
-                    self.read_block(address, &mut result)?;
-                    let rep = read_send_reply(&result)?;
-                    listener.on_send_to(rep.0, rep.1)
-                }
-                IpCode::Send => {
-                    let mut result = [0; 8];
-                    self.read_block(address, &mut result)?;
-                    let rep = read_send_reply(&result)?;
-                    listener.on_send(rep.0, rep.1)
-                }
-                IpCode::Recv => {
-                    let mut buffer = [0; SOCKET_BUFFER_MAX_LENGTH];
-                    let rep = self.get_recv_reply(address, &mut buffer)?;
-                    listener.on_recv(rep.0, rep.1, rep.2, rep.3)
-                }
-                IpCode::RecvFrom => {
-                    let mut buffer = [0; SOCKET_BUFFER_MAX_LENGTH];
-                    let rep = self.get_recv_reply(address, &mut buffer)?;
-                    listener.on_recvfrom(rep.0, rep.1, rep.2, rep.3)
-                }
-                IpCode::Close => {
-                    unimplemented!("There is no response for close")
-                }
-                IpCode::SetSocketOption => {
-                    unimplemented!("There is no response for setsockoption")
-                }
-                IpCode::Unhandled
-                | IpCode::SslConnect
-                | IpCode::SslSend
-                | IpCode::SslRecv
-                | IpCode::SslClose
-                | IpCode::SslCreate
-                | IpCode::SslSetSockOpt
-                | IpCode::SslBind
-                | IpCode::SslExpCheck => {
-                    panic!("Received unhandled HIF code {:?}", e)
-                }
-            },
-            _ => panic!("Unexpected hif"),
-        }
-        Ok(())
+    //#[cfg(feature = "ota")]
+    /// Send a request to rollback the OTA update for either winc1500 network stack or cortus processor.
+    ///
+    /// # Arguments
+    ///
+    /// * `crt_ota` - Whether the OTA update is for cortus processor or winc1500 stack.
+    ///
+    /// # Returns
+    ///
+    /// * `()` - If the request is successfully sent.
+    /// * `Error` - If an error occurs during packet preparation or sending.
+    pub fn send_ota_request(&mut self, request: OtaRequest) -> Result<(), Error> {
+        self.write_hif_header(HifRequest::Ota(request), &[], false)?;
+        self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
     }
 
     // #endregion write
@@ -1102,8 +876,7 @@ impl<X: Xfer> Manager<X> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    use constants::ENABLE_AP_PACKET_SIZE;
+    use constants::{ENABLE_AP_PACKET_SIZE, PRNG_PACKET_SIZE};
 
     #[test]
     fn test_hif_header() {
