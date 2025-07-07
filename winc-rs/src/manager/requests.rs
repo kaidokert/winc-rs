@@ -21,7 +21,7 @@ use core::net::{Ipv4Addr, SocketAddrV4};
 
 use super::constants::{
     AuthType, WifiChannel, CONNECT_AP_PACKET_SIZE, ENABLE_AP_PACKET_SIZE,
-    START_PROVISION_PACKET_SIZE,
+    SET_SOCK_OPTS_PACKET_SIZE, START_PROVISION_PACKET_SIZE,
 };
 
 use super::net_types::{Ssid, WepKey};
@@ -233,8 +233,8 @@ pub fn write_setsockopt_req(
     socket: Socket,
     option: u8,
     value: u32,
-) -> Result<[u8; 8], BufferOverflow> {
-    let mut result = [0x0u8; 8];
+) -> Result<[u8; SET_SOCK_OPTS_PACKET_SIZE], BufferOverflow> {
+    let mut result = [0x0u8; SET_SOCK_OPTS_PACKET_SIZE];
     let mut slice = result.as_mut_slice();
     slice.write(&value.to_le_bytes())?;
     slice.write(&[socket.v, option])?;

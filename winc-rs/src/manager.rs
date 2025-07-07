@@ -34,7 +34,8 @@ use constants::{IpCode, Regs, WifiResponse};
 use constants::{WifiRequest, PROVISIONING_INFO_PACKET_SIZE};
 
 pub use net_types::{
-    AccessPoint, Credentials, HostName, ProvisioningInfo, S8Password, S8Username, Ssid, WpaKey,
+    AccessPoint, Credentials, HostName, ProvisioningInfo, S8Password, S8Username, SocketOptions,
+    Ssid, UdpSockOpts, WpaKey,
 };
 
 #[cfg(feature = "wep")]
@@ -766,13 +767,27 @@ impl<X: Xfer> Manager<X> {
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
     }
 
+    /// Send a set socket option request to module.
+    ///
+    /// # Arguments
+    ///
+    /// * `socket` - The socket to which the option will be applied.
+    /// * `option` - A reference to the socket option to be set.
+    ///
+    /// # Returns
+    ///
+    /// * `()` - If the request is successfully sent.
+    /// * `Error` - If an error occurred while preparing or sending the request.
+    #[rustfmt::skip] // Temporary to keep the diff readable.
     pub fn send_setsockopt(
         &mut self,
         socket: Socket,
-        option: u8, // todo: make this an enum
-        value: u32,
-    ) -> Result<(), Error> {
-        let req = write_setsockopt_req(socket, option, value)?;
+        option: &SocketOptions) -> Result<(), Error> {
+        let req = match option {
+            SocketOptions::Udp(opts) => {
+                write_setsockopt_req(socket, (*opts).into(), opts.get_value())?
+            }
+        };
         self.write_hif_header(
             HifGroup::Ip(IpCode::SetSocketOption),
             WifiRequest::Restart,

@@ -91,7 +91,8 @@ pub use manager::AuthType;
 pub use manager::ConnectionInfo;
 pub use manager::FirmwareInfo;
 pub use manager::{
-    AccessPoint, Credentials, HostName, S8Password, S8Username, Ssid, WifiChannel, WpaKey,
+    AccessPoint, Credentials, HostName, S8Password, S8Username, SocketOptions, Ssid, UdpSockOpts,
+    WifiChannel, WpaKey,
 };
 #[cfg(feature = "wep")]
 pub use manager::{WepKey, WepKeyIndex};

@@ -57,6 +57,26 @@ pub enum Credentials {
     S802_1X(S8Username, S8Password) = 4,
 }
 
+/// Socket Options
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum SocketOptions {
+    Udp(UdpSockOpts),
+}
+
+/// Socket Options
+#[repr(u8)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum UdpSockOpts {
+    /// Receive Timeout
+    ReceiveTimeout(u32) = 0xff,
+    /// Enable/Disable callback for UDP send.
+    SetUdpSendCallback(bool) = 0x00,
+    /// Join Multicast group
+    JoinMulticast(Ipv4Addr) = 0x01,
+    /// Leave Multicast group
+    LeaveMulticast(Ipv4Addr) = 0x02,
+}
+
 /// Structure for Provisioning Information.
 pub struct ProvisioningInfo {
     /// The SSID (network name) of the network.
@@ -177,6 +197,30 @@ impl Credentials {
         WepKey::from(key)
             .map(|key| Credentials::Wep(key, key_index))
             .map_err(|_| StackError::InvalidParameters)
+    }
+}
+
+/// Implementation to convert `UdpSockOpts` to `u8` value.
+impl From<UdpSockOpts> for u8 {
+    fn from(value: UdpSockOpts) -> Self {
+        match value {
+            UdpSockOpts::SetUdpSendCallback(_) => 0x00,
+            UdpSockOpts::JoinMulticast(_) => 0x01,
+            UdpSockOpts::LeaveMulticast(_) => 0x02,
+            UdpSockOpts::ReceiveTimeout(_) => 0xff,
+        }
+    }
+}
+
+/// Implementation to get 32-bit value stored in UDP socket option.
+impl UdpSockOpts {
+    /// Get the value of the Socket option.
+    pub fn get_value(&self) -> u32 {
+        match self {
+            UdpSockOpts::ReceiveTimeout(val) => *val,
+            UdpSockOpts::SetUdpSendCallback(val) => *val as u32,
+            UdpSockOpts::JoinMulticast(val) | UdpSockOpts::LeaveMulticast(val) => val.to_bits(),
+        }
     }
 }
 

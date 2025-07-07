@@ -37,6 +37,8 @@ pub const MAX_S802_USERNAME_LEN: usize = 20;
 pub(crate) const CONNECT_AP_PACKET_SIZE: usize = 108;
 /// Packet size of enable access point request.
 pub(crate) const ENABLE_AP_PACKET_SIZE: usize = 136;
+/// Packet size to set socket option request.
+pub(crate) const SET_SOCK_OPTS_PACKET_SIZE: usize = 8;
 
 pub enum Regs {
     SpiConfig = 0xE824,
