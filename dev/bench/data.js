@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1751236144683,
+  "lastUpdate": 1751904009974,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -3173,6 +3173,40 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/kaidokert/winc-rs/commit/77f3dd8973f2d0ee9015c25cde7965b4254bac4b"
         },
         "date": 1751236144156,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 52504,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 67932,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "kaidokert@gmail.com",
+            "name": "Kaido Kert",
+            "username": "kaidokert"
+          },
+          "committer": {
+            "email": "kaidokert@gmail.com",
+            "name": "Kaido Kert",
+            "username": "kaidokert"
+          },
+          "distinct": true,
+          "id": "e606312cc7d694a39a687795b4d07c4f722291d0",
+          "message": "Split UDP Multicast into standalone PR",
+          "timestamp": "2025-07-07T08:58:53-07:00",
+          "tree_id": "f48c9573da0edf9f6841ab7b1552e9a977cc773c",
+          "url": "https://github.com/kaidokert/winc-rs/commit/e606312cc7d694a39a687795b4d07c4f722291d0"
+        },
+        "date": 1751904009030,
         "tool": "customSmallerIsBetter",
         "benches": [
           {
