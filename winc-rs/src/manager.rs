@@ -782,7 +782,8 @@ impl<X: Xfer> Manager<X> {
     pub fn send_setsockopt(
         &mut self,
         socket: Socket,
-        option: &SocketOptions) -> Result<(), Error> {
+        option: &SocketOptions
+    ) -> Result<(), Error> {
         let req = match option {
             SocketOptions::Udp(opts) => {
                 write_setsockopt_req(socket, (*opts).into(), opts.get_value())?
