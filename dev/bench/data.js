@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1751946857429,
+  "lastUpdate": 1751956681634,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -3275,6 +3275,40 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/kaidokert/winc-rs/commit/7b4e9d0a3a489f32aea3b07eb2e3ade945dc1498"
         },
         "date": 1751946857045,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 52504,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 67932,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "kaidokert@gmail.com",
+            "name": "Kaido Kert",
+            "username": "kaidokert"
+          },
+          "committer": {
+            "email": "kaidokert@gmail.com",
+            "name": "Kaido Kert",
+            "username": "kaidokert"
+          },
+          "distinct": true,
+          "id": "d489a11cbe81f2986faba4d202ea26a384828c5a",
+          "message": "Hack the mDNS things",
+          "timestamp": "2025-07-07T23:36:58-07:00",
+          "tree_id": "0a4295a57ed28a48e5b9f832e83b7a9b791d1202",
+          "url": "https://github.com/kaidokert/winc-rs/commit/d489a11cbe81f2986faba4d202ea26a384828c5a"
+        },
+        "date": 1751956681301,
         "tool": "customSmallerIsBetter",
         "benches": [
           {
