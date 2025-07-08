@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1751904120891,
+  "lastUpdate": 1751946857429,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -3241,6 +3241,40 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/kaidokert/winc-rs/commit/c193374335aba64598f07d0e46a03eace36a0fac"
         },
         "date": 1751904120303,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 52504,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 67932,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "kaidokert@gmail.com",
+            "name": "Kaido Kert",
+            "username": "kaidokert"
+          },
+          "committer": {
+            "email": "kaidokert@gmail.com",
+            "name": "Kaido Kert",
+            "username": "kaidokert"
+          },
+          "distinct": true,
+          "id": "7b4e9d0a3a489f32aea3b07eb2e3ade945dc1498",
+          "message": "Quick scripts to trace mdns",
+          "timestamp": "2025-07-07T20:53:07-07:00",
+          "tree_id": "4716debf57c0ab028270b0cbb283a9fed0bf7c54",
+          "url": "https://github.com/kaidokert/winc-rs/commit/7b4e9d0a3a489f32aea3b07eb2e3ade945dc1498"
+        },
+        "date": 1751946857045,
         "tool": "customSmallerIsBetter",
         "benches": [
           {
