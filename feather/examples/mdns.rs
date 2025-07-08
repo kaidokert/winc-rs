@@ -2,7 +2,7 @@
 #![no_std]
 
 use bsp::shared::SpiStream;
-use core::net::Ipv4Addr;
+use core::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 use core::str::FromStr;
 use embedded_nal::{UdpClientStack, UdpFullStack};
 use feather as bsp;
@@ -60,29 +60,77 @@ fn program() -> Result<(), StackError> {
         info!("Started, connecting to AP ..");
         nb::block!(stack.connect_to_ap(&ssid, &credentials, WifiChannel::ChannelAll, false))?;
 
-        // Creat the UDP socket
+        debug!("Getting IP settings..");
+        let info = nb::block!(stack.get_ip_settings())?;
+        let ip = info.ip;
+
+        info!(
+            "Starting mDNS server at {}.{}.{}.{}:{}",
+            ip.octets()[0],
+            ip.octets()[1],
+            ip.octets()[2],
+            ip.octets()[3],
+            DEFAULT_TEST_MDNS_PORT
+        );
+        for _ in 0..20 {
+            delay_ms(100);
+            stack.heartbeat()?;
+        }
+
+        // Create the UDP socket
         let mut socket = stack.socket()?;
         let test_port = option_env!("TEST_PORT").unwrap_or(DEFAULT_TEST_MDNS_PORT);
         let test_ip = option_env!("TEST_IP").unwrap_or(DEFAULT_TEST_MDNS_IP);
         let ip = Ipv4Addr::from_str(test_ip).map_err(|_| StackError::InvalidParameters)?;
         let port = u16::from_str(test_port).unwrap();
         // Set the Socket Options to multicast
-        let multicast_opt = SocketOptions::Udp(UdpSockOpts::JoinMulticast(ip));
-        stack.set_socket_option(&mut socket, &multicast_opt)?;
         // Bind the Socket
+        debug!("-----Binding to UDP port {}-----", port);
         stack.bind(&mut socket, port)?;
+        info!("-----Bound to UDP port {}-----", port);
 
         info!("Server started listening");
 
-        // Wait for query
-        let mut buffer = [0x0u8; 1500];
-        nb::block!(stack.receive(&mut socket, &mut buffer))?;
+        // This should probably done AFTER the bind
+        let multicast_opt = SocketOptions::Udp(UdpSockOpts::JoinMulticast(ip));
+        stack.set_socket_option(&mut socket, &multicast_opt)?;
+        info!("Sent multicast join packet");
 
-        info!("Query Received");
+        let mut buffer = [0x0u8; 2048];
+
+        // Fake mDNS query packet - no reason, just to test
+        let craft_packet = [
+            0x00, 0x00, // transaction
+            0x00, 0x00, // standard query
+            0x00, 0x01, // 1 question
+            0x00, 0x00, // 0 answers
+            0x00, 0x00, // 0 authority records
+            0x00, 0x00, // 0 additional records
+            0x08, b'_', b'b', b'r', b'r', b'd', b'i', b'n', b'o', 0x04, b'_', b't', b'c', b'p',
+            0x05, b'l', b'o', b'c', b'a', b'l', 0x00, // termination
+            0x00, 0x0c, 0x00, 0x01,
+        ];
+        let addr = SocketAddr::V4(SocketAddrV4::new(ip, port));
+        nb::block!(stack.send_to(&mut socket, addr, &craft_packet))?;
 
         loop {
             delay_ms(200);
             red_led.set_high().unwrap();
+            let (len, addr) = nb::block!(stack.receive(&mut socket, &mut buffer))?;
+            if let SocketAddr::V4(addr) = addr {
+                info!("Received: {:?}", len);
+                info!(
+                    "From: {}.{}.{}.{}:{}",
+                    addr.ip().octets()[0],
+                    addr.ip().octets()[1],
+                    addr.ip().octets()[2],
+                    addr.ip().octets()[3],
+                    addr.port()
+                );
+                info!("Hex: {:#x}", &buffer[0..len]);
+            } else {
+                info!("Received: something else {:?}", len);
+            }
             delay_ms(200);
             red_led.set_low().unwrap();
             stack.heartbeat().unwrap();
