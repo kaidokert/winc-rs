@@ -7,7 +7,7 @@ use super::StackError;
 use super::WincClient;
 
 use super::Xfer;
-use crate::manager::SocketError;
+use crate::manager::{SocketError, SocketOptions};
 use crate::stack::socket_callbacks::SendRequest;
 use crate::stack::socket_callbacks::{AsyncOp, AsyncState};
 use crate::{debug, info};
@@ -16,17 +16,36 @@ use embedded_nal::nb;
 use crate::stack::sock_holder::SocketStore;
 
 impl<X: Xfer> WincClient<'_, X> {
-    /// Todo: actually implement this
+    /// Sets the specified socket option on the given socket.
+    ///
+    /// # Arguments
+    ///
+    /// * `socket` - A handle to the socket to configure.
+    /// * `option` - The socket option to set.
+    ///
+    /// # Returns
+    ///
+    /// * `()` - If the socket option was successfully applied.
+    /// * `StackError` - If an error occurs while applying the socket option.
+    #[rustfmt::skip] // temporary to keep the diff readable.
     pub fn set_socket_option(
         &mut self,
         socket: &Handle,
-        option: u8,
-        value: u32,
+        option: &SocketOptions,
     ) -> Result<(), StackError> {
-        let (sock, _op) = self.callbacks.tcp_sockets.get(*socket).unwrap();
-        self.manager
-            .send_setsockopt(*sock, option, value)
-            .map_err(StackError::WincWifiFail)?;
+        match option {
+            SocketOptions::Udp(_) => {
+                let (sock, _) = self
+                    .callbacks
+                    .udp_sockets
+                    .get(*socket)
+                    .ok_or(StackError::InvalidParameters)?;
+                self.manager
+                    .send_setsockopt(*sock, option)
+                    .map_err(StackError::WincWifiFail)?;
+            }
+        }
+
         Ok(())
     }
 }
