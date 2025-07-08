@@ -236,7 +236,7 @@ pub fn write_setsockopt_req(
 ) -> Result<[u8; SET_SOCK_OPTS_PACKET_SIZE], BufferOverflow> {
     let mut result = [0x0u8; SET_SOCK_OPTS_PACKET_SIZE];
     let mut slice = result.as_mut_slice();
-    slice.write(&value.to_le_bytes())?;
+    slice.write(&value.to_be_bytes())?;
     slice.write(&[socket.v, option])?;
     slice.write(&socket.s.to_le_bytes())?;
     Ok(result)
