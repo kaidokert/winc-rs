@@ -7,84 +7,13 @@ use super::StackError;
 use super::WincClient;
 
 use super::Xfer;
-use crate::manager::{SocketError, SocketOptions, TcpSockOpts, UdpSockOpts};
+use crate::manager::SocketError;
 use crate::stack::socket_callbacks::SendRequest;
 use crate::stack::socket_callbacks::{AsyncOp, AsyncState};
 use crate::{debug, info};
 use embedded_nal::nb;
 
 use crate::stack::sock_holder::SocketStore;
-
-impl<X: Xfer> WincClient<'_, X> {
-    fn set_sock_rcv_timeout(
-        &mut self,
-        _socket: &Handle,
-        _option: &SocketOptions,
-    ) -> Result<(), StackError> {
-        todo!()
-    }
-    /// Sets the specified socket option on the given socket.
-    ///
-    /// # Arguments
-    ///
-    /// * `socket` - A handle to the socket to configure.
-    /// * `option` - The socket option to set.
-    ///
-    /// # Returns
-    ///
-    /// * `()` - If the socket option was successfully applied.
-    /// * `StackError` - If an error occurs while applying the socket option.
-    pub fn set_socket_option(
-        &mut self,
-        socket: &Handle,
-        option: &SocketOptions,
-    ) -> Result<(), StackError> {
-        // Receive timeout are handled by winc stack not by module.
-        if matches!(
-            option,
-            SocketOptions::Tcp(TcpSockOpts::ReceiveTimeout(_))
-                | SocketOptions::Udp(UdpSockOpts::ReceiveTimeout(_))
-        ) {
-            self.set_sock_rcv_timeout(socket, option)?;
-        }
-
-        match option {
-            SocketOptions::Udp(_) => {
-                let (sock, _) = self
-                    .callbacks
-                    .udp_sockets
-                    .get(*socket)
-                    .ok_or(StackError::InvalidParameters)?;
-                self.manager
-                    .send_setsockopt(*sock, option)
-                    .map_err(StackError::WincWifiFail)?;
-            }
-
-            SocketOptions::Tcp(opts) => {
-                let (sock, _) = self
-                    .callbacks
-                    .tcp_sockets
-                    .get(*socket)
-                    .ok_or(StackError::InvalidParameters)?;
-
-                match opts {
-                    TcpSockOpts::Ssl(ssl_opts) => {
-                        self.manager
-                            .send_ssl_setsockopt(*sock, ssl_opts)
-                            .map_err(StackError::WincWifiFail)?;
-                    }
-                    _ => {
-                        self.manager
-                            .send_setsockopt(*sock, option)
-                            .map_err(StackError::WincWifiFail)?;
-                    }
-                }
-            }
-        }
-
-        Ok(())
-    }
-}
 
 impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {
     type TcpSocket = Handle;
@@ -265,7 +194,7 @@ impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {
             |sock, manager| -> Result<ClientSocketOp, StackError> {
                 debug!("<> Sending socket send_recv to {:?}", sock);
                 manager
-                    .send_recv(*sock, Self::RECV_TIMEOUT)
+                    .send_recv(*sock, sock.get_recv_timeout())
                     .map_err(StackError::ReceiveFailed)?;
                 Ok(ClientSocketOp::AsyncOp(
                     AsyncOp::Recv(None),
@@ -310,7 +239,7 @@ impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {
                             debug!("Timeout on receive, re-sending receive command");
                             // Re-send the receive command with the same timeout
                             manager
-                                .send_recv(*sock, Self::RECV_TIMEOUT)
+                                .send_recv(*sock, sock.get_recv_timeout())
                                 .map_err(StackError::ReceiveFailed)?;
                             Err(StackError::ContinueOperation)
                         }

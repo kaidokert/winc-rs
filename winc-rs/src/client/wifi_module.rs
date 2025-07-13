@@ -2,9 +2,12 @@ use crate::errors::CommError as Error;
 
 use embedded_nal::nb;
 
+use super::Handle;
 use crate::error;
 use crate::manager::{AccessPoint, AuthType, FirmwareInfo, IPConf, ScanResult, Ssid, WifiChannel};
 use crate::manager::{Credentials, HostName, ProvisioningInfo, WifiConnError};
+use crate::manager::{SocketOptions, TcpSockOpts, UdpSockOpts};
+use crate::stack::sock_holder::SocketStore;
 
 use super::PingResult;
 use super::StackError;
@@ -474,6 +477,64 @@ impl<X: Xfer> WincClient<'_, X> {
 
         Ok(())
     }
+
+    /// Sets the specified socket option on the given socket.
+    ///
+    /// # Arguments
+    ///
+    /// * `socket` - A socket handle to configure.
+    /// * `option` - The socket option to apply.
+    ///
+    /// # Returns
+    ///
+    /// * `()` - If the socket option was successfully applied.
+    /// * `StackError` - If an error occurs while applying the socket option.
+    pub fn set_socket_option(
+        &mut self,
+        socket: &Handle,
+        option: &SocketOptions,
+    ) -> Result<(), StackError> {
+        match option {
+            SocketOptions::Udp(opts) => {
+                let (sock, _) = self
+                    .callbacks
+                    .udp_sockets
+                    .get(*socket)
+                    .ok_or(StackError::SocketNotFound)?;
+
+                if let UdpSockOpts::ReceiveTimeout(timeout) = opts {
+                    // Receive timeout are handled by winc stack not by module.
+                    sock.set_recv_timeout(*timeout);
+                } else {
+                    self.manager
+                        .send_setsockopt(*sock, opts)
+                        .map_err(StackError::WincWifiFail)?;
+                }
+            }
+
+            SocketOptions::Tcp(opts) => {
+                let (sock, _) = self
+                    .callbacks
+                    .tcp_sockets
+                    .get(*socket)
+                    .ok_or(StackError::SocketNotFound)?;
+
+                match opts {
+                    TcpSockOpts::Ssl(ssl_opts) => {
+                        self.manager
+                            .send_ssl_setsockopt(*sock, ssl_opts)
+                            .map_err(StackError::WincWifiFail)?;
+                    }
+                    TcpSockOpts::ReceiveTimeout(timeout) => {
+                        // Receive timeout are handled by winc stack not by module.
+                        sock.set_recv_timeout(*timeout);
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -489,6 +550,7 @@ mod tests {
     use crate::{ConnectionInfo, Credentials, S8Password, S8Username, WifiChannel, WpaKey};
     #[cfg(feature = "wep")]
     use crate::{WepKey, WepKeyIndex};
+    use embedded_nal::{TcpClientStack, UdpClientStack};
 
     #[test]
     fn test_heartbeat() {
@@ -1008,5 +1070,89 @@ mod tests {
         let result = client.disable_access_point();
 
         assert_eq!(result.err(), Some(StackError::InvalidState));
+    }
+
+    #[test]
+    fn test_udp_sock_opt_multicast() {
+        let mut client = make_test_client();
+        let socket = UdpClientStack::socket(&mut client).unwrap();
+        let addr = Ipv4Addr::new(192, 168, 1, 1);
+
+        let option = SocketOptions::join_multicast_v4(addr);
+
+        let result = client.set_socket_option(&socket, &option);
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_udp_sock_opt_invalid_socket() {
+        let mut client = make_test_client();
+        let socket = TcpClientStack::socket(&mut client).unwrap();
+        let addr = Ipv4Addr::new(192, 168, 1, 1);
+
+        let option = SocketOptions::join_multicast_v4(addr);
+
+        let result = client.set_socket_option(&socket, &option);
+
+        assert_eq!(result.err(), Some(StackError::SocketNotFound));
+    }
+
+    #[test]
+    fn test_tcp_sock_opt_invalid_socket() {
+        let mut client = make_test_client();
+        let socket = UdpClientStack::socket(&mut client).unwrap();
+
+        let option = SocketOptions::set_tcp_receive_timeout(1500);
+
+        let result = client.set_socket_option(&socket, &option);
+
+        assert_eq!(result.err(), Some(StackError::SocketNotFound));
+    }
+
+    #[test]
+    fn test_tcp_sock_opt_set_sni() {
+        let mut client = make_test_client();
+        let socket = TcpClientStack::socket(&mut client).unwrap();
+
+        let option = SocketOptions::set_sni("hostname").unwrap();
+
+        let result = client.set_socket_option(&socket, &option);
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_udp_set_socket_timeout() {
+        let mut client = make_test_client();
+        let timeout = 1500 as u32;
+        let socket = UdpClientStack::socket(&mut client).unwrap();
+
+        let options = SocketOptions::set_udp_receive_timeout(timeout);
+
+        let result = client.set_socket_option(&socket, &options);
+
+        assert!(result.is_ok());
+
+        let (sock, _) = client.callbacks.udp_sockets.get(socket).unwrap();
+
+        assert_eq!(sock.get_recv_timeout(), timeout);
+    }
+
+    #[test]
+    fn test_tcp_set_socket_timeout() {
+        let mut client = make_test_client();
+        let timeout = 150000 as u32;
+        let socket = TcpClientStack::socket(&mut client).unwrap();
+
+        let options = SocketOptions::set_tcp_receive_timeout(timeout);
+
+        let result = client.set_socket_option(&socket, &options);
+
+        assert!(result.is_ok());
+
+        let (sock, _) = client.callbacks.tcp_sockets.get(socket).unwrap();
+
+        assert_eq!(sock.get_recv_timeout(), timeout);
     }
 }

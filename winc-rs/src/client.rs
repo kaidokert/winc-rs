@@ -50,7 +50,6 @@ impl<X: Xfer> WincClient<'_, X> {
     const BIND_TIMEOUT: u32 = 2000;
     // This only impacts for interval for loops, but doesn't actually
     // cause timeouts, as all calls are non-blocking.
-    const RECV_TIMEOUT: u32 = 10_000;
     const CONNECT_TIMEOUT: u32 = 1000;
     const DNS_TIMEOUT: u32 = 1000;
     const POLL_LOOP_DELAY_US: u32 = 100;

@@ -274,11 +274,11 @@ pub fn write_ssl_setsockopt_req(
     let mut result = [0x0u8; SET_SSL_SOCK_OPTS_PACKET_SIZE];
     let mut slice = result.as_mut_slice();
 
-    // get value
-    let value = option.get_value().ok_or(BufferOverflow)?;
+    // Get value
+    let value = option.get_value();
 
     // Socket Identifier (1 byte) and Socket Option (1 byte)
-    slice.write(&[socket.v, (*option).into()])?;
+    slice.write(&[socket.v, u8::from(option)])?;
     // Session ID (2 byte)
     slice.write(&socket.s.to_le_bytes())?;
     // Option length
@@ -490,7 +490,9 @@ pub fn write_en_ap_req(ap: &AccessPoint) -> Result<[u8; ENABLE_AP_PACKET_SIZE], 
 
 #[cfg(test)]
 mod tests {
-    use crate::{S8Password, S8Username, Ssid};
+    use core::str::FromStr;
+
+    use crate::{S8Password, S8Username, SocketOptions, Ssid};
 
     #[cfg(feature = "wep")]
     use crate::{WepKey, WepKeyIndex};
@@ -777,5 +779,44 @@ mod tests {
         let result = write_en_ap_req(&access_point);
 
         assert_eq!(result.ok(), Some(valid_req))
+    }
+
+    #[test]
+    fn test_write_ssl_setsockopt_req() {
+        let valid_req: [u8; SET_SSL_SOCK_OPTS_PACKET_SIZE] = [
+            /* Socket Identifier */ 0x01, /* Socket Option */ 0x02,
+            /* Session Id */ 0x16, 0x00, /* Option length */ 0x08, 0x00, 0x00, 0x00,
+            /* Option Value */ 0x68, 0x6F, 0x73, 0x74, 0x6E, 0x61, 0x6D, 0x65, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        ];
+        let host = HostName::from("hostname").unwrap();
+        let ssl_opt = SslSockOpts::SetSni(host);
+        let test_req = write_ssl_setsockopt_req(Socket::new(1, 22), &ssl_opt);
+
+        assert!(test_req.is_ok());
+
+        assert_eq!(test_req.unwrap(), valid_req);
+    }
+
+    #[test]
+    fn test_write_setsockopt_req() {
+        let valid_req: [u8; SET_SOCK_OPTS_PACKET_SIZE] = [
+            /* Option Value */ 0x0c0, 0xa8, 0x01, 0x01, /* Sockte Identifier */ 0x02,
+            /* Socket Option */ 0x01, /* Session Id */ 0x02, 0x00,
+        ];
+        let addr = Ipv4Addr::from_str("192.168.1.1").unwrap();
+        let sock_opts = SocketOptions::join_multicast_v4(addr);
+        if let SocketOptions::Udp(opts) = sock_opts {
+            let test_req = write_setsockopt_req(Socket::new(2, 2), opts.into(), opts.get_value());
+
+            assert!(test_req.is_ok());
+
+            assert_eq!(test_req.unwrap(), valid_req);
+        } else {
+            assert!(false);
+        }
     }
 }
