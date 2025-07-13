@@ -187,7 +187,7 @@ impl<X: Xfer> UdpClientStack for WincClient<'_, X> {
             |sock, manager| -> Result<ClientSocketOp, StackError> {
                 debug!("<> Sending udp socket send_recv to {:?}", sock);
                 manager
-                    .send_recvfrom(*sock, Self::RECV_TIMEOUT)
+                    .send_recvfrom(*sock, sock.get_recv_timeout())
                     .map_err(StackError::ReceiveFailed)?;
                 Ok(ClientSocketOp::AsyncOp(
                     AsyncOp::RecvFrom(None),
@@ -223,7 +223,7 @@ impl<X: Xfer> UdpClientStack for WincClient<'_, X> {
                         SocketError::Timeout => {
                             debug!("Timeout on receive, re-sending receive command");
                             manager
-                                .send_recvfrom(*sock, Self::RECV_TIMEOUT)
+                                .send_recvfrom(*sock, sock.get_recv_timeout())
                                 .map_err(StackError::ReceiveFailed)?;
                             Err(StackError::ContinueOperation)
                         }

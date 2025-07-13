@@ -772,24 +772,14 @@ impl<X: Xfer> Manager<X> {
     /// # Arguments
     ///
     /// * `socket` - The socket to which the option will be applied.
-    /// * `option` - A reference to the socket option to be set.
+    /// * `option` - A reference to the UDP socket option to be set.
     ///
     /// # Returns
     ///
     /// * `()` - If the request is successfully sent.
     /// * `Error` - If an error occurred while preparing or sending the request.
-    pub fn send_setsockopt(&mut self, socket: Socket, option: &SocketOptions) -> Result<(), Error> {
-        let req = match option {
-            SocketOptions::Tcp(TcpSockOpts::Ssl(_)) => {
-                return Err(Error::Failed);
-            }
-            SocketOptions::Tcp(opts) => {
-                write_setsockopt_req(socket, (*opts).into(), opts.get_value())?
-            }
-            SocketOptions::Udp(opts) => {
-                write_setsockopt_req(socket, (*opts).into(), opts.get_value())?
-            }
-        };
+    pub fn send_setsockopt(&mut self, socket: Socket, option: &UdpSockOpts) -> Result<(), Error> {
+        let req = write_setsockopt_req(socket, (*option).into(), option.get_value())?;
         self.write_hif_header(
             HifGroup::Ip(IpCode::SetSocketOption),
             WifiRequest::Restart,
@@ -830,6 +820,12 @@ impl<X: Xfer> Manager<X> {
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
     }
 
+    /// Send a disconnect request to module.
+    ///
+    /// # Returns
+    ///
+    /// * `()` - If the request is successfully sent.
+    /// * `Error` - If an error occurred while preparing or sending the request.
     pub fn send_disconnect(&mut self) -> Result<(), Error> {
         self.write_hif_header(
             HifGroup::Wifi(WifiResponse::Unhandled),

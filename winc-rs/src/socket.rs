@@ -12,22 +12,68 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+/// Default receive timeout (in milliseconds) for both TCP and UDP socket operations.
+const DEFAULT_SOCKET_RECEIVE_TIMEOUT: u32 = 10_000;
+
+/// Network Socket.
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[derive(PartialEq, Debug, Clone, Copy)]
 pub struct Socket {
+    /// Socket Identifier.
     pub v: u8, // todo make this not public
+    /// Session Id.
     pub s: u16,
+    /// Receive Timeout.
+    receive_timeout: u32,
 }
+
+/// Implementation of `Socket` to create new instance and managing the receive timeout.
 impl Socket {
+    /// Creates a new instance of `Socket` with a default receive timeout (10,000 msecs).
+    ///
+    /// # Arguments
+    ///
+    /// * `v` - Socket identifier.
+    /// * `s` - Session identifier.
+    ///
+    /// # Returns
+    ///
+    /// * `Socket` - A new `Socket` instance with default configuration.
     pub fn new(v: u8, s: u16) -> Self {
-        Socket { v, s }
+        Socket {
+            v,
+            s,
+            receive_timeout: DEFAULT_SOCKET_RECEIVE_TIMEOUT,
+        }
+    }
+
+    /// Sets the receive timeout for the socket.
+    ///
+    /// # Arguments
+    ///
+    /// * `timeout` - Timeout duration in milliseconds.
+    pub fn set_recv_timeout(&mut self, timeout: u32) {
+        self.receive_timeout = timeout;
+    }
+
+    /// Returns the receive timeout of the socket, in milliseconds.
+    pub fn get_recv_timeout(&self) -> u32 {
+        self.receive_timeout
     }
 }
+
+/// Creates a new `Socket` instance from a tuple of `(Socket ID, Session ID)`, with a default receive timeout (10,000 msecs).
 impl From<(u8, u16)> for Socket {
     fn from(val: (u8, u16)) -> Self {
-        Socket { v: val.0, s: val.1 }
+        Socket {
+            v: val.0,
+            s: val.1,
+            receive_timeout: DEFAULT_SOCKET_RECEIVE_TIMEOUT,
+        }
     }
 }
+
+/// Converts a `Socket` into a tuple of `(Socket ID, Session ID)`.
 impl From<Socket> for (u8, u16) {
     fn from(sock: Socket) -> Self {
         (sock.v, sock.s)
