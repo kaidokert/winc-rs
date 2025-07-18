@@ -25,17 +25,20 @@ use wincwifi::{Credentials, SocketOptions, Ssid, StackError, WifiChannel, WincCl
 fn parse_query(buffer: &[u8], service_name: &str) -> bool {
     // check if header (12 bytes) is valid
     if buffer.len() < MDNS_HEADER_SIZE {
+        error!("buffer too short");
         return false;
     }
 
     // check number of questions
     let qdcount = u16::from_be_bytes([buffer[4], buffer[5]]);
     if qdcount == 0 {
+        error!("qdcount is 0");
         return false;
     }
 
     // Check for supported service name length
     if service_name.len() > MAX_SIZE_MDNS_SERVICE_NAME {
+        error!("service name too long");
         return false;
     }
 
@@ -53,11 +56,13 @@ fn parse_query(buffer: &[u8], service_name: &str) -> bool {
 
         // name compression is not supported.
         if len & 0xC0 != 0 {
+            error!("name compression is not supported");
             return false;
         }
 
         offset += 1;
         if offset + len > buffer.len() || qname_index + len + 1 > qname.len() {
+            error!("buffer too short");
             return false;
         }
 
@@ -81,11 +86,17 @@ fn parse_query(buffer: &[u8], service_name: &str) -> bool {
 
     // compare
     if parsed_name != expected_name {
+        error!(
+            "parsed name \n\t{:?} \ndoes not match expected name \n\t{:?}",
+            core::str::from_utf8(parsed_name).unwrap(),
+            core::str::from_utf8(expected_name).unwrap()
+        );
         return false;
     }
 
     // Check the QTYPE (2 bytes) and QCLASS (2 bytes)
     if offset + 4 > buffer.len() {
+        error!("buffer too short");
         return false;
     }
 
@@ -200,7 +211,7 @@ fn program() -> Result<(), StackError> {
         stack.set_socket_option(&mut socket, &multicast_opt)?;
         info!("Server started listening");
 
-        let mut buffer = [0x0u8; 2048];
+        let mut buffer = [0x0u8; 4096];
         let mdns_addr = SocketAddr::V4(SocketAddrV4::new(ip, port));
 
         info!("--> Waiting for new multicast query");
@@ -223,6 +234,15 @@ fn program() -> Result<(), StackError> {
                     nb::block!(stack.send_to(&mut socket, mdns_addr, &res))?;
                     info!("<--- Sent multicast response packet");
                     info!("--> Waiting for new multicast query");
+                } else {
+                    info!(
+                        "packet from addr {}.{}.{}.{}:{} not accepted",
+                        addr.ip().octets()[0],
+                        addr.ip().octets()[1],
+                        addr.ip().octets()[2],
+                        addr.ip().octets()[3],
+                        addr.port()
+                    );
                 }
             }
             delay_ms(200);
