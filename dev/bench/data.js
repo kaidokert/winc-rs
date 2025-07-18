@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1751956681634,
+  "lastUpdate": 1752808810405,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -3319,6 +3319,40 @@ window.BENCHMARK_DATA = {
           {
             "name": "iperf3_client",
             "value": 67932,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "142439476+umarbinzahid@users.noreply.github.com",
+            "name": "Umar Bin Zahid",
+            "username": "umarbinzahid"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "d8dfa4fbee6e19c45a58b965c41cae423e90d92d",
+          "message": "Add Support to set socket options and socket receive timeouts. (#94)\n\n* Added initial  support to set socket options.\n\n* Added Changes:\n - Fixed Big endian of ip address.\n - Added socket receive timeout.\n - Code clean up.",
+          "timestamp": "2025-07-17T20:18:53-07:00",
+          "tree_id": "4faf02bf063c994ea769a1134969838dc46a9ffb",
+          "url": "https://github.com/kaidokert/winc-rs/commit/d8dfa4fbee6e19c45a58b965c41cae423e90d92d"
+        },
+        "date": 1752808810008,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 52592,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 67936,
             "unit": "byte"
           }
         ]
