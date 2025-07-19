@@ -30,8 +30,11 @@ use crate::{debug, trace};
 use chip_access::ChipAccess;
 #[cfg(feature = "wep")]
 pub use constants::WepKeyIndex;
+//#[cfg(feature = "ota")]
 pub use constants::{AuthType, PingError, SocketError, WifiChannel, WifiConnError, WifiConnState}; // todo response shouldn't be leaking
 use constants::{IpCode, Regs, WifiRequest, WifiResponse};
+pub use constants::{OtaRequest, OtaResponse};
+
 pub(crate) use constants::{PRNG_DATA_LENGTH, SOCKET_BUFFER_MAX_LENGTH};
 
 pub use net_types::{
@@ -58,6 +61,29 @@ pub(crate) enum HifGroup {
     Unhandled,
     Wifi(WifiResponse),
     Ip(IpCode),
+    //#[cfg(feature = "ota")]
+    Ota(OtaResponse),
+}
+
+/// HIF Request Group.
+#[derive(Copy, Clone)]
+enum HifRequest {
+    Wifi(WifiRequest),
+    Ip(IpCode),
+    //#[cfg(feature = "ota")]
+    Ota(OtaRequest),
+}
+
+/// Implementation to convert `HifRequest` to `u8` value.
+impl From<HifRequest> for u8 {
+    fn from(v: HifRequest) -> Self {
+        match v {
+            HifRequest::Wifi(_) => 1,
+            HifRequest::Ip(_) => 2,
+            //#[cfg(feature = "ota")]
+            HifRequest::Ota(_) => 4,
+        }
+    }
 }
 
 /// HIF Request Group.
@@ -82,6 +108,8 @@ impl From<[u8; 2]> for HifGroup {
         match v[0] {
             1 => Self::Wifi(v[1].into()),
             2 => Self::Ip(v[1].into()),
+            //#[cfg(feature = "ota")]
+            4 => Self::Ota(v[1].into()),
             _ => Self::Unhandled,
         }
     }
@@ -91,6 +119,8 @@ impl From<HifGroup> for u8 {
         match v {
             HifGroup::Wifi(_) => 1,
             HifGroup::Ip(_) => 2,
+            //#[cfg(feature = "ota")]
+            HifGroup::Ota(_) => 4,
             _ => 0xFF,
         }
     }
@@ -496,6 +526,8 @@ impl<X: Xfer> Manager<X> {
         let opp: u8 = match req {
             HifRequest::Wifi(opcode) => opcode.into(),
             HifRequest::Ip(opcode) => opcode.into(),
+            #[cfg(feature = "ota")]
+            HifRequest::Ota(opcode) => opcode as u8,
         };
         // Group ID.
         let grpval = req.into();
@@ -843,6 +875,49 @@ impl<X: Xfer> Manager<X> {
     /// * `Error` - If an error occurs during packet preparation or sending.
     pub fn send_disable_access_point(&mut self) -> Result<(), Error> {
         self.write_hif_header(HifRequest::Wifi(WifiRequest::DisableAp), &[], false)?;
+        self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
+    }
+
+    //#[cfg(feature = "ota")]
+    /// Send a request to start the OTA update for either winc1500 network stack or cortus processor.
+    ///
+    /// # Arguments
+    ///
+    /// * `server_url` - Server URL from where firware image will be downloaded.
+    /// * `crt_ota` - Whether the OTA update is for cortus processor or winc1500 stack.
+    ///
+    /// # Returns
+    ///
+    /// * `()` - If the request is successfully sent.
+    /// * `Error` - If an error occurs during packet preparation or sending.
+    pub fn send_start_ota_update(&mut self, server_url: &[u8], crt_ota: bool) -> Result<(), Error> {
+        // Check whether request is for Cortus or for network stack.
+        let req_id = if crt_ota {
+            OtaRequest::StartCortusFirmwareUpdate
+        } else {
+            OtaRequest::StartFirmwareUpdate
+        };
+        self.write_hif_header(HifRequest::Ota(req_id), server_url, false)?;
+        self.chip.dma_block_write(
+            self.not_a_reg_ctrl_4_dma + HIF_HEADER_OFFSET as u32,
+            server_url,
+        )?;
+        self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
+    }
+
+    //#[cfg(feature = "ota")]
+    /// Send a request to rollback the OTA update for either winc1500 network stack or cortus processor.
+    ///
+    /// # Arguments
+    ///
+    /// * `crt_ota` - Whether the OTA update is for cortus processor or winc1500 stack.
+    ///
+    /// # Returns
+    ///
+    /// * `()` - If the request is successfully sent.
+    /// * `Error` - If an error occurs during packet preparation or sending.
+    pub fn send_ota_request(&mut self, request: OtaRequest) -> Result<(), Error> {
+        self.write_hif_header(HifRequest::Ota(request), &[], false)?;
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
     }
 

@@ -39,6 +39,121 @@ pub(crate) enum WifiModuleState {
     AccessPoint,
 }
 
+//#[cfg(feature = "ota")]
+#[repr(u8)]
+/// OTA Update Error Codes.
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub enum OtaUpdateError {
+    NoError = 0,
+    GenericFail = 1,
+    InvalidArguments = 2,
+    InvalidRollbackImage = 3,
+    InvalidFlashSize = 4,
+    AlreadyEnbaled = 5,
+    UpdateInProgress = 6,
+    ImageVerificationFailed = 7,
+    ConnectionError = 8,
+    ServerError = 9,
+    Aborted = 10,
+    Unhandled = 0xff,
+}
+
+//#[cfg(feature = "ota")]
+/// Implementation to convert `u8` value to `OtaUpdateError`.
+impl From<u8> for OtaUpdateError {
+    fn from(val: u8) -> Self {
+        match val {
+            0 => Self::NoError,
+            1 => Self::GenericFail,
+            2 => Self::InvalidArguments,
+            3 => Self::InvalidRollbackImage,
+            4 => Self::InvalidFlashSize,
+            5 => Self::AlreadyEnbaled,
+            6 => Self::UpdateInProgress,
+            7 => Self::ImageVerificationFailed,
+            8 => Self::ConnectionError,
+            9 => Self::ServerError,
+            10 => Self::Aborted,
+            _ => Self::Unhandled,
+        }
+    }
+}
+
+//#[cfg(feature = "ota")]
+#[repr(u8)]
+/// OTA Update Status.
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub(crate) enum OtaUpdateStatus {
+    NotStarted = 0,
+    Download(OtaUpdateError) = 1,
+    SwitchingFirmware(OtaUpdateError) = 2,
+    Rollback(OtaUpdateError) = 3,
+    Abort(OtaUpdateError) = 4,
+    Unhandled = 0xff,
+}
+
+//#[cfg(feature = "ota")]
+/// Implementation to convert `[u8; 2]` value to `OtaUpdateStatus`.
+impl From<[u8; 2]> for OtaUpdateStatus {
+    fn from(val: [u8; 2]) -> Self {
+        match val[0] {
+            1 => Self::Download(val[1].into()),
+            2 => Self::SwitchingFirmware(val[1].into()),
+            3 => Self::Rollback(val[1].into()),
+            4 => Self::Abort(val[1].into()),
+            _ => Self::Unhandled,
+        }
+    }
+}
+
+//#[cfg(feature = "ota")]
+impl OtaUpdateStatus {
+    /// Get the OTA update error from respective status.
+    pub fn into_error(self) -> OtaUpdateError {
+        match self {
+            OtaUpdateStatus::NotStarted => OtaUpdateError::NoError,
+            OtaUpdateStatus::Download(err) => err,
+            OtaUpdateStatus::SwitchingFirmware(err) => err,
+            OtaUpdateStatus::Rollback(err) => err,
+            OtaUpdateStatus::Abort(err) => err,
+            OtaUpdateStatus::Unhandled => OtaUpdateError::Unhandled,
+        }
+    }
+}
+
+#[allow(dead_code)] // todo! remove
+pub(crate) enum OtaUpdateState {
+    NotStarted,
+    InProgress,
+    Complete,
+    SwitchingFirmware,
+    Switched,
+    RollingBack,
+    RolledBack,
+    Aborting,
+    Aborted,
+    Failed,
+}
+
+#[allow(dead_code)] // todo! remove
+pub(crate) struct OtaInfo {
+    pub state: OtaUpdateState,
+    pub status: OtaUpdateStatus,
+    pub error: OtaUpdateError,
+}
+
+impl OtaInfo {
+    pub(crate) fn new() -> Self {
+        Self {
+            state: OtaUpdateState::NotStarted,
+            status: OtaUpdateStatus::NotStarted,
+            error: OtaUpdateError::NoError,
+        }
+    }
+}
+
 /// Ping operation results
 #[derive(Debug)]
 pub struct PingResult {
@@ -127,6 +242,9 @@ pub(crate) struct SocketCallbacks {
     // Random Number Generator
     pub prng: Option<Option<Prng>>,
     pub provisioning_info: Option<Option<ProvisioningInfo>>,
+    //#[cfg(feature = "ota")]
+    pub ota_status: Option<Option<OtaUpdateStatus>>,
+    pub ota: OtaInfo,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -239,6 +357,9 @@ impl SocketCallbacks {
             state: WifiModuleState::Reset,
             prng: None,
             provisioning_info: None,
+            //#[cfg(feature = "ota")]
+            ota_status: None,
+            ota: OtaInfo::new(),
         }
     }
     pub fn resolve(&mut self, socket: Socket) -> Option<&mut (Socket, ClientSocketOp)> {
