@@ -21,7 +21,7 @@ use crate::manager::constants::{
 use crate::manager::responses::*;
 use crate::transfer::Xfer;
 
-//#[cfg(feature = "ota")]
+#[cfg(feature = "ota")]
 use crate::manager::constants::OtaResponse;
 
 impl<X: Xfer> Manager<X> {
@@ -132,7 +132,7 @@ impl<X: Xfer> Manager<X> {
         Ok(())
     }
 
-    //#[cfg(feature = "ota")]
+    #[cfg(feature = "ota")]
     /// Parses incoming OTA events from the chip and dispatches them to the provided event listener.
     ///
     /// # Arguments

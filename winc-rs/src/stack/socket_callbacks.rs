@@ -8,7 +8,7 @@ use crate::manager::{
     Credentials, EventListener, ProvisioningInfo, SocketError, Ssid, WifiConnError, WifiConnState,
     WpaKey,
 };
-//#[cfg(feature = "ota")]
+#[cfg(feature = "ota")]
 use crate::manager::{OtaUpdateError, OtaUpdateStatus};
 use crate::{debug, error, info};
 use crate::{AuthType, ConnectionInfo};
@@ -41,7 +41,7 @@ pub(crate) enum WifiModuleState {
     AccessPoint,
 }
 
-//#[cfg(feature = "ota")]
+#[cfg(feature = "ota")]
 #[derive(PartialEq, Eq, Copy, Clone)]
 pub(crate) enum OtaUpdateState {
     NotStarted,
@@ -144,7 +144,7 @@ pub(crate) struct SocketCallbacks {
     // Random Number Generator
     pub prng: Option<Option<Prng>>,
     pub provisioning_info: Option<Option<ProvisioningInfo>>,
-    //#[cfg(feature = "ota")]
+    #[cfg(feature = "ota")]
     pub ota_state: OtaUpdateState,
 }
 
@@ -258,7 +258,7 @@ impl SocketCallbacks {
             state: WifiModuleState::Reset,
             prng: None,
             provisioning_info: None,
-            //#[cfg(feature = "ota")]
+            #[cfg(feature = "ota")]
             ota_state: OtaUpdateState::NotStarted,
         }
     }
@@ -724,7 +724,7 @@ impl EventListener for SocketCallbacks {
         self.provisioning_info = Some(Some(info));
     }
 
-    //#[cfg(feature = "ota")]
+    #[cfg(feature = "ota")]
     /// Callback function for OTA events.
     ///
     /// # Arguments

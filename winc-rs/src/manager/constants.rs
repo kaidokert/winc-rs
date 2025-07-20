@@ -365,7 +365,7 @@ impl From<u8> for IpCode {
     }
 }
 
-//#[cfg(feature = "ota")]
+#[cfg(feature = "ota")]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[derive(Debug, PartialEq, Default)]
 /// OTA HiF Response ID.
@@ -376,7 +376,7 @@ pub(crate) enum OtaResponse {
     OtaUpdateStatus = 0x6B,     // M2M_OTA_RESP_UPDATE_STATUS + tstrOtaUpdateStatusResp (OTA mode)
 }
 
-//#[cfg(feature = "ota")]
+#[cfg(feature = "ota")]
 impl From<u8> for OtaResponse {
     fn from(v: u8) -> Self {
         match v {
@@ -387,7 +387,7 @@ impl From<u8> for OtaResponse {
     }
 }
 
-//#[cfg(feature = "ota")]
+#[cfg(feature = "ota")]
 #[allow(dead_code)]
 #[derive(Copy, Clone)]
 pub(crate) enum OtaRequest {
@@ -404,14 +404,14 @@ pub(crate) enum OtaRequest {
     Abort = 0x70,                     // M2M_OTA_REQ_ABORT
 }
 
-//#[cfg(feature = "ota")]
+#[cfg(feature = "ota")]
 impl From<OtaRequest> for u8 {
     fn from(val: OtaRequest) -> Self {
         val as u8
     }
 }
 
-//#[cfg(feature = "ota")]
+#[cfg(feature = "ota")]
 #[repr(u8)]
 /// OTA Update Error Codes.
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
@@ -429,7 +429,7 @@ pub enum OtaUpdateError {
     Unhandled = 0xff,
 }
 
-//#[cfg(feature = "ota")]
+#[cfg(feature = "ota")]
 /// Implementation to convert `u8` value to `OtaUpdateError`.
 impl From<u8> for OtaUpdateError {
     fn from(val: u8) -> Self {
@@ -450,7 +450,7 @@ impl From<u8> for OtaUpdateError {
     }
 }
 
-//#[cfg(feature = "ota")]
+#[cfg(feature = "ota")]
 #[repr(u8)]
 /// OTA Update Status.
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
@@ -463,7 +463,7 @@ pub(crate) enum OtaUpdateStatus {
     Unhandled = 0xff,
 }
 
-//#[cfg(feature = "ota")]
+#[cfg(feature = "ota")]
 /// Implementation to convert `u8` value to `OtaUpdateStatus`.
 impl From<u8> for OtaUpdateStatus {
     fn from(val: u8) -> Self {
