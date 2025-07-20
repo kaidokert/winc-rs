@@ -8,6 +8,8 @@ use crate::manager::{
     Credentials, EventListener, ProvisioningInfo, SocketError, Ssid, WifiConnError, WifiConnState,
     WpaKey,
 };
+//#[cfg(feature = "ota")]
+use crate::manager::{OtaUpdateError, OtaUpdateStatus};
 use crate::{debug, error, info};
 use crate::{AuthType, ConnectionInfo};
 
@@ -40,90 +42,7 @@ pub(crate) enum WifiModuleState {
 }
 
 //#[cfg(feature = "ota")]
-#[repr(u8)]
-/// OTA Update Error Codes.
-#[cfg_attr(feature = "defmt", derive(defmt::Format))]
-#[derive(Debug, PartialEq, Clone, Copy)]
-pub enum OtaUpdateError {
-    NoError = 0,
-    GenericFail = 1,
-    InvalidArguments = 2,
-    InvalidRollbackImage = 3,
-    InvalidFlashSize = 4,
-    AlreadyEnbaled = 5,
-    UpdateInProgress = 6,
-    ImageVerificationFailed = 7,
-    ConnectionError = 8,
-    ServerError = 9,
-    Aborted = 10,
-    Unhandled = 0xff,
-}
-
-//#[cfg(feature = "ota")]
-/// Implementation to convert `u8` value to `OtaUpdateError`.
-impl From<u8> for OtaUpdateError {
-    fn from(val: u8) -> Self {
-        match val {
-            0 => Self::NoError,
-            1 => Self::GenericFail,
-            2 => Self::InvalidArguments,
-            3 => Self::InvalidRollbackImage,
-            4 => Self::InvalidFlashSize,
-            5 => Self::AlreadyEnbaled,
-            6 => Self::UpdateInProgress,
-            7 => Self::ImageVerificationFailed,
-            8 => Self::ConnectionError,
-            9 => Self::ServerError,
-            10 => Self::Aborted,
-            _ => Self::Unhandled,
-        }
-    }
-}
-
-//#[cfg(feature = "ota")]
-#[repr(u8)]
-/// OTA Update Status.
-#[cfg_attr(feature = "defmt", derive(defmt::Format))]
-#[derive(Debug, PartialEq, Clone, Copy)]
-pub(crate) enum OtaUpdateStatus {
-    NotStarted = 0,
-    Download(OtaUpdateError) = 1,
-    SwitchingFirmware(OtaUpdateError) = 2,
-    Rollback(OtaUpdateError) = 3,
-    Abort(OtaUpdateError) = 4,
-    Unhandled = 0xff,
-}
-
-//#[cfg(feature = "ota")]
-/// Implementation to convert `[u8; 2]` value to `OtaUpdateStatus`.
-impl From<[u8; 2]> for OtaUpdateStatus {
-    fn from(val: [u8; 2]) -> Self {
-        match val[0] {
-            1 => Self::Download(val[1].into()),
-            2 => Self::SwitchingFirmware(val[1].into()),
-            3 => Self::Rollback(val[1].into()),
-            4 => Self::Abort(val[1].into()),
-            _ => Self::Unhandled,
-        }
-    }
-}
-
-//#[cfg(feature = "ota")]
-impl OtaUpdateStatus {
-    /// Get the OTA update error from respective status.
-    pub fn into_error(self) -> OtaUpdateError {
-        match self {
-            OtaUpdateStatus::NotStarted => OtaUpdateError::NoError,
-            OtaUpdateStatus::Download(err) => err,
-            OtaUpdateStatus::SwitchingFirmware(err) => err,
-            OtaUpdateStatus::Rollback(err) => err,
-            OtaUpdateStatus::Abort(err) => err,
-            OtaUpdateStatus::Unhandled => OtaUpdateError::Unhandled,
-        }
-    }
-}
-
-#[allow(dead_code)] // todo! remove
+#[derive(PartialEq, Eq, Copy, Clone)]
 pub(crate) enum OtaUpdateState {
     NotStarted,
     InProgress,
@@ -134,24 +53,7 @@ pub(crate) enum OtaUpdateState {
     RolledBack,
     Aborting,
     Aborted,
-    Failed,
-}
-
-#[allow(dead_code)] // todo! remove
-pub(crate) struct OtaInfo {
-    pub state: OtaUpdateState,
-    pub status: OtaUpdateStatus,
-    pub error: OtaUpdateError,
-}
-
-impl OtaInfo {
-    pub(crate) fn new() -> Self {
-        Self {
-            state: OtaUpdateState::NotStarted,
-            status: OtaUpdateStatus::NotStarted,
-            error: OtaUpdateError::NoError,
-        }
-    }
+    Failed(OtaUpdateError),
 }
 
 /// Ping operation results
@@ -243,8 +145,7 @@ pub(crate) struct SocketCallbacks {
     pub prng: Option<Option<Prng>>,
     pub provisioning_info: Option<Option<ProvisioningInfo>>,
     //#[cfg(feature = "ota")]
-    pub ota_status: Option<Option<OtaUpdateStatus>>,
-    pub ota: OtaInfo,
+    pub ota_state: OtaUpdateState,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -358,8 +259,7 @@ impl SocketCallbacks {
             prng: None,
             provisioning_info: None,
             //#[cfg(feature = "ota")]
-            ota_status: None,
-            ota: OtaInfo::new(),
+            ota_state: OtaUpdateState::NotStarted,
         }
     }
     pub fn resolve(&mut self, socket: Socket) -> Option<&mut (Socket, ClientSocketOp)> {
@@ -822,5 +722,55 @@ impl EventListener for SocketCallbacks {
             info.key = cred;
         }
         self.provisioning_info = Some(Some(info));
+    }
+
+    //#[cfg(feature = "ota")]
+    /// Callback function for OTA events.
+    ///
+    /// # Arguments
+    ///
+    /// * `status` - OTA Update Status.
+    fn on_ota(&mut self, status: OtaUpdateStatus, error: OtaUpdateError) {
+        self.ota_state = match status {
+            OtaUpdateStatus::Abort if self.ota_state == OtaUpdateState::Aborting => {
+                if error == OtaUpdateError::NoError {
+                    OtaUpdateState::Aborted
+                } else {
+                    OtaUpdateState::Failed(error)
+                }
+            }
+            OtaUpdateStatus::Download if self.ota_state == OtaUpdateState::InProgress => {
+                if error == OtaUpdateError::UpdateInProgress {
+                    OtaUpdateState::InProgress
+                } else if error == OtaUpdateError::NoError {
+                    OtaUpdateState::Complete
+                } else {
+                    OtaUpdateState::Failed(error)
+                }
+            }
+            OtaUpdateStatus::Rollback if self.ota_state == OtaUpdateState::RollingBack => {
+                if error == OtaUpdateError::NoError {
+                    OtaUpdateState::RolledBack
+                } else {
+                    OtaUpdateState::Failed(error)
+                }
+            }
+            OtaUpdateStatus::SwitchingFirmware
+                if self.ota_state == OtaUpdateState::SwitchingFirmware =>
+            {
+                if error == OtaUpdateError::NoError {
+                    OtaUpdateState::Switched
+                } else {
+                    OtaUpdateState::Failed(error)
+                }
+            }
+            OtaUpdateStatus::Unhandled => {
+                panic!("Invalid OTA update status received")
+            }
+            _ => {
+                debug!("OTA status does not match the requried state.");
+                self.ota_state // retain the value if conditions dosen't match
+            }
+        };
     }
 }

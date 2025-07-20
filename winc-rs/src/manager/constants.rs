@@ -369,7 +369,7 @@ impl From<u8> for IpCode {
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[derive(Debug, PartialEq, Default)]
 /// OTA HiF Response ID.
-pub enum OtaResponse {
+pub(crate) enum OtaResponse {
     #[default]
     Unhandled,
     OtaNotifyUpdateInfo = 0x6A, // M2M_OTA_RESP_NOTIF_UPDATE_INFO + tstrOtaUpdateInfo (OTA mode)
@@ -388,8 +388,9 @@ impl From<u8> for OtaResponse {
 }
 
 //#[cfg(feature = "ota")]
+#[allow(dead_code)]
 #[derive(Copy, Clone)]
-pub enum OtaRequest {
+pub(crate) enum OtaRequest {
     SetUrl = 0x64,                    // M2M_OTA_REQ_NOTIF_SET_URL
     NotifyUpdate = 0x65,              // M2M_OTA_REQ_NOTIF_CHECK_FOR_UPDATE
     ScheduleToNotify = 0x66,          // M2M_OTA_REQ_NOTIF_SCHED
@@ -398,7 +399,7 @@ pub enum OtaRequest {
     RollbackFirmware = 0x69,          // M2M_OTA_REQ_ROLLBACK_FW
     RequestTest = 0x6C,               // M2M_OTA_REQ_TEST
     StartCortusFirmwareUpdate = 0x6D, // M2M_OTA_REQ_START_CRT_UPDATE
-    SwitchCortusFrimware = 0x6E,      // M2M_OTA_REQ_SWITCH_CRT_IMG
+    SwitchCortusFirmware = 0x6E,      // M2M_OTA_REQ_SWITCH_CRT_IMG
     RollbackCortusFirmware = 0x6F,    // M2M_OTA_REQ_ROLLBACK_CRT
     Abort = 0x70,                     // M2M_OTA_REQ_ABORT
 }
@@ -407,6 +408,72 @@ pub enum OtaRequest {
 impl From<OtaRequest> for u8 {
     fn from(val: OtaRequest) -> Self {
         val as u8
+    }
+}
+
+//#[cfg(feature = "ota")]
+#[repr(u8)]
+/// OTA Update Error Codes.
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum OtaUpdateError {
+    NoError = 0,
+    GenericFail = 1,
+    InvalidArguments = 2,
+    InvalidRollbackImage = 3,
+    InvalidFlashSize = 4,
+    UpdateInProgress = 6,
+    ImageVerificationFailed = 7,
+    ConnectionError = 8,
+    ServerError = 9,
+    Unhandled = 0xff,
+}
+
+//#[cfg(feature = "ota")]
+/// Implementation to convert `u8` value to `OtaUpdateError`.
+impl From<u8> for OtaUpdateError {
+    fn from(val: u8) -> Self {
+        match val {
+            0 => Self::NoError,
+            1 => Self::GenericFail,
+            2 => Self::InvalidArguments,
+            3 => Self::InvalidRollbackImage,
+            4 => Self::InvalidFlashSize,
+            5 => Self::NoError,
+            6 => Self::UpdateInProgress,
+            7 => Self::ImageVerificationFailed,
+            8 => Self::ConnectionError,
+            9 => Self::ServerError,
+            10 => Self::NoError,
+            _ => Self::Unhandled,
+        }
+    }
+}
+
+//#[cfg(feature = "ota")]
+#[repr(u8)]
+/// OTA Update Status.
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub(crate) enum OtaUpdateStatus {
+    Download = 1,
+    SwitchingFirmware = 2,
+    Rollback = 3,
+    Abort = 4,
+    Unhandled = 0xff,
+}
+
+//#[cfg(feature = "ota")]
+/// Implementation to convert `u8` value to `OtaUpdateStatus`.
+impl From<u8> for OtaUpdateStatus {
+    fn from(val: u8) -> Self {
+        match val {
+            1 => Self::Download,
+            2 => Self::SwitchingFirmware,
+            3 => Self::Rollback,
+            4 => Self::Abort,
+            _ => Self::Unhandled,
+        }
     }
 }
 

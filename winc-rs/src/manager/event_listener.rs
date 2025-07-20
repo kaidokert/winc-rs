@@ -147,19 +147,23 @@ impl<X: Xfer> Manager<X> {
     /// * `Error` - If an error occurred while processing the events.
     fn ota_events_listener<T: EventListener>(
         &mut self,
-        _listener: &mut T,
-        _address: u32,
+        listener: &mut T,
+        address: u32,
         ota_res: OtaResponse,
     ) -> Result<(), Error> {
         match ota_res {
             OtaResponse::OtaNotifyUpdateInfo => {
-                todo!()
+                unimplemented!("OTA Notify is not supported")
             }
             OtaResponse::OtaUpdateStatus => {
-                todo!()
+                let mut response = [0u8; 4];
+                self.read_block(address, &mut response)?;
+                listener.on_ota(response[0].into(), response[1].into());
             }
             _ => panic!("Invalid OTA response"),
         }
+
+        Ok(())
     }
 
     /// Parses incoming IP events from the chip and dispatches them to the provided event listener.

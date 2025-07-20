@@ -30,12 +30,14 @@ use crate::{debug, trace};
 use chip_access::ChipAccess;
 #[cfg(feature = "wep")]
 pub use constants::WepKeyIndex;
-//#[cfg(feature = "ota")]
 pub use constants::{AuthType, PingError, SocketError, WifiChannel, WifiConnError, WifiConnState}; // todo response shouldn't be leaking
 use constants::{IpCode, Regs, WifiRequest, WifiResponse};
-pub use constants::{OtaRequest, OtaResponse};
+//#[cfg(feature = "ota")]
+pub use constants::OtaUpdateError;
 
 pub(crate) use constants::{PRNG_DATA_LENGTH, SOCKET_BUFFER_MAX_LENGTH};
+//#[cfg(feature = "ota")]
+pub(crate) use constants::{OtaRequest, OtaResponse, OtaUpdateStatus};
 
 pub use net_types::{
     AccessPoint, Credentials, HostName, ProvisioningInfo, S8Password, S8Username, SocketOptions,
@@ -182,6 +184,8 @@ pub trait EventListener {
     fn on_recvfrom(&mut self, socket: Socket, address: SocketAddrV4, data: &[u8], err: SocketError);
     fn on_prng(&mut self, data: &[u8]);
     fn on_provisioning(&mut self, ssid: Ssid, key: WpaKey, security: AuthType, status: bool);
+    //#[cfg(feature = "ota")]
+    fn on_ota(&mut self, status: OtaUpdateStatus, error: OtaUpdateError);
 }
 
 pub struct Manager<X: Xfer> {
@@ -910,7 +914,7 @@ impl<X: Xfer> Manager<X> {
     ///
     /// # Arguments
     ///
-    /// * `crt_ota` - Whether the OTA update is for cortus processor or winc1500 stack.
+    /// * `request` - Type of OTA request to send.
     ///
     /// # Returns
     ///
