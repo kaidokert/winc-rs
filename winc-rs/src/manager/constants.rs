@@ -323,6 +323,13 @@ pub enum IpCode {
                             // SslSetCsList = 0x53, // SOCKET_CMD_SSL_SET_CS_LIST + no specific data
 }
 
+/// Implementation to convert `IpCode` to `u8` value.
+impl From<IpCode> for u8 {
+    fn from(val: IpCode) -> Self {
+        val as Self
+    }
+}
+
 impl From<u8> for IpCode {
     fn from(v: u8) -> Self {
         match v {

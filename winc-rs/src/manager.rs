@@ -503,9 +503,9 @@ impl<X: Xfer> Manager<X> {
         let pkglen = (payload.len() + HIF_HEADER_OFFSET).to_le_bytes();
         assert_eq!(pkglen[1], 0);
         // Operation ID.
-        let opp = match req {
-            HifRequest::Wifi(opcode) => opcode as u8,
-            HifRequest::Ip(opcode) => opcode as u8,
+        let opp: u8 = match req {
+            HifRequest::Wifi(opcode) => opcode.into(),
+            HifRequest::Ip(opcode) => opcode.into(),
         };
         // Group ID.
         let grpval = req.into();
