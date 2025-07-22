@@ -6,7 +6,7 @@ use crate::manager::WepKey;
 use crate::manager::WepKeyIndex;
 use crate::manager::{
     Credentials, EventListener, ProvisioningInfo, SocketError, Ssid, WifiConnError, WifiConnState,
-    WpaKey, PRNG_DATA_LENGTH,
+    WpaKey,
 };
 use crate::{debug, error, info};
 use crate::{AuthType, ConnectionInfo};
@@ -16,7 +16,7 @@ use crate::socket::Socket;
 use crate::Ipv4AddrFormatWrapper;
 
 use super::SockHolder;
-use crate::manager::{PingError, ScanResult, SOCKET_BUFFER_MAX_LENGTH};
+use crate::manager::{PingError, ScanResult, PRNG_DATA_LENGTH, SOCKET_BUFFER_MAX_LENGTH};
 
 use crate::stack::sock_holder::SocketStore;
 

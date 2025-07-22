@@ -41,6 +41,15 @@ pub(crate) const ENABLE_AP_PACKET_SIZE: usize = 136;
 pub(crate) const SET_SOCK_OPTS_PACKET_SIZE: usize = 8;
 /// Packet size to set SSL socket option request.
 pub(crate) const SET_SSL_SOCK_OPTS_PACKET_SIZE: usize = 72;
+/// Maximum buffer size for the TCP stack. Must be able to handle the full MTU from the chip (1440+ bytes observed).
+pub(crate) const SOCKET_BUFFER_MAX_LENGTH: usize = 1500;
+/// Packet Size of get random bytes request.
+pub(crate) const PRNG_PACKET_SIZE: usize = 8;
+// Maximum length supported by the chip in one iteration.
+#[cfg(feature = "large_rng")]
+pub(crate) const PRNG_DATA_LENGTH: usize = 1600 - 4 - PRNG_PACKET_SIZE;
+#[cfg(not(feature = "large_rng"))]
+pub(crate) const PRNG_DATA_LENGTH: usize = 32;
 
 pub enum Regs {
     SpiConfig = 0xE824,
