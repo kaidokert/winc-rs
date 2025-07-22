@@ -485,7 +485,7 @@ impl<X: Xfer> Manager<X> {
     ///
     /// # Arguments
     ///
-    /// * `req_id` - HIF Request ID (e.g., WiFi, IP, OTA, HIF).
+    /// * `req` - HIF Request (e.g., WiFi, IP, OTA, HIF).
     /// * `payload` - Request/Control Buffer to be sent.
     /// * `data_packet` - Request data from chip or not.
     ///
@@ -495,7 +495,7 @@ impl<X: Xfer> Manager<X> {
     /// * `Error` - if any error occured while preparing or writing HIF header.
     fn write_hif_header(
         &mut self,
-        req_id: HifRequest,
+        req: HifRequest,
         payload: &[u8],
         data_packet: bool,
     ) -> Result<(), Error> {
@@ -503,12 +503,12 @@ impl<X: Xfer> Manager<X> {
         let pkglen = (payload.len() + HIF_HEADER_OFFSET).to_le_bytes();
         assert_eq!(pkglen[1], 0);
         // Operation ID.
-        let opp = match req_id {
+        let opp = match req {
             HifRequest::Wifi(opcode) => opcode as u8,
             HifRequest::Ip(opcode) => opcode as u8,
         };
         // Group ID.
-        let grpval = req_id.into();
+        let grpval = req.into();
         self.prep_for_hif_send(
             grpval,
             opp,
