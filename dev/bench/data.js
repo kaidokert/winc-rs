@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1752812515785,
+  "lastUpdate": 1753236297678,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -3421,6 +3421,40 @@ window.BENCHMARK_DATA = {
           {
             "name": "iperf3_client",
             "value": 67936,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "142439476+umarbinzahid@users.noreply.github.com",
+            "name": "Umar Bin Zahid",
+            "username": "umarbinzahid"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "630ac36d08892e0d63991f318d25d5720b3a4db4",
+          "message": "Added HIF request enumeration.  (#98)\n\n* Added HIF request enum and updated the `write_hif_header` functions.\n\n* added copy and clone traits to Wifi Request.\n\n* updated variable name.\n\n* - Added implementation to convert ipcode to u8 value  - Updated the write_hif_header function to extract opcode from method.",
+          "timestamp": "2025-07-22T19:03:48-07:00",
+          "tree_id": "65a6a0993263cf3c5b6cea5c990bf31d0fe30bf3",
+          "url": "https://github.com/kaidokert/winc-rs/commit/630ac36d08892e0d63991f318d25d5720b3a4db4"
+        },
+        "date": 1753236297151,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 52572,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 67904,
             "unit": "byte"
           }
         ]
