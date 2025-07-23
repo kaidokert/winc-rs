@@ -221,7 +221,7 @@ impl<X: Xfer> Manager<X> {
             | IpCode::SslSetSockOpt
             | IpCode::SslBind
             | IpCode::SslExpCheck => {
-                panic!("Received unhandled HIF code {:?}", ip_res)
+                panic!("Received unhandled IP HIF code: {:?}", ip_res)
             }
         }
         Ok(())
