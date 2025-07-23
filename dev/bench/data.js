@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1753236297678,
+  "lastUpdate": 1753236994020,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -3455,6 +3455,40 @@ window.BENCHMARK_DATA = {
           {
             "name": "iperf3_client",
             "value": 67904,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "142439476+umarbinzahid@users.noreply.github.com",
+            "name": "Umar Bin Zahid",
+            "username": "umarbinzahid"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "95101c0b11f9ef0764dbe2c17e38c925e2f3fd93",
+          "message": "Refactored Event Handling into Its Own Module (#99)\n\n* Added event listener.rs to make code readable.\n\n* Clarify IP HIF code\n\nCo-authored-by: coderabbitai[bot] <136622811+coderabbitai[bot]@users.noreply.github.com>\n\n---------\n\nCo-authored-by: Kaido Kert <kaidokert@gmail.com>\nCo-authored-by: coderabbitai[bot] <136622811+coderabbitai[bot]@users.noreply.github.com>",
+          "timestamp": "2025-07-22T19:15:28-07:00",
+          "tree_id": "9365104e7d544926dc5c8bff2b7521ca705c97f2",
+          "url": "https://github.com/kaidokert/winc-rs/commit/95101c0b11f9ef0764dbe2c17e38c925e2f3fd93"
+        },
+        "date": 1753236993410,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 52528,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 67864,
             "unit": "byte"
           }
         ]
