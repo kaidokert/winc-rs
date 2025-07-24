@@ -388,6 +388,7 @@ impl From<u8> for OtaResponse {
 }
 
 #[cfg(feature = "ota")]
+/// OTA Request/Operation Identifiers.
 #[allow(dead_code)]
 #[derive(Copy, Clone)]
 pub(crate) enum OtaRequest {
@@ -405,6 +406,7 @@ pub(crate) enum OtaRequest {
 }
 
 #[cfg(feature = "ota")]
+/// Implementation to convert `OtaRequest` to `u8` value.
 impl From<OtaRequest> for u8 {
     fn from(val: OtaRequest) -> Self {
         val as u8
@@ -412,8 +414,8 @@ impl From<OtaRequest> for u8 {
 }
 
 #[cfg(feature = "ota")]
-#[repr(u8)]
 /// OTA Update Error Codes.
+#[repr(u8)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum OtaUpdateError {

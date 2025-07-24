@@ -28,16 +28,16 @@ mod responses;
 use crate::{debug, trace};
 
 use chip_access::ChipAccess;
+#[cfg(feature = "ota")]
+pub use constants::OtaUpdateError;
 #[cfg(feature = "wep")]
 pub use constants::WepKeyIndex;
 pub use constants::{AuthType, PingError, SocketError, WifiChannel, WifiConnError, WifiConnState}; // todo response shouldn't be leaking
 use constants::{IpCode, Regs, WifiRequest, WifiResponse};
-#[cfg(feature = "ota")]
-pub use constants::OtaUpdateError;
 
-pub(crate) use constants::{PRNG_DATA_LENGTH, SOCKET_BUFFER_MAX_LENGTH};
 #[cfg(feature = "ota")]
 pub(crate) use constants::{OtaRequest, OtaResponse, OtaUpdateStatus};
+pub(crate) use constants::{PRNG_DATA_LENGTH, SOCKET_BUFFER_MAX_LENGTH};
 
 pub use net_types::{
     AccessPoint, Credentials, HostName, ProvisioningInfo, S8Password, S8Username, SocketOptions,
@@ -56,6 +56,7 @@ use core::net::{Ipv4Addr, SocketAddrV4};
 
 pub use responses::FirmwareInfo;
 
+/// HIF Response Group.
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[derive(Debug, PartialEq, Default)]
 pub(crate) enum HifGroup {
@@ -88,23 +89,7 @@ impl From<HifRequest> for u8 {
     }
 }
 
-/// HIF Request Group.
-#[derive(Copy, Clone)]
-enum HifRequest {
-    Wifi(WifiRequest),
-    Ip(IpCode),
-}
-
-/// Implementation to convert `HifRequest` to `u8` value.
-impl From<HifRequest> for u8 {
-    fn from(v: HifRequest) -> Self {
-        match v {
-            HifRequest::Wifi(_) => 1,
-            HifRequest::Ip(_) => 2,
-        }
-    }
-}
-
+/// Implementation to convert `[u8; 2]` array to `HifGroup` value.
 impl From<[u8; 2]> for HifGroup {
     fn from(v: [u8; 2]) -> Self {
         match v[0] {
@@ -116,6 +101,8 @@ impl From<[u8; 2]> for HifGroup {
         }
     }
 }
+
+/// Implementation to convert `HifGroup` to `u8` value.
 impl From<HifGroup> for u8 {
     fn from(v: HifGroup) -> Self {
         match v {
@@ -888,15 +875,19 @@ impl<X: Xfer> Manager<X> {
     /// # Arguments
     ///
     /// * `server_url` - Server URL from where firware image will be downloaded.
-    /// * `crt_ota` - Whether the OTA update is for cortus processor or winc1500 stack.
+    /// * `cortus_update` - Whether the OTA update is for cortus processor or winc1500 stack.
     ///
     /// # Returns
     ///
     /// * `()` - If the request is successfully sent.
     /// * `Error` - If an error occurs during packet preparation or sending.
-    pub fn send_start_ota_update(&mut self, server_url: &[u8], crt_ota: bool) -> Result<(), Error> {
+    pub fn send_start_ota_update(
+        &mut self,
+        server_url: &[u8],
+        cortus_update: bool,
+    ) -> Result<(), Error> {
         // Check whether request is for Cortus or for network stack.
-        let req_id = if crt_ota {
+        let req_id = if cortus_update {
             OtaRequest::StartCortusFirmwareUpdate
         } else {
             OtaRequest::StartFirmwareUpdate
@@ -910,7 +901,8 @@ impl<X: Xfer> Manager<X> {
     }
 
     #[cfg(feature = "ota")]
-    /// Send a request to rollback the OTA update for either winc1500 network stack or cortus processor.
+    /// Sends an OTA request (rollback, abort, switch) either for the
+    /// WINC1500 network stack or the Cortus processor.
     ///
     /// # Arguments
     ///

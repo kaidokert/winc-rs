@@ -42,6 +42,7 @@ pub(crate) enum WifiModuleState {
 }
 
 #[cfg(feature = "ota")]
+/// States to control the operational flow of OTA update.
 #[derive(PartialEq, Eq, Copy, Clone)]
 pub(crate) enum OtaUpdateState {
     NotStarted,

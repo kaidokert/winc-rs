@@ -1,8 +1,8 @@
 use crate::manager::WifiConnError;
 
-use crate::manager::SocketError;
 #[cfg(feature = "ota")]
 use crate::manager::OtaUpdateError;
+use crate::manager::SocketError;
 
 use embedded_nal::nb;
 

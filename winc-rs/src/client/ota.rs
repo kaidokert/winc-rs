@@ -41,7 +41,8 @@ impl<X: Xfer> WincClient<'_, X> {
     ///
     /// **Notes**:
     /// * The last byte of the `server_url` array must be `0` (null-terminated).
-    /// * If the OTA download fails due to a general timeout, it is recommended to send an abort request.
+    /// * If the OTA download fails due to a general timeout, it is recommended to send an abort request to
+    /// cancel the previous update request.
     ///
     /// # Returns
     ///
