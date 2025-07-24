@@ -104,7 +104,7 @@ fn parse_query(buffer: &[u8], service_name: &str) -> Result<(), Error> {
     let qclass = u16::from_be_bytes([buffer[offset + 2], buffer[offset + 3]]);
 
     if (qtype != 0x000C) && (qclass != 0x0001) {
-        return Err(Error::InvalidParameters)
+        return Err(Error::InvalidParameters);
     }
 
     Ok(())
