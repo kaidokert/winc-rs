@@ -21,7 +21,7 @@ use crate::manager::constants::{
 use crate::manager::responses::*;
 use crate::transfer::Xfer;
 
-#[cfg(feature = "ota")]
+#[cfg(feature = "experimental-ota")]
 use crate::manager::constants::OtaResponse;
 
 impl<X: Xfer> Manager<X> {
@@ -132,7 +132,7 @@ impl<X: Xfer> Manager<X> {
         Ok(())
     }
 
-    #[cfg(feature = "ota")]
+    #[cfg(feature = "experimental-ota")]
     /// Parses incoming OTA events from the chip and dispatches them to the provided event listener.
     ///
     /// # Arguments
@@ -304,7 +304,7 @@ impl<X: Xfer> Manager<X> {
         match hif {
             HifGroup::Wifi(e) => self.wifi_events_listener(listener, address, e),
             HifGroup::Ip(e) => self.ip_events_listener(listener, address, e),
-            #[cfg(feature = "ota")]
+            #[cfg(feature = "experimental-ota")]
             HifGroup::Ota(e) => self.ota_events_listener(listener, address, e),
             _ => panic!("Unexpected hif"),
         }

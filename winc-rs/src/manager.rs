@@ -28,14 +28,14 @@ mod responses;
 use crate::{debug, trace};
 
 use chip_access::ChipAccess;
-#[cfg(feature = "ota")]
+#[cfg(feature = "experimental-ota")]
 pub use constants::OtaUpdateError;
 #[cfg(feature = "wep")]
 pub use constants::WepKeyIndex;
 pub use constants::{AuthType, PingError, SocketError, WifiChannel, WifiConnError, WifiConnState}; // todo response shouldn't be leaking
 use constants::{IpCode, Regs, WifiRequest, WifiResponse};
 
-#[cfg(feature = "ota")]
+#[cfg(feature = "experimental-ota")]
 pub(crate) use constants::{OtaRequest, OtaResponse, OtaUpdateStatus};
 pub(crate) use constants::{PRNG_DATA_LENGTH, SOCKET_BUFFER_MAX_LENGTH};
 
@@ -64,7 +64,7 @@ pub(crate) enum HifGroup {
     Unhandled,
     Wifi(WifiResponse),
     Ip(IpCode),
-    #[cfg(feature = "ota")]
+    #[cfg(feature = "experimental-ota")]
     Ota(OtaResponse),
 }
 
@@ -73,7 +73,7 @@ pub(crate) enum HifGroup {
 enum HifRequest {
     Wifi(WifiRequest),
     Ip(IpCode),
-    #[cfg(feature = "ota")]
+    #[cfg(feature = "experimental-ota")]
     Ota(OtaRequest),
 }
 
@@ -83,7 +83,7 @@ impl From<HifRequest> for u8 {
         match v {
             HifRequest::Wifi(_) => 1,
             HifRequest::Ip(_) => 2,
-            #[cfg(feature = "ota")]
+            #[cfg(feature = "experimental-ota")]
             HifRequest::Ota(_) => 4,
         }
     }
@@ -95,7 +95,7 @@ impl From<[u8; 2]> for HifGroup {
         match v[0] {
             1 => Self::Wifi(v[1].into()),
             2 => Self::Ip(v[1].into()),
-            #[cfg(feature = "ota")]
+            #[cfg(feature = "experimental-ota")]
             4 => Self::Ota(v[1].into()),
             _ => Self::Unhandled,
         }
@@ -108,7 +108,7 @@ impl From<HifGroup> for u8 {
         match v {
             HifGroup::Wifi(_) => 1,
             HifGroup::Ip(_) => 2,
-            #[cfg(feature = "ota")]
+            #[cfg(feature = "experimental-ota")]
             HifGroup::Ota(_) => 4,
             _ => 0xFF,
         }
@@ -171,7 +171,7 @@ pub trait EventListener {
     fn on_recvfrom(&mut self, socket: Socket, address: SocketAddrV4, data: &[u8], err: SocketError);
     fn on_prng(&mut self, data: &[u8]);
     fn on_provisioning(&mut self, ssid: Ssid, key: WpaKey, security: AuthType, status: bool);
-    #[cfg(feature = "ota")]
+    #[cfg(feature = "experimental-ota")]
     fn on_ota(&mut self, status: OtaUpdateStatus, error: OtaUpdateError);
 }
 
@@ -517,7 +517,7 @@ impl<X: Xfer> Manager<X> {
         let opp: u8 = match req {
             HifRequest::Wifi(opcode) => opcode.into(),
             HifRequest::Ip(opcode) => opcode.into(),
-            #[cfg(feature = "ota")]
+            #[cfg(feature = "experimental-ota")]
             HifRequest::Ota(opcode) => opcode.into(),
         };
         // Group ID.
@@ -869,7 +869,7 @@ impl<X: Xfer> Manager<X> {
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
     }
 
-    #[cfg(feature = "ota")]
+    #[cfg(feature = "experimental-ota")]
     /// Send a request to start the OTA update for either winc1500 network stack or cortus processor.
     ///
     /// # Arguments
@@ -900,7 +900,7 @@ impl<X: Xfer> Manager<X> {
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
     }
 
-    #[cfg(feature = "ota")]
+    #[cfg(feature = "experimental-ota")]
     /// Sends an OTA request (rollback, abort, switch) either for the
     /// WINC1500 network stack or the Cortus processor.
     ///

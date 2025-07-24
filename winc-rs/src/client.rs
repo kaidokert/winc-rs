@@ -4,7 +4,7 @@ use crate::socket::Socket;
 use crate::transfer::Xfer;
 
 mod dns;
-#[cfg(feature = "ota")]
+#[cfg(feature = "experimental-ota")]
 mod ota;
 mod prng;
 mod tcp_stack;

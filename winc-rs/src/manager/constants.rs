@@ -365,7 +365,7 @@ impl From<u8> for IpCode {
     }
 }
 
-#[cfg(feature = "ota")]
+#[cfg(feature = "experimental-ota")]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[derive(Debug, PartialEq, Default)]
 /// OTA HiF Response ID.
@@ -376,7 +376,7 @@ pub(crate) enum OtaResponse {
     OtaUpdateStatus = 0x6B,     // M2M_OTA_RESP_UPDATE_STATUS + tstrOtaUpdateStatusResp (OTA mode)
 }
 
-#[cfg(feature = "ota")]
+#[cfg(feature = "experimental-ota")]
 impl From<u8> for OtaResponse {
     fn from(v: u8) -> Self {
         match v {
@@ -387,7 +387,7 @@ impl From<u8> for OtaResponse {
     }
 }
 
-#[cfg(feature = "ota")]
+#[cfg(feature = "experimental-ota")]
 /// OTA Request/Operation Identifiers.
 #[allow(dead_code)]
 #[derive(Copy, Clone)]
@@ -405,7 +405,7 @@ pub(crate) enum OtaRequest {
     Abort = 0x70,                     // M2M_OTA_REQ_ABORT
 }
 
-#[cfg(feature = "ota")]
+#[cfg(feature = "experimental-ota")]
 /// Implementation to convert `OtaRequest` to `u8` value.
 impl From<OtaRequest> for u8 {
     fn from(val: OtaRequest) -> Self {
@@ -413,7 +413,7 @@ impl From<OtaRequest> for u8 {
     }
 }
 
-#[cfg(feature = "ota")]
+#[cfg(feature = "experimental-ota")]
 /// OTA Update Error Codes.
 #[repr(u8)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
@@ -431,7 +431,7 @@ pub enum OtaUpdateError {
     Unhandled = 0xff,
 }
 
-#[cfg(feature = "ota")]
+#[cfg(feature = "experimental-ota")]
 /// Implementation to convert `u8` value to `OtaUpdateError`.
 impl From<u8> for OtaUpdateError {
     fn from(val: u8) -> Self {
@@ -452,7 +452,7 @@ impl From<u8> for OtaUpdateError {
     }
 }
 
-#[cfg(feature = "ota")]
+#[cfg(feature = "experimental-ota")]
 #[repr(u8)]
 /// OTA Update Status.
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
@@ -465,7 +465,7 @@ pub(crate) enum OtaUpdateStatus {
     Unhandled = 0xff,
 }
 
-#[cfg(feature = "ota")]
+#[cfg(feature = "experimental-ota")]
 /// Implementation to convert `u8` value to `OtaUpdateStatus`.
 impl From<u8> for OtaUpdateStatus {
     fn from(val: u8) -> Self {
