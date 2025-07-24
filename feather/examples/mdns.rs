@@ -22,21 +22,31 @@ const MDNS_SERVICE_NAME: &str = "_brrdino._tcp.local";
 
 use wincwifi::{Credentials, SocketOptions, Ssid, StackError, WifiChannel, WincClient};
 
-fn parse_query(buffer: &[u8], service_name: &str) -> bool {
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[derive(Debug)]
+enum Error {
+    InvalidMdnsPacket,
+    InvalidServiceName,
+    NotAQueryPacket,
+    IncompletePacket,
+    InvalidParameters,
+}
+
+fn parse_query(buffer: &[u8], service_name: &str) -> Result<(), Error> {
     // check if header (12 bytes) is valid
     if buffer.len() < MDNS_HEADER_SIZE {
-        return false;
+        return Err(Error::InvalidMdnsPacket);
     }
 
     // check number of questions
     let qdcount = u16::from_be_bytes([buffer[4], buffer[5]]);
     if qdcount == 0 {
-        return false;
+        return Err(Error::NotAQueryPacket);
     }
 
     // Check for supported service name length
     if service_name.len() > MAX_SIZE_MDNS_SERVICE_NAME {
-        return false;
+        return Err(Error::InvalidServiceName);
     }
 
     let mut offset = MDNS_HEADER_SIZE;
@@ -53,12 +63,12 @@ fn parse_query(buffer: &[u8], service_name: &str) -> bool {
 
         // name compression is not supported.
         if len & 0xC0 != 0 {
-            return false;
+            return Err(Error::InvalidParameters);
         }
 
         offset += 1;
         if offset + len > buffer.len() || qname_index + len + 1 > qname.len() {
-            return false;
+            return Err(Error::IncompletePacket);
         }
 
         // copy label
@@ -81,24 +91,26 @@ fn parse_query(buffer: &[u8], service_name: &str) -> bool {
 
     // compare
     if parsed_name != expected_name {
-        return false;
+        return Err(Error::InvalidServiceName);
     }
 
     // Check the QTYPE (2 bytes) and QCLASS (2 bytes)
     if offset + 4 > buffer.len() {
-        return false;
+        return Err(Error::IncompletePacket);
     }
 
-    matches!(
-        (
-            u16::from_be_bytes([buffer[offset], buffer[offset + 1]]),
-            u16::from_be_bytes([buffer[offset + 2], buffer[offset + 3]])
-        ),
-        (0x000C, 0x0001) // QTYPE = PTR, QCLASS = IN
-    )
+    // QTYPE = PTR, QCLASS = IN
+    let qtype = u16::from_be_bytes([buffer[offset], buffer[offset + 1]]);
+    let qclass = u16::from_be_bytes([buffer[offset + 2], buffer[offset + 3]]);
+
+    if (qtype != 0x000C) && (qclass != 0x0001) {
+        return Err(Error::InvalidParameters)
+    }
+
+    Ok(())
 }
 
-fn build_response() -> [u8; MAX_MDNS_RESPONSE_SIZE] {
+fn build_response(ip: [u8; 4]) -> [u8; MAX_MDNS_RESPONSE_SIZE] {
     let response_packet = [
         // --- Header
         0x00, 0x00, // transaction
@@ -137,7 +149,7 @@ fn build_response() -> [u8; MAX_MDNS_RESPONSE_SIZE] {
         0x00, 0x01, 0x00, 0x01, // Type = A, Class = IN
         0x00, 0x00, 0x00, 0x78, // TTL = 120
         0x00, 0x04, // RDLENGTH = 4 bytes
-        0xC0, 0xA8, 0x01, 0x01, // IP = 192.168.1.1 (example)
+        ip[0], ip[1], ip[2], ip[3], // IP = 192.168.1.1 (example)
     ];
 
     return response_packet;
@@ -183,6 +195,9 @@ fn program() -> Result<(), StackError> {
         info!("Started, connecting to AP ..");
         nb::block!(stack.connect_to_ap(&ssid, &credentials, WifiChannel::ChannelAll, false))?;
 
+        // Get IP configurations
+        let info = nb::block!(stack.get_ip_settings())?;
+
         // Creat the UDP socket
         let mut socket = stack.socket()?;
         let test_port = option_env!("TEST_PORT").unwrap_or(DEFAULT_TEST_MDNS_PORT);
@@ -200,30 +215,36 @@ fn program() -> Result<(), StackError> {
         stack.set_socket_option(&mut socket, &multicast_opt)?;
         info!("Server started listening");
 
-        let mut buffer = [0x0u8; 2048];
+        let mut buffer = [0x0u8; 256];
+        let mut packet_counter = 1 as u32;
         let mdns_addr = SocketAddr::V4(SocketAddrV4::new(ip, port));
 
-        info!("--> Waiting for new multicast query");
+        info!("---> Waiting for new multicast query");
 
         loop {
             delay_ms(200);
             red_led.set_high().unwrap();
             let (_, addr) = nb::block!(stack.receive(&mut socket, &mut buffer))?;
             if let SocketAddr::V4(addr) = addr {
-                if parse_query(&buffer, MDNS_SERVICE_NAME) {
-                    info!(
-                        "Received query from: {}.{}.{}.{}:{}",
-                        addr.ip().octets()[0],
-                        addr.ip().octets()[1],
-                        addr.ip().octets()[2],
-                        addr.ip().octets()[3],
-                        addr.port()
-                    );
-                    let res = build_response();
-                    nb::block!(stack.send_to(&mut socket, mdns_addr, &res))?;
-                    info!("<--- Sent multicast response packet");
-                    info!("--> Waiting for new multicast query");
+                match parse_query(&buffer, MDNS_SERVICE_NAME) {
+                    Err(e) => error!("Packet {} rejected: {:?}", packet_counter, e),
+                    Ok(_) => {
+                        info!(
+                            "Received query {} from: {}.{}.{}.{}:{}",
+                            packet_counter,
+                            addr.ip().octets()[0],
+                            addr.ip().octets()[1],
+                            addr.ip().octets()[2],
+                            addr.ip().octets()[3],
+                            addr.port()
+                        );
+                        let res = build_response(info.ip.octets());
+                        nb::block!(stack.send_to(&mut socket, mdns_addr, &res))?;
+                        info!("<--- Sent multicast response packet");
+                    }
                 }
+                info!("---> Waiting for new multicast query");
+                packet_counter += 1;
             }
             delay_ms(200);
             red_led.set_low().unwrap();

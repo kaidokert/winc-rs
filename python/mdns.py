@@ -7,10 +7,9 @@ import sys
 
 log = logging.getLogger(__name__)
 
-SOCKET_RCV_TIMEO = 5 # 10 seconds
-SLEEP_TIMEO = 0.600 # 600 miliseconds
+SOCKET_RCV_TIMEO = 5 # 5 seconds
+SLEEP_TIMEO = 0.600 # 600 milliseconds
 RCV_BUFFER_SIZE = 256 # Max message size to receive
-VALID_INST_NAME = "feather-board._brrdino._tcp.local"
 
 def build_mdns_query(service_name: str):
     header = b'\x00\x00'      # Transaction ID
@@ -40,6 +39,8 @@ def parse_dns_name(data, offset):
         if (length & 0xC0) == 0xC0: # Check if name is compressed
             pointer = struct.unpack('>H', data[offset:offset+2])[0]
             pointer &= 0x3FFF  # Mask out the top two bits to get the actual offset
+            if pointer >= len(data):
+                raise ValueError("Invalid DNS pointer offset")
             sublabels, _ = parse_dns_name(data, pointer)
             labels.extend(sublabels)
             offset += 2
@@ -83,7 +84,7 @@ def parse_response(data, service_name: str) -> bool:
 
             rcvd_inst_name = ".".join(name)
 
-            log.info("Answer: Name = {}, Type = {}, TTL = {}".format(rcvd_inst_name, rtype, ttl))
+            log.info("Answer: Name = {}, Type = {}, Class = {}, TTL = {}".format(rcvd_inst_name, rtype, rclass, ttl))
 
             if rtype == 12 and rcvd_inst_name == service_name:  # PTR
                 ptr_name, _ = parse_dns_name(rdata, 0)
