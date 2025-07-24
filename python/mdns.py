@@ -29,8 +29,10 @@ def build_mdns_query(service_name: str):
 
     return header + qname + qtype + qclass
 
-def parse_dns_name(data, offset):
+def parse_dns_name(data, offset, max_depth=5):
     labels = []
+    if max_depth <= 0:
+        raise ValueError("Maximum DNS name recursion depth exceeded")
     while True:
         length = data[offset]
         if length == 0:
@@ -41,7 +43,7 @@ def parse_dns_name(data, offset):
             pointer &= 0x3FFF  # Mask out the top two bits to get the actual offset
             if pointer >= len(data):
                 raise ValueError("Invalid DNS pointer offset")
-            sublabels, _ = parse_dns_name(data, pointer)
+            sublabels, _ = parse_dns_name(data, pointer, max_depth - 1)
             labels.extend(sublabels)
             offset += 2
             break
@@ -94,8 +96,11 @@ def parse_response(data, service_name: str) -> bool:
                 target, _ = parse_dns_name(rdata, 6)
                 log.info("  SRV -> {}:{} (priority {}, weight {})".format(".".join(target), port, priority, weight))
             elif rtype == 1:  # A
-                ip = ".".join(map(str, rdata))
-                log.info("  A -> {}".format(ip))
+                if rdlength == 4:
+                    ip = ".".join(map(str, rdata))
+                    log.info("  A -> {}".format(ip))
+                else:
+                    log.warning("A record with unexpected length: {}".format(rdlength))
             else:
                 log.error("Unknown record type or unparsed data.")
                 return False
