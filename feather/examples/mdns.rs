@@ -27,12 +27,11 @@ use wincwifi::{Credentials, SocketOptions, Ssid, StackError, WifiChannel, WincCl
 enum Error {
     InvalidMdnsPacket,
     InvalidServiceName,
-    NotAQueryPacket,
     IncompletePacket,
     InvalidParameters,
 }
 
-fn parse_query(buffer: &[u8], service_name: &str) -> Result<(), Error> {
+fn parse_query(buffer: &[u8], service_name: &str) -> Result<bool, Error> {
     // check if header (12 bytes) is valid
     if buffer.len() < MDNS_HEADER_SIZE {
         return Err(Error::InvalidMdnsPacket);
@@ -41,7 +40,7 @@ fn parse_query(buffer: &[u8], service_name: &str) -> Result<(), Error> {
     // check number of questions
     let qdcount = u16::from_be_bytes([buffer[4], buffer[5]]);
     if qdcount == 0 {
-        return Err(Error::NotAQueryPacket);
+        return Ok(false);
     }
 
     // Check for supported service name length
@@ -91,7 +90,7 @@ fn parse_query(buffer: &[u8], service_name: &str) -> Result<(), Error> {
 
     // compare
     if parsed_name != expected_name {
-        return Err(Error::InvalidServiceName);
+        return Ok(false);
     }
 
     // Check the QTYPE (2 bytes) and QCLASS (2 bytes)
@@ -107,7 +106,7 @@ fn parse_query(buffer: &[u8], service_name: &str) -> Result<(), Error> {
         return Err(Error::InvalidParameters);
     }
 
-    Ok(())
+    Ok(true)
 }
 
 fn build_response(ip: [u8; 4]) -> [u8; MAX_MDNS_RESPONSE_SIZE] {
@@ -219,6 +218,11 @@ fn program() -> Result<(), StackError> {
         let mut packet_counter = 1 as u32;
         let mdns_addr = SocketAddr::V4(SocketAddrV4::new(ip, port));
 
+        // announce
+        let announce = build_response(info.ip.octets());
+        info!("---> Sending announce");
+        nb::block!(stack.send_to(&mut socket, mdns_addr, &announce))?;
+
         info!("---> Waiting for new multicast query");
 
         loop {
@@ -228,19 +232,23 @@ fn program() -> Result<(), StackError> {
             if let SocketAddr::V4(addr) = addr {
                 match parse_query(&buffer, MDNS_SERVICE_NAME) {
                     Err(e) => error!("Packet {} rejected: {:?}", packet_counter, e),
-                    Ok(_) => {
-                        info!(
-                            "Received query {} from: {}.{}.{}.{}:{}",
-                            packet_counter,
-                            addr.ip().octets()[0],
-                            addr.ip().octets()[1],
-                            addr.ip().octets()[2],
-                            addr.ip().octets()[3],
-                            addr.port()
-                        );
-                        let res = build_response(info.ip.octets());
-                        nb::block!(stack.send_to(&mut socket, mdns_addr, &res))?;
-                        info!("<--- Sent multicast response packet");
+                    Ok(status) => {
+                        if status {
+                            info!(
+                                "Received query {} from: {}.{}.{}.{}:{}",
+                                packet_counter,
+                                addr.ip().octets()[0],
+                                addr.ip().octets()[1],
+                                addr.ip().octets()[2],
+                                addr.ip().octets()[3],
+                                addr.port()
+                            );
+                            let res = build_response(info.ip.octets());
+                            nb::block!(stack.send_to(&mut socket, mdns_addr, &res))?;
+                            info!("<--- Sent multicast response packet");
+                        } else {
+                            info!("Packet {} ignored!", packet_counter);
+                        }
                     }
                 }
                 info!("---> Waiting for new multicast query");
