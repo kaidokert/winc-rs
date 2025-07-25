@@ -59,7 +59,7 @@ def parse_response(data, service_name: str) -> bool:
         qdcount = struct.unpack(">H", data[4:6])[0]
         # Check for answers count
         ancount = struct.unpack(">H", data[6:8])[0]
-        # check for addtional record count
+        # check for additional record count
         arcount = struct.unpack(">H", data[10:12])[0]
         offset = 12
 
