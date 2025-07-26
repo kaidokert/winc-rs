@@ -732,15 +732,19 @@ impl EventListener for SocketCallbacks {
     ///
     /// * `status` - OTA Update Status.
     fn on_ota(&mut self, status: OtaUpdateStatus, error: OtaUpdateError) {
-        self.ota_state = match status {
-            OtaUpdateStatus::Abort if self.ota_state == OtaUpdateState::Aborting => {
-                if error == OtaUpdateError::NoError {
+        if error == OtaUpdateError::AlreadyEnabled {
+            error!("OTA operation {:?} is already enabled", status)
+        }
+
+        self.ota_state = match (status, self.ota_state) {
+            (OtaUpdateStatus::Abort, OtaUpdateState::Aborting) => {
+                if error == OtaUpdateError::NoError || error == OtaUpdateError::Aborted {
                     OtaUpdateState::Aborted
                 } else {
                     OtaUpdateState::Failed(error)
                 }
             }
-            OtaUpdateStatus::Download if self.ota_state == OtaUpdateState::InProgress => {
+            (OtaUpdateStatus::Download, OtaUpdateState::InProgress) => {
                 if error == OtaUpdateError::UpdateInProgress {
                     OtaUpdateState::InProgress
                 } else if error == OtaUpdateError::NoError {
@@ -749,27 +753,26 @@ impl EventListener for SocketCallbacks {
                     OtaUpdateState::Failed(error)
                 }
             }
-            OtaUpdateStatus::Rollback if self.ota_state == OtaUpdateState::RollingBack => {
+            (OtaUpdateStatus::Rollback, OtaUpdateState::RollingBack) => {
                 if error == OtaUpdateError::NoError {
                     OtaUpdateState::RolledBack
                 } else {
                     OtaUpdateState::Failed(error)
                 }
             }
-            OtaUpdateStatus::SwitchingFirmware
-                if self.ota_state == OtaUpdateState::SwitchingFirmware =>
-            {
+            (OtaUpdateStatus::SwitchingFirmware, OtaUpdateState::SwitchingFirmware) => {
                 if error == OtaUpdateError::NoError {
                     OtaUpdateState::Switched
                 } else {
                     OtaUpdateState::Failed(error)
                 }
             }
-            OtaUpdateStatus::Unhandled => {
-                panic!("Invalid OTA update status received")
+            (OtaUpdateStatus::Unhandled, _) => {
+                error!("Invalid OTA update status received");
+                OtaUpdateState::Failed(OtaUpdateError::Unhandled)
             }
             _ => {
-                debug!("OTA status does not match the requried state.");
+                error!("OTA status does not match the required state.");
                 self.ota_state // retain the value if conditions dosen't match
             }
         };

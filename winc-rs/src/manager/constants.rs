@@ -280,9 +280,7 @@ impl From<u8> for WifiResponse {
             0x37 => Self::WifiRxPacket,     // M2M_WIFI_RESP_WIFI_RX_PACKET
             // 0x0E => Self::MemoryRecover,   // M2M_WIFI_RESP_MEMORY_RECOVER (commented out)
             // 0x33 => Self::IpConfigured,       // M2M_WIFI_RESP_IP_CONFIGURED
-/* No OTA, Crypto and SSL for now
-            0x67 => Self::OtaNotifUpdateInfo, // M2M_OTA_RESP_NOTIF_UPDATE_INFO
-            0x68 => Self::OtaUpdateStatus,    // M2M_OTA_RESP_UPDATE_STATUS
+/* No Crypto and SSL for now
             0x02 => Self::CryptoSha256Init,   // M2M_CRYPTO_RESP_SHA256_INIT
             //0x04 =>Self::CryptoSha256Update,// M2M_CRYPTO_RESP_SHA256_UPDATE ( overlaps with CurrentRssi)
             //0x06 =>Self::CryptoSha256Finish,// M2M_CRYPTO_RESP_SHA256_FINSIH ( overlaps with ConnInfo)
@@ -424,10 +422,12 @@ pub enum OtaUpdateError {
     InvalidArguments = 2,
     InvalidRollbackImage = 3,
     InvalidFlashSize = 4,
+    AlreadyEnabled = 5,
     UpdateInProgress = 6,
     ImageVerificationFailed = 7,
     ConnectionError = 8,
     ServerError = 9,
+    Aborted = 10,
     Unhandled = 0xff,
 }
 
@@ -441,12 +441,12 @@ impl From<u8> for OtaUpdateError {
             2 => Self::InvalidArguments,
             3 => Self::InvalidRollbackImage,
             4 => Self::InvalidFlashSize,
-            5 => Self::NoError,
+            5 => Self::AlreadyEnabled,
             6 => Self::UpdateInProgress,
             7 => Self::ImageVerificationFailed,
             8 => Self::ConnectionError,
             9 => Self::ServerError,
-            10 => Self::NoError,
+            10 => Self::Aborted,
             _ => Self::Unhandled,
         }
     }

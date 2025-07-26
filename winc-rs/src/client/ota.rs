@@ -167,7 +167,7 @@ impl<X: Xfer> WincClient<'_, X> {
                 if let Some(time) = timeout {
                     self.operation_countdown = time;
                 } else {
-                    self.operation_countdown = OTA_UPDATE_TIMEOUT;
+                    self.operation_countdown = OTA_REQUEST_TIMEOUT;
                 }
             }
             OtaUpdateState::Aborting => {
@@ -225,7 +225,7 @@ impl<X: Xfer> WincClient<'_, X> {
                 if let Some(time) = timeout {
                     self.operation_countdown = time;
                 } else {
-                    self.operation_countdown = OTA_UPDATE_TIMEOUT;
+                    self.operation_countdown = OTA_REQUEST_TIMEOUT;
                 }
             }
             OtaUpdateState::SwitchingFirmware => {

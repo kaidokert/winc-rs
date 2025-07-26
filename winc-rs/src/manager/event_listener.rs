@@ -22,7 +22,7 @@ use crate::manager::responses::*;
 use crate::transfer::Xfer;
 
 #[cfg(feature = "experimental-ota")]
-use crate::manager::constants::OtaResponse;
+use crate::{error, manager::constants::OtaResponse};
 
 impl<X: Xfer> Manager<X> {
     /// Parses incoming WiFi events from the chip and dispatches them to the provided event listener.
@@ -153,14 +153,17 @@ impl<X: Xfer> Manager<X> {
     ) -> Result<(), Error> {
         match ota_res {
             OtaResponse::OtaNotifyUpdateInfo => {
-                unimplemented!("OTA Notify is not supported")
+                todo!("OTA Notify is not supported")
             }
             OtaResponse::OtaUpdateStatus => {
                 let mut response = [0u8; 4];
                 self.read_block(address, &mut response)?;
                 listener.on_ota(response[0].into(), response[1].into());
             }
-            _ => panic!("Invalid OTA response"),
+            _ => {
+                error!("Received invalid OTA response: {:?}", ota_res);
+                return Err(Error::InvalidHifResponse("OTA"));
+            }
         }
 
         Ok(())

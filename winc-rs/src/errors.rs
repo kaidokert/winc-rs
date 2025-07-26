@@ -33,6 +33,8 @@ pub enum CommError {
     FirmwareStart,
     /// HIF send failed
     HifSendFailed,
+    /// Invalid HiF response
+    InvalidHifResponse(&'static str),
 }
 
 impl From<core::convert::Infallible> for CommError {
@@ -86,6 +88,9 @@ impl core::fmt::Display for CommError {
             Self::BootRomStart => "WiFi module boot ROM start failed",
             Self::FirmwareStart => "WiFi module firmware start failed",
             Self::HifSendFailed => "HIF send failed",
+            Self::InvalidHifResponse(err_str) => {
+                return write!(f, "Invalid event response: {}", err_str)
+            }
         };
         f.write_str(msg)
     }
@@ -121,6 +126,9 @@ impl defmt::Format for CommError {
             Self::BootRomStart => defmt::write!(f, "WiFi module boot ROM start failed"),
             Self::FirmwareStart => defmt::write!(f, "WiFi module firmware start failed"),
             Self::HifSendFailed => defmt::write!(f, "HIF send failed"),
+            Self::InvalidHifResponse(err_str) => {
+                defmt::write!(f, "Invalid event response: {}", err_str)
+            }
         }
     }
 }
