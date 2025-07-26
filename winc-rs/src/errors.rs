@@ -89,7 +89,7 @@ impl core::fmt::Display for CommError {
             Self::FirmwareStart => "WiFi module firmware start failed",
             Self::HifSendFailed => "HIF send failed",
             Self::InvalidHifResponse(err_str) => {
-                return write!(f, "Invalid event response: {}", err_str)
+                return write!(f, "Invalid {} response received.", err_str)
             }
         };
         f.write_str(msg)
@@ -127,7 +127,7 @@ impl defmt::Format for CommError {
             Self::FirmwareStart => defmt::write!(f, "WiFi module firmware start failed"),
             Self::HifSendFailed => defmt::write!(f, "HIF send failed"),
             Self::InvalidHifResponse(err_str) => {
-                defmt::write!(f, "Invalid event response: {}", err_str)
+                defmt::write!(f, "Invalid {} response received.", err_str)
             }
         }
     }
