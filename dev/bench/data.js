@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1753236994020,
+  "lastUpdate": 1753504388160,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -3479,6 +3479,40 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/kaidokert/winc-rs/commit/95101c0b11f9ef0764dbe2c17e38c925e2f3fd93"
         },
         "date": 1753236993410,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 52528,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 67864,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "142439476+umarbinzahid@users.noreply.github.com",
+            "name": "Umar Bin Zahid",
+            "username": "umarbinzahid"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "bc720b42f5e1f360f7d99c690ba19f4522ed5400",
+          "message": "Add MDNS example (#95)\n\n* Added mdns example.",
+          "timestamp": "2025-07-25T21:31:54-07:00",
+          "tree_id": "afd5df9e7b8e0a84395869c0133a673725bd5d81",
+          "url": "https://github.com/kaidokert/winc-rs/commit/bc720b42f5e1f360f7d99c690ba19f4522ed5400"
+        },
+        "date": 1753504387668,
         "tool": "customSmallerIsBetter",
         "benches": [
           {
