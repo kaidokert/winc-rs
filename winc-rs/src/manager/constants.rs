@@ -246,9 +246,7 @@ pub enum WifiResponse {
     WifiRxPacket,     // M2M_WIFI_RESP_WIFI_RX_PACKET + tstrM2MWifiRxPacketInfo + data
     // MemoryRecover,   // M2M_WIFI_RESP_MEMORY_RECOVER + 4-byte buffer (commented out in code)
     // IpConfigured,    // M2M_WIFI_RESP_IP_CONFIGURED + no specific data (internal use)
-/* No OTA, Crypto and SSL for now
-    OtaNotifUpdateInfo, // M2M_OTA_RESP_NOTIF_UPDATE_INFO + tstrOtaUpdateInfo (OTA mode)
-    OtaUpdateStatus,    // M2M_OTA_RESP_UPDATE_STATUS + tstrOtaUpdateStatusResp (OTA mode)
+/* No Crypto and SSL for now
     CryptoSha256Init,   // M2M_CRYPTO_RESP_SHA256_INIT + tstrCyptoResp (crypto mode)
     CryptoSha256Update, // M2M_CRYPTO_RESP_SHA256_UPDATE + tstrCyptoResp (crypto mode)
     CryptoSha256Finish, // M2M_CRYPTO_RESP_SHA256_FINSIH + tstrCyptoResp (crypto mode, typo in original)
@@ -282,9 +280,7 @@ impl From<u8> for WifiResponse {
             0x37 => Self::WifiRxPacket,     // M2M_WIFI_RESP_WIFI_RX_PACKET
             // 0x0E => Self::MemoryRecover,   // M2M_WIFI_RESP_MEMORY_RECOVER (commented out)
             // 0x33 => Self::IpConfigured,       // M2M_WIFI_RESP_IP_CONFIGURED
-/* No OTA, Crypto and SSL for now
-            0x67 => Self::OtaNotifUpdateInfo, // M2M_OTA_RESP_NOTIF_UPDATE_INFO
-            0x68 => Self::OtaUpdateStatus,    // M2M_OTA_RESP_UPDATE_STATUS
+/* No Crypto and SSL for now
             0x02 => Self::CryptoSha256Init,   // M2M_CRYPTO_RESP_SHA256_INIT
             //0x04 =>Self::CryptoSha256Update,// M2M_CRYPTO_RESP_SHA256_UPDATE ( overlaps with CurrentRssi)
             //0x06 =>Self::CryptoSha256Finish,// M2M_CRYPTO_RESP_SHA256_FINSIH ( overlaps with ConnInfo)
@@ -362,6 +358,122 @@ impl From<u8> for IpCode {
             0x52 => Self::Ping,
             0x54 => Self::SslBind,
             0x55 => Self::SslExpCheck,
+            _ => Self::Unhandled,
+        }
+    }
+}
+
+#[cfg(feature = "experimental-ota")]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[derive(Debug, PartialEq, Default)]
+/// OTA HiF Response ID.
+pub(crate) enum OtaResponse {
+    #[default]
+    Unhandled,
+    OtaNotifyUpdateInfo = 0x6A, // M2M_OTA_RESP_NOTIF_UPDATE_INFO + tstrOtaUpdateInfo (OTA mode)
+    OtaUpdateStatus = 0x6B,     // M2M_OTA_RESP_UPDATE_STATUS + tstrOtaUpdateStatusResp (OTA mode)
+}
+
+#[cfg(feature = "experimental-ota")]
+impl From<u8> for OtaResponse {
+    fn from(v: u8) -> Self {
+        match v {
+            0x6A => Self::OtaNotifyUpdateInfo,
+            0x6B => Self::OtaUpdateStatus,
+            _ => Self::Unhandled,
+        }
+    }
+}
+
+#[cfg(feature = "experimental-ota")]
+/// OTA Request/Operation Identifiers.
+#[allow(dead_code)]
+#[derive(Copy, Clone)]
+pub(crate) enum OtaRequest {
+    SetUrl = 0x64,                    // M2M_OTA_REQ_NOTIF_SET_URL
+    NotifyUpdate = 0x65,              // M2M_OTA_REQ_NOTIF_CHECK_FOR_UPDATE
+    ScheduleToNotify = 0x66,          // M2M_OTA_REQ_NOTIF_SCHED
+    StartFirmwareUpdate = 0x67,       // M2M_OTA_REQ_START_FW_UPDATE
+    SwitchFirmware = 0x68,            // M2M_OTA_REQ_SWITCH_FIRMWARE
+    RollbackFirmware = 0x69,          // M2M_OTA_REQ_ROLLBACK_FW
+    RequestTest = 0x6C,               // M2M_OTA_REQ_TEST
+    StartCortusFirmwareUpdate = 0x6D, // M2M_OTA_REQ_START_CRT_UPDATE
+    SwitchCortusFirmware = 0x6E,      // M2M_OTA_REQ_SWITCH_CRT_IMG
+    RollbackCortusFirmware = 0x6F,    // M2M_OTA_REQ_ROLLBACK_CRT
+    Abort = 0x70,                     // M2M_OTA_REQ_ABORT
+}
+
+#[cfg(feature = "experimental-ota")]
+/// Implementation to convert `OtaRequest` to `u8` value.
+impl From<OtaRequest> for u8 {
+    fn from(val: OtaRequest) -> Self {
+        val as u8
+    }
+}
+
+#[cfg(feature = "experimental-ota")]
+/// OTA Update Error Codes.
+#[repr(u8)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum OtaUpdateError {
+    NoError = 0,
+    GenericFail = 1,
+    InvalidArguments = 2,
+    InvalidRollbackImage = 3,
+    InvalidFlashSize = 4,
+    AlreadyEnabled = 5,
+    UpdateInProgress = 6,
+    ImageVerificationFailed = 7,
+    ConnectionError = 8,
+    ServerError = 9,
+    Aborted = 10,
+    Unhandled = 0xff,
+}
+
+#[cfg(feature = "experimental-ota")]
+/// Implementation to convert `u8` value to `OtaUpdateError`.
+impl From<u8> for OtaUpdateError {
+    fn from(val: u8) -> Self {
+        match val {
+            0 => Self::NoError,
+            1 => Self::GenericFail,
+            2 => Self::InvalidArguments,
+            3 => Self::InvalidRollbackImage,
+            4 => Self::InvalidFlashSize,
+            5 => Self::AlreadyEnabled,
+            6 => Self::UpdateInProgress,
+            7 => Self::ImageVerificationFailed,
+            8 => Self::ConnectionError,
+            9 => Self::ServerError,
+            10 => Self::Aborted,
+            _ => Self::Unhandled,
+        }
+    }
+}
+
+#[cfg(feature = "experimental-ota")]
+#[repr(u8)]
+/// OTA Update Status.
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub(crate) enum OtaUpdateStatus {
+    Download = 1,
+    SwitchingFirmware = 2,
+    Rollback = 3,
+    Abort = 4,
+    Unhandled = 0xff,
+}
+
+#[cfg(feature = "experimental-ota")]
+/// Implementation to convert `u8` value to `OtaUpdateStatus`.
+impl From<u8> for OtaUpdateStatus {
+    fn from(val: u8) -> Self {
+        match val {
+            1 => Self::Download,
+            2 => Self::SwitchingFirmware,
+            3 => Self::Rollback,
+            4 => Self::Abort,
             _ => Self::Unhandled,
         }
     }

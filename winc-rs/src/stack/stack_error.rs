@@ -1,5 +1,7 @@
 use crate::manager::WifiConnError;
 
+#[cfg(feature = "experimental-ota")]
+use crate::manager::OtaUpdateError;
 use crate::manager::SocketError;
 
 use embedded_nal::nb;
@@ -43,6 +45,9 @@ pub enum StackError {
     SocketNotFound,
     /// Parameters are not valid.
     InvalidParameters,
+    #[cfg(feature = "experimental-ota")]
+    /// Ota Error
+    OtaFail(OtaUpdateError),
 }
 
 impl From<core::convert::Infallible> for StackError {
@@ -107,6 +112,8 @@ impl core::fmt::Display for StackError {
             Self::ContinueOperation => write!(f, "Continue operation"),
             Self::SocketNotFound => write!(f, "Socket not found"),
             Self::InvalidParameters => write!(f, "Invalid parameters"),
+            #[cfg(feature = "experimental-ota")]
+            Self::OtaFail(err) => write!(f, "Ota failure: {:?}", err),
         }
     }
 }

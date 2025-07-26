@@ -8,6 +8,8 @@ use crate::manager::{
     Credentials, EventListener, ProvisioningInfo, SocketError, Ssid, WifiConnError, WifiConnState,
     WpaKey,
 };
+#[cfg(feature = "experimental-ota")]
+use crate::manager::{OtaUpdateError, OtaUpdateStatus};
 use crate::{debug, error, info};
 use crate::{AuthType, ConnectionInfo};
 
@@ -37,6 +39,22 @@ pub(crate) enum WifiModuleState {
     Disconnecting,
     Provisioning,
     AccessPoint,
+}
+
+#[cfg(feature = "experimental-ota")]
+/// States to control the operational flow of OTA update.
+#[derive(PartialEq, Eq, Copy, Clone)]
+pub(crate) enum OtaUpdateState {
+    NotStarted,
+    InProgress,
+    Complete,
+    SwitchingFirmware,
+    Switched,
+    RollingBack,
+    RolledBack,
+    Aborting,
+    Aborted,
+    Failed(OtaUpdateError),
 }
 
 /// Ping operation results
@@ -127,6 +145,8 @@ pub(crate) struct SocketCallbacks {
     // Random Number Generator
     pub prng: Option<Option<Prng>>,
     pub provisioning_info: Option<Option<ProvisioningInfo>>,
+    #[cfg(feature = "experimental-ota")]
+    pub ota_state: OtaUpdateState,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -239,6 +259,8 @@ impl SocketCallbacks {
             state: WifiModuleState::Reset,
             prng: None,
             provisioning_info: None,
+            #[cfg(feature = "experimental-ota")]
+            ota_state: OtaUpdateState::NotStarted,
         }
     }
     pub fn resolve(&mut self, socket: Socket) -> Option<&mut (Socket, ClientSocketOp)> {
@@ -701,5 +723,58 @@ impl EventListener for SocketCallbacks {
             info.key = cred;
         }
         self.provisioning_info = Some(Some(info));
+    }
+
+    #[cfg(feature = "experimental-ota")]
+    /// Callback function for OTA events.
+    ///
+    /// # Arguments
+    ///
+    /// * `status` - OTA Update Status.
+    fn on_ota(&mut self, status: OtaUpdateStatus, error: OtaUpdateError) {
+        if error == OtaUpdateError::AlreadyEnabled {
+            error!("OTA operation {:?} is already enabled", status)
+        }
+
+        self.ota_state = match (status, self.ota_state) {
+            (OtaUpdateStatus::Abort, OtaUpdateState::Aborting) => {
+                if error == OtaUpdateError::NoError || error == OtaUpdateError::Aborted {
+                    OtaUpdateState::Aborted
+                } else {
+                    OtaUpdateState::Failed(error)
+                }
+            }
+            (OtaUpdateStatus::Download, OtaUpdateState::InProgress) => {
+                if error == OtaUpdateError::UpdateInProgress {
+                    OtaUpdateState::InProgress
+                } else if error == OtaUpdateError::NoError {
+                    OtaUpdateState::Complete
+                } else {
+                    OtaUpdateState::Failed(error)
+                }
+            }
+            (OtaUpdateStatus::Rollback, OtaUpdateState::RollingBack) => {
+                if error == OtaUpdateError::NoError {
+                    OtaUpdateState::RolledBack
+                } else {
+                    OtaUpdateState::Failed(error)
+                }
+            }
+            (OtaUpdateStatus::SwitchingFirmware, OtaUpdateState::SwitchingFirmware) => {
+                if error == OtaUpdateError::NoError {
+                    OtaUpdateState::Switched
+                } else {
+                    OtaUpdateState::Failed(error)
+                }
+            }
+            (OtaUpdateStatus::Unhandled, _) => {
+                error!("Invalid OTA update status received");
+                OtaUpdateState::Failed(OtaUpdateError::Unhandled)
+            }
+            _ => {
+                error!("OTA status does not match the required state.");
+                self.ota_state // retain the value if conditions dosen't match
+            }
+        };
     }
 }

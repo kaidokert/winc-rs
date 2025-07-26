@@ -21,6 +21,9 @@ use crate::manager::constants::{
 use crate::manager::responses::*;
 use crate::transfer::Xfer;
 
+#[cfg(feature = "experimental-ota")]
+use crate::{error, manager::constants::OtaResponse};
+
 impl<X: Xfer> Manager<X> {
     /// Parses incoming WiFi events from the chip and dispatches them to the provided event listener.
     ///
@@ -126,6 +129,43 @@ impl<X: Xfer> Manager<X> {
                 panic!("Unhandled Wifi HIF")
             }
         }
+        Ok(())
+    }
+
+    #[cfg(feature = "experimental-ota")]
+    /// Parses incoming OTA events from the chip and dispatches them to the provided event listener.
+    ///
+    /// # Arguments
+    ///
+    /// * `listener` - The event callback handler that will be invoked based on the event type.
+    /// * `address` - The register address of the module from which data can be read.
+    /// * `ota_res` - The OTA response ID indicating the type of event.
+    ///
+    /// # Returns
+    ///
+    /// * `()` - If no error occurred while processing the events.
+    /// * `Error` - If an error occurred while processing the events.
+    fn ota_events_listener<T: EventListener>(
+        &mut self,
+        listener: &mut T,
+        address: u32,
+        ota_res: OtaResponse,
+    ) -> Result<(), Error> {
+        match ota_res {
+            OtaResponse::OtaNotifyUpdateInfo => {
+                todo!("OTA Notify is not supported")
+            }
+            OtaResponse::OtaUpdateStatus => {
+                let mut response = [0u8; 4];
+                self.read_block(address, &mut response)?;
+                listener.on_ota(response[0].into(), response[1].into());
+            }
+            _ => {
+                error!("Received invalid OTA response: {:?}", ota_res);
+                return Err(Error::InvalidHifResponse("OTA"));
+            }
+        }
+
         Ok(())
     }
 
@@ -267,6 +307,8 @@ impl<X: Xfer> Manager<X> {
         match hif {
             HifGroup::Wifi(e) => self.wifi_events_listener(listener, address, e),
             HifGroup::Ip(e) => self.ip_events_listener(listener, address, e),
+            #[cfg(feature = "experimental-ota")]
+            HifGroup::Ota(e) => self.ota_events_listener(listener, address, e),
             _ => panic!("Unexpected hif"),
         }
     }
