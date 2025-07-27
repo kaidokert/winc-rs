@@ -133,7 +133,7 @@ where
         info!(".. connected to AP, running iperf3 ..");
 
         let test_ip = option_env!("TEST_IPERF_IP").unwrap_or(DEFAULT_IPERF_IP);
-        let ip_values: [u8; 4] = parse_ip_octets(test_ip);
+        let ip_values: [u8; 4] = parse_ip_octets(test_ip)?;
         let server_addr = Ipv4Addr::new(ip_values[0], ip_values[1], ip_values[2], ip_values[3]);
         let test_port = option_env!("TEST_IPERF_PORT").unwrap_or(DEFAULT_IPERF_PORT);
         let port = u16::from_str(test_port).unwrap_or(12345);

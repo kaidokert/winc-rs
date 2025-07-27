@@ -26,14 +26,8 @@ use demos::{
 use log::Level;
 
 // TODO: Remove this fn and just use Ipv4Addr::from_str directly
-pub fn parse_ip_octets(ip: &str) -> [u8; 4] {
-    let mut octets = [0; 4];
-    let addr = core::net::Ipv4Addr::from_str(ip).unwrap();
-    octets[0] = addr.octets()[0];
-    octets[1] = addr.octets()[1];
-    octets[2] = addr.octets()[2];
-    octets[3] = addr.octets()[3];
-    octets
+pub fn parse_ip_octets(ip: &str) -> Result<[u8; 4], core::net::AddrParseError> {
+    core::net::Ipv4Addr::from_str(ip).map(|addr| addr.octets())
 }
 
 #[derive(Clone, clap::Subcommand, Debug)]
@@ -113,11 +107,13 @@ struct Cli {
 enum LocalErrors {
     TcpError,
     IoError,
+    ParseError,
 }
 
-impl<E: embedded_nal::TcpError> From<E> for LocalErrors {
-    fn from(_: E) -> Self {
-        LocalErrors::TcpError
+
+impl From<core::net::AddrParseError> for LocalErrors {
+    fn from(_: core::net::AddrParseError) -> Self {
+        LocalErrors::ParseError
     }
 }
 
@@ -137,7 +133,7 @@ fn main() -> Result<(), LocalErrors> {
     log::info!("Starting embedded-nal demo application");
 
     let ip_str = cli.ip.unwrap_or("127.0.0.1".to_string());
-    let ip = parse_ip_octets(&ip_str);
+    let ip = parse_ip_octets(&ip_str)?;
     let ip_addr = Ipv4Addr::new(ip[0], ip[1], ip[2], ip[3]);
     let port = cli.port.unwrap_or(80);
 
@@ -145,7 +141,8 @@ fn main() -> Result<(), LocalErrors> {
 
     match cli.mode {
         Mode::HttpClient => {
-            http_client(&mut stack, ip_addr, port, cli.hostname.as_deref())?;
+            http_client(&mut stack, ip_addr, port, cli.hostname.as_deref())
+                .map_err(|_| LocalErrors::TcpError)?;
         }
         Mode::UdpServer => {
             udp_server(&mut stack, port, cli.loop_forever).map_err(|_| LocalErrors::IoError)?;
@@ -166,9 +163,9 @@ fn main() -> Result<(), LocalErrors> {
         Mode::HttpSpeedTest(config) => {
             // Determine server IP and port
             let server_ip = if let Some(ref server) = config.server {
-                parse_ip_octets(server)
+                parse_ip_octets(server)?
             } else {
-                parse_ip_octets(TEST_SERVER_IP)
+                parse_ip_octets(TEST_SERVER_IP)?
             };
             let server_addr = Ipv4Addr::new(server_ip[0], server_ip[1], server_ip[2], server_ip[3]);
             let server_port = cli.port.unwrap_or(TEST_SERVER_PORT);

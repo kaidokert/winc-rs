@@ -30,7 +30,7 @@ fn main() -> ! {
             if let ReturnClient::Udp(stack) = stack {
                 info!("In UDP client stack thing");
                 let test_ip = option_env!("TEST_IP").unwrap_or(DEFAULT_TEST_IP);
-                let ip_values: [u8; 4] = parse_ip_octets(test_ip);
+                let ip_values: [u8; 4] = parse_ip_octets(test_ip)?;
                 let ip = core::net::Ipv4Addr::new(
                     ip_values[0],
                     ip_values[1],

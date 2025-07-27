@@ -68,6 +68,12 @@ impl From<crate::errors::CommError> for StackError {
     }
 }
 
+impl From<core::net::AddrParseError> for StackError {
+    fn from(_: core::net::AddrParseError) -> Self {
+        Self::InvalidParameters
+    }
+}
+
 impl embedded_nal::TcpError for StackError {
     fn kind(&self) -> embedded_nal::TcpErrorKind {
         embedded_nal::TcpErrorKind::Other

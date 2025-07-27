@@ -59,7 +59,7 @@ fn program() -> Result<(), StackError> {
         let test_count = option_env!("TEST_COUNT").unwrap_or("");
         let test_count = u16::from_str(test_count).unwrap_or(DEFAULT_TEST_COUNT);
         info!("Connected sending ping to {}", test_ip);
-        let ip_values: [u8; 4] = parse_ip_octets(test_ip);
+        let ip_values: [u8; 4] = parse_ip_octets(test_ip)?;
         let ip = Ipv4Addr::new(ip_values[0], ip_values[1], ip_values[2], ip_values[3]);
         let ping_result = nb::block!(stack.send_ping(ip, test_ttl, test_count))?;
 
