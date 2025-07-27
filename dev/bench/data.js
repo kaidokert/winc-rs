@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1753504388160,
+  "lastUpdate": 1753585416961,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -3523,6 +3523,40 @@ window.BENCHMARK_DATA = {
           {
             "name": "iperf3_client",
             "value": 67864,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "142439476+umarbinzahid@users.noreply.github.com",
+            "name": "Umar Bin Zahid",
+            "username": "umarbinzahid"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "fa884638f1595179abef07d3b1dd82feca7ccba8",
+          "message": "Support for OTA (#96)\n\n* Initial support for OTA.\n\n* Add OTA support and related test cases.\n\n* Feature enabled the OTA.\n\n* Fixed rebasing errors and updated comments.\n\n* Marked OTA feature as experimental.\n\n* PR comments addressed.",
+          "timestamp": "2025-07-26T20:02:26-07:00",
+          "tree_id": "d3c417a3a8fb68b02ba1de25262bd997a946fe09",
+          "url": "https://github.com/kaidokert/winc-rs/commit/fa884638f1595179abef07d3b1dd82feca7ccba8"
+        },
+        "date": 1753585416474,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 52628,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 67968,
             "unit": "byte"
           }
         ]
