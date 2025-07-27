@@ -54,6 +54,11 @@ impl<X: Xfer> WincClient<'_, X> {
         cortus_update: bool,
         timeout: Option<u32>,
     ) -> nb::Result<(), StackError> {
+        // Last byte of URL should be null terminated.
+        if server_url.last() != Some(&0) {
+            return Err(nb::Error::Other(StackError::InvalidParameters));
+        }
+
         match self.callbacks.ota_state {
             OtaUpdateState::NotStarted => {
                 self.manager
@@ -345,6 +350,16 @@ mod test {
         let result = client.start_ota_update(server, true, None);
 
         assert_eq!(result.err(), Some(nb::Error::WouldBlock));
+    }
+
+    #[test]
+    fn test_ota_update_invalid_url() {
+        let mut client = make_test_client();
+        let server = b"www.google.com";
+
+        let result = nb::block!(client.start_ota_update(server, true, Some(100)));
+
+        assert_eq!(result.err(), Some(StackError::InvalidParameters));
     }
 
     #[test]
