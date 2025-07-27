@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1753585416961,
+  "lastUpdate": 1753635156372,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -3547,6 +3547,40 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/kaidokert/winc-rs/commit/fa884638f1595179abef07d3b1dd82feca7ccba8"
         },
         "date": 1753585416474,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 52628,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 67968,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "142439476+umarbinzahid@users.noreply.github.com",
+            "name": "Umar Bin Zahid",
+            "username": "umarbinzahid"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "ae86b85c258aae8129b0b19f4cc68b50400c8d12",
+          "message": "[Patch] Add checks to verify the server URL in OTA update request API. (#100)\n\n* added check for null termination.\n\n* Added check for the empty string.",
+          "timestamp": "2025-07-27T09:51:39-07:00",
+          "tree_id": "4b0fa621767155adf357811892fb6170340d801b",
+          "url": "https://github.com/kaidokert/winc-rs/commit/ae86b85c258aae8129b0b19f4cc68b50400c8d12"
+        },
+        "date": 1753635156043,
         "tool": "customSmallerIsBetter",
         "benches": [
           {
