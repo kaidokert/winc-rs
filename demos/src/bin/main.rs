@@ -5,7 +5,7 @@ use std_embedded_nal::Stack;
 
 #[cfg(feature = "iperf3")]
 use demos::iperf3_client::{iperf3_client, Conf, TestConfig};
-use std::{str::FromStr, time::Instant};
+use std::time::Instant;
 #[cfg(feature = "iperf3")]
 use std::{thread, time::Duration};
 
@@ -17,6 +17,7 @@ use demos::{
         speed_test, SpeedTestConfig, TEST_FILE_10MB, TEST_FILE_1MB, TEST_SERVER_HOST,
         TEST_SERVER_IP, TEST_SERVER_PORT,
     },
+    parse_ip_octets,
     tcp_server::tcp_server,
     telnet_shell::telnet_shell,
     udp_client::udp_client,
@@ -24,10 +25,6 @@ use demos::{
 };
 
 use log::Level;
-
-pub fn parse_ip_octets(ip: &str) -> Result<[u8; 4], core::net::AddrParseError> {
-    core::net::Ipv4Addr::from_str(ip).map(|addr| addr.octets())
-}
 
 #[derive(Clone, clap::Subcommand, Debug)]
 enum Mode {
