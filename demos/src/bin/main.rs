@@ -110,7 +110,6 @@ enum LocalErrors {
     ParseError,
 }
 
-
 impl From<core::net::AddrParseError> for LocalErrors {
     fn from(_: core::net::AddrParseError) -> Self {
         LocalErrors::ParseError
