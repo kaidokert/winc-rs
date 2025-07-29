@@ -10,6 +10,8 @@ compile_error!("Features 'defmt' and 'log' are mutually exclusive. Enable only o
 #[cfg(not(any(feature = "defmt", feature = "log")))]
 compile_error!("Must enable either 'defmt' or 'log' feature for logging support.");
 
+use core::str::FromStr;
+
 #[cfg(feature = "defmt")]
 use defmt::{debug, error, info, trace};
 
@@ -83,4 +85,8 @@ impl defmt::Format for SocketAddrWrap<'_> {
             _ => panic!("unsupported"),
         }
     }
+}
+
+pub fn parse_ip_octets(ip: &str) -> Result<[u8; 4], core::net::AddrParseError> {
+    core::net::Ipv4Addr::from_str(ip).map(|addr| addr.octets())
 }
