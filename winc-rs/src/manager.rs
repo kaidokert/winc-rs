@@ -37,7 +37,7 @@ use constants::{IpCode, Regs, WifiRequest, WifiResponse};
 
 #[cfg(feature = "experimental-ota")]
 pub(crate) use constants::{OtaRequest, OtaResponse, OtaUpdateStatus};
-pub(crate) use constants::{PRNG_DATA_LENGTH, SOCKET_BUFFER_MAX_LENGTH};
+pub(crate) use constants::{FLASH_PAGE_SIZE, PRNG_DATA_LENGTH, SOCKET_BUFFER_MAX_LENGTH};
 
 pub use net_types::{
     AccessPoint, Credentials, HostName, ProvisioningInfo, S8Password, S8Username, SocketOptions,
@@ -1045,20 +1045,18 @@ impl<X: Xfer> Manager<X> {
     /// * `Error` - If an error occurs while reading the register or the process times out.
     fn check_flash_tx_complete(&mut self) -> Result<(), Error> {
         let mut retries = FLASH_REG_READ_RETRIES;
-        let mut res: u32;
+        let mut res = self.chip.single_reg_read(Regs::FlashTransferDone.into())?;
 
-        loop {
-            res = self.chip.single_reg_read(Regs::FlashTransferDone.into())?;
-
-            if res != 1 && retries == 0 {
-                error!("Reading flash transfer complete register timedout.");
+        while res != 1 {
+            if retries == 0 {
+                error!("Reading flash transfer complete register timed out.");
                 return Err(Error::Failed);
-            } else if res == 1 {
-                break;
-            } else {
-                retries -= 1;
-                self.chip.delay_us(FLASH_REG_READ_DELAY_US);
             }
+
+            retries -= 1;
+            self.chip.delay_us(FLASH_REG_READ_DELAY_US);
+
+            res = self.chip.single_reg_read(Regs::FlashTransferDone.into())?;
         }
 
         Ok(())
@@ -1066,10 +1064,9 @@ impl<X: Xfer> Manager<X> {
 
     //#[cfg(feature = "flash-rw")]
     /// Sends a command to write data (less than a page size) from Cortus memory to flash.
-    /// 
+    ///
     /// # Arguments
-    /// 
-    /// * `mem_addr` – The memory address of the Cortus processor. It must be set to its AHB access address.
+    ///
     /// * `flash_addr` – The flash address where data will be written.
     /// * `data_size` – The size of the data to write.
     ///
@@ -1077,49 +1074,59 @@ impl<X: Xfer> Manager<X> {
     ///
     /// * `()` - The data was successfully written to flash.
     /// * `Error` - If an error occurs while writing the data from Cortus memory to flash.
-    fn send_flash_page_program(&mut self, mem_addr: u32, flash_addr: u32, data_size: u8) -> Result<(), Error> {
+    fn send_flash_write_page(&mut self, flash_addr: u32, data_size: u8) -> Result<(), Error> {
         let cmd = {
             let b = flash_addr.to_be_bytes();
             [0x02, b[1], b[2], b[3]]
         };
 
-        self.chip.single_reg_write(Regs::FlashDataCount.into(), 0x00)?;
-        self.chip.single_reg_write(Regs::FlashBuffer1.into(), u32::from_le_bytes(cmd))?;
-        self.chip.single_reg_write(Regs::FlashBufferDirectory.into(), 0x0F)?;
-        self.chip.single_reg_write(Regs::FlashDmaAddress.into(), mem_addr)?;
+        self.chip
+            .single_reg_write(Regs::FlashDataCount.into(), 0x00)?;
+        self.chip
+            .single_reg_write(Regs::FlashBuffer1.into(), u32::from_le_bytes(cmd))?;
+        self.chip
+            .single_reg_write(Regs::FlashBufferDirectory.into(), 0x0F)?;
+        self.chip
+            .single_reg_write(Regs::FlashDmaAddress.into(), Regs::FlashSharedMemory.into())?;
 
-        let size = ((data_size as usize & 0xfffff) << 8) | 0x84;
+        let size = 4 | (1 << 7) | ((data_size as usize & 0xfffff) << 8);
 
-        self.chip.single_reg_write(Regs::FlashCommmandCount.into(), size as u32)?;
+        self.chip
+            .single_reg_write(Regs::FlashCommmandCount.into(), size as u32)?;
 
         // read transfer complete register.
         self.check_flash_tx_complete()
     }
 
     //#[cfg(feature = "flash-rw")]
-    /// Reads the Flash Status Register.
+    /// Sends a command to read the flash status register.
     ///
     /// # Returns
     ///
-    /// * `u8` - The value of the status register.
-    /// * `Error` - If an error occurs while reading the status register.
-    pub(crate) fn read_flash_status_register(&mut self) -> Result<u8, Error> {
-        self.chip.single_reg_write(Regs::FlashDataCount.into(), 4)?;
-        self.chip.single_reg_write(Regs::FlashBuffer1.into(), 5)?;
-        self.chip.single_reg_write(Regs::FlashBufferDirectory.into(), 1)?;
-        self.chip.single_reg_write(Regs::FlashDmaAddress.into(), FLASH_DUMMY_VALUE)?;
-        self.chip.single_reg_write(Regs::FlashCommmandCount.into(), FLASH_DUMMY_VALUE)?;
+    /// * `u8` – The value of the status register.
+    /// * `Error` – If an error occurs while reading the status register.
+    pub(crate) fn send_flash_read_status_register(&mut self) -> Result<u8, Error> {
+        self.chip
+            .single_reg_write(Regs::FlashDataCount.into(), 0x04)?;
+        self.chip
+            .single_reg_write(Regs::FlashBuffer1.into(), 0x05)?;
+        self.chip
+            .single_reg_write(Regs::FlashBufferDirectory.into(), 0x01)?;
+        self.chip
+            .single_reg_write(Regs::FlashDmaAddress.into(), FLASH_DUMMY_VALUE)?;
+        self.chip
+            .single_reg_write(Regs::FlashCommmandCount.into(), 0x81)?;
 
         // read transfer complete register.
         self.check_flash_tx_complete()?;
-        
-        let res = self.chip.single_reg_read(0x1084)?; // dummy register
+
+        let res = self.chip.single_reg_read(FLASH_DUMMY_VALUE)?;
         Ok((res & 0xff) as u8)
     }
 
     //#[cfg(feature = "flash-rw")]
     /// Sends a command to load data from flash into Cortus processor memory.
-    /// 
+    ///
     /// # Arguments
     ///
     /// * `flash_addr` – The flash address to load data from.
@@ -1129,27 +1136,37 @@ impl<X: Xfer> Manager<X> {
     ///
     /// * `()` - Data is successfully loaded into Cortus processor memory.
     /// * `Error` - If an error occurs while loading the flash data into Cortus memory.
-    fn send_flash_load_data_to_cortus_memory(&mut self, flash_addr: u32, data_size: usize) -> Result<(), Error> {
+    fn send_flash_load_data_to_cortus_memory(
+        &mut self,
+        flash_addr: u32,
+        data_size: usize,
+    ) -> Result<(), Error> {
         let cmd = {
             let b = flash_addr.to_be_bytes();
             [0x0b, b[1], b[2], b[3]]
         };
 
-        self.chip.single_reg_write(Regs::FlashDataCount.into(), data_size as u32)?;
-        self.chip.single_reg_write(Regs::FlashBuffer1.into(), u32::from_le_bytes(cmd))?;
-        self.chip.single_reg_write(Regs::FlashBuffer2.into(), 0xA5)?;
-        self.chip.single_reg_write(Regs::FlashBufferDirectory.into(), 0x1F)?;
-        self.chip.single_reg_write(Regs::FlashDmaAddress.into(), Regs::FlashSharedMemory.into())?;
-        self.chip.single_reg_write(Regs::FlashCommmandCount.into(), 0x85)?;
+        self.chip
+            .single_reg_write(Regs::FlashDataCount.into(), data_size as u32)?;
+        self.chip
+            .single_reg_write(Regs::FlashBuffer1.into(), u32::from_le_bytes(cmd))?;
+        self.chip
+            .single_reg_write(Regs::FlashBuffer2.into(), 0xA5)?;
+        self.chip
+            .single_reg_write(Regs::FlashBufferDirectory.into(), 0x1F)?;
+        self.chip
+            .single_reg_write(Regs::FlashDmaAddress.into(), Regs::FlashSharedMemory.into())?;
+        self.chip
+            .single_reg_write(Regs::FlashCommmandCount.into(), 0x85)?;
         // read transfer complete register.
         self.check_flash_tx_complete()
     }
 
     //#[cfg(feature = "flash-rw")]
     /// Sends a command to erase a flash sector (4KB).
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `flash_addr` - The flash address of the sector to erase.
     ///
     /// # Returns
@@ -1162,74 +1179,52 @@ impl<X: Xfer> Manager<X> {
             [0x20, b[1], b[2], b[3]]
         };
 
-        self.chip.single_reg_write(Regs::FlashDataCount.into(), 0x00)?;
-        self.chip.single_reg_write(Regs::FlashBuffer1.into(), u32::from_le_bytes(cmd))?;
-        self.chip.single_reg_write(Regs::FlashBufferDirectory.into(), 0x0F)?;
-        self.chip.single_reg_write(Regs::FlashDmaAddress.into(), 0)?;
-        self.chip.single_reg_write(Regs::FlashCommmandCount.into(), 0x84)?;
+        self.chip
+            .single_reg_write(Regs::FlashDataCount.into(), 0x00)?;
+        self.chip
+            .single_reg_write(Regs::FlashBuffer1.into(), u32::from_le_bytes(cmd))?;
+        self.chip
+            .single_reg_write(Regs::FlashBufferDirectory.into(), 0x0F)?;
+        self.chip
+            .single_reg_write(Regs::FlashDmaAddress.into(), 0)?;
+        self.chip
+            .single_reg_write(Regs::FlashCommmandCount.into(), 0x84)?;
 
         // read transfer complete register.
         self.check_flash_tx_complete()
     }
 
     //#[cfg(feature = "flash-rw")]
-    /// Sends a command to enable writing to flash.
+    /// Sends a command to enable or disable write access to the flash.
+    ///
+    /// # Arguments
+    ///
+    /// * `enable` – `true` to enable write access; `false` to disable it.
     ///
     /// # Returns
     ///
-    /// * `()` - Writing to flash was successfully enabled.
-    /// * `Error` - If an error occurs while sending the command to enable writing to flash.
-    pub(crate) fn send_flash_write_enable(&mut self) -> Result<(), Error> {
-        self.chip.single_reg_write(Regs::FlashDataCount.into(), 0x00)?;
-        self.chip.single_reg_write(Regs::FlashBuffer1.into(), 0x06)?;
-        self.chip.single_reg_write(Regs::FlashBufferDirectory.into(), 0x01)?;
-        self.chip.single_reg_write(Regs::FlashDmaAddress.into(), 0x00)?;
-        self.chip.single_reg_write(Regs::FlashCommmandCount.into(), 0x81)?;
-        // read transfer complete register.
-        self.check_flash_tx_complete()
-    }
-
-    pub(crate) fn send_flash_set_write_access(&mut self, enable: bool) -> Result<(), Error> {
-
-        let val = if enable {
-            0x06
-        } else {
-            
-        }
-
-
-        self.chip.single_reg_write(Regs::FlashDataCount.into(), 0x00)?;
-        self.chip.single_reg_write(Regs::FlashBuffer1.into(), 0x06)?;
-        self.chip.single_reg_write(Regs::FlashBufferDirectory.into(), 0x01)?;
-        self.chip.single_reg_write(Regs::FlashDmaAddress.into(), 0x00)?;
-        self.chip.single_reg_write(Regs::FlashCommmandCount.into(), 0x81)?;
-        // read transfer complete register.
-        self.check_flash_tx_complete()
-        
-    }
-
-    //#[cfg(feature = "flash-rw")]
-    /// Sends a command to disable writing to flash.
-    ///
-    /// # Returns
-    ///
-    /// * `()` - Writing to flash was successfully disabled.
-    /// * `Error` - If an error occurs while sending the command to disable writing to flash.
-    pub(crate) fn send_flash_write_disable(&mut self) -> Result<(), Error> {
-        self.chip.single_reg_write(Regs::FlashDataCount.into(), 0x00)?;
-        self.chip.single_reg_write(Regs::FlashBuffer1.into(), 0x04)?;
-        self.chip.single_reg_write(Regs::FlashBufferDirectory.into(), 0x01)?;
-        self.chip.single_reg_write(Regs::FlashDmaAddress.into(), 0x00)?;
-        self.chip.single_reg_write(Regs::FlashCommmandCount.into(), 0x81)?;
+    /// * `()` – Write access to the flash was successfully enabled or disabled.
+    /// * `Error` – If an error occurs while sending the command to change write access.
+    pub(crate) fn send_flash_write_access(&mut self, enable: bool) -> Result<(), Error> {
+        let val = if enable { 0x06 } else { 0x04 };
+        self.chip
+            .single_reg_write(Regs::FlashDataCount.into(), 0x00)?;
+        self.chip.single_reg_write(Regs::FlashBuffer1.into(), val)?;
+        self.chip
+            .single_reg_write(Regs::FlashBufferDirectory.into(), 0x01)?;
+        self.chip
+            .single_reg_write(Regs::FlashDmaAddress.into(), 0x00)?;
+        self.chip
+            .single_reg_write(Regs::FlashCommmandCount.into(), 0x81)?;
         // read transfer complete register.
         self.check_flash_tx_complete()
     }
 
     //#[cfg(feature = "flash-rw")]
     /// Sends a command to write data to a flash memory.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `flash_addr` – The address in flash memory where the data will be written.
     /// * `data` – The data to write. Must not exceed the flash page size (256 bytes).
     ///
@@ -1238,36 +1233,38 @@ impl<X: Xfer> Manager<X> {
     /// * `()` - The data was successfully written to flash memory.
     /// * `Error` - If an error occurs while writing the data to flash.
     pub(crate) fn send_flash_write(&mut self, flash_addr: u32, data: &[u8]) -> Result<(), Error> {
-
-        if data.len() > 256 {
+        if data.is_empty() {
+            error!("Invalid data buffer");
+            return Err(Error::BufferError);
+        }
+        if data.len() > FLASH_PAGE_SIZE {
             error!("Data should not be greater than the page size, which is 256 bytes.");
             return Err(Error::Failed);
         }
         // enable flash writing
-        self.send_flash_write_enable()?;
+        self.send_flash_write_access(true)?;
         // use shared memory
-        self.chip.dma_block_write(Regs::FlashSharedMemory.into(), data)?;
+        self.chip
+            .dma_block_write(Regs::FlashSharedMemory.into(), data)?;
         // set flash address
-        self.send_flash_page_program(Regs::FlashSharedMemory.into(), flash_addr, data.len() as u8)?;
+        self.send_flash_write_page(flash_addr, data.len() as u8)?;
         // read status register
         let mut retries = FLASH_REG_READ_RETRIES;
-        let mut res: u8;
+        let mut res = self.send_flash_read_status_register()?;
 
-        loop {
-            res = self.read_flash_status_register()?;
-
-            if (res & 0x01) != 0 && retries == 0 {
+        while (res & 0x01) != 0 {
+            if retries == 0 {
                 return Err(Error::Failed);
-            } else if (res & 0x01) == 0 {
-                break;
-            } else {
-                retries -= 1;
-                self.chip.delay_us(FLASH_REG_READ_DELAY_US);
             }
+
+            retries -= 1;
+            self.chip.delay_us(FLASH_REG_READ_DELAY_US);
+
+            res = self.send_flash_read_status_register()?;
         }
 
         // disable writing to flash
-        self.send_flash_write_disable()
+        self.send_flash_write_access(false)
     }
 
     //#[cfg(feature = "flash-rw")]
@@ -1278,79 +1275,71 @@ impl<X: Xfer> Manager<X> {
     /// * `u32` - The flash ID.
     /// * `Error` - If an error occurs while reading the flash ID.
     pub(crate) fn send_flash_read_id(&mut self) -> Result<u32, Error> {
-        self.chip.single_reg_write(Regs::FlashDataCount.into(), 0x04)?;
-        self.chip.single_reg_write(Regs::FlashBuffer1.into(), 0x9F)?;
-        self.chip.single_reg_write(Regs::FlashBufferDirectory.into(), 0x01)?;
-        self.chip.single_reg_write(Regs::FlashDmaAddress.into(), FLASH_DUMMY_VALUE)?;
-        self.chip.single_reg_write(Regs::FlashCommmandCount.into(), 0x81)?;
+        self.chip
+            .single_reg_write(Regs::FlashDataCount.into(), 0x04)?;
+        self.chip
+            .single_reg_write(Regs::FlashBuffer1.into(), 0x9F)?;
+        self.chip
+            .single_reg_write(Regs::FlashBufferDirectory.into(), 0x01)?;
+        self.chip
+            .single_reg_write(Regs::FlashDmaAddress.into(), FLASH_DUMMY_VALUE)?;
+        self.chip
+            .single_reg_write(Regs::FlashCommmandCount.into(), 0x81)?;
         // read transfer complete register.
         self.check_flash_tx_complete()?;
 
-        Ok(self.chip.single_reg_read(FLASH_DUMMY_VALUE)?)
+        let value = self.chip.single_reg_read(FLASH_DUMMY_VALUE)?;
+
+        Ok(value)
     }
 
     //#[cfg(feature = "flash-rw")]
-    /// Sends a command to the flash to enter low power mode.
+    /// Sends a command to the flash to enter or exit low power mode.
+    ///
+    /// # Arguments
+    ///
+    /// * `enable` – `true` to enter low power mode; `false` to exit it.
     ///
     /// # Returns
     ///
-    /// * `()` - The flash successfully entered low power mode.
-    /// * `Error` - If an error occurs while attempting to enter low power mode.
-    pub(crate) fn send_flash_enter_low_power_mode(&mut self) -> Result<(), Error> {
-        self.chip.single_reg_write(Regs::FlashDataCount.into(), 0x00)?;
-        self.chip.single_reg_write(Regs::FlashBuffer1.into(), 0xB9)?;
-        self.chip.single_reg_write(Regs::FlashBufferDirectory.into(), 0x01)?;
-        self.chip.single_reg_write(Regs::FlashDmaAddress.into(), 0)?;
-        self.chip.single_reg_write(Regs::FlashCommmandCount.into(), 0x81)?;
+    /// * `()` – The flash successfully entered or exited low power mode.
+    /// * `Error` – If an error occurs while attempting to change the flash power mode.
+    pub(crate) fn send_flash_low_power_mode(&mut self, enable: bool) -> Result<(), Error> {
+        let val: u32 = if enable { 0xB9 } else { 0xAB };
+        self.chip
+            .single_reg_write(Regs::FlashDataCount.into(), 0x00)?;
+        self.chip.single_reg_write(Regs::FlashBuffer1.into(), val)?;
+        self.chip
+            .single_reg_write(Regs::FlashBufferDirectory.into(), 0x01)?;
+        self.chip
+            .single_reg_write(Regs::FlashDmaAddress.into(), 0)?;
+        self.chip
+            .single_reg_write(Regs::FlashCommmandCount.into(), 0x81)?;
         // read transfer complete register.
         self.check_flash_tx_complete()
     }
 
     //#[cfg(feature = "flash-rw")]
-    /// Sends a command to the flash to exit low power mode.
+    /// Sends a command to enable or disable flash pinmux.
+    ///
+    /// # Arguments
+    ///
+    /// * `enable` – `true` to enable pinmux; `false` to disable it.
     ///
     /// # Returns
     ///
-    /// * `()` - The flash successfully exited low power mode.
-    /// * `Error` - If an error occurs while attempting to exit low power mode.
-    pub(crate) fn send_flash_leave_low_power_mode(&mut self) -> Result<(), Error> {
-        self.chip.single_reg_write(Regs::FlashDataCount.into(), 0x00)?;
-        self.chip.single_reg_write(Regs::FlashBuffer1.into(), 0xAB)?;
-        self.chip.single_reg_write(Regs::FlashBufferDirectory.into(), 0x01)?;
-        self.chip.single_reg_write(Regs::FlashDmaAddress.into(), 0)?;
-        self.chip.single_reg_write(Regs::FlashCommmandCount.into(), 0x81)?;
-        // read transfer complete register.
-        self.check_flash_tx_complete()
-    }
-
-    //#[cfg(feature = "flash-rw")]
-    /// Sends a command to enable flash pinmux.
-    ///
-    /// # Returns
-    ///
-    /// * `()` - Pinmuxing is enabled on flash.
-    /// * `Error` - If an error occurs while enabling the pinmux on the flash.
-    pub(crate) fn send_flash_enable_pin_mux(&mut self) -> Result<(), Error> {
+    /// * `()` – Pinmux was successfully enabled or disabled on the flash.
+    /// * `Error` – If an error occurs while enabling or disabling the flash pinmux.
+    pub(crate) fn send_flash_pin_mux(&mut self, enable: bool) -> Result<(), Error> {
         let mut val = self.chip.single_reg_read(Regs::FlashPinMux.into())?;
 
-        val &= !((0x7777) << 12);
-        val |= (0x1111) << 12;
+        val &= !((0x7777) << 12); // GPIO15/16/17/18
 
-        self.chip.single_reg_write(Regs::FlashPinMux.into(), val)
-    }
-
-    //#[cfg(feature = "flash-rw")]
-    /// Sends a command to disable flash pinmux.
-    ///
-    /// # Returns
-    ///
-    /// * `()` - Pinmuxing is disabled on flash.
-    /// * `Error` - If an error occurs while disabling the pinmux on the flash.
-    pub(crate) fn send_flash_disable_pin_mux(&mut self) -> Result<(), Error> {
-        let mut val = self.chip.single_reg_read(Regs::FlashPinMux.into())?;
-
-        val &= !((0x7777) << 12);
-        val |= (0x0010) << 12;
+        val |= if enable {
+            (0x1111) << 12
+        } else {
+            (0x0010) << 12
+        };
 
         self.chip.single_reg_write(Regs::FlashPinMux.into(), val)
     }
@@ -1367,11 +1356,19 @@ impl<X: Xfer> Manager<X> {
     ///
     /// * `()` – Data was successfully read from flash memory.
     /// * `Error` – If an error occurs while reading data from the flash.
-    pub(crate) fn send_flash_read(&mut self, flash_addr: u32, buffer: &mut [u8]) -> Result<(), Error> {
+    pub(crate) fn send_flash_read(
+        &mut self,
+        flash_addr: u32,
+        buffer: &mut [u8],
+    ) -> Result<(), Error> {
+        if buffer.is_empty() {
+            return Err(Error::BufferError);
+        }
         // load data to shared memory between flash and cortus processor.
         self.send_flash_load_data_to_cortus_memory(flash_addr, buffer.len())?;
         // read the data from th shared from memory
-        self.chip.dma_block_read(Regs::FlashSharedMemory.into(), buffer)
+        self.chip
+            .dma_block_read(Regs::FlashSharedMemory.into(), buffer)
     }
     // #endregion write
 }

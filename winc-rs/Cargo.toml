@@ -61,6 +61,7 @@ large_rng = [] # This will allocate a 1.6KB buffer for the PRNG upon initializat
 wep = [] # This will enable weak WEP network security.
 irq = [] # Use the IRQ pin on the module.
 experimental-ota = [] # To enable OTA.
+flash-rw = [] # Enable SPI Flash Read/Write access.
 
 # Todo: add feature flags to save binary space
 # - TCP
