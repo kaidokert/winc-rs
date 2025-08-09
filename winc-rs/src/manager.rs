@@ -25,7 +25,7 @@ mod event_listener;
 mod net_types;
 mod requests;
 mod responses;
-use crate::{debug, trace};
+use crate::{debug, error, trace};
 
 use chip_access::ChipAccess;
 #[cfg(feature = "experimental-ota")]
@@ -252,16 +252,109 @@ impl<X: Xfer> Manager<X> {
         ))
     }
 
-    #[allow(dead_code)] // todo
-    pub fn chip_wake() {
-        unimplemented!()
-        // read HOST_CORT_COMM
-        // clear bit 0 of HOST_CORT_COMM
-        // read WAKE_CLK_REG
-        // clear bit 1 of WAKE_CLK_REG
-        // read CLOCKS_EN_REG, check for bit 2
+    /// Resets the chip.
+    ///
+    /// # Returns
+    ///
+    /// * `()` - f the chip was successfully reset.
+    /// * `Error` - If an error occurs while resetting the chip.
+    pub(crate) fn chip_reset(&mut self) -> Result<(), Error> {
+        self.chip.single_reg_write(Regs::ChipReset.into(), 0)?;
+        // back-off delay
+        self.chip.delay_us(50 * 1000); // 50 msec delay
+
+        Ok(())
     }
 
+    /// Halt the chip.
+    ///
+    /// # Returns
+    ///
+    /// * `()` - f the chip was successfully halted.
+    /// * `Error` - If an error occurs while halting the chip.
+    pub(crate) fn chip_halt(&mut self) -> Result<(), Error> {
+        let mut reg = self.chip.single_reg_read(Regs::ChipHalt.into())?;
+
+        self.chip
+            .single_reg_write(Regs::ChipHalt.into(), reg | 0x01)?;
+
+        reg = self.chip.single_reg_read(Regs::ChipReset.into())?;
+
+        if (reg & (1 << 10)) == (1 << 10) {
+            reg &= !(1 << 10);
+
+            self.chip.single_reg_write(Regs::ChipReset.into(), reg)?;
+            _ = self.chip.single_reg_read(Regs::ChipReset.into())?;
+        }
+
+        Ok(())
+    }
+
+    /// Resets the SPI bus
+    ///
+    /// # Returns
+    ///
+    /// * `()` - If the bus was reset successfully.
+    /// * `Error` - If an error occurs while resetting the SPI bus.
+    pub(crate) fn spi_bus_reset(&mut self) -> Result<(), Error> {
+        self.chip.bus_reset()
+    }
+
+    /// Wake up the chip.
+    ///
+    /// # Returns
+    ///
+    /// * `()` - If the chip is successfully woken up.
+    /// * `Error` - If any error occurs while waking up the chip.
+    pub(crate) fn chip_wake(&mut self) -> Result<(), Error> {
+        let mut reg = self.chip.single_reg_read(Regs::HostToCortusComm.into())?;
+
+        // bit 0 indicates host wakeup
+        if (reg & 0x01) == 0 {
+            self.chip
+                .single_reg_write(Regs::HostToCortusComm.into(), reg | 0x01)?;
+        }
+
+        reg = self.chip.single_reg_read(Regs::WakeClock.into())?;
+        // bit 2 indicates wakeup clock.
+        if (reg & 0x02) == 0 {
+            self.chip
+                .single_reg_write(Regs::WakeClock.into(), reg | 0x02)?;
+        }
+
+        const WAKEUP_DELAY_MSEC: u32 = 2000;
+        let mut retires = 4u8;
+        loop {
+            if retires == 0 {
+                error!("Reading enable clock register timed out.");
+                return Err(Error::Failed);
+            }
+
+            reg = self.chip.single_reg_read(Regs::EnableClock.into())?;
+
+            if (reg & 0x04) > 0 {
+                break;
+            }
+
+            retires -= 1;
+            // backoff delay
+            self.chip.delay_us(WAKEUP_DELAY_MSEC);
+        }
+
+        // reset spi bus
+        self.spi_bus_reset()
+    }
+
+    /// Boots the chip into normal mode.
+    ///
+    /// # Arguments
+    ///
+    /// * `state` - Updated boot state.
+    ///
+    /// # Returns
+    ///
+    /// * `bool` - Whethere chip was successfully booted or still booting-up.
+    /// * `Error` - If an error occurs during the boot process.
     pub(crate) fn boot_the_chip(&mut self, state: &mut BootState) -> Result<bool, Error> {
         const MAX_LOOPS: u32 = 10;
         const FINISH_BOOT_ROM: u32 = 0x10add09e;
@@ -350,6 +443,12 @@ impl<X: Xfer> Manager<X> {
         Ok(())
     }
 
+    /// Enables interrupts on the module's pins.
+    ///
+    /// # Returns
+    ///
+    /// * `()` - If the interrupts were successfully enabled.
+    /// * `Error` - If an error occurs while enabling the interrupts.
     pub fn enable_interrupt_pins(&mut self) -> Result<(), Error> {
         let mut pinmux = self.chip.single_reg_read(Regs::NmiPinMux0.into())?;
         pinmux |= 1u32 << 8;
@@ -363,6 +462,16 @@ impl<X: Xfer> Manager<X> {
             .single_reg_write(Regs::NmiIntrEnable.into(), int_enable)?;
         trace!("Set int enable to {:x}", int_enable);
         Ok(())
+    }
+
+    /// Disables all the interrupts in the module.
+    ///
+    /// # Returns
+    ///
+    /// * `()` - If the interrupts were successfully disabled.
+    /// * `Error` - If an error occurs while disabling the interrupts.
+    pub(crate) fn disable_internal_interrupt(&mut self) -> Result<(), Error> {
+        self.chip.single_reg_write(Regs::CortusIrq.into(), 0)
     }
 
     pub fn get_firmware_ver_full(&mut self) -> Result<FirmwareInfo, Error> {

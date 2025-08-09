@@ -75,6 +75,66 @@ impl<X: Xfer> WincClient<'_, X> {
         }
     }
 
+    /// Initializes the Wifi module in download mode to
+    /// update firmware or download SSL certificates.
+    ///
+    /// # Returns
+    ///
+    /// * `()` - The Wi-Fi module has successfully started in download mode.
+    /// * `nb::Error::WouldBlock` - The Wifi module is still starting.
+    /// * `StackError` - An error occurred while starting the Wifi module.
+    pub fn start_in_download_mode(&mut self) -> nb::Result<(), StackError> {
+        match self.callbacks.state {
+            WifiModuleState::Reset => {
+                self.manager.set_crc_state(true);
+                // wake-up the chip
+                self.manager.chip_wake().map_err(StackError::WincWifiFail)?;
+                // reset the chip
+                self.manager
+                    .chip_reset()
+                    .map_err(StackError::WincWifiFail)?;
+                // halt the chip
+                self.manager.chip_halt().map_err(StackError::WincWifiFail)?;
+                self.callbacks.state = WifiModuleState::Starting;
+            }
+
+            WifiModuleState::Starting => {
+                // set the spi packet size
+                self.manager
+                    .configure_spi_packetsize()
+                    .map_err(StackError::WincWifiFail)?;
+                // read the chip id
+                let chip_id = self.manager.chip_id().map_err(StackError::WincWifiFail)?;
+                let chip_rev = self.manager.chip_rev().map_err(StackError::WincWifiFail)?;
+                // disable all internal interrupts
+                self.manager
+                    .disable_internal_interrupt()
+                    .map_err(StackError::WincWifiFail)?;
+                // enable the chip interrupts
+                self.manager
+                    .enable_interrupt_pins()
+                    .map_err(StackError::WincWifiFail)?;
+                info!(
+                    "Chip id:{:x} rev:{:x} booted to downloaded mode.",
+                    chip_id, chip_rev
+                );
+                self.callbacks.state = WifiModuleState::DownloadMode;
+                return Ok(());
+            }
+
+            WifiModuleState::DownloadMode => {
+                info!("Chip is already in download mode.");
+                return Ok(());
+            }
+
+            _ => {
+                return Err(nb::Error::Other(StackError::InvalidState));
+            }
+        }
+
+        Err(nb::Error::WouldBlock)
+    }
+
     fn connect_to_ap_impl(
         &mut self,
         connect_fn: impl FnOnce(&mut Self) -> Result<(), crate::errors::CommError>,
