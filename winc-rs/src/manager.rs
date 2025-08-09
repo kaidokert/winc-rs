@@ -261,7 +261,7 @@ impl<X: Xfer> Manager<X> {
     pub(crate) fn chip_reset(&mut self) -> Result<(), Error> {
         self.chip.single_reg_write(Regs::ChipReset.into(), 0)?;
         // back-off delay
-        self.chip.delay_us(50 * 1000); // 50 msec delay
+        self.chip.delay_us(50_1000); // 50 msec delay
 
         Ok(())
     }
@@ -322,10 +322,10 @@ impl<X: Xfer> Manager<X> {
                 .single_reg_write(Regs::WakeClock.into(), reg | 0x02)?;
         }
 
-        const WAKEUP_DELAY_MSEC: u32 = 2000;
-        let mut retires = 4u8;
+        const WAKEUP_DELAY_USEC: u32 = 2000;
+        let mut retries = 4u8;
         loop {
-            if retires == 0 {
+            if retries == 0 {
                 error!("Reading enable clock register timed out.");
                 return Err(Error::Failed);
             }
@@ -336,9 +336,9 @@ impl<X: Xfer> Manager<X> {
                 break;
             }
 
-            retires -= 1;
+            retries -= 1;
             // backoff delay
-            self.chip.delay_us(WAKEUP_DELAY_MSEC);
+            self.chip.delay_us(WAKEUP_DELAY_USEC);
         }
 
         // reset spi bus

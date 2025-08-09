@@ -96,6 +96,7 @@ impl<X: Xfer> WincClient<'_, X> {
                 // halt the chip
                 self.manager.chip_halt().map_err(StackError::WincWifiFail)?;
                 self.callbacks.state = WifiModuleState::Starting;
+                Err(nb::Error::WouldBlock)
             }
 
             WifiModuleState::Starting => {
@@ -119,20 +120,16 @@ impl<X: Xfer> WincClient<'_, X> {
                     chip_id, chip_rev
                 );
                 self.callbacks.state = WifiModuleState::DownloadMode;
-                return Ok(());
+                Ok(())
             }
 
             WifiModuleState::DownloadMode => {
                 info!("Chip is already in download mode.");
-                return Ok(());
+                Ok(())
             }
 
-            _ => {
-                return Err(nb::Error::Other(StackError::InvalidState));
-            }
+            _ => Err(nb::Error::Other(StackError::InvalidState)),
         }
-
-        Err(nb::Error::WouldBlock)
     }
 
     fn connect_to_ap_impl(

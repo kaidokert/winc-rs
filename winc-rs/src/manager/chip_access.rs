@@ -184,7 +184,6 @@ impl<X: Xfer> ChipAccess<X> {
     /// * `()` - If the value was successfully written.
     /// * `Error` - If an error occurs while writing the value to the register.
     pub fn single_reg_write(&mut self, reg: u32, val: u32) -> Result<(), Error> {
-        // info!("write {:x} val {:x}", reg, val);
         let v = val.to_le_bytes();
         let r = reg.to_le_bytes();
 
@@ -366,12 +365,12 @@ impl<X: Xfer> ChipAccess<X> {
         // check command response
         self.xfer.recv(&mut rdbuf)?;
         trace!("Cmd Bytes: {:x}", HexWrap { v: &rdbuf });
-        self.protocol_verify("single_reg_write:cmd echo", &rdbuf, &[cmd[0]])?;
+        self.protocol_verify("bus_reset:cmd echo", &rdbuf, &[cmd[0]])?;
         // check state response
         rdbuf[0] = 0;
         self.xfer.recv(&mut rdbuf)?;
         trace!("Status zero Bytes: {:x}", HexWrap { v: &rdbuf });
-        self.protocol_verify("single_reg_write:zero echo", &rdbuf, &[0])?;
+        self.protocol_verify("bus_reset:zero echo", &rdbuf, &[0])?;
 
         Ok(())
     }
@@ -490,12 +489,12 @@ mod tests {
         let writer = writebuf.as_mut_slice();
         let mut chip = ChipAccess::new(PrefixXfer::new(writer));
         chip.crc = false;
-        let res = chip.single_reg_read(0x10).unwrap();
+        let res = chip.single_reg_read(0x100).unwrap();
         assert_eq!(res, 0x04030201);
         assert_eq!(
             writebuf[..],
             [
-                0x81, 0, 4, 0xCA, 0, 0, 0x10, 0xA2, 0, 1, 0xCA, 0xA2, 0, 1, 0, 0xA2, 0, 1, 0xF0,
+                0x81, 0, 4, 0xCA, 0, 0x01, 0x00, 0xA2, 0, 1, 0xCA, 0xA2, 0, 1, 0, 0xA2, 0, 1, 0xF0,
                 0xA2, 0, 4, 1, 2, 3, 4
             ]
         );
@@ -511,13 +510,13 @@ mod tests {
         let writer = writebuf.as_mut_slice();
 
         let mut chip = ChipAccess::new(PrefixXfer::new(writer));
-        let res = chip.single_reg_read(0x10).unwrap();
+        let res = chip.single_reg_read(0x100).unwrap();
         assert_eq!(res, 0x04030201);
         assert_eq!(
             writebuf[..],
             [
-                0x81, 0, 5, 0xCA, 0, 0, 0x10, 138, 0xA2, 0, 1, 0xCA, 0xA2, 0, 1, 0x00, 0xA2, 0, 1,
-                0xF0, 0xA2, 0, 4, 1, 2, 3, 4, 0xA2, 0, 2, 68, 1
+                0x81, 0, 5, 0xCA, 0, 0x01, 0x00, 0xAE, 0xA2, 0, 1, 0xCA, 0xA2, 0, 1, 0x00, 0xA2, 0,
+                1, 0xF0, 0xA2, 0, 4, 1, 2, 3, 4, 0xA2, 0, 2, 68, 1
             ]
         );
     }
@@ -528,7 +527,7 @@ mod tests {
         let writer = writebuf.as_mut_slice();
         let mut chip = ChipAccess::new(writer);
         chip.crc = false;
-        let res = chip.single_reg_read(0x10);
+        let res = chip.single_reg_read(0x100);
         assert_eq!(res, Ok(0x04030201));
     }
     #[test]
@@ -539,7 +538,7 @@ mod tests {
         ];
         let writer = writebuf.as_mut_slice();
         let mut chip = ChipAccess::new(writer);
-        let res = chip.single_reg_read(0x10);
+        let res = chip.single_reg_read(0x100);
         assert_eq!(res, Ok(0x04030201));
     }
 }
