@@ -52,6 +52,12 @@ pub(crate) const PRNG_DATA_LENGTH: usize = 1600 - 4 - PRNG_PACKET_SIZE;
 pub(crate) const PRNG_DATA_LENGTH: usize = 32;
 
 pub enum Regs {
+    WakeClock = 0x01,
+    HostToCortusComm = 0x0b,
+    EnableClock = 0x0f,
+    ChipReset = 0x1400,
+    ChipHalt = 0x1118,
+    CortusIrq = 0x20300,
     SpiConfig = 0xE824,
     ChipId = 0x1000,
     EFuseRead = 0x1014,
