@@ -187,7 +187,9 @@ impl<X: Xfer> ChipAccess<X> {
         let v = val.to_le_bytes();
         let r = reg.to_le_bytes();
 
-        let (mut cmd, len) = if reg <= 0x30 {
+        // For Cortus register write, the total command packet size is 8 bytes,
+        // whereas for WINC register write, the packet size is 9 bytes.
+        let (mut cmd, crc_idx) = if reg <= 0x30 {
             (
                 [
                     Cmd::IntrRegWrite as u8,
@@ -200,7 +202,7 @@ impl<X: Xfer> ChipAccess<X> {
                     0x00,
                     0x00,
                 ],
-                8usize,
+                7usize,
             )
         } else {
             (
@@ -215,15 +217,15 @@ impl<X: Xfer> ChipAccess<X> {
                     v[0],
                     0x00,
                 ],
-                9usize,
+                8usize,
             )
         };
 
         if self.crc {
-            cmd[len] = crc7(&cmd[..len]);
-            self.xfer.send(&cmd[..=len])?;
+            cmd[crc_idx] = crc7(&cmd[..crc_idx]);
+            self.xfer.send(&cmd[..=crc_idx])?;
         } else {
-            self.xfer.send(&cmd[..len])?;
+            self.xfer.send(&cmd[..crc_idx])?;
         }
 
         let mut rdbuf = [0x0; 1];
