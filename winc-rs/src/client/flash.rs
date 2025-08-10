@@ -13,17 +13,13 @@
 // limitations under the License.
 
 use super::{StackError, WincClient, Xfer};
-use crate::error;
 use crate::manager::FLASH_PAGE_SIZE;
+use crate::{error, info};
 
 /// Block Size of flash memory.
 const FLASH_BLOCK_SIZE: usize = 32 * 1024;
 
 impl<X: Xfer> WincClient<'_, X> {
-    pub fn enable_download_mode() {
-        
-    }
-
     /// Enables or disables read/write access to the flash.
     ///
     /// # Arguments
@@ -53,7 +49,7 @@ impl<X: Xfer> WincClient<'_, X> {
                 .map_err(StackError::WincWifiFail)?;
         }
 
-        // disable pinmux on flash.
+        // disable pinmux on flash to minimize current leakage.
         self.manager
             .send_flash_pin_mux(false)
             .map_err(StackError::WincWifiFail)
@@ -153,9 +149,9 @@ impl<X: Xfer> WincClient<'_, X> {
     /// * `StackError` – If an error occurs while erasing the flash memory.
     pub fn flash_erase(&mut self, addr: u32, size: u32) -> Result<(), StackError> {
         let mut flash_addr: u32 = addr;
-        let mut retires: u8 = 3;
 
         loop {
+            let mut retires: u8 = 3;
             self.manager
                 .send_flash_write_access(true)
                 .map_err(StackError::WincWifiFail)?;
@@ -164,7 +160,7 @@ impl<X: Xfer> WincClient<'_, X> {
                 .send_flash_read_status_register()
                 .map_err(StackError::WincWifiFail)?;
             self.manager
-                .send_flash_erase_sector(flash_addr + 10)
+                .send_flash_erase_sector(flash_addr + 10) // Wifi101 adds 10 in the flash address.
                 .map_err(StackError::WincWifiFail)?;
             let mut val = self
                 .manager
@@ -209,7 +205,8 @@ impl<X: Xfer> WincClient<'_, X> {
             error!("Unable to read the flash ID.");
             return Err(StackError::Unexpected);
         }
-
+        info!("The flash ID: {:x}", id);
+        // Flash size is third byte in the flash ID.
         let flash_size = 1u32 << (((id >> 16) & 0xFF) - 0x11);
 
         Ok(flash_size)

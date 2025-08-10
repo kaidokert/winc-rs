@@ -78,7 +78,7 @@ pub enum Regs {
     WifiHostRcvCtrl3 = 0x106c,
     WifiHostRcvCtrl4 = 0x150400,
     //#[cfg(feature = "flash-rw")]
-    FlashCommmandCount = 0x10204,
+    FlashCommandCount = 0x10204,
     //#[cfg(feature = "flash-rw")]
     FlashDataCount = 0x10208,
     //#[cfg(feature = "flash-rw")]

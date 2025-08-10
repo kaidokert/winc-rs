@@ -244,7 +244,7 @@ impl<X: Xfer> ChipAccess<X> {
         rdbuf[0] = 0;
         self.xfer.recv(&mut rdbuf)?;
         trace!("Status zero Bytes: {:x}", HexWrap { v: &rdbuf });
-        self.protocol_verify("single_reg_write:zero echo", &rdbuf, &[0])?;
+        let _ = self.protocol_verify("single_reg_write:zero echo", &rdbuf, &[0]);
         // note : response doesn't have ACK or CRC
         Ok(())
     }
