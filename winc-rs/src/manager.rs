@@ -262,6 +262,7 @@ impl<X: Xfer> Manager<X> {
     /// * `()` - f the chip was successfully reset.
     /// * `Error` - If an error occurs while resetting the chip.
     pub(crate) fn chip_reset(&mut self) -> Result<(), Error> {
+        debug!("Resetting the chip.");
         self.chip.single_reg_write(Regs::ChipReset.into(), 0)?;
         // back-off delay
         self.chip.delay_us(50_1000); // 50 msec delay
@@ -276,6 +277,7 @@ impl<X: Xfer> Manager<X> {
     /// * `()` - f the chip was successfully halted.
     /// * `Error` - If an error occurs while halting the chip.
     pub(crate) fn chip_halt(&mut self) -> Result<(), Error> {
+        debug!("Halting the chip.");
         let mut reg = self.chip.single_reg_read(Regs::ChipHalt.into())?;
 
         self.chip
@@ -300,6 +302,7 @@ impl<X: Xfer> Manager<X> {
     /// * `()` - If the bus was reset successfully.
     /// * `Error` - If an error occurs while resetting the SPI bus.
     pub(crate) fn spi_bus_reset(&mut self) -> Result<(), Error> {
+        debug!("Resetting SPI bus.");
         self.chip.bus_reset()
     }
 
@@ -310,6 +313,7 @@ impl<X: Xfer> Manager<X> {
     /// * `()` - If the chip is successfully woken up.
     /// * `Error` - If any error occurs while waking up the chip.
     pub(crate) fn chip_wake(&mut self) -> Result<(), Error> {
+        debug!("Waking-up the chip.");
         let mut reg = self.chip.single_reg_read(Regs::HostToCortusComm.into())?;
 
         // bit 0 indicates host wakeup
@@ -1085,7 +1089,7 @@ impl<X: Xfer> Manager<X> {
         let size = 4 | (1 << 7) | ((data_size as usize & 0xfffff) << 8);
 
         self.chip
-            .single_reg_write(Regs::FlashCommmandCount.into(), size as u32)?;
+            .single_reg_write(Regs::FlashCommandCount.into(), size as u32)?;
 
         // read transfer complete register.
         self.check_flash_tx_complete()
@@ -1108,7 +1112,7 @@ impl<X: Xfer> Manager<X> {
         self.chip
             .single_reg_write(Regs::FlashDmaAddress.into(), FLASH_DUMMY_VALUE)?;
         self.chip
-            .single_reg_write(Regs::FlashCommmandCount.into(), 0x81)?;
+            .single_reg_write(Regs::FlashCommandCount.into(), 0x81)?;
 
         // read transfer complete register.
         self.check_flash_tx_complete()?;
@@ -1150,7 +1154,7 @@ impl<X: Xfer> Manager<X> {
         self.chip
             .single_reg_write(Regs::FlashDmaAddress.into(), Regs::FlashSharedMemory.into())?;
         self.chip
-            .single_reg_write(Regs::FlashCommmandCount.into(), 0x85)?;
+            .single_reg_write(Regs::FlashCommandCount.into(), 0x85)?;
         // read transfer complete register.
         self.check_flash_tx_complete()
     }
@@ -1181,7 +1185,7 @@ impl<X: Xfer> Manager<X> {
         self.chip
             .single_reg_write(Regs::FlashDmaAddress.into(), 0)?;
         self.chip
-            .single_reg_write(Regs::FlashCommmandCount.into(), 0x84)?;
+            .single_reg_write(Regs::FlashCommandCount.into(), 0x84)?;
 
         // read transfer complete register.
         self.check_flash_tx_complete()
@@ -1208,7 +1212,7 @@ impl<X: Xfer> Manager<X> {
         self.chip
             .single_reg_write(Regs::FlashDmaAddress.into(), 0x00)?;
         self.chip
-            .single_reg_write(Regs::FlashCommmandCount.into(), 0x81)?;
+            .single_reg_write(Regs::FlashCommandCount.into(), 0x81)?;
         // read transfer complete register.
         self.check_flash_tx_complete()
     }
@@ -1277,7 +1281,7 @@ impl<X: Xfer> Manager<X> {
         self.chip
             .single_reg_write(Regs::FlashDmaAddress.into(), FLASH_DUMMY_VALUE)?;
         self.chip
-            .single_reg_write(Regs::FlashCommmandCount.into(), 0x81)?;
+            .single_reg_write(Regs::FlashCommandCount.into(), 0x81)?;
         // read transfer complete register.
         self.check_flash_tx_complete()?;
 
@@ -1307,7 +1311,7 @@ impl<X: Xfer> Manager<X> {
         self.chip
             .single_reg_write(Regs::FlashDmaAddress.into(), 0)?;
         self.chip
-            .single_reg_write(Regs::FlashCommmandCount.into(), 0x81)?;
+            .single_reg_write(Regs::FlashCommandCount.into(), 0x81)?;
         // read transfer complete register.
         self.check_flash_tx_complete()
     }
