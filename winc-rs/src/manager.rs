@@ -25,7 +25,7 @@ mod event_listener;
 mod net_types;
 mod requests;
 mod responses;
-use crate::{debug, trace};
+use crate::{debug, error, trace};
 
 use chip_access::ChipAccess;
 #[cfg(feature = "experimental-ota")]
@@ -37,7 +37,7 @@ use constants::{IpCode, Regs, WifiRequest, WifiResponse};
 
 #[cfg(feature = "experimental-ota")]
 pub(crate) use constants::{OtaRequest, OtaResponse, OtaUpdateStatus};
-pub(crate) use constants::{PRNG_DATA_LENGTH, SOCKET_BUFFER_MAX_LENGTH};
+pub(crate) use constants::{FLASH_PAGE_SIZE, PRNG_DATA_LENGTH, SOCKET_BUFFER_MAX_LENGTH};
 
 pub use net_types::{
     AccessPoint, Credentials, HostName, ProvisioningInfo, S8Password, S8Username, SocketOptions,
@@ -126,6 +126,9 @@ const ETHERNET_HEADER_LENGTH: usize = 14;
 const ETHERNET_HEADER_OFFSET: usize = 34;
 const IP_PACKET_OFFSET: usize = ETHERNET_HEADER_LENGTH + ETHERNET_HEADER_OFFSET; // - HIF_HEADER_OFFSET;
 const HIF_SEND_RETRIES: usize = 1000;
+const FLASH_REG_READ_RETRIES: usize = 10; // Total wait time: 1 second (10 retries with a 100 ms backoff delay).
+const FLASH_REG_READ_DELAY_US: u32 = 1000 * 100; // 100 ms backoff delay in microseconds.
+const FLASH_DUMMY_VALUE: u32 = 0x1084;
 
 // todo this needs to be used
 #[allow(dead_code)]
@@ -252,16 +255,113 @@ impl<X: Xfer> Manager<X> {
         ))
     }
 
-    #[allow(dead_code)] // todo
-    pub fn chip_wake() {
-        unimplemented!()
-        // read HOST_CORT_COMM
-        // clear bit 0 of HOST_CORT_COMM
-        // read WAKE_CLK_REG
-        // clear bit 1 of WAKE_CLK_REG
-        // read CLOCKS_EN_REG, check for bit 2
+    /// Resets the chip.
+    ///
+    /// # Returns
+    ///
+    /// * `()` - f the chip was successfully reset.
+    /// * `Error` - If an error occurs while resetting the chip.
+    pub(crate) fn chip_reset(&mut self) -> Result<(), Error> {
+        debug!("Resetting the chip.");
+        self.chip.single_reg_write(Regs::ChipReset.into(), 0)?;
+        // back-off delay
+        self.chip.delay_us(50_1000); // 50 msec delay
+
+        Ok(())
     }
 
+    /// Halt the chip.
+    ///
+    /// # Returns
+    ///
+    /// * `()` - f the chip was successfully halted.
+    /// * `Error` - If an error occurs while halting the chip.
+    pub(crate) fn chip_halt(&mut self) -> Result<(), Error> {
+        debug!("Halting the chip.");
+        let mut reg = self.chip.single_reg_read(Regs::ChipHalt.into())?;
+
+        self.chip
+            .single_reg_write(Regs::ChipHalt.into(), reg | 0x01)?;
+
+        reg = self.chip.single_reg_read(Regs::ChipReset.into())?;
+
+        if (reg & (1 << 10)) == (1 << 10) {
+            reg &= !(1 << 10);
+
+            self.chip.single_reg_write(Regs::ChipReset.into(), reg)?;
+            _ = self.chip.single_reg_read(Regs::ChipReset.into())?;
+        }
+
+        Ok(())
+    }
+
+    /// Resets the SPI bus
+    ///
+    /// # Returns
+    ///
+    /// * `()` - If the bus was reset successfully.
+    /// * `Error` - If an error occurs while resetting the SPI bus.
+    pub(crate) fn spi_bus_reset(&mut self) -> Result<(), Error> {
+        debug!("Resetting SPI bus.");
+        self.chip.bus_reset()
+    }
+
+    /// Wake up the chip.
+    ///
+    /// # Returns
+    ///
+    /// * `()` - If the chip is successfully woken up.
+    /// * `Error` - If any error occurs while waking up the chip.
+    pub(crate) fn chip_wake(&mut self) -> Result<(), Error> {
+        debug!("Waking-up the chip.");
+        let mut reg = self.chip.single_reg_read(Regs::HostToCortusComm.into())?;
+
+        // bit 0 indicates host wakeup
+        if (reg & 0x01) == 0 {
+            self.chip
+                .single_reg_write(Regs::HostToCortusComm.into(), reg | 0x01)?;
+        }
+
+        reg = self.chip.single_reg_read(Regs::WakeClock.into())?;
+        // bit 2 indicates wakeup clock.
+        if (reg & 0x02) == 0 {
+            self.chip
+                .single_reg_write(Regs::WakeClock.into(), reg | 0x02)?;
+        }
+
+        const WAKEUP_DELAY_USEC: u32 = 2000;
+        let mut retries = 4u8;
+        loop {
+            if retries == 0 {
+                error!("Reading enable clock register timed out.");
+                return Err(Error::Failed);
+            }
+
+            reg = self.chip.single_reg_read(Regs::EnableClock.into())?;
+
+            if (reg & 0x04) > 0 {
+                break;
+            }
+
+            retries -= 1;
+            // backoff delay
+            self.chip.delay_us(WAKEUP_DELAY_USEC);
+        }
+
+        // reset spi bus
+        self.spi_bus_reset()
+    }
+
+    /// Boots the chip into normal mode.
+    ///
+    /// # Arguments
+    ///
+    /// * `state` - Updated boot state.
+    ///
+    /// # Returns
+    ///
+    /// * `bool` - Whethere chip was successfully booted or still booting-up.
+    /// * `Error` - If an error occurs during the boot process.
     pub(crate) fn boot_the_chip(&mut self, state: &mut BootState) -> Result<bool, Error> {
         const MAX_LOOPS: u32 = 10;
         const FINISH_BOOT_ROM: u32 = 0x10add09e;
@@ -350,6 +450,12 @@ impl<X: Xfer> Manager<X> {
         Ok(())
     }
 
+    /// Enables interrupts on the module's pins.
+    ///
+    /// # Returns
+    ///
+    /// * `()` - If the interrupts were successfully enabled.
+    /// * `Error` - If an error occurs while enabling the interrupts.
     pub fn enable_interrupt_pins(&mut self) -> Result<(), Error> {
         let mut pinmux = self.chip.single_reg_read(Regs::NmiPinMux0.into())?;
         pinmux |= 1u32 << 8;
@@ -363,6 +469,16 @@ impl<X: Xfer> Manager<X> {
             .single_reg_write(Regs::NmiIntrEnable.into(), int_enable)?;
         trace!("Set int enable to {:x}", int_enable);
         Ok(())
+    }
+
+    /// Disables all the interrupts in the module.
+    ///
+    /// # Returns
+    ///
+    /// * `()` - If the interrupts were successfully disabled.
+    /// * `Error` - If an error occurs while disabling the interrupts.
+    pub(crate) fn disable_internal_interrupt(&mut self) -> Result<(), Error> {
+        self.chip.single_reg_write(Regs::CortusIrq.into(), 0)
     }
 
     pub fn get_firmware_ver_full(&mut self) -> Result<FirmwareInfo, Error> {
@@ -917,6 +1033,340 @@ impl<X: Xfer> Manager<X> {
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
     }
 
+    //#[cfg(feature = "flash-rw")]
+    /// Checks the flash data transfer register.
+    ///
+    /// # Returns
+    ///
+    /// * `()` - If the flash transfer is complete.
+    /// * `Error` - If an error occurs while reading the register or the process times out.
+    fn check_flash_tx_complete(&mut self) -> Result<(), Error> {
+        let mut retries = FLASH_REG_READ_RETRIES;
+        let mut res = self.chip.single_reg_read(Regs::FlashTransferDone.into())?;
+
+        while res != 1 {
+            if retries == 0 {
+                error!("Reading flash transfer complete register timed out.");
+                return Err(Error::Failed);
+            }
+
+            retries -= 1;
+            self.chip.delay_us(FLASH_REG_READ_DELAY_US);
+
+            res = self.chip.single_reg_read(Regs::FlashTransferDone.into())?;
+        }
+
+        Ok(())
+    }
+
+    //#[cfg(feature = "flash-rw")]
+    /// Sends a command to write data (less than a page size) from Cortus memory to flash.
+    ///
+    /// # Arguments
+    ///
+    /// * `flash_addr` – The flash address where data will be written.
+    /// * `data_size` – The size of the data to write.
+    ///
+    /// # Returns
+    ///
+    /// * `()` - The data was successfully written to flash.
+    /// * `Error` - If an error occurs while writing the data from Cortus memory to flash.
+    fn send_flash_write_page(&mut self, flash_addr: u32, data_size: u8) -> Result<(), Error> {
+        let cmd = {
+            let b = flash_addr.to_be_bytes();
+            [0x02, b[1], b[2], b[3]]
+        };
+
+        self.chip
+            .single_reg_write(Regs::FlashDataCount.into(), 0x00)?;
+        self.chip
+            .single_reg_write(Regs::FlashBuffer1.into(), u32::from_le_bytes(cmd))?;
+        self.chip
+            .single_reg_write(Regs::FlashBufferDirectory.into(), 0x0F)?;
+        self.chip
+            .single_reg_write(Regs::FlashDmaAddress.into(), Regs::FlashSharedMemory.into())?;
+
+        let size = 4 | (1 << 7) | ((data_size as usize & 0xfffff) << 8);
+
+        self.chip
+            .single_reg_write(Regs::FlashCommandCount.into(), size as u32)?;
+
+        // read transfer complete register.
+        self.check_flash_tx_complete()
+    }
+
+    //#[cfg(feature = "flash-rw")]
+    /// Sends a command to read the flash status register.
+    ///
+    /// # Returns
+    ///
+    /// * `u8` – The value of the status register.
+    /// * `Error` – If an error occurs while reading the status register.
+    pub(crate) fn send_flash_read_status_register(&mut self) -> Result<u8, Error> {
+        self.chip
+            .single_reg_write(Regs::FlashDataCount.into(), 0x04)?;
+        self.chip
+            .single_reg_write(Regs::FlashBuffer1.into(), 0x05)?;
+        self.chip
+            .single_reg_write(Regs::FlashBufferDirectory.into(), 0x01)?;
+        self.chip
+            .single_reg_write(Regs::FlashDmaAddress.into(), FLASH_DUMMY_VALUE)?;
+        self.chip
+            .single_reg_write(Regs::FlashCommandCount.into(), 0x81)?;
+
+        // read transfer complete register.
+        self.check_flash_tx_complete()?;
+
+        let res = self.chip.single_reg_read(FLASH_DUMMY_VALUE)?;
+        Ok((res & 0xff) as u8)
+    }
+
+    //#[cfg(feature = "flash-rw")]
+    /// Sends a command to load data from flash into Cortus processor memory.
+    ///
+    /// # Arguments
+    ///
+    /// * `flash_addr` – The flash address to load data from.
+    /// * `data_size` – The size of the data to load.
+    ///
+    /// # Returns
+    ///
+    /// * `()` - Data is successfully loaded into Cortus processor memory.
+    /// * `Error` - If an error occurs while loading the flash data into Cortus memory.
+    fn send_flash_load_data_to_cortus_memory(
+        &mut self,
+        flash_addr: u32,
+        data_size: usize,
+    ) -> Result<(), Error> {
+        let cmd = {
+            let b = flash_addr.to_be_bytes();
+            [0x0b, b[1], b[2], b[3]]
+        };
+
+        self.chip
+            .single_reg_write(Regs::FlashDataCount.into(), data_size as u32)?;
+        self.chip
+            .single_reg_write(Regs::FlashBuffer1.into(), u32::from_le_bytes(cmd))?;
+        self.chip
+            .single_reg_write(Regs::FlashBuffer2.into(), 0xA5)?;
+        self.chip
+            .single_reg_write(Regs::FlashBufferDirectory.into(), 0x1F)?;
+        self.chip
+            .single_reg_write(Regs::FlashDmaAddress.into(), Regs::FlashSharedMemory.into())?;
+        self.chip
+            .single_reg_write(Regs::FlashCommandCount.into(), 0x85)?;
+        // read transfer complete register.
+        self.check_flash_tx_complete()
+    }
+
+    //#[cfg(feature = "flash-rw")]
+    /// Sends a command to erase a flash sector (4KB).
+    ///
+    /// # Arguments
+    ///
+    /// * `flash_addr` - The flash address of the sector to erase.
+    ///
+    /// # Returns
+    ///
+    /// * `()` - The flash sector was successfully erased.
+    /// * `Error` - If an error occurs while erasing the flash sector.
+    pub(crate) fn send_flash_erase_sector(&mut self, flash_addr: u32) -> Result<(), Error> {
+        let cmd = {
+            let b = flash_addr.to_be_bytes();
+            [0x20, b[1], b[2], b[3]]
+        };
+
+        self.chip
+            .single_reg_write(Regs::FlashDataCount.into(), 0x00)?;
+        self.chip
+            .single_reg_write(Regs::FlashBuffer1.into(), u32::from_le_bytes(cmd))?;
+        self.chip
+            .single_reg_write(Regs::FlashBufferDirectory.into(), 0x0F)?;
+        self.chip
+            .single_reg_write(Regs::FlashDmaAddress.into(), 0)?;
+        self.chip
+            .single_reg_write(Regs::FlashCommandCount.into(), 0x84)?;
+
+        // read transfer complete register.
+        self.check_flash_tx_complete()
+    }
+
+    //#[cfg(feature = "flash-rw")]
+    /// Sends a command to enable or disable write access to the flash.
+    ///
+    /// # Arguments
+    ///
+    /// * `enable` – `true` to enable write access; `false` to disable it.
+    ///
+    /// # Returns
+    ///
+    /// * `()` – Write access to the flash was successfully enabled or disabled.
+    /// * `Error` – If an error occurs while sending the command to change write access.
+    pub(crate) fn send_flash_write_access(&mut self, enable: bool) -> Result<(), Error> {
+        let val = if enable { 0x06 } else { 0x04 };
+        self.chip
+            .single_reg_write(Regs::FlashDataCount.into(), 0x00)?;
+        self.chip.single_reg_write(Regs::FlashBuffer1.into(), val)?;
+        self.chip
+            .single_reg_write(Regs::FlashBufferDirectory.into(), 0x01)?;
+        self.chip
+            .single_reg_write(Regs::FlashDmaAddress.into(), 0x00)?;
+        self.chip
+            .single_reg_write(Regs::FlashCommandCount.into(), 0x81)?;
+        // read transfer complete register.
+        self.check_flash_tx_complete()
+    }
+
+    //#[cfg(feature = "flash-rw")]
+    /// Sends a command to write data to a flash memory.
+    ///
+    /// # Arguments
+    ///
+    /// * `flash_addr` – The address in flash memory where the data will be written.
+    /// * `data` – The data to write. Must not exceed the flash page size (256 bytes).
+    ///
+    /// # Returns
+    ///
+    /// * `()` - The data was successfully written to flash memory.
+    /// * `Error` - If an error occurs while writing the data to flash.
+    pub(crate) fn send_flash_write(&mut self, flash_addr: u32, data: &[u8]) -> Result<(), Error> {
+        if data.is_empty() {
+            error!("Invalid data buffer");
+            return Err(Error::BufferError);
+        }
+        if data.len() > FLASH_PAGE_SIZE {
+            error!("Data should not be greater than the page size, which is 256 bytes.");
+            return Err(Error::Failed);
+        }
+        // enable flash writing
+        self.send_flash_write_access(true)?;
+        // use shared memory
+        self.chip
+            .dma_block_write(Regs::FlashSharedMemory.into(), data)?;
+        // set flash address
+        self.send_flash_write_page(flash_addr, data.len() as u8)?;
+        // read status register
+        let mut retries = FLASH_REG_READ_RETRIES;
+        let mut res = self.send_flash_read_status_register()?;
+
+        while (res & 0x01) != 0 {
+            if retries == 0 {
+                return Err(Error::Failed);
+            }
+
+            retries -= 1;
+            self.chip.delay_us(FLASH_REG_READ_DELAY_US);
+
+            res = self.send_flash_read_status_register()?;
+        }
+
+        // disable writing to flash
+        self.send_flash_write_access(false)
+    }
+
+    //#[cfg(feature = "flash-rw")]
+    /// Sends a command to read the flash ID.
+    ///
+    /// # Returns
+    ///
+    /// * `u32` - The flash ID.
+    /// * `Error` - If an error occurs while reading the flash ID.
+    pub(crate) fn send_flash_read_id(&mut self) -> Result<u32, Error> {
+        self.chip
+            .single_reg_write(Regs::FlashDataCount.into(), 0x04)?;
+        self.chip
+            .single_reg_write(Regs::FlashBuffer1.into(), 0x9F)?;
+        self.chip
+            .single_reg_write(Regs::FlashBufferDirectory.into(), 0x01)?;
+        self.chip
+            .single_reg_write(Regs::FlashDmaAddress.into(), FLASH_DUMMY_VALUE)?;
+        self.chip
+            .single_reg_write(Regs::FlashCommandCount.into(), 0x81)?;
+        // read transfer complete register.
+        self.check_flash_tx_complete()?;
+
+        let value = self.chip.single_reg_read(FLASH_DUMMY_VALUE)?;
+
+        Ok(value)
+    }
+
+    //#[cfg(feature = "flash-rw")]
+    /// Sends a command to the flash to enter or exit low power mode.
+    ///
+    /// # Arguments
+    ///
+    /// * `enable` – `true` to enter low power mode; `false` to exit it.
+    ///
+    /// # Returns
+    ///
+    /// * `()` – The flash successfully entered or exited low power mode.
+    /// * `Error` – If an error occurs while attempting to change the flash power mode.
+    pub(crate) fn send_flash_low_power_mode(&mut self, enable: bool) -> Result<(), Error> {
+        let val: u32 = if enable { 0xB9 } else { 0xAB };
+        self.chip
+            .single_reg_write(Regs::FlashDataCount.into(), 0x00)?;
+        self.chip.single_reg_write(Regs::FlashBuffer1.into(), val)?;
+        self.chip
+            .single_reg_write(Regs::FlashBufferDirectory.into(), 0x01)?;
+        self.chip
+            .single_reg_write(Regs::FlashDmaAddress.into(), 0)?;
+        self.chip
+            .single_reg_write(Regs::FlashCommandCount.into(), 0x81)?;
+        // read transfer complete register.
+        self.check_flash_tx_complete()
+    }
+
+    //#[cfg(feature = "flash-rw")]
+    /// Sends a command to enable or disable flash pinmux.
+    ///
+    /// # Arguments
+    ///
+    /// * `enable` – `true` to enable pinmux; `false` to disable it.
+    ///
+    /// # Returns
+    ///
+    /// * `()` – Pinmux was successfully enabled or disabled on the flash.
+    /// * `Error` – If an error occurs while enabling or disabling the flash pinmux.
+    pub(crate) fn send_flash_pin_mux(&mut self, enable: bool) -> Result<(), Error> {
+        let mut val = self.chip.single_reg_read(Regs::FlashPinMux.into())?;
+
+        val &= !((0x7777) << 12); // GPIO15/16/17/18
+
+        val |= if enable {
+            (0x1111) << 12
+        } else {
+            (0x0010) << 12
+        };
+
+        self.chip.single_reg_write(Regs::FlashPinMux.into(), val)
+    }
+
+    //#[cfg(feature = "flash-rw")]
+    /// Sends a command to read data from flash memory.
+    ///
+    /// # Arguments
+    ///
+    /// * `flash_addr` – The address in flash memory to read from.
+    /// * `buffer` – A mutable buffer where the read data will be stored.
+    ///
+    /// # Returns
+    ///
+    /// * `()` – Data was successfully read from flash memory.
+    /// * `Error` – If an error occurs while reading data from the flash.
+    pub(crate) fn send_flash_read(
+        &mut self,
+        flash_addr: u32,
+        buffer: &mut [u8],
+    ) -> Result<(), Error> {
+        if buffer.is_empty() {
+            return Err(Error::BufferError);
+        }
+        // load data to shared memory between flash and cortus processor.
+        self.send_flash_load_data_to_cortus_memory(flash_addr, buffer.len())?;
+        // read the data from th shared from memory
+        self.chip
+            .dma_block_read(Regs::FlashSharedMemory.into(), buffer)
+    }
     // #endregion write
 }
 

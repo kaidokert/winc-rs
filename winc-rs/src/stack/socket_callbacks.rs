@@ -39,6 +39,7 @@ pub(crate) enum WifiModuleState {
     Disconnecting,
     Provisioning,
     AccessPoint,
+    DownloadMode,
 }
 
 #[cfg(feature = "experimental-ota")]

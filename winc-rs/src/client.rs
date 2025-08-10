@@ -6,6 +6,8 @@ use crate::transfer::Xfer;
 mod dns;
 #[cfg(feature = "experimental-ota")]
 mod ota;
+//#[cfg(feature = "flash-rw")]
+mod flash;
 mod prng;
 mod tcp_stack;
 mod udp_stack;

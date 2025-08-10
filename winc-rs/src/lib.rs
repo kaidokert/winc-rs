@@ -111,7 +111,7 @@ pub(crate) struct HexWrap<'a> {
     v: &'a [u8],
 }
 impl HexWrap<'_> {
-    pub fn new(v: &[u8]) -> HexWrap {
+    pub fn new(v: &[u8]) -> HexWrap<'_> {
         HexWrap { v }
     }
 }
