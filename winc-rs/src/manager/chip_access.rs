@@ -125,7 +125,7 @@ impl<X: Xfer> ChipAccess<X> {
     pub fn single_reg_read(&mut self, reg: u32) -> Result<u32, Error> {
         let r = reg.to_le_bytes();
         let (mut cmd, resp_crc_check) = if reg <= 0xFF {
-            ([Cmd::IntrRegRead as u8, r[1], r[1] | 0x80, r[0], 0], false)
+            ([Cmd::IntrRegRead as u8, r[1] | 0x80, r[0], 0, 0], false)
         } else {
             ([Cmd::RegRead as u8, r[2], r[1], r[0], 0], true)
         };
@@ -187,37 +187,43 @@ impl<X: Xfer> ChipAccess<X> {
         let v = val.to_le_bytes();
         let r = reg.to_le_bytes();
 
-        let mut cmd = if reg <= 0x30 {
-            [
-                Cmd::IntrRegWrite as u8,
-                r[1],
-                r[1] | 0x80,
-                r[0],
-                v[3],
-                v[2],
-                v[1],
-                v[0],
-                0x00,
-            ]
+        let (mut cmd, len) = if reg <= 0x30 {
+            (
+                [
+                    Cmd::IntrRegWrite as u8,
+                    r[1] | 0x80,
+                    r[0],
+                    v[3],
+                    v[2],
+                    v[1],
+                    v[0],
+                    0x00,
+                    0x00,
+                ],
+                8usize,
+            )
         } else {
-            [
-                Cmd::RegWrite as u8,
-                r[2],
-                r[1],
-                r[0],
-                v[3],
-                v[2],
-                v[1],
-                v[0],
-                0x00,
-            ]
+            (
+                [
+                    Cmd::RegWrite as u8,
+                    r[2],
+                    r[1],
+                    r[0],
+                    v[3],
+                    v[2],
+                    v[1],
+                    v[0],
+                    0x00,
+                ],
+                9usize,
+            )
         };
 
         if self.crc {
-            cmd[8] = crc7(&cmd[..8]);
-            self.xfer.send(&cmd)?;
+            cmd[len] = crc7(&cmd[..len]);
+            self.xfer.send(&cmd[..=len])?;
         } else {
-            self.xfer.send(&cmd[..8])?;
+            self.xfer.send(&cmd[..len])?;
         }
 
         let mut rdbuf = [0x0; 1];
