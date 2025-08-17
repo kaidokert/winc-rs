@@ -31,10 +31,16 @@ use cortex_m_systick_countdown::{PollingSysTick, SysTickCalibration};
 
 #[cfg(feature = "usb")]
 mod usb_logging;
+
+#[cfg(all(feature = "usb-serial", feature = "log"))]
+compile_error!("Features 'usb-serial' and 'log' are mutually exclusive. Enable only one.");
+
 #[cfg(feature = "log")]
 use usb_logging::initialize_usb_logging;
 #[cfg(feature = "usb")]
 use usb_logging::setup_usb_device;
+//#[cfg(feature = "usb-serial")]
+pub use usb_logging::UsbSerial;
 
 // Set SPI bus to 8 Mhz, about as fast as it goes
 const SPI_MHZ: u32 = 8;
