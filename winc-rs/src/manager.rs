@@ -1076,7 +1076,11 @@ impl<X: Xfer> Manager<X> {
     ///
     /// * `()` - The data was successfully written to flash.
     /// * `Error` - If an error occurs while writing the data from Cortus memory to flash.
-    fn send_flash_write_page(&mut self, flash_addr: u32, data_size: u8) -> Result<(), Error> {
+    fn send_flash_write_page(&mut self, flash_addr: u32, data_size: usize) -> Result<(), Error> {
+        if data_size > FLASH_PAGE_SIZE {
+            return Err(Error::Failed);
+        }
+
         let cmd = {
             let b = flash_addr.to_be_bytes();
             [0x02, b[1], b[2], b[3]]
@@ -1091,7 +1095,8 @@ impl<X: Xfer> Manager<X> {
         self.chip
             .single_reg_write(Regs::FlashDmaAddress.into(), Regs::FlashSharedMemory.into())?;
 
-        let size = 4 | (1 << 7) | ((data_size as usize & 0xfffff) << 8);
+        // Mask data_size to 20 bits, shift to high bytes, and set 0x84 as the low byte
+        let size = 0x84 | ((data_size & 0xfffff) << 8);
 
         self.chip
             .single_reg_write(Regs::FlashCommandCount.into(), size as u32)?;
@@ -1249,7 +1254,7 @@ impl<X: Xfer> Manager<X> {
         self.chip
             .dma_block_write(Regs::FlashSharedMemory.into(), data)?;
         // set flash address
-        self.send_flash_write_page(flash_addr, data.len() as u8)?;
+        self.send_flash_write_page(flash_addr, data.len())?;
         // read status register
         let mut retries = FLASH_REG_READ_RETRIES;
         let mut res = self.send_flash_read_status_register()?;
@@ -1333,14 +1338,18 @@ impl<X: Xfer> Manager<X> {
     /// * `()` – Pinmux was successfully enabled or disabled on the flash.
     /// * `Error` – If an error occurs while enabling or disabling the flash pinmux.
     pub(crate) fn send_flash_pin_mux(&mut self, enable: bool) -> Result<(), Error> {
+        const GPIO_PINS_MASK: u32 = 0x7777; // GPIO15/16/17/18
+        const FLASH_PINMUX_ENABLE: u32 = 0x1111;
+        const FLASH_PINMUX_DISABLE: u32 = 0x0010;
+
         let mut val = self.chip.single_reg_read(Regs::FlashPinMux.into())?;
 
-        val &= !((0x7777) << 12); // GPIO15/16/17/18
+        val &= !((GPIO_PINS_MASK) << 12);
 
         val |= if enable {
-            (0x1111) << 12
+            (FLASH_PINMUX_ENABLE) << 12
         } else {
-            (0x0010) << 12
+            (FLASH_PINMUX_DISABLE) << 12
         };
 
         self.chip.single_reg_write(Regs::FlashPinMux.into(), val)

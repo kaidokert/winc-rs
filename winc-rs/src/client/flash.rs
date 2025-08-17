@@ -74,7 +74,7 @@ impl<X: Xfer> WincClient<'_, X> {
             let to_recv = (buffer[offset..]).len().min(FLASH_BLOCK_SIZE);
             // read the data
             self.manager
-                .send_flash_read(flash_addr, &mut buffer[offset..to_recv])
+                .send_flash_read(flash_addr, &mut buffer[offset..offset + to_recv])
                 .map_err(StackError::WincWifiFail)?;
             offset += to_recv;
             // check if all data is read.
@@ -125,7 +125,7 @@ impl<X: Xfer> WincClient<'_, X> {
             let word_size = data[offset..].len().min(FLASH_PAGE_SIZE);
 
             self.manager
-                .send_flash_write(flash_addr, &data[offset..word_size])
+                .send_flash_write(flash_addr, &data[offset..offset + word_size])
                 .map_err(StackError::WincWifiFail)?;
 
             // Increament the buffer and flash address by bytes written.
@@ -193,9 +193,10 @@ impl<X: Xfer> WincClient<'_, X> {
     ///
     /// # Returns
     ///
-    /// * `u32` – The size of the flash memory in bytes.
+    /// * `u32` – The size of the flash memory in Mega Bits.
     /// * `StackError` – If an error occurs while retrieving the size of the flash memory.
     pub fn flash_get_size(&mut self) -> Result<u32, StackError> {
+        const FLASH_ID_SIZE_OFFSET: u32 = 0x11;
         let id = self
             .manager
             .send_flash_read_id()
@@ -207,7 +208,14 @@ impl<X: Xfer> WincClient<'_, X> {
         }
         info!("The flash ID: {:x}", id);
         // Flash size is third byte in the flash ID.
-        let flash_size = 1u32 << (((id >> 16) & 0xFF) - 0x11);
+        let size_info = (id >> 16) & 0xFF;
+        // Check that the value is not smaller than the offset (avoids negative subtraction),
+        // and ensure the result does not exceed the 32-bit shift limit.
+        if size_info < FLASH_ID_SIZE_OFFSET || size_info - FLASH_ID_SIZE_OFFSET >= 32 {
+            error!("Invalid flash ID.");
+            return Err(StackError::Unexpected);
+        }
+        let flash_size = 1u32 << (size_info - FLASH_ID_SIZE_OFFSET);
 
         Ok(flash_size)
     }
