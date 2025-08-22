@@ -262,7 +262,6 @@ impl<X: Xfer> Manager<X> {
     /// * `()` - If the chip was successfully reset.
     /// * `Error` - If an error occurs while resetting the chip.
     pub(crate) fn chip_reset(&mut self) -> Result<(), Error> {
-        debug!("Resetting the chip.");
         self.chip.single_reg_write(Regs::ChipReset.into(), 0)?;
         // back-off delay
         self.chip.delay_us(50_000); // 50 msec delay
@@ -304,7 +303,6 @@ impl<X: Xfer> Manager<X> {
     /// * `()` - If the bus was reset successfully.
     /// * `Error` - If an error occurs while resetting the SPI bus.
     pub(crate) fn spi_bus_reset(&mut self) -> Result<(), Error> {
-        debug!("Resetting SPI bus.");
         self.chip.bus_reset()
     }
 
