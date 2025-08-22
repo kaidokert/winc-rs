@@ -6,7 +6,7 @@
 use bsp::shared::SpiStream;
 use feather as bsp;
 use feather::init::{init, UsbSerial};
-use feather::{error, info, debug};
+use feather::{error, info};
 
 use wincwifi::{CommError, StackError, WincClient};
 
@@ -102,12 +102,15 @@ fn receive_packet(
             .map_err(|_| StackError::Unexpected)?,
     );
 
-    debug!("Packet Received: {:?}", packet);
-
     // read the payload
     if packet.payload_length > 0 && packet.payload_length <= MAX_PAYLOAD_SIZE as u16 {
-        let len = packet.payload_length as usize;
-        nb::block!(usb.read(&mut buffer[..len]))?;
+        let mut len = packet.payload_length as usize;
+        let mut offset: usize = 0;
+        while len > 0 {
+            let rcvd_len = nb::block!(usb.read(&mut buffer[offset..offset + len]))?;
+            len -= rcvd_len;
+            offset += rcvd_len;
+        }
     }
 
     Ok(())
@@ -144,12 +147,16 @@ fn program() -> Result<(), StackError> {
                     let bytes = u16::to_be_bytes(MAX_PAYLOAD_SIZE as u16);
                     nb::block!(usb.write(&bytes))?;
                 }
+
                 SerialCommand::WriteFlash => {
                     let addr = packet.address;
                     let len = packet.payload_length as usize;
                     // write to flash
-                    //if stack.flash_write(addr, &buffer[..len]).is_err() {
-                    if false {
+                    if stack.flash_write(addr, &buffer[..len]).is_err() {
+                        error!(
+                            "Error occurred while writing to the flash. Address: {:x}, length: {}",
+                            addr, len
+                        );
                         nb::block!(usb.write(ERR_STATUS))?;
                     } else {
                         nb::block!(usb.write(OKAY_STATUS))?;
@@ -163,18 +170,31 @@ fn program() -> Result<(), StackError> {
                     buffer.fill(0);
                     // read the flash
                     if stack.flash_read(addr, &mut buffer[..len]).is_err() {
-                        //error!("Error Occureed while reading the flash, address: {:x}, length: {}", addr, len);
+                        error!(
+                            "Error occurred while reading the flash. Address: {:x}, length: {}",
+                            addr, len
+                        );
                         nb::block!(usb.write(ERR_STATUS))?;
                     } else {
-                        nb::block!(usb.write(&buffer[..len]))?;
+                        let mut len = len;
+                        let mut offset: usize = 0;
+                        while len > 0 {
+                            let sent_len =
+                                nb::block!(usb.write(&mut buffer[offset..offset + len]))?;
+                            len -= sent_len;
+                            offset += sent_len;
+                        }
                         nb::block!(usb.write(OKAY_STATUS))?;
                     }
                 }
 
                 SerialCommand::EraseFlash => {
                     // erase the flash
-                    //if stack.flash_erase(packet.address, packet.arguments).is_err() {
-                    if false {
+                    if stack.flash_erase(packet.address, packet.arguments).is_err() {
+                        error!(
+                            "Error occurred while erasing the flash. Address: {:x}, length: {}",
+                            packet.address, packet.arguments
+                        );
                         nb::block!(usb.write(ERR_STATUS))?;
                     } else {
                         nb::block!(usb.write(OKAY_STATUS))?;

@@ -185,7 +185,7 @@ mod usb_serial_impl {
             }
         }
         /// Send data to Serial Interface.
-        pub fn write(&self, data: &[u8]) -> nb::Result<(), StackError> {
+        pub fn write(&self, data: &[u8]) -> nb::Result<usize, StackError> {
             let result = cortex_m::interrupt::free(|_cs| {
                 if let Some(serial) = USB_SERIAL.borrow(_cs).borrow_mut().as_mut() {
                     serial.write(data)
@@ -195,7 +195,7 @@ mod usb_serial_impl {
             });
 
             match result {
-                Ok(_) => Ok(()),
+                Ok(size) => Ok(size),
                 Err(e) => Err(match e {
                     UsbError::WouldBlock => nb::Error::WouldBlock,
                     UsbError::InvalidState => nb::Error::Other(StackError::InvalidState),
