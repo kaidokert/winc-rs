@@ -35,9 +35,11 @@ pub use constants::WepKeyIndex;
 pub use constants::{AuthType, PingError, SocketError, WifiChannel, WifiConnError, WifiConnState}; // todo response shouldn't be leaking
 use constants::{IpCode, Regs, WifiRequest, WifiResponse};
 
+#[cfg(feature = "flash-rw")]
+pub(crate) use constants::FLASH_PAGE_SIZE;
 #[cfg(feature = "experimental-ota")]
 pub(crate) use constants::{OtaRequest, OtaResponse, OtaUpdateStatus};
-pub(crate) use constants::{FLASH_PAGE_SIZE, PRNG_DATA_LENGTH, SOCKET_BUFFER_MAX_LENGTH};
+pub(crate) use constants::{PRNG_DATA_LENGTH, SOCKET_BUFFER_MAX_LENGTH};
 
 pub use net_types::{
     AccessPoint, Credentials, HostName, ProvisioningInfo, S8Password, S8Username, SocketOptions,
@@ -126,8 +128,11 @@ const ETHERNET_HEADER_LENGTH: usize = 14;
 const ETHERNET_HEADER_OFFSET: usize = 34;
 const IP_PACKET_OFFSET: usize = ETHERNET_HEADER_LENGTH + ETHERNET_HEADER_OFFSET; // - HIF_HEADER_OFFSET;
 const HIF_SEND_RETRIES: usize = 1000;
+#[cfg(feature = "flash-rw")]
 const FLASH_REG_READ_RETRIES: usize = 10; // Total wait time: 1 second (10 retries with a 100 ms backoff delay).
+#[cfg(feature = "flash-rw")]
 const FLASH_REG_READ_DELAY_US: u32 = 1000 * 100; // 100 ms backoff delay in microseconds.
+#[cfg(feature = "flash-rw")]
 const FLASH_DUMMY_VALUE: u32 = 0x1084;
 
 // todo this needs to be used
@@ -1036,7 +1041,7 @@ impl<X: Xfer> Manager<X> {
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
     }
 
-    //#[cfg(feature = "flash-rw")]
+    #[cfg(feature = "flash-rw")]
     /// Checks the flash data transfer register.
     ///
     /// # Returns
@@ -1062,7 +1067,7 @@ impl<X: Xfer> Manager<X> {
         Ok(())
     }
 
-    //#[cfg(feature = "flash-rw")]
+    #[cfg(feature = "flash-rw")]
     /// Sends a command to write data (less than a page size) from Cortus memory to flash.
     ///
     /// # Arguments
@@ -1103,7 +1108,7 @@ impl<X: Xfer> Manager<X> {
         self.check_flash_tx_complete()
     }
 
-    //#[cfg(feature = "flash-rw")]
+    #[cfg(feature = "flash-rw")]
     /// Sends a command to read the flash status register.
     ///
     /// # Returns
@@ -1129,7 +1134,7 @@ impl<X: Xfer> Manager<X> {
         Ok((res & 0xff) as u8)
     }
 
-    //#[cfg(feature = "flash-rw")]
+    #[cfg(feature = "flash-rw")]
     /// Sends a command to load data from flash into Cortus processor memory.
     ///
     /// # Arguments
@@ -1167,7 +1172,7 @@ impl<X: Xfer> Manager<X> {
         self.check_flash_tx_complete()
     }
 
-    //#[cfg(feature = "flash-rw")]
+    #[cfg(feature = "flash-rw")]
     /// Sends a command to erase a flash sector (4KB).
     ///
     /// # Arguments
@@ -1199,7 +1204,7 @@ impl<X: Xfer> Manager<X> {
         self.check_flash_tx_complete()
     }
 
-    //#[cfg(feature = "flash-rw")]
+    #[cfg(feature = "flash-rw")]
     /// Sends a command to enable or disable write access to the flash.
     ///
     /// # Arguments
@@ -1225,7 +1230,7 @@ impl<X: Xfer> Manager<X> {
         self.check_flash_tx_complete()
     }
 
-    //#[cfg(feature = "flash-rw")]
+    #[cfg(feature = "flash-rw")]
     /// Sends a command to write data to a flash memory.
     ///
     /// # Arguments
@@ -1272,7 +1277,7 @@ impl<X: Xfer> Manager<X> {
         self.send_flash_write_access(false)
     }
 
-    //#[cfg(feature = "flash-rw")]
+    #[cfg(feature = "flash-rw")]
     /// Sends a command to read the flash ID.
     ///
     /// # Returns
@@ -1298,7 +1303,7 @@ impl<X: Xfer> Manager<X> {
         Ok(value)
     }
 
-    //#[cfg(feature = "flash-rw")]
+    #[cfg(feature = "flash-rw")]
     /// Sends a command to the flash to enter or exit low power mode.
     ///
     /// # Arguments
@@ -1324,7 +1329,7 @@ impl<X: Xfer> Manager<X> {
         self.check_flash_tx_complete()
     }
 
-    //#[cfg(feature = "flash-rw")]
+    #[cfg(feature = "flash-rw")]
     /// Sends a command to enable or disable flash pinmux.
     ///
     /// # Arguments
@@ -1353,7 +1358,7 @@ impl<X: Xfer> Manager<X> {
         self.chip.single_reg_write(Regs::FlashPinMux.into(), val)
     }
 
-    //#[cfg(feature = "flash-rw")]
+    #[cfg(feature = "flash-rw")]
     /// Sends a command to read data from flash memory.
     ///
     /// # Arguments

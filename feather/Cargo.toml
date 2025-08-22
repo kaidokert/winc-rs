@@ -45,9 +45,9 @@ required-features = ["oled"]
 name = "telnet_shell"
 required-features = ["telnet"]
 
-#[[example]]
-#name = "serial_flasher"
-#required-features = ["flash-rw"]
+[[example]]
+name = "serial_flasher"
+required-features = ["flash-rw"]
 
 [features]
 # Do most of development and testing with IRQ enabled
@@ -62,7 +62,7 @@ usb = ["dep:usb-device", "dep:usbd-serial", "feather_m0/usb", "dep:ehal_02"] # U
 log = ["usb", "dep:log", "demos/log", "wincwifi/log"] # USB logging (mutually exclusive with defmt)
 defmt = ["dep:defmt", "dep:defmt-rtt", "dep:panic-probe", "panic-probe/print-defmt", "embedded-hal/defmt-03", "wincwifi/defmt", "demos/defmt"]
 usb-serial = ["usb"] # USB Serial interface (mutually exclusive with log)
-#flash-rw = ["usb-serial", "wincwifi/flash-rw"]
+flash-rw = ["usb-serial", "wincwifi/flash-rw"]
 
 # cargo build/run
 [profile.dev]

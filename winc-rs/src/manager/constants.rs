@@ -50,6 +50,7 @@ pub(crate) const PRNG_PACKET_SIZE: usize = 8;
 pub(crate) const PRNG_DATA_LENGTH: usize = 1600 - 4 - PRNG_PACKET_SIZE;
 #[cfg(not(feature = "large_rng"))]
 pub(crate) const PRNG_DATA_LENGTH: usize = 32;
+#[cfg(feature = "flash-rw")]
 /// Page size of Flash memory.
 pub(crate) const FLASH_PAGE_SIZE: usize = 256;
 
@@ -77,27 +78,27 @@ pub enum Regs {
     WifiHostRcvCtrl2 = 0x1078,
     WifiHostRcvCtrl3 = 0x106c,
     WifiHostRcvCtrl4 = 0x150400,
-    //#[cfg(feature = "flash-rw")]
+    #[cfg(feature = "flash-rw")]
     FlashCommandCount = 0x10204,
-    //#[cfg(feature = "flash-rw")]
+    #[cfg(feature = "flash-rw")]
     FlashDataCount = 0x10208,
-    //#[cfg(feature = "flash-rw")]
+    #[cfg(feature = "flash-rw")]
     FlashBuffer1 = 0x1020c,
-    //#[cfg(feature = "flash-rw")]
+    #[cfg(feature = "flash-rw")]
     FlashBuffer2 = 0x10210,
-    //#[cfg(feature = "flash-rw")]
+    #[cfg(feature = "flash-rw")]
     FlashBufferDirectory = 0x10214,
-    //#[cfg(feature = "flash-rw")]
+    #[cfg(feature = "flash-rw")]
     FlashTransferDone = 0x10218,
-    //#[cfg(feature = "flash-rw")]
+    #[cfg(feature = "flash-rw")]
     FlashDmaAddress = 0x1021c,
-    //#[cfg(feature = "flash-rw")]
+    #[cfg(feature = "flash-rw")]
     FlashMsbControl = 0x10220,
-    //#[cfg(feature = "flash-rw")]
+    #[cfg(feature = "flash-rw")]
     FlashTransmitControl = 0x10224,
-    //#[cfg(feature = "flash-rw")]
+    #[cfg(feature = "flash-rw")]
     FlashSharedMemory = 0xd0000,
-    //#[cfg(feature = "flash-rw")]
+    #[cfg(feature = "flash-rw")]
     FlashPinMux = 0x1410,
 }
 

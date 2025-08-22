@@ -139,6 +139,7 @@ mod logging_impl {
     }
 }
 
+#[cfg(feature = "usb-serial")]
 mod usb_serial_impl {
     use super::usb_device_impl::USB_SERIAL;
     use embedded_nal::nb;
@@ -216,5 +217,5 @@ pub use usb_device_impl::setup_usb_device;
 #[cfg(feature = "log")]
 pub use logging_impl::initialize_usb_logging;
 
-//#[cfg(feature = "usb-serial")]
+#[cfg(feature = "usb-serial")]
 pub use usb_serial_impl::UsbSerial;

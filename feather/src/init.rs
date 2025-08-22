@@ -39,7 +39,7 @@ compile_error!("Features 'usb-serial' and 'log' are mutually exclusive. Enable o
 use usb_logging::initialize_usb_logging;
 #[cfg(feature = "usb")]
 use usb_logging::setup_usb_device;
-//#[cfg(feature = "usb-serial")]
+#[cfg(feature = "usb-serial")]
 pub use usb_logging::UsbSerial;
 
 // Set SPI bus to 8 Mhz, about as fast as it goes
