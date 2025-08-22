@@ -231,7 +231,10 @@ impl<X: Xfer> ChipAccess<X> {
         let mut rdbuf = [0x0; 1];
         self.xfer.recv(&mut rdbuf)?;
         trace!("Cmd Bytes: {:x}", HexWrap { v: &rdbuf });
-        self.protocol_verify("single_reg_write:cmd echo", &rdbuf, &[cmd[0]])?;
+        // Skip the protocol verification for chip reset register.
+        if reg != super::constants::Regs::ChipReset.into() {
+            self.protocol_verify("single_reg_write:cmd echo", &rdbuf, &[cmd[0]])?;
+        }
 
         rdbuf[0] = 0;
         self.xfer.recv(&mut rdbuf)?;

@@ -261,7 +261,7 @@ impl<X: Xfer> Manager<X> {
     pub(crate) fn chip_reset(&mut self) -> Result<(), Error> {
         self.chip.single_reg_write(Regs::ChipReset.into(), 0)?;
         // back-off delay
-        self.chip.delay_us(50_1000); // 50 msec delay
+        self.chip.delay_us(50_000); // 50 msec delay
 
         Ok(())
     }
