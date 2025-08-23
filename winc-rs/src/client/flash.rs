@@ -73,6 +73,10 @@ impl<X: Xfer> WincClient<'_, X> {
     /// * `()` – Data was successfully read from flash memory.
     /// * `StackError` – If an error occurs while reading data from the flash.
     pub fn flash_read(&mut self, addr: u32, buffer: &mut [u8]) -> Result<(), StackError> {
+        if buffer.is_empty() {
+            return Err(StackError::WincWifiFail(Error::BufferError));
+        }
+
         let mut offset: usize = 0;
         let mut flash_addr = addr;
 
@@ -154,13 +158,24 @@ impl<X: Xfer> WincClient<'_, X> {
     /// * `()` – Flash memory was successfully erased.
     /// * `StackError` – If an error occurs while erasing the flash memory.
     pub fn flash_erase(&mut self, addr: u32, size: u32) -> Result<(), StackError> {
+        if size == 0 {
+            return Ok(());
+        }
+
+        const SECTOR_SIZE: u32 = (16 * FLASH_PAGE_SIZE) as u32; // 4 KiB
+        let end = addr
+            .checked_add(size)
+            .ok_or(StackError::InvalidParameters)?;
         let mut flash_addr: u32 = addr;
 
-        loop {
-            let mut retires: u8 = 3;
-            self.manager
-                .send_flash_write_access(true)
-                .map_err(StackError::WincWifiFail)?;
+        // enable write access
+        self.manager
+            .send_flash_write_access(true)
+            .map_err(StackError::WincWifiFail)?;
+
+        while flash_addr < end {
+            let mut retries: u8 = 3;
+
             let _ = self
                 .manager
                 .send_flash_read_status_register()
@@ -174,25 +189,28 @@ impl<X: Xfer> WincClient<'_, X> {
                 .map_err(StackError::WincWifiFail)?;
 
             while (val & 0x01) != 0 {
-                if retires == 0 {
+                if retries == 0 {
                     error!(
                         "Erasing flash sector failed due to invalid flash status register value."
                     );
                     return Err(StackError::GeneralTimeout);
                 }
-                retires -= 1;
+                retries -= 1;
                 val = self
                     .manager
                     .send_flash_read_status_register()
                     .map_err(StackError::WincWifiFail)?;
             }
 
-            if flash_addr < (addr + size) {
-                flash_addr += (16 * FLASH_PAGE_SIZE) as u32;
-            } else {
-                return Ok(());
-            }
+            flash_addr = flash_addr.saturating_add(SECTOR_SIZE);
         }
+
+        // disable write access
+        self.manager
+            .send_flash_write_access(false)
+            .map_err(StackError::WincWifiFail)?;
+
+        Ok(())
     }
 
     /// Returns the size of the flash memory.

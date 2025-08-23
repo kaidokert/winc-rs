@@ -54,6 +54,7 @@ pub(crate) const PRNG_DATA_LENGTH: usize = 32;
 /// Page size of Flash memory.
 pub(crate) const FLASH_PAGE_SIZE: usize = 256;
 
+#[repr(u32)]
 pub enum Regs {
     WakeClock = 0x01,
     HostToCortusComm = 0x0b,

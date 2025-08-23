@@ -70,6 +70,35 @@ impl From<SerialCommand> for u8 {
     }
 }
 
+/// Blocking USB read until the buffer is full.
+fn usb_read(usb: &UsbSerial, buffer: &mut [u8]) -> Result<(), StackError> {
+    let mut len = buffer.len();
+    let mut offset: usize = 0;
+
+    while len > 0 {
+        let rcvd_len = nb::block!(usb.read(&mut buffer[offset..offset + len]))?;
+        len -= rcvd_len;
+        offset += rcvd_len;
+    }
+
+    Ok(())
+}
+
+/// Blocking USB write until all data is written.
+fn usb_write(usb: &UsbSerial, data: &[u8]) -> Result<(), StackError> {
+    let mut len = data.len();
+    let mut offset: usize = 0;
+
+    while len > 0 {
+        let sent_len = nb::block!(usb.write(&data[offset..offset + len]))?;
+        len -= sent_len;
+        offset += sent_len;
+    }
+
+    Ok(())
+}
+
+/// Receive control packet from the flasher utility.
 fn receive_packet(
     usb: &UsbSerial,
     packet: &mut SerialPacket,
@@ -78,11 +107,7 @@ fn receive_packet(
     let mut ctrl_buff = [0u8; SERIAL_PACKET_SIZE];
 
     // read the control packet
-    let rcv_bytes = nb::block!(usb.read(&mut ctrl_buff))?;
-
-    if rcv_bytes != SERIAL_PACKET_SIZE {
-        return Err(StackError::WincWifiFail(CommError::ReadError));
-    }
+    usb_read(&usb, &mut ctrl_buff)?;
 
     // Extract parameters of control packet.
     packet.command = ctrl_buff[0].into();
@@ -103,14 +128,12 @@ fn receive_packet(
     );
 
     // read the payload
-    if packet.payload_length > 0 && packet.payload_length <= MAX_PAYLOAD_SIZE as u16 {
-        let mut len = packet.payload_length as usize;
-        let mut offset: usize = 0;
-        while len > 0 {
-            let rcvd_len = nb::block!(usb.read(&mut buffer[offset..offset + len]))?;
-            len -= rcvd_len;
-            offset += rcvd_len;
+    if packet.payload_length > 0 {
+        let len = packet.payload_length as usize;
+        if len > buffer.len() {
+            return Err(StackError::WincWifiFail(CommError::BufferError));
         }
+        usb_read(&usb, &mut buffer[..len])?;
     }
 
     Ok(())
@@ -125,7 +148,7 @@ fn program() -> Result<(), StackError> {
         let usb = UsbSerial;
 
         // boot the device to download mode.
-        let _ = nb::block!(stack.start_in_download_mode());
+        nb::block!(stack.start_in_download_mode())?;
 
         let mut buffer = [0u8; MAX_PAYLOAD_SIZE];
         let mut packet = SerialPacket::default();
@@ -139,13 +162,13 @@ fn program() -> Result<(), StackError> {
             match packet.command {
                 SerialCommand::Hello => {
                     if packet.address == HELLO_CMD_ADDR && packet.arguments == HELLO_CMD_ARG {
-                        nb::block!(usb.write(HELLO_CMD_REPLY))?;
+                        usb_write(&usb, HELLO_CMD_REPLY)?;
                     }
                 }
 
                 SerialCommand::MaxPayloadSize => {
                     let bytes = u16::to_be_bytes(MAX_PAYLOAD_SIZE as u16);
-                    nb::block!(usb.write(&bytes))?;
+                    usb_write(&usb, &bytes)?;
                 }
 
                 SerialCommand::WriteFlash => {
@@ -157,15 +180,21 @@ fn program() -> Result<(), StackError> {
                             "Error occurred while writing to the flash. Address: {:x}, length: {}",
                             addr, len
                         );
-                        nb::block!(usb.write(ERR_STATUS))?;
+                        usb_write(&usb, ERR_STATUS)?;
                     } else {
-                        nb::block!(usb.write(OKAY_STATUS))?;
+                        usb_write(&usb, OKAY_STATUS)?;
                     }
                 }
 
                 SerialCommand::ReadFlash => {
                     let addr = packet.address;
                     let len = packet.arguments as usize;
+
+                    if len > buffer.len() {
+                        error!("Invalid data length received.");
+                        return Err(StackError::WincWifiFail(CommError::BufferError));
+                    }
+
                     // clear the read buffer
                     buffer.fill(0);
                     // read the flash
@@ -174,17 +203,12 @@ fn program() -> Result<(), StackError> {
                             "Error occurred while reading the flash. Address: {:x}, length: {}",
                             addr, len
                         );
-                        nb::block!(usb.write(ERR_STATUS))?;
+                        usb_write(&usb, ERR_STATUS)?;
                     } else {
-                        let mut len = len;
-                        let mut offset: usize = 0;
-                        while len > 0 {
-                            let sent_len =
-                                nb::block!(usb.write(&mut buffer[offset..offset + len]))?;
-                            len -= sent_len;
-                            offset += sent_len;
-                        }
-                        nb::block!(usb.write(OKAY_STATUS))?;
+                        // write the read bytes
+                        usb_write(&usb, &buffer[..len])?;
+                        // send okay status
+                        usb_write(&usb, OKAY_STATUS)?;
                     }
                 }
 
@@ -195,14 +219,15 @@ fn program() -> Result<(), StackError> {
                             "Error occurred while erasing the flash. Address: {:x}, length: {}",
                             packet.address, packet.arguments
                         );
-                        nb::block!(usb.write(ERR_STATUS))?;
+                        usb_write(&usb, ERR_STATUS)?;
                     } else {
-                        nb::block!(usb.write(OKAY_STATUS))?;
+                        usb_write(&usb, OKAY_STATUS)?;
                     }
                 }
 
                 SerialCommand::Unhandled => {
-                    error!("Unexpected serial command received");
+                    error!("Unknown serial command received.");
+                    return Err(StackError::Unexpected);
                 }
             }
         }
