@@ -116,7 +116,7 @@ impl<X: Xfer> WincClient<'_, X> {
                     .enable_interrupt_pins()
                     .map_err(StackError::WincWifiFail)?;
                 info!(
-                    "Chip id:{:x} rev:{:x} booted into download mode.",
+                    "Chip id: {:x} rev: {:x} booted into download mode.",
                     chip_id, chip_rev
                 );
                 self.callbacks.state = WifiModuleState::DownloadMode;

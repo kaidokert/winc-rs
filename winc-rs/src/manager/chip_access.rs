@@ -123,8 +123,10 @@ impl<X: Xfer> ChipAccess<X> {
     /// * `u32` - The value read from the register.
     /// * `Error` - If an error occurs while reading the register.
     pub fn single_reg_read(&mut self, reg: u32) -> Result<u32, Error> {
+        const CORTUS_READ_MAX_REG: u32 = 0xFF;
         let r = reg.to_le_bytes();
-        let (mut cmd, resp_crc_check) = if reg <= 0xFF {
+
+        let (mut cmd, resp_crc_check) = if reg <= CORTUS_READ_MAX_REG {
             ([Cmd::IntrRegRead as u8, r[1] | 0x80, r[0], 0, 0], false)
         } else {
             ([Cmd::RegRead as u8, r[2], r[1], r[0], 0], true)
@@ -186,12 +188,13 @@ impl<X: Xfer> ChipAccess<X> {
     /// * `()` - If the value was successfully written.
     /// * `Error` - If an error occurs while writing the value to the register.
     pub fn single_reg_write(&mut self, reg: u32, val: u32) -> Result<(), Error> {
+        const CORTUS_WRITE_MAX_REG: u32 = 0x30;
         let v = val.to_le_bytes();
         let r = reg.to_le_bytes();
 
         // For Cortus register write, the total command packet size is 8 bytes,
         // whereas for WINC register write, the packet size is 9 bytes.
-        let (mut cmd, crc_idx) = if reg <= 0x30 {
+        let (mut cmd, crc_idx) = if reg <= CORTUS_WRITE_MAX_REG {
             (
                 [
                     Cmd::IntrRegWrite as u8,
@@ -589,8 +592,8 @@ mod tests {
         assert_eq!(
             writebuf[..],
             [
-                0x81, 0, 5, 0xC4, 0x80, 0x010, 0x00, 0x64, 0xA2, 0, 1, 0xC4, 0xA2, 0, 1, 0x00,
-                0xA2, 0, 1, 0xF0, 0xA2, 0, 4, 1, 2, 3, 4
+                0x81, 0, 5, 0xC4, 0x80, 0x10, 0x00, 0x64, 0xA2, 0, 1, 0xC4, 0xA2, 0, 1, 0x00, 0xA2,
+                0, 1, 0xF0, 0xA2, 0, 4, 1, 2, 3, 4
             ]
         );
     }
