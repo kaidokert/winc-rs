@@ -18,6 +18,8 @@ use crate::{error, info};
 
 /// Block Size of flash memory.
 const FLASH_BLOCK_SIZE: usize = 32 * 1024;
+/// Supported chip rev for low power mode.
+const CHIP_REV_LP: u32 = 0x3A0;
 
 impl<X: Xfer> WincClient<'_, X> {
     /// Enables or disables read/write access to the flash.
@@ -31,28 +33,32 @@ impl<X: Xfer> WincClient<'_, X> {
     /// * `()` – Flash access was successfully enabled or disabled.
     /// * `StackError` – If an error occurs while enabling or disabling access to the flash.
     pub fn set_flash_access(&mut self, enable: bool) -> Result<(), StackError> {
-        // todo! add check for chip id.
-        // enable pinmux on flash.
-        self.manager
-            .send_flash_pin_mux(true)
-            .map_err(StackError::WincWifiFail)?;
+        let mut chip_id = self.manager.chip_id().map_err(StackError::WincWifiFail)?;
+        chip_id &= 0x00000fff;
 
-        if enable {
-            // exit the low power mode.
-            self.manager
-                .send_flash_low_power_mode(false)
-                .map_err(StackError::WincWifiFail)?;
-        } else {
-            // enter low power mode.
-            self.manager
-                .send_flash_low_power_mode(true)
-                .map_err(StackError::WincWifiFail)?;
+        if chip_id >= CHIP_REV_LP {
+            if enable {
+                // enable pinmux on flash.
+                self.manager
+                    .send_flash_pin_mux(true)
+                    .map_err(StackError::WincWifiFail)?;
+                // exit the low power mode.
+                self.manager
+                    .send_flash_low_power_mode(false)
+                    .map_err(StackError::WincWifiFail)?;
+            } else {
+                // disable pinmux on flash to minimize current leakage.
+                self.manager
+                    .send_flash_pin_mux(false)
+                    .map_err(StackError::WincWifiFail)?;
+                // enter low power mode.
+                self.manager
+                    .send_flash_low_power_mode(true)
+                    .map_err(StackError::WincWifiFail)?;
+            }
         }
 
-        // disable pinmux on flash to minimize current leakage.
-        self.manager
-            .send_flash_pin_mux(false)
-            .map_err(StackError::WincWifiFail)
+        Ok(())
     }
 
     /// Reads data from flash memory.
