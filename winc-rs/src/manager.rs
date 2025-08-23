@@ -256,7 +256,7 @@ impl<X: Xfer> Manager<X> {
     ///
     /// # Returns
     ///
-    /// * `()` - f the chip was successfully reset.
+    /// * `()` - If the chip was successfully reset.
     /// * `Error` - If an error occurs while resetting the chip.
     pub(crate) fn chip_reset(&mut self) -> Result<(), Error> {
         self.chip.single_reg_write(Regs::ChipReset.into(), 0)?;
@@ -270,18 +270,21 @@ impl<X: Xfer> Manager<X> {
     ///
     /// # Returns
     ///
-    /// * `()` - f the chip was successfully halted.
+    /// * `()` - If the chip was successfully halted.
     /// * `Error` - If an error occurs while halting the chip.
     pub(crate) fn chip_halt(&mut self) -> Result<(), Error> {
+        const HALT_BIT: u32 = 1 << 0; // 0x01
+        const RESET_BIT: u32 = 1 << 10; // 0x400
+
         let mut reg = self.chip.single_reg_read(Regs::ChipHalt.into())?;
 
         self.chip
-            .single_reg_write(Regs::ChipHalt.into(), reg | 0x01)?;
+            .single_reg_write(Regs::ChipHalt.into(), reg | HALT_BIT)?;
 
         reg = self.chip.single_reg_read(Regs::ChipReset.into())?;
 
-        if (reg & (1 << 10)) == (1 << 10) {
-            reg &= !(1 << 10);
+        if (reg & RESET_BIT) == RESET_BIT {
+            reg &= !RESET_BIT;
 
             self.chip.single_reg_write(Regs::ChipReset.into(), reg)?;
             _ = self.chip.single_reg_read(Regs::ChipReset.into())?;
@@ -307,22 +310,26 @@ impl<X: Xfer> Manager<X> {
     /// * `()` - If the chip is successfully woken up.
     /// * `Error` - If any error occurs while waking up the chip.
     pub(crate) fn chip_wake(&mut self) -> Result<(), Error> {
+        const WAKEUP_BIT: u32 = 1 << 0; // 0x01
+        const WAKEUP_CLK_BIT: u32 = 1 << 1; // 0x02
+        const CLK_EN_BIT: u32 = 1 << 2; // 0x04
+        const WAKEUP_DELAY_USEC: u32 = 2000; // 2 msec delay
+
         let mut reg = self.chip.single_reg_read(Regs::HostToCortusComm.into())?;
 
         // bit 0 indicates host wakeup
-        if (reg & 0x01) == 0 {
+        if (reg & WAKEUP_BIT) == 0 {
             self.chip
-                .single_reg_write(Regs::HostToCortusComm.into(), reg | 0x01)?;
+                .single_reg_write(Regs::HostToCortusComm.into(), reg | WAKEUP_BIT)?;
         }
 
         reg = self.chip.single_reg_read(Regs::WakeClock.into())?;
-        // bit 2 indicates wakeup clock.
-        if (reg & 0x02) == 0 {
+        // Set the WAKEUP_CLK_BIT (bit 1); hardware will assert CLK_EN_BIT when ready.
+        if (reg & WAKEUP_CLK_BIT) == 0 {
             self.chip
-                .single_reg_write(Regs::WakeClock.into(), reg | 0x02)?;
+                .single_reg_write(Regs::WakeClock.into(), reg | WAKEUP_CLK_BIT)?;
         }
 
-        const WAKEUP_DELAY_USEC: u32 = 2000;
         let mut retries = 4u8;
         loop {
             if retries == 0 {
@@ -332,7 +339,7 @@ impl<X: Xfer> Manager<X> {
 
             reg = self.chip.single_reg_read(Regs::EnableClock.into())?;
 
-            if (reg & 0x04) > 0 {
+            if (reg & CLK_EN_BIT) > 0 {
                 break;
             }
 
@@ -353,7 +360,7 @@ impl<X: Xfer> Manager<X> {
     ///
     /// # Returns
     ///
-    /// * `bool` - Whethere chip was successfully booted or still booting-up.
+    /// * `bool` - Whether the chip completed boot (true) or is still booting (false).
     /// * `Error` - If an error occurs during the boot process.
     pub(crate) fn boot_the_chip(&mut self, state: &mut BootState) -> Result<bool, Error> {
         const MAX_LOOPS: u32 = 10;

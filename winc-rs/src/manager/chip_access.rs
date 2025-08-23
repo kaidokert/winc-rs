@@ -155,6 +155,8 @@ impl<X: Xfer> ChipAccess<X> {
         let mut data_buf = [0x00; 4];
         self.xfer.recv(&mut data_buf)?;
 
+        // Note: Cortus register reads don't require CRC validation on responses
+        // while WINC register reads do require it.
         if self.crc && resp_crc_check {
             let mut crcbuf = [0xFF; 2];
             self.xfer.recv(&mut crcbuf)?;
