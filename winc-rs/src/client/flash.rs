@@ -74,7 +74,7 @@ impl<X: Xfer> WincClient<'_, X> {
     /// * `StackError` – If an error occurs while reading data from the flash.
     pub fn flash_read(&mut self, addr: u32, buffer: &mut [u8]) -> Result<(), StackError> {
         if buffer.is_empty() {
-            return Err(StackError::WincWifiFail(Error::BufferError));
+            return Err(StackError::InvalidParameters);
         }
 
         let mut offset: usize = 0;
