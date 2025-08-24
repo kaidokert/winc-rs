@@ -1,4 +1,6 @@
 //! Firmware updater for WINC1500 using serial port.
+//! It is intentionally designed to work with the Arduino
+//! WiFi101 Firmware Updater Java utility.
 
 #![no_main]
 #![no_std]
