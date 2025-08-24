@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1753756237234,
+  "lastUpdate": 1756066654750,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -3625,6 +3625,40 @@ window.BENCHMARK_DATA = {
           {
             "name": "iperf3_client",
             "value": 67964,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "142439476+umarbinzahid@users.noreply.github.com",
+            "name": "Umar Bin Zahid",
+            "username": "umarbinzahid"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "1061cde8dd76c3aeccfb0f187ce87686b08035a0",
+          "message": "Support to boot into download mode. (#105)\n\nAdds booting the Winc chip into download mode, where firmware images and SSL certs can be programmed",
+          "timestamp": "2025-08-24T13:16:30-07:00",
+          "tree_id": "a178aebb384fa1937c779332edf539d264d17042",
+          "url": "https://github.com/kaidokert/winc-rs/commit/1061cde8dd76c3aeccfb0f187ce87686b08035a0"
+        },
+        "date": 1756066654375,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 52472,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 67720,
             "unit": "byte"
           }
         ]
