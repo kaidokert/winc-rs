@@ -148,7 +148,7 @@ impl defmt::Format for FirmwareInfo {
             f,
             "Firmware rev: {}.{}.{}\n\
              Driver rev: {}.{}.{}\n\
-             Build Data: {}\n\
+             Build Date: {}\n\
              Build Time: {}\n\
              SVN rev: {}",
             self.firmware_revison.major,
