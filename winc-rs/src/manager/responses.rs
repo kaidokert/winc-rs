@@ -140,6 +140,30 @@ impl From<[u8; 40]> for FirmwareInfo {
     }
 }
 
+/// Formatter for the firmware version.
+#[cfg(feature = "defmt")]
+impl defmt::Format for FirmwareInfo {
+    fn format(&self, f: defmt::Formatter) {
+        defmt::write!(
+            f,
+            "Firmware rev: {}.{}.{}\n\
+             Driver rev: {}.{}.{}\n\
+             Build Data: {}\n\
+             Build Time: {}\n\
+             SVN rev: {}",
+            self.firmware_revison.major,
+            self.firmware_revison.minor,
+            self.firmware_revison.patch,
+            self.driver_revision.major,
+            self.driver_revision.minor,
+            self.driver_revision.patch,
+            self.build_date.as_str(),
+            self.build_time.as_str(),
+            self.svn_rev
+        );
+    }
+}
+
 /// Connected network information
 //#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[derive(Debug, PartialEq)]
