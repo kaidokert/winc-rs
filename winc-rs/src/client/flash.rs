@@ -168,13 +168,13 @@ impl<X: Xfer> WincClient<'_, X> {
             .ok_or(StackError::InvalidParameters)?;
         let mut flash_addr: u32 = addr;
 
-        // enable write access
-        self.manager
-            .send_flash_write_access(true)
-            .map_err(StackError::WincWifiFail)?;
-
         while flash_addr < end {
             let mut retries: u8 = 3;
+
+            // enable write access
+            self.manager
+                .send_flash_write_access(true)
+                .map_err(StackError::WincWifiFail)?;
 
             let _ = self
                 .manager
