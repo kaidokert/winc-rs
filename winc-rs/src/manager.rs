@@ -129,9 +129,7 @@ const ETHERNET_HEADER_OFFSET: usize = 34;
 const IP_PACKET_OFFSET: usize = ETHERNET_HEADER_LENGTH + ETHERNET_HEADER_OFFSET; // - HIF_HEADER_OFFSET;
 const HIF_SEND_RETRIES: usize = 1000;
 #[cfg(feature = "flash-rw")]
-const FLASH_REG_READ_RETRIES: usize = 10; // Total wait time: 1 second (10 retries with a 100 ms backoff delay).
-#[cfg(feature = "flash-rw")]
-const FLASH_REG_READ_DELAY_US: u32 = 1000 * 100; // 100 ms backoff delay in microseconds.
+const FLASH_REG_READ_RETRIES: usize = 10;
 #[cfg(feature = "flash-rw")]
 const FLASH_DUMMY_VALUE: u32 = 0x1084;
 
@@ -342,7 +340,7 @@ impl<X: Xfer> Manager<X> {
         loop {
             if retries == 0 {
                 error!("Reading enable clock register timed out.");
-                return Err(Error::Failed);
+                return Err(Error::OperationRetriesExceeded);
             }
 
             reg = self.chip.single_reg_read(Regs::EnableClock.into())?;
@@ -1055,11 +1053,10 @@ impl<X: Xfer> Manager<X> {
         while res != 1 {
             if retries == 0 {
                 error!("Reading flash transfer complete register timed out.");
-                return Err(Error::Failed);
+                return Err(Error::OperationRetriesExceeded);
             }
 
             retries -= 1;
-            self.chip.delay_us(FLASH_REG_READ_DELAY_US);
 
             res = self.chip.single_reg_read(Regs::FlashTransferDone.into())?;
         }
@@ -1081,7 +1078,7 @@ impl<X: Xfer> Manager<X> {
     /// * `Error` - If an error occurs while writing the data from Cortus memory to flash.
     fn send_flash_write_page(&mut self, flash_addr: u32, data_size: usize) -> Result<(), Error> {
         if data_size > FLASH_PAGE_SIZE {
-            return Err(Error::Failed);
+            return Err(Error::ExceedsFlashPageSize);
         }
 
         let cmd = {
@@ -1249,7 +1246,7 @@ impl<X: Xfer> Manager<X> {
         }
         if data.len() > FLASH_PAGE_SIZE {
             error!("Data should not be greater than the page size, which is 256 bytes.");
-            return Err(Error::Failed);
+            return Err(Error::ExceedsFlashPageSize);
         }
         // enable flash writing
         self.send_flash_write_access(true)?;
@@ -1264,11 +1261,10 @@ impl<X: Xfer> Manager<X> {
 
         while (res & 0x01) != 0 {
             if retries == 0 {
-                return Err(Error::Failed);
+                return Err(Error::OperationRetriesExceeded);
             }
 
             retries -= 1;
-            self.chip.delay_us(FLASH_REG_READ_DELAY_US);
 
             res = self.send_flash_read_status_register()?;
         }

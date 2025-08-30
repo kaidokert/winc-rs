@@ -173,17 +173,14 @@ mod usb_serial_impl {
                 }
             });
 
-            match result {
-                Ok(size) => Ok(size),
-                Err(e) => Err(match e {
-                    UsbError::WouldBlock => nb::Error::WouldBlock,
-                    UsbError::InvalidState => nb::Error::Other(StackError::InvalidState),
-                    UsbError::BufferOverflow => {
-                        nb::Error::Other(StackError::WincWifiFail(CommError::ReadError))
-                    }
-                    _ => nb::Error::Other(StackError::Unexpected),
-                }),
-            }
+            result.map_err(|e| match e {
+                UsbError::WouldBlock => nb::Error::WouldBlock,
+                UsbError::InvalidState => nb::Error::Other(StackError::InvalidState),
+                UsbError::BufferOverflow => {
+                    nb::Error::Other(StackError::WincWifiFail(CommError::ReadError))
+                }
+                _ => nb::Error::Other(StackError::Unexpected),
+            })
         }
         /// Send data to Serial Interface.
         pub fn write(&self, data: &[u8]) -> nb::Result<usize, StackError> {
@@ -195,17 +192,14 @@ mod usb_serial_impl {
                 }
             });
 
-            match result {
-                Ok(size) => Ok(size),
-                Err(e) => Err(match e {
-                    UsbError::WouldBlock => nb::Error::WouldBlock,
-                    UsbError::InvalidState => nb::Error::Other(StackError::InvalidState),
-                    UsbError::BufferOverflow => {
-                        nb::Error::Other(StackError::WincWifiFail(CommError::WriteError))
-                    }
-                    _ => nb::Error::Other(StackError::Unexpected),
-                }),
-            }
+            result.map_err(|e| match e {
+                UsbError::WouldBlock => nb::Error::WouldBlock,
+                UsbError::InvalidState => nb::Error::Other(StackError::InvalidState),
+                UsbError::BufferOverflow => {
+                    nb::Error::Other(StackError::WincWifiFail(CommError::WriteError))
+                }
+                _ => nb::Error::Other(StackError::Unexpected),
+            })
         }
     }
 }

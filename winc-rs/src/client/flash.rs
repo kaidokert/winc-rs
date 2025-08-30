@@ -33,28 +33,20 @@ impl<X: Xfer> WincClient<'_, X> {
     /// * `()` – Flash access was successfully enabled or disabled.
     /// * `StackError` – If an error occurs while enabling or disabling access to the flash.
     pub fn set_flash_access(&mut self, enable: bool) -> Result<(), StackError> {
-        let mut chip_id = self.manager.chip_id().map_err(StackError::WincWifiFail)?;
+        let mut chip_id = self.manager.chip_id()?;
         chip_id &= 0x00000fff;
 
         if chip_id >= CHIP_REV_LP {
             if enable {
                 // enable pinmux on flash.
-                self.manager
-                    .send_flash_pin_mux(true)
-                    .map_err(StackError::WincWifiFail)?;
+                self.manager.send_flash_pin_mux(true)?;
                 // exit the low power mode.
-                self.manager
-                    .send_flash_low_power_mode(false)
-                    .map_err(StackError::WincWifiFail)?;
+                self.manager.send_flash_low_power_mode(false)?;
             } else {
                 // disable pinmux on flash to minimize current leakage.
-                self.manager
-                    .send_flash_pin_mux(false)
-                    .map_err(StackError::WincWifiFail)?;
+                self.manager.send_flash_pin_mux(false)?;
                 // enter low power mode.
-                self.manager
-                    .send_flash_low_power_mode(true)
-                    .map_err(StackError::WincWifiFail)?;
+                self.manager.send_flash_low_power_mode(true)?;
             }
         }
 
@@ -84,8 +76,7 @@ impl<X: Xfer> WincClient<'_, X> {
             let to_recv = (buffer[offset..]).len().min(FLASH_BLOCK_SIZE);
             // read the data
             self.manager
-                .send_flash_read(flash_addr, &mut buffer[offset..offset + to_recv])
-                .map_err(StackError::WincWifiFail)?;
+                .send_flash_read(flash_addr, &mut buffer[offset..offset + to_recv])?;
             offset += to_recv;
             // check if all data is read.
             if offset >= buffer.len() {
@@ -120,8 +111,7 @@ impl<X: Xfer> WincClient<'_, X> {
             let word_size = FLASH_PAGE_SIZE - page_offset;
             let valid_size = data.len().min(word_size);
             self.manager
-                .send_flash_write(flash_addr, &data[..valid_size])
-                .map_err(StackError::WincWifiFail)?;
+                .send_flash_write(flash_addr, &data[..valid_size])?;
             // check if all bytes are written.
             if data.len() <= word_size {
                 return Ok(());
@@ -135,8 +125,7 @@ impl<X: Xfer> WincClient<'_, X> {
             let word_size = data[offset..].len().min(FLASH_PAGE_SIZE);
 
             self.manager
-                .send_flash_write(flash_addr, &data[offset..offset + word_size])
-                .map_err(StackError::WincWifiFail)?;
+                .send_flash_write(flash_addr, &data[offset..offset + word_size])?;
 
             // Increament the buffer and flash address by bytes written.
             offset += word_size;
@@ -172,21 +161,12 @@ impl<X: Xfer> WincClient<'_, X> {
             let mut retries: u8 = 3;
 
             // enable write access
-            self.manager
-                .send_flash_write_access(true)
-                .map_err(StackError::WincWifiFail)?;
+            self.manager.send_flash_write_access(true)?;
 
-            let _ = self
-                .manager
-                .send_flash_read_status_register()
-                .map_err(StackError::WincWifiFail)?;
-            self.manager
-                .send_flash_erase_sector(flash_addr + 10) // Wifi101 adds 10 in the flash address.
-                .map_err(StackError::WincWifiFail)?;
-            let mut val = self
-                .manager
-                .send_flash_read_status_register()
-                .map_err(StackError::WincWifiFail)?;
+            let _ = self.manager.send_flash_read_status_register()?;
+            self.manager.send_flash_erase_sector(flash_addr + 10)?; // Wifi101 adds 10 in the flash address.
+
+            let mut val = self.manager.send_flash_read_status_register()?;
 
             while (val & 0x01) != 0 {
                 if retries == 0 {
@@ -196,19 +176,14 @@ impl<X: Xfer> WincClient<'_, X> {
                     return Err(StackError::GeneralTimeout);
                 }
                 retries -= 1;
-                val = self
-                    .manager
-                    .send_flash_read_status_register()
-                    .map_err(StackError::WincWifiFail)?;
+                val = self.manager.send_flash_read_status_register()?;
             }
 
             flash_addr = flash_addr.saturating_add(SECTOR_SIZE);
         }
 
         // disable write access
-        self.manager
-            .send_flash_write_access(false)
-            .map_err(StackError::WincWifiFail)?;
+        self.manager.send_flash_write_access(false)?;
 
         Ok(())
     }
@@ -221,10 +196,7 @@ impl<X: Xfer> WincClient<'_, X> {
     /// * `StackError` – If an error occurs while retrieving the size of the flash memory.
     pub fn flash_get_size(&mut self) -> Result<u32, StackError> {
         const FLASH_ID_SIZE_OFFSET: u32 = 0x11;
-        let id = self
-            .manager
-            .send_flash_read_id()
-            .map_err(StackError::WincWifiFail)?;
+        let id = self.manager.send_flash_read_id()?;
 
         if id == 0xffffffff {
             error!("Unable to read the flash ID.");

@@ -143,7 +143,7 @@ fn receive_packet(
 
 fn program() -> Result<(), StackError> {
     if let Ok(ini) = init() {
-        info!("Hello, Winc Module");
+        info!("Hello, Winc flasher module");
 
         let mut stack = WincClient::new(SpiStream::new(ini.cs, ini.spi));
 

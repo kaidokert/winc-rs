@@ -35,6 +35,10 @@ pub enum CommError {
     HifSendFailed,
     /// Invalid HiF response
     InvalidHifResponse(&'static str),
+    /// Operation retries exceeded
+    OperationRetriesExceeded,
+    /// Specified exceeds the flash page.
+    ExceedsFlashPageSize,
 }
 
 impl From<core::convert::Infallible> for CommError {
@@ -91,6 +95,8 @@ impl core::fmt::Display for CommError {
             Self::InvalidHifResponse(err_str) => {
                 return write!(f, "Invalid {} response received.", err_str)
             }
+            Self::OperationRetriesExceeded => "Operation retry limit exceeded.",
+            Self::ExceedsFlashPageSize => "The provided length exceeds the flash page size.",
         };
         f.write_str(msg)
     }
@@ -129,6 +135,10 @@ impl defmt::Format for CommError {
             Self::InvalidHifResponse(err_str) => {
                 defmt::write!(f, "Invalid {} response received.", err_str)
             }
+            Self::ExceedsFlashPageSize => {
+                defmt::write!(f, "The provided length exceeds the flash page size.")
+            }
+            Self::OperationRetriesExceeded => defmt::write!(f, "Operation retry limit exceeded."),
         }
     }
 }
