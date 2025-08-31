@@ -47,7 +47,7 @@ required-features = ["telnet"]
 
 [features]
 # Do most of development and testing with IRQ enabled
-default = ["irq","usb","defmt"] # Use defmt by default, or switch to "log" for USB logging
+default = ["irq", "defmt"] # Use defmt by default, or switch to "log" for USB logging
 iperf3 = ["demos/iperf3"]
 oled = ["dep:ssd1306"]
 telnet = ["demos/telnet"]
