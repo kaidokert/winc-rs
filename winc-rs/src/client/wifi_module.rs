@@ -311,9 +311,7 @@ impl<X: Xfer> WincClient<'_, X> {
 
     /// Get the firmware version of the Wifi module
     pub fn get_firmware_version(&mut self) -> Result<FirmwareInfo, StackError> {
-        let fw = self.manager.get_firmware_ver_full()?;
-
-        Ok(fw)
+        Ok(self.manager.get_firmware_ver_full()?)
     }
 
     /// Sends a ping request to the given IP address
