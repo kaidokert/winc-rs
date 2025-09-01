@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1756718041226,
+  "lastUpdate": 1756718107208,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -3693,6 +3693,40 @@ window.BENCHMARK_DATA = {
           {
             "name": "iperf3_client",
             "value": 67796,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "142439476+umarbinzahid@users.noreply.github.com",
+            "name": "Umar Bin Zahid",
+            "username": "umarbinzahid"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "a7d2e94eb9210a1dd220edf684b4042a5f1a04b7",
+          "message": "Simplify error handling from `manager` `CommError` to `StackError`. (#111)\n\n* improved error handling.\n\n* error mapping removed from firmware fw function.\n\n* Apply suggestions from code review\n\nCo-authored-by: gemini-code-assist[bot] <176961590+gemini-code-assist[bot]@users.noreply.github.com>\n\n---------\n\nCo-authored-by: Kaido Kert <kaidokert@gmail.com>\nCo-authored-by: gemini-code-assist[bot] <176961590+gemini-code-assist[bot]@users.noreply.github.com>",
+          "timestamp": "2025-09-01T02:14:05-07:00",
+          "tree_id": "b9065b7d1a4a0843326b73d919ef1e66922ae557",
+          "url": "https://github.com/kaidokert/winc-rs/commit/a7d2e94eb9210a1dd220edf684b4042a5f1a04b7"
+        },
+        "date": 1756718106843,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 52536,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 67844,
             "unit": "byte"
           }
         ]
