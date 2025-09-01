@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1756718107208,
+  "lastUpdate": 1756718178511,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -3727,6 +3727,40 @@ window.BENCHMARK_DATA = {
           {
             "name": "iperf3_client",
             "value": 67844,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "142439476+umarbinzahid@users.noreply.github.com",
+            "name": "Umar Bin Zahid",
+            "username": "umarbinzahid"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "4788f8f7db1f324e12ca50fc04ffa3a193d6fc7b",
+          "message": "Disabled the USB feature by default. (#112)",
+          "timestamp": "2025-09-01T02:14:24-07:00",
+          "tree_id": "65d08467a75b3d6f3d79131511ed9a4edf403383",
+          "url": "https://github.com/kaidokert/winc-rs/commit/4788f8f7db1f324e12ca50fc04ffa3a193d6fc7b"
+        },
+        "date": 1756718178162,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 41520,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 56920,
             "unit": "byte"
           }
         ]
