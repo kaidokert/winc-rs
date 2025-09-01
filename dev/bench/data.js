@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1756066654750,
+  "lastUpdate": 1756718041226,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -3659,6 +3659,40 @@ window.BENCHMARK_DATA = {
           {
             "name": "iperf3_client",
             "value": 67720,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "142439476+umarbinzahid@users.noreply.github.com",
+            "name": "Umar Bin Zahid",
+            "username": "umarbinzahid"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "a4ca395f82942d65b7ffa4c1635d512019591673",
+          "message": "Add support for accessing WINC1500 SPI flash memory (#104)\n\n* backup.\n\n* Added initial support to access winc1500 flash memory.\n\n* Added inital serial flasher example and fixed bugs.\n\n* PR comments addressed.\n\n* Initial working version of serial flasher example.\n\n* Fixed read/write issues in the example\n\n* removed test changes.\n\n* Added feature flags.\n\n* Updated the set flash access function.\n\n* Addressed PR comments.\n\n* fixed error.\n\n* Example description has been updated.\n\n* Fix flash access while erasing.\n\n* Addressed PR comments.",
+          "timestamp": "2025-09-01T02:13:01-07:00",
+          "tree_id": "da202fcb6a8c1a6d58b98bb5fc732cd3ff75fe9b",
+          "url": "https://github.com/kaidokert/winc-rs/commit/a4ca395f82942d65b7ffa4c1635d512019591673"
+        },
+        "date": 1756718040261,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 52548,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 67796,
             "unit": "byte"
           }
         ]
