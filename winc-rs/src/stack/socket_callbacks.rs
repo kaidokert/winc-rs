@@ -18,7 +18,7 @@ use crate::socket::Socket;
 use crate::Ipv4AddrFormatWrapper;
 
 use super::SockHolder;
-use crate::manager::{PingError, ScanResult, PRNG_DATA_LENGTH, SOCKET_BUFFER_MAX_LENGTH};
+use crate::manager::{PingError, ScanResult, PRNG_DATA_LENGTH, SOCKET_BUFFER_MAX_LENGTH, SslResponse};
 
 use crate::stack::sock_holder::SocketStore;
 
@@ -777,5 +777,15 @@ impl EventListener for SocketCallbacks {
                 self.ota_state // retain the value if conditions dosen't match
             }
         };
+    }
+
+    /// Callback function for SSL events.
+    ///
+    /// # Arguments
+    ///
+    /// * `ssl_res` - SSL response type.
+    /// * `response` - Response read from module.
+    fn on_ssl(&mut self, ssl_res: SslResponse, response: &[u8]) {
+        todo!("SSL Todo");
     }
 }

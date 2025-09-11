@@ -25,6 +25,8 @@ pub struct Socket {
     pub s: u16,
     /// Receive Timeout.
     receive_timeout: u32,
+    /// SSL Configuration
+    ssl_cfg: u8,
 }
 
 /// Implementation of `Socket` to create new instance and managing the receive timeout.
@@ -44,6 +46,7 @@ impl Socket {
             v,
             s,
             receive_timeout: DEFAULT_SOCKET_RECEIVE_TIMEOUT,
+            ssl_cfg: 0,
         }
     }
 
@@ -52,13 +55,31 @@ impl Socket {
     /// # Arguments
     ///
     /// * `timeout` - Timeout duration in milliseconds.
-    pub fn set_recv_timeout(&mut self, timeout: u32) {
+    pub(crate) fn set_recv_timeout(&mut self, timeout: u32) {
         self.receive_timeout = timeout;
     }
 
     /// Returns the receive timeout of the socket, in milliseconds.
-    pub fn get_recv_timeout(&self) -> u32 {
+    pub(crate) fn get_recv_timeout(&self) -> u32 {
         self.receive_timeout
+    }
+
+    /// Set the SSL Options
+    ///
+    /// # Arguments
+    ///
+    /// * `ssl_opt` - SSL socket options.
+    pub(crate) fn set_ssl_cfg(&mut self, ssl_opt: u8, enable: bool) {
+        if enable {
+            self.ssl_cfg |= ssl_opt;
+        } else {
+            self.ssl_cfg &= !ssl_opt;
+        }
+    }
+
+    /// Returns the SSL options value set on a socket.
+    pub fn get_ssl_cfg(&self) -> u8 {
+        self.ssl_cfg
     }
 }
 
@@ -69,6 +90,7 @@ impl From<(u8, u16)> for Socket {
             v: val.0,
             s: val.1,
             receive_timeout: DEFAULT_SOCKET_RECEIVE_TIMEOUT,
+            ssl_cfg: 0,
         }
     }
 }
