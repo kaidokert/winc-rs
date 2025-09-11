@@ -97,7 +97,7 @@ pub struct Revision {
 /// Information about the firmware version of the Wifi module
 pub struct FirmwareInfo {
     pub chip_id: u32,
-    pub firmware_revison: Revision,
+    pub firmware_revision: Revision,
     pub driver_revision: Revision,
     pub build_date: ArrayString<12>,
     pub build_time: ArrayString<9>,
@@ -123,7 +123,7 @@ impl From<[u8; 40]> for FirmwareInfo {
 
         FirmwareInfo {
             chip_id,
-            firmware_revison: Revision {
+            firmware_revision: Revision {
                 major: ver[0],
                 minor: ver[1],
                 patch: ver[2],
@@ -151,9 +151,9 @@ impl defmt::Format for FirmwareInfo {
              Build Date: {}\n\
              Build Time: {}\n\
              SVN rev: {}",
-            self.firmware_revison.major,
-            self.firmware_revison.minor,
-            self.firmware_revison.patch,
+            self.firmware_revision.major,
+            self.firmware_revision.minor,
+            self.firmware_revision.patch,
             self.driver_revision.major,
             self.driver_revision.minor,
             self.driver_revision.patch,
@@ -532,7 +532,7 @@ mod tests {
         let res: FirmwareInfo = test_vector.into();
         assert_eq!(res.chip_id, 0x01010101);
         assert_eq!(
-            res.firmware_revison,
+            res.firmware_revision,
             Revision {
                 major: 2,
                 minor: 3,
