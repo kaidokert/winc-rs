@@ -17,11 +17,7 @@ impl<X: Xfer> AsyncClient<'_, X> {
 
         let mut state = Default::default();
         loop {
-            let result = self
-                .manager
-                .borrow_mut()
-                .boot_the_chip(&mut state)
-                .map_err(StackError::WincWifiFail)?;
+            let result = self.manager.borrow_mut().boot_the_chip(&mut state)?;
             if result {
                 self.callbacks.borrow_mut().state = WifiModuleState::Unconnected;
                 return Ok(());

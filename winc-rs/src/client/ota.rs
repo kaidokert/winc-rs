@@ -62,8 +62,7 @@ impl<X: Xfer> WincClient<'_, X> {
         match self.callbacks.ota_state {
             OtaUpdateState::NotStarted => {
                 self.manager
-                    .send_start_ota_update(server_url, cortus_update)
-                    .map_err(StackError::WincWifiFail)?;
+                    .send_start_ota_update(server_url, cortus_update)?;
                 self.callbacks.ota_state = OtaUpdateState::InProgress;
                 if let Some(time) = timeout {
                     self.operation_countdown = time;
@@ -117,9 +116,7 @@ impl<X: Xfer> WincClient<'_, X> {
                 } else {
                     OtaRequest::RollbackFirmware
                 };
-                self.manager
-                    .send_ota_request(request)
-                    .map_err(StackError::WincWifiFail)?;
+                self.manager.send_ota_request(request)?;
                 self.callbacks.ota_state = OtaUpdateState::RollingBack;
                 if let Some(time) = timeout {
                     self.operation_countdown = time;
@@ -165,9 +162,7 @@ impl<X: Xfer> WincClient<'_, X> {
     pub fn abort_ota(&mut self, timeout: Option<u32>) -> nb::Result<(), StackError> {
         match self.callbacks.ota_state {
             OtaUpdateState::NotStarted | OtaUpdateState::InProgress => {
-                self.manager
-                    .send_ota_request(OtaRequest::Abort)
-                    .map_err(StackError::WincWifiFail)?;
+                self.manager.send_ota_request(OtaRequest::Abort)?;
                 self.callbacks.ota_state = OtaUpdateState::Aborting;
                 if let Some(time) = timeout {
                     self.operation_countdown = time;
@@ -223,9 +218,7 @@ impl<X: Xfer> WincClient<'_, X> {
                 } else {
                     OtaRequest::SwitchFirmware
                 };
-                self.manager
-                    .send_ota_request(request)
-                    .map_err(StackError::WincWifiFail)?;
+                self.manager.send_ota_request(request)?;
                 self.callbacks.ota_state = OtaUpdateState::SwitchingFirmware;
                 if let Some(time) = timeout {
                     self.operation_countdown = time;

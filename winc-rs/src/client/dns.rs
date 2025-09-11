@@ -22,9 +22,7 @@ impl<X: Xfer> Dns for WincClient<'_, X> {
                     unimplemented!("IPv6 not supported");
                 }
                 self.dispatch_events()?;
-                self.manager
-                    .send_gethostbyname(hostname)
-                    .map_err(StackError::WincWifiFail)?;
+                self.manager.send_gethostbyname(hostname)?;
                 // Signal operation in progress
                 self.operation_countdown = Self::DNS_TIMEOUT;
                 self.callbacks.dns_resolved_addr = Some(None);

@@ -139,9 +139,77 @@ mod logging_impl {
     }
 }
 
+#[cfg(feature = "serial-usb")]
+mod usb_serial_impl {
+    use super::usb_device_impl::USB_SERIAL;
+    use nb;
+    use usb_device::UsbError;
+    use wincwifi::{CommError, StackError};
+
+    pub struct UsbSerial;
+
+    impl UsbSerial {
+        /// Read data from the USB
+        ///
+        /// # Arguments
+        ///
+        /// * `buffer` - Buffer where read data will be placed.
+        ///
+        /// # Returns
+        ///
+        /// * `usize` - Number of bytes read from the usb.
+        /// * `StackError` - If any
+        pub fn read(&self, buffer: &mut [u8]) -> nb::Result<usize, StackError> {
+            if buffer.is_empty() {
+                return Err(nb::Error::Other(StackError::InvalidParameters));
+            }
+
+            let result = cortex_m::interrupt::free(|_cs| {
+                if let Some(serial) = USB_SERIAL.borrow(_cs).borrow_mut().as_mut() {
+                    serial.read(buffer)
+                } else {
+                    // Operation is used before initializing the usb.
+                    Err(UsbError::InvalidState)
+                }
+            });
+
+            result.map_err(|e| match e {
+                UsbError::WouldBlock => nb::Error::WouldBlock,
+                UsbError::InvalidState => nb::Error::Other(StackError::InvalidState),
+                UsbError::BufferOverflow => {
+                    nb::Error::Other(StackError::WincWifiFail(CommError::ReadError))
+                }
+                _ => nb::Error::Other(StackError::Unexpected),
+            })
+        }
+        /// Send data to Serial Interface.
+        pub fn write(&self, data: &[u8]) -> nb::Result<usize, StackError> {
+            let result = cortex_m::interrupt::free(|_cs| {
+                if let Some(serial) = USB_SERIAL.borrow(_cs).borrow_mut().as_mut() {
+                    serial.write(data)
+                } else {
+                    Err(UsbError::InvalidState)
+                }
+            });
+
+            result.map_err(|e| match e {
+                UsbError::WouldBlock => nb::Error::WouldBlock,
+                UsbError::InvalidState => nb::Error::Other(StackError::InvalidState),
+                UsbError::BufferOverflow => {
+                    nb::Error::Other(StackError::WincWifiFail(CommError::WriteError))
+                }
+                _ => nb::Error::Other(StackError::Unexpected),
+            })
+        }
+    }
+}
+
 // Public interface
 #[cfg(feature = "usb")]
 pub use usb_device_impl::setup_usb_device;
 
 #[cfg(feature = "log")]
 pub use logging_impl::initialize_usb_logging;
+
+#[cfg(feature = "serial-usb")]
+pub use usb_serial_impl::UsbSerial;

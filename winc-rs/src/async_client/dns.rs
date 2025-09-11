@@ -25,9 +25,7 @@ impl<X: Xfer> Dns for AsyncClient<'_, X> {
         }
         {
             let mut manager = self.manager.borrow_mut();
-            manager
-                .send_gethostbyname(host)
-                .map_err(StackError::WincWifiFail)?;
+            manager.send_gethostbyname(host)?;
         }
         let mut count = Self::DNS_TIMEOUT;
         loop {

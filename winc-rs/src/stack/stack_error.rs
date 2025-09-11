@@ -68,6 +68,12 @@ impl From<crate::errors::CommError> for StackError {
     }
 }
 
+impl From<crate::errors::CommError> for nb::Error<StackError> {
+    fn from(inner: crate::errors::CommError) -> Self {
+        nb::Error::Other(StackError::WincWifiFail(inner))
+    }
+}
+
 impl From<core::net::AddrParseError> for StackError {
     fn from(_: core::net::AddrParseError) -> Self {
         Self::InvalidParameters

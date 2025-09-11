@@ -57,10 +57,7 @@ impl<X: Xfer> WincClient<'_, X> {
             }
             WifiModuleState::Starting => {
                 if let Some(state) = self.boot.as_mut() {
-                    let result = self
-                        .manager
-                        .boot_the_chip(state)
-                        .map_err(|x| nb::Error::Other(StackError::WincWifiFail(x)))?;
+                    let result = self.manager.boot_the_chip(state)?;
                     if result {
                         self.callbacks.state = WifiModuleState::Unconnected;
                         self.boot = None;
@@ -88,33 +85,25 @@ impl<X: Xfer> WincClient<'_, X> {
             WifiModuleState::Reset => {
                 self.manager.set_crc_state(true);
                 // wake-up the chip
-                self.manager.chip_wake().map_err(StackError::WincWifiFail)?;
+                self.manager.chip_wake()?;
                 // reset the chip
-                self.manager
-                    .chip_reset()
-                    .map_err(StackError::WincWifiFail)?;
+                self.manager.chip_reset()?;
                 // halt the chip
-                self.manager.chip_halt().map_err(StackError::WincWifiFail)?;
+                self.manager.chip_halt()?;
                 self.callbacks.state = WifiModuleState::Starting;
                 Err(nb::Error::WouldBlock)
             }
 
             WifiModuleState::Starting => {
                 // set the spi packet size
-                self.manager
-                    .configure_spi_packetsize()
-                    .map_err(StackError::WincWifiFail)?;
+                self.manager.configure_spi_packetsize()?;
                 // read the chip id
-                let chip_id = self.manager.chip_id().map_err(StackError::WincWifiFail)?;
-                let chip_rev = self.manager.chip_rev().map_err(StackError::WincWifiFail)?;
+                let chip_id = self.manager.chip_id()?;
+                let chip_rev = self.manager.chip_rev()?;
                 // disable all internal interrupts
-                self.manager
-                    .disable_internal_interrupt()
-                    .map_err(StackError::WincWifiFail)?;
+                self.manager.disable_internal_interrupt()?;
                 // enable the chip interrupts
-                self.manager
-                    .enable_interrupt_pins()
-                    .map_err(StackError::WincWifiFail)?;
+                self.manager.enable_interrupt_pins()?;
                 info!(
                     "Chip id: {:x} rev: {:x} booted into download mode.",
                     chip_id, chip_rev
@@ -140,7 +129,7 @@ impl<X: Xfer> WincClient<'_, X> {
             WifiModuleState::Unconnected => {
                 self.operation_countdown = AP_CONNECT_TIMEOUT_MILLISECONDS;
                 self.callbacks.state = WifiModuleState::ConnectingToAp;
-                connect_fn(self).map_err(|x| nb::Error::Other(StackError::WincWifiFail(x)))?;
+                connect_fn(self)?;
                 Err(nb::Error::WouldBlock)
             }
             WifiModuleState::ConnectingToAp => {
@@ -219,9 +208,7 @@ impl<X: Xfer> WincClient<'_, X> {
             None => {
                 // This is ignored for active scan
                 const PASSIVE_SCAN_TIME: u16 = 1000;
-                self.manager
-                    .send_scan(0xFF, PASSIVE_SCAN_TIME)
-                    .map_err(|x| nb::Error::Other(StackError::WincWifiFail(x)))?;
+                self.manager.send_scan(0xFF, PASSIVE_SCAN_TIME)?;
                 // Signal operation in progress
                 self.callbacks.connection_state.scan_number_aps = Some(None);
             }
@@ -253,9 +240,7 @@ impl<X: Xfer> WincClient<'_, X> {
     pub fn get_scan_result(&mut self, index: u8) -> nb::Result<ScanResult, StackError> {
         match &mut self.callbacks.connection_state.scan_results {
             None => {
-                self.manager
-                    .send_get_scan_result(index)
-                    .map_err(StackError::WincWifiFail)?;
+                self.manager.send_get_scan_result(index)?;
                 self.callbacks.connection_state.scan_results = Some(None);
             }
             Some(result) => {
@@ -283,9 +268,7 @@ impl<X: Xfer> WincClient<'_, X> {
     pub fn get_current_rssi(&mut self) -> nb::Result<i8, StackError> {
         match &mut self.callbacks.connection_state.rssi_level {
             None => {
-                self.manager
-                    .send_get_current_rssi()
-                    .map_err(StackError::WincWifiFail)?;
+                self.manager.send_get_current_rssi()?;
                 self.callbacks.connection_state.rssi_level = Some(None);
             }
             Some(rssi) => {
@@ -312,9 +295,7 @@ impl<X: Xfer> WincClient<'_, X> {
     ) -> nb::Result<crate::manager::ConnectionInfo, StackError> {
         match &mut self.callbacks.connection_state.conn_info {
             None => {
-                self.manager
-                    .send_get_conn_info()
-                    .map_err(StackError::WincWifiFail)?;
+                self.manager.send_get_conn_info()?;
                 self.callbacks.connection_state.conn_info = Some(None);
             }
             Some(info) => {
@@ -330,9 +311,7 @@ impl<X: Xfer> WincClient<'_, X> {
 
     /// Get the firmware version of the Wifi module
     pub fn get_firmware_version(&mut self) -> Result<FirmwareInfo, StackError> {
-        self.manager
-            .get_firmware_ver_full()
-            .map_err(StackError::WincWifiFail)
+        Ok(self.manager.get_firmware_ver_full()?)
     }
 
     /// Sends a ping request to the given IP address
@@ -357,9 +336,7 @@ impl<X: Xfer> WincClient<'_, X> {
             None => {
                 info!("sending ping request");
                 let marker = 42; // This seems arbitrary pass through value
-                self.manager
-                    .send_ping_req(dest_ip, ttl, count, marker)
-                    .map_err(StackError::WincWifiFail)?;
+                self.manager.send_ping_req(dest_ip, ttl, count, marker)?;
                 self.callbacks.connection_state.ping_result = Some(None);
             }
             Some(result) => {
@@ -382,9 +359,7 @@ impl<X: Xfer> WincClient<'_, X> {
             WifiModuleState::ConnectedToAp => {
                 self.operation_countdown = AP_DISCONNECT_TIMEOUT_MILLISECONDS;
                 self.callbacks.state = WifiModuleState::Disconnecting;
-                self.manager
-                    .send_disconnect()
-                    .map_err(|x| nb::Error::Other(StackError::WincWifiFail(x)))?;
+                self.manager.send_disconnect()?;
                 Err(nb::Error::WouldBlock)
             }
             WifiModuleState::Disconnecting => {
@@ -433,8 +408,7 @@ impl<X: Xfer> WincClient<'_, X> {
                 }
 
                 self.manager
-                    .send_start_provisioning(ap, hostname, http_redirect)
-                    .map_err(|x| nb::Error::Other(StackError::WincWifiFail(x)))?;
+                    .send_start_provisioning(ap, hostname, http_redirect)?;
 
                 self.callbacks.state = WifiModuleState::Provisioning;
                 self.callbacks.provisioning_info = None;
@@ -476,9 +450,7 @@ impl<X: Xfer> WincClient<'_, X> {
     /// * `StackError` - If an error occurs while stopping provisioning mode.
     pub fn stop_provisioning_mode(&mut self) -> Result<(), StackError> {
         if self.callbacks.state == WifiModuleState::Provisioning {
-            self.manager
-                .send_stop_provisioning()
-                .map_err(StackError::WincWifiFail)?;
+            self.manager.send_stop_provisioning()?;
         } else {
             return Err(StackError::InvalidState);
         }
@@ -505,9 +477,7 @@ impl<X: Xfer> WincClient<'_, X> {
                 error!("Enterprise Security is not supported in access point mode");
                 return Err(StackError::InvalidParameters);
             }
-            self.manager
-                .send_enable_access_point(ap)
-                .map_err(StackError::WincWifiFail)?;
+            self.manager.send_enable_access_point(ap)?;
             self.callbacks.state = WifiModuleState::AccessPoint;
         } else {
             return Err(StackError::InvalidState);
@@ -524,9 +494,7 @@ impl<X: Xfer> WincClient<'_, X> {
     /// * `StackError` - If an error occurs while disabling access point mode.
     pub fn disable_access_point(&mut self) -> Result<(), StackError> {
         if self.callbacks.state == WifiModuleState::AccessPoint {
-            self.manager
-                .send_disable_access_point()
-                .map_err(StackError::WincWifiFail)?;
+            self.manager.send_disable_access_point()?;
             self.callbacks.state = WifiModuleState::Unconnected;
         } else {
             return Err(StackError::InvalidState);
@@ -563,9 +531,7 @@ impl<X: Xfer> WincClient<'_, X> {
                     // Receive timeout are handled by winc stack not by module.
                     sock.set_recv_timeout(*timeout);
                 } else {
-                    self.manager
-                        .send_setsockopt(*sock, opts)
-                        .map_err(StackError::WincWifiFail)?;
+                    self.manager.send_setsockopt(*sock, opts)?;
                 }
             }
 
@@ -578,9 +544,7 @@ impl<X: Xfer> WincClient<'_, X> {
 
                 match opts {
                     TcpSockOpts::Ssl(ssl_opts) => {
-                        self.manager
-                            .send_ssl_setsockopt(*sock, ssl_opts)
-                            .map_err(StackError::WincWifiFail)?;
+                        self.manager.send_ssl_setsockopt(*sock, ssl_opts)?;
                     }
                     TcpSockOpts::ReceiveTimeout(timeout) => {
                         // Receive timeout are handled by winc stack not by module.

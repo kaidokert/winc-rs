@@ -45,9 +45,13 @@ required-features = ["oled"]
 name = "telnet_shell"
 required-features = ["telnet"]
 
+[[example]]
+name = "serial_flasher"
+required-features = ["flash-rw"]
+
 [features]
 # Do most of development and testing with IRQ enabled
-default = ["irq","usb","defmt"] # Use defmt by default, or switch to "log" for USB logging
+default = ["irq", "defmt"] # Use defmt by default, or switch to "log" for USB logging
 iperf3 = ["demos/iperf3"]
 oled = ["dep:ssd1306"]
 telnet = ["demos/telnet"]
@@ -57,6 +61,8 @@ usbd-serial = ["dep:usbd-serial"]
 usb = ["dep:usb-device", "dep:usbd-serial", "feather_m0/usb", "dep:ehal_02"] # USB CDC device functionality
 log = ["usb", "dep:log", "demos/log", "wincwifi/log"] # USB logging (mutually exclusive with defmt)
 defmt = ["dep:defmt", "dep:defmt-rtt", "dep:panic-probe", "panic-probe/print-defmt", "embedded-hal/defmt-03", "wincwifi/defmt", "demos/defmt"]
+serial-usb = ["usb"] # USB Serial interface (mutually exclusive with log)
+flash-rw = ["serial-usb", "wincwifi/flash-rw"]
 
 # cargo build/run
 [profile.dev]

@@ -39,8 +39,7 @@ impl<X: Xfer> WincClient<'_, X> {
                     rcv_buffer: None,
                 };
                 self.manager
-                    .send_prng(&data as *const _ as u32, to_recv as u16)
-                    .map_err(StackError::WincWifiFail)?;
+                    .send_prng(&data as *const _ as u32, to_recv as u16)?;
                 self.callbacks.prng = Some(Some(data));
             }
             Some(op_prng) => {
@@ -65,8 +64,7 @@ impl<X: Xfer> WincClient<'_, X> {
                                 };
                                 let to_recv = (data[offset..]).len().min(PRNG_DATA_LENGTH);
                                 self.manager
-                                    .send_prng(&data as *const _ as u32, to_recv as u16)
-                                    .map_err(StackError::WincWifiFail)?;
+                                    .send_prng(&data as *const _ as u32, to_recv as u16)?;
                                 self.callbacks.prng = Some(Some(new_data));
                             }
                         } else {
