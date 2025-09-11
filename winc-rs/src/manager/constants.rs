@@ -258,7 +258,7 @@ impl From<WifiRequest> for u8 {
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[derive(Debug, PartialEq, Default)]
 #[rustfmt::skip]  // Because of the commented out responses
-pub enum WifiResponse {
+pub(crate) enum WifiResponse {
     #[default]
     Unhandled,
     CurrentRssi,      // Done
@@ -333,18 +333,17 @@ pub enum IpCode {
     #[default]
     Unhandled,
     // Implemented Socket Commands
-    Bind = 0x41,       // SOCKET_CMD_BIND + tstrBindCmd (exists, works)
-    Listen = 0x42,     // SOCKET_CMD_LISTEN + tstrListenCmd (exists, works)
-    Accept = 0x43,     // SOCKET_CMD_ACCEPT + no params (exists, works)
-    Connect = 0x44,    // SOCKET_CMD_CONNECT + tstrConnectCmd (exists, works)
-    Send = 0x45,       // SOCKET_CMD_SEND + tstrSendCmd + data (exists, works)
-    Recv = 0x46,       // SOCKET_CMD_RECV + tstrRecvCmd (exists, works)
-    SendTo = 0x47,     // SOCKET_CMD_SENDTO + tstrSendCmd + data (works)
-    RecvFrom = 0x48,   // SOCKET_CMD_RECVFROM + tstrRecvCmd (exists, works)
-    Close = 0x49,      // SOCKET_CMD_CLOSE + tstrCloseCmd (exists, works)
-    DnsResolve = 0x4A, // SOCKET_CMD_DNS_RESOLVE + hostname string (works)
-    Ping = 0x52,       // SOCKET_CMD_PING + tstrPingCmd (exists, works)
-    // TODO: SSL comms
+    Bind = 0x41,            // SOCKET_CMD_BIND + tstrBindCmd (exists, works)
+    Listen = 0x42,          // SOCKET_CMD_LISTEN + tstrListenCmd (exists, works)
+    Accept = 0x43,          // SOCKET_CMD_ACCEPT + no params (exists, works)
+    Connect = 0x44,         // SOCKET_CMD_CONNECT + tstrConnectCmd (exists, works)
+    Send = 0x45,            // SOCKET_CMD_SEND + tstrSendCmd + data (exists, works)
+    Recv = 0x46,            // SOCKET_CMD_RECV + tstrRecvCmd (exists, works)
+    SendTo = 0x47,          // SOCKET_CMD_SENDTO + tstrSendCmd + data (works)
+    RecvFrom = 0x48,        // SOCKET_CMD_RECVFROM + tstrRecvCmd (exists, works)
+    Close = 0x49,           // SOCKET_CMD_CLOSE + tstrCloseCmd (exists, works)
+    DnsResolve = 0x4A,      // SOCKET_CMD_DNS_RESOLVE + hostname string (works)
+    Ping = 0x52,            // SOCKET_CMD_PING + tstrPingCmd (exists, works)
     SslConnect = 0x4B,      // SOCKET_CMD_SSL_CONNECT + tstrConnectCmd
     SslSend = 0x4C,         // SOCKET_CMD_SSL_SEND + tstrSendCmd + data
     SslRecv = 0x4D,         // SOCKET_CMD_SSL_RECV + tstrRecvCmd
@@ -511,6 +510,65 @@ impl From<u8> for OtaUpdateStatus {
     }
 }
 
+/// SSL requests
+#[repr(u8)]
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub(crate) enum SslRequest {
+    Unhandled = 0xff, // Invalid Request
+    SendEccResponse = 0x02, // Send ECC Response
+    NotifyCrl = 0x03, // Update Certificate Revocation List
+    SendCertificate = 0x04, // Send ECC Certificates
+    SetCipherSuits = 0x05, // Set the custom ciphers suits list
+}
+
+/// SSL responses
+#[repr(u8)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub(crate) enum SslResponse {
+    EccUpdate = 0x01, // Response of ECC command.
+    CipherSuitUpdate = 0x06, // Response of requested changes in Cipher Suits.
+    Unhandled = 0xff, // Invalid response recevied.
+}
+
+/// Convert `SslRequest` to `u8` value.
+impl From<SslRequest> for u8 {
+    fn from(val: SslRequest) -> Self {
+        val as u8
+    }
+}
+
+/// Convert `SslResponse` to `u8` value.
+impl From<SslResponse> for u8 {
+    fn from(val: SslResponse) -> Self {
+        val as u8
+    }
+}
+
+/// Convert `SslResponse` to `u8` value.
+impl From<u8> for SslResponse{
+    fn from(val: u8) -> Self {
+        match val {
+            0x01 => SslResponse::EccUpdate,
+            0x06 => SslResponse::CipherSuitUpdate,
+            _ => SslResponse::Unhandled,
+        }
+    }
+}
+
+/// Convert `SslRequest` to `u8` value.
+impl From<u8> for SslRequest{
+    fn from(val: u8) -> Self {
+        match val {
+            0x02 => SslRequest::SendEccResponse,
+            0x03 => SslRequest::NotifyCrl,
+            0x04 => SslRequest::SendCertificate,
+            0x05 => SslRequest::SetCipherSuits,
+            _ => SslRequest::Unhandled,
+        }
+    }
+}
+
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[derive(Debug, PartialEq, Default, Clone, Copy)]
 pub enum PingError {
@@ -673,5 +731,26 @@ impl From<u8> for WepKeyIndex {
             4 => WepKeyIndex::Key4,
             _ => WepKeyIndex::NoKey, // Default Value
         }
+    }
+}
+
+/// Options to configure SSL Certificate Expiry.
+#[repr(u32)]
+pub enum SslCertExpiryOpt {
+    /// Ignore certificate expiration date validation.
+    Disabled = 0x00,
+    /// Validate certificate expiration date. If a certificate is expired or
+    /// there is no configured system time, the SSL connection FAILs.
+    Enabled = 0x01,
+    /// Validate the certificate expiration date only if there is a configured system time.
+    /// If there is no configured system time, the certificate expiration is bypassed and the
+    /// SSL connection SUCCEEDs.
+    EnabledIfSysTime = 0x02,
+}
+
+/// Converts the `SslCertExpiryOpt` value to `u32` value.
+impl From<SslCertExpiryOpt> for u32 {
+    fn from(opt: SslCertExpiryOpt) -> Self {
+        opt as Self
     }
 }

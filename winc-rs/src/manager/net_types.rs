@@ -27,6 +27,7 @@ use core::net::Ipv4Addr;
 
 /// Default IP address "192.168.1.1" for access point and provisioning mode.
 const DEFAULT_AP_IP: u32 = 0xC0A80101;
+const EC_POINT_MAX_SIZE: usize = 32;
 
 /// Device Domain name.
 pub type HostName = ArrayString<MAX_HOST_NAME_LEN>;
@@ -91,9 +92,30 @@ pub enum TcpSockOpts {
 /// TLS Socket Option
 #[repr(u8)]
 #[derive(Debug, PartialEq, Eq)]
+// Note: The `Copy` trait is not implemented to avoid
+// copying the `ArrayString` (HostName).
 pub enum SslSockOpts {
-    /// Set Server Name Indication (SNI).
+    /// SSL Configuration Options
+    Config(SslSockConfig, bool),
+    /// Server Name Indication (SNI).
     SetSni(HostName) = 0x02,
+}
+
+/// TLS Socket Configuration
+#[repr(u8)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum SslSockConfig {
+    /// Enable SSL.
+    EnableSSL = 0x21, // 0x01 | 0x20 (SSL_FLAGS_NO_TX_COPY)
+    /// Bypass X.509 certificate verification.
+    /// Not recommended for production environments.
+    BypassX509Verifcation = 0x02,
+    /// Enable session caching to allow TLS
+    /// session resumption for faster future connections.
+    EnableSessionCache = 0x10,
+    /// Enable SNI validation against the server's
+    /// certificate subject common name.
+    EnableSniValidation = 0x40,
 }
 
 /// Structure for Provisioning Information.
@@ -121,6 +143,36 @@ pub struct AccessPoint<'a> {
     /// for example: 192.168.1.1 to 192.168.1.99.
     /// Invalid Ip: 192.168.1.0 or 192.168.1.100.
     pub ip: Ipv4Addr,
+}
+
+pub struct EcdhRequest {
+    /// The X-coordinate of the ec point.
+    x_cord: [u8; EC_POINT_MAX_SIZE],
+    /// The Y-coordinate of the ec point.
+    y_cord: [u8; EC_POINT_MAX_SIZE],
+    // Point size in bytes (for each of the coordinates).
+    point_size: u16,
+    /// ID for the corresponding private key.
+    private_key_id: u16,
+    /// Private Key
+    private_key: [u8; EC_POINT_MAX_SIZE]
+}
+
+pub struct EcdsaSignRequest {
+    /// Key Curve Type
+    curve_type: u16,
+    /// Hash Size
+    hash_size: u16,
+}
+
+pub struct EccReqInfo {
+    req: u16,
+    status: u16,
+    user_data: u32,
+    seq_num: u32,
+    ecdh_req: Option<EcdhRequest>,
+    ecdsa_sign_req: Option<EcdsaSignRequest>,
+    ecdsa_verify_req: Option<u32>,
 }
 
 /// Implementation to convert the Credentials to Authentication Type
@@ -275,25 +327,41 @@ impl TcpSockOpts {
 impl From<SslSockOpts> for u8 {
     fn from(value: SslSockOpts) -> Self {
         match value {
+            SslSockOpts::Config(cfg, _) => cfg.into(),
             SslSockOpts::SetSni(_) => 0x02,
         }
     }
 }
 
-/// Implementation to convert `SslSockOpts` to `u8` value.
+/// Implementation to convert `&SslSockOpts` to `u8` value.
 impl From<&SslSockOpts> for u8 {
     fn from(value: &SslSockOpts) -> Self {
         match value {
+            SslSockOpts::Config(cfg, _) => (*cfg).into(),
             SslSockOpts::SetSni(_) => 0x02,
         }
+    }
+}
+
+/// Implementation to convert `SslSockConfig` to `u8` value.
+impl From<SslSockConfig> for u8 {
+    fn from(value: SslSockConfig) -> Self {
+        value as Self
     }
 }
 
 /// Implementation to get value stored in SSL socket option.
 impl SslSockOpts {
-    pub fn get_value(&self) -> &ArrayString<MAX_HOST_NAME_LEN> {
+    /// Gets the SNI value passed in the `SslSockOpts::SetSni` socket option.
+    ///
+    /// # Returns
+    ///
+    /// * `HostName` – The stored hostname as a string array.
+    /// * `StackError` – If the method is called for any SSL socket option other than `SetSni`.
+    pub(crate) fn get_sni_value(&self) -> Result<&HostName, StackError> {
         match self {
-            SslSockOpts::SetSni(hostname) => hostname,
+            SslSockOpts::SetSni(hostname) => Ok(hostname),
+            _ => Err(StackError::InvalidParameters),
         }
     }
 }
@@ -339,30 +407,22 @@ impl SocketOptions {
         Self::Udp(UdpSockOpts::SetUdpSendCallback(status))
     }
 
-    /// Set a socket option to configure the UDP socket receive timeout.
+    /// Sets a socket option to configure the receive timeout for a UDP or TCP socket.
     ///
     /// # Arguments
     ///
-    /// * `timeout` - Timeout duration in milliseconds.
+    /// * `timeout` – Timeout duration in milliseconds.
+    /// * `is_udp` – Whether the socket is UDP (`true`) or TCP (`false`).
     ///
     /// # Returns
     ///
-    /// * `SocketOption::Udp(UdpSockOpts::ReceiveTimeout` - The configured socket option.
-    pub fn set_udp_receive_timeout(timeout: u32) -> Self {
-        Self::Udp(UdpSockOpts::ReceiveTimeout(timeout))
-    }
-
-    /// Set a socket option to configure the TCP socket receive timeout.
-    ///
-    /// # Arguments
-    ///
-    /// * `timeout` - Timeout duration in milliseconds.
-    ///
-    /// # Returns
-    ///
-    /// * `SocketOption::Tcp(TcpSockOpts::ReceiveTimeout` - The configured socket option.
-    pub fn set_tcp_receive_timeout(timeout: u32) -> Self {
-        Self::Tcp(TcpSockOpts::ReceiveTimeout(timeout))
+    /// * `SocketOptions` – A `SocketOption` variant containing the configured receive timeout.
+    pub fn set_receive_timeout(timeout: u32, is_udp: bool) -> Self {
+        if is_udp {
+            Self::Udp(UdpSockOpts::ReceiveTimeout(timeout))
+        } else {
+            Self::Tcp(TcpSockOpts::ReceiveTimeout(timeout))
+        }
     }
 
     /// Set the socket option to configure SNI (Server Name Indication) for TLS connections.
@@ -378,6 +438,20 @@ impl SocketOptions {
     pub fn set_sni(hostname: &str) -> Result<Self, StackError> {
         let host = HostName::from(hostname).map_err(|_| StackError::InvalidParameters)?;
         Ok(Self::Tcp(TcpSockOpts::Ssl(SslSockOpts::SetSni(host))))
+    }
+
+    /// Sets the socket option to configure SSL socket.
+    ///
+    /// # Arguments
+    ///
+    /// * `cfg` – The SSL socket configuration.
+    /// * `enable` – `true` to enable the configuration, or `false` to disable it.
+    ///
+    /// # Returns
+    ///
+    /// * `SocketOptions` – The configured socket option on success.
+    pub fn config_ssl(cfg: SslSockConfig, enable: bool) -> Self {
+        Self::Tcp(TcpSockOpts::Ssl(SslSockOpts::Config(cfg, enable)))
     }
 }
 
@@ -809,7 +883,7 @@ mod tests {
     #[test]
     fn test_sock_opts_get_udp_recv_timeout_value() {
         let test_value = 1500u32;
-        let sock_opts = SocketOptions::set_udp_receive_timeout(test_value);
+        let sock_opts = SocketOptions::set_receive_timeout(test_value, true);
 
         if let SocketOptions::Udp(opt) = sock_opts {
             assert_eq!(test_value, opt.get_value());
@@ -821,7 +895,7 @@ mod tests {
     #[test]
     fn test_sock_opts_get_tcp_recv_timeout_value() {
         let test_value = 2500u32;
-        let sock_opts = SocketOptions::set_tcp_receive_timeout(test_value);
+        let sock_opts = SocketOptions::set_receive_timeout(test_value, false);
 
         if let SocketOptions::Tcp(opt) = sock_opts {
             assert_eq!(test_value, opt.get_value());
@@ -837,7 +911,7 @@ mod tests {
 
         if let SocketOptions::Tcp(opt) = sock_opts {
             if let TcpSockOpts::Ssl(ssl) = opt {
-                assert_eq!(ssl.get_value().as_bytes(), test_value);
+                assert_eq!(ssl.get_sni_value().unwrap().as_bytes(), test_value);
             } else {
                 assert!(false);
             }

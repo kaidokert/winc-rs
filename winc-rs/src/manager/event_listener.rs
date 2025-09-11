@@ -13,16 +13,21 @@
 // limitations under the License.
 
 use super::{EventListener, Manager};
-use super::{HifGroup, IpCode, WifiResponse};
+use super::{HifGroup, IpCode, WifiResponse, SslResponse};
 use crate::errors::CommError as Error;
 use crate::manager::constants::{
     PRNG_DATA_LENGTH, PRNG_PACKET_SIZE, PROVISIONING_INFO_PACKET_SIZE, SOCKET_BUFFER_MAX_LENGTH,
 };
 use crate::manager::responses::*;
-use crate::transfer::Xfer;
+use crate::{transfer::Xfer, error};
 
 #[cfg(feature = "experimental-ota")]
-use crate::{error, manager::constants::OtaResponse};
+use crate::manager::constants::OtaResponse;
+
+/// Packet size of ECC info.
+const ECC_MAX_PACKET_SIZE: usize = 112;
+/// Packet size of Cipher suit list.
+const CS_MAX_PACKET_SIZE: usize = 4;
 
 impl<X: Xfer> Manager<X> {
     /// Parses incoming WiFi events from the chip and dispatches them to the provided event listener.
@@ -267,6 +272,44 @@ impl<X: Xfer> Manager<X> {
         Ok(())
     }
 
+    /// Parses incoming OTA events from the chip and dispatches them to the provided event listener.
+    ///
+    /// # Arguments
+    ///
+    /// * `listener` - The event callback handler that will be invoked based on the event type.
+    /// * `address` - The register address of the module from which data can be read.
+    /// * `ota_res` - The OTA response ID indicating the type of event.
+    ///
+    /// # Returns
+    ///
+    /// * `()` - If no error occurred while processing the events.
+    /// * `Error` - If an error occurred while processing the events.
+    fn ssl_events_listener<T: EventListener>(
+        &mut self,
+        listener: &mut T,
+        address: u32,
+        ssl_res: SslResponse,
+    ) -> Result<(), Error> {
+        match ssl_res {
+            SslResponse::EccUpdate => {
+                let mut response = [0u8; ECC_MAX_PACKET_SIZE];
+                self.read_block(address, &mut response)?;
+                listener.on_ssl(ssl_res, &response);
+            }
+            SslResponse::CipherSuitUpdate => {
+                let mut response = [0u8; CS_MAX_PACKET_SIZE];
+                self.read_block(address, &mut response)?;
+                listener.on_ssl(ssl_res, &response);
+            }
+            _ => {
+                error!("Received invalid SSL response: {:?}", ssl_res);
+                return Err(Error::InvalidHifResponse("SSL"));
+            }
+        }
+
+        Ok(())
+    }
+
     /// Waits for new events and dispatches them to the provided event listener.
     ///
     /// # Arguments
@@ -309,6 +352,7 @@ impl<X: Xfer> Manager<X> {
             HifGroup::Ip(e) => self.ip_events_listener(listener, address, e),
             #[cfg(feature = "experimental-ota")]
             HifGroup::Ota(e) => self.ota_events_listener(listener, address, e),
+            HifGroup::Ssl(e) => self.ssl_events_listener(listener, address, e),
             _ => panic!("Unexpected hif"),
         }
     }

@@ -7,6 +7,7 @@ mod flash;
 #[cfg(feature = "experimental-ota")]
 mod ota;
 mod prng;
+mod ssl;
 mod tcp_stack;
 mod udp_stack;
 mod wifi_module;

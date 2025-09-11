@@ -6,7 +6,7 @@ use super::Handle;
 use crate::error;
 use crate::manager::{AccessPoint, AuthType, FirmwareInfo, IPConf, ScanResult, Ssid, WifiChannel};
 use crate::manager::{Credentials, HostName, ProvisioningInfo, WifiConnError};
-use crate::manager::{SocketOptions, TcpSockOpts, UdpSockOpts};
+use crate::manager::{SocketOptions, SslSockConfig, SslSockOpts, TcpSockOpts, UdpSockOpts};
 use crate::stack::sock_holder::SocketStore;
 
 use super::PingResult;
@@ -544,7 +544,18 @@ impl<X: Xfer> WincClient<'_, X> {
 
                 match opts {
                     TcpSockOpts::Ssl(ssl_opts) => {
-                        self.manager.send_ssl_setsockopt(*sock, ssl_opts)?;
+                        match *ssl_opts {
+                            SslSockOpts::SetSni(_) => {
+                                self.manager.send_ssl_setsockopt(*sock, ssl_opts)?;
+                            }
+                            SslSockOpts::Config(cfg, en) => {
+                                if cfg == SslSockConfig::EnableSSL {
+                                    self.manager.send_ssl_sock_create(*sock)?;
+                                }
+                                // Set the SSL flags
+                                sock.set_ssl_cfg(cfg.into(), en);
+                            }
+                        }
                     }
                     TcpSockOpts::ReceiveTimeout(timeout) => {
                         // Receive timeout are handled by winc stack not by module.
@@ -1124,7 +1135,7 @@ mod tests {
         let mut client = make_test_client();
         let socket = UdpClientStack::socket(&mut client).unwrap();
 
-        let option = SocketOptions::set_tcp_receive_timeout(1500);
+        let option = SocketOptions::set_receive_timeout(1500, false);
 
         let result = client.set_socket_option(&socket, &option);
 
@@ -1149,7 +1160,7 @@ mod tests {
         let timeout = 1500 as u32;
         let socket = UdpClientStack::socket(&mut client).unwrap();
 
-        let options = SocketOptions::set_udp_receive_timeout(timeout);
+        let options = SocketOptions::set_receive_timeout(timeout, true);
 
         let result = client.set_socket_option(&socket, &options);
 
@@ -1166,7 +1177,7 @@ mod tests {
         let timeout = 150000 as u32;
         let socket = TcpClientStack::socket(&mut client).unwrap();
 
-        let options = SocketOptions::set_tcp_receive_timeout(timeout);
+        let options = SocketOptions::set_receive_timeout(timeout, false);
 
         let result = client.set_socket_option(&socket, &options);
 
