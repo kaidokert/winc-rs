@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1756718178511,
+  "lastUpdate": 1757714711878,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -3761,6 +3761,40 @@ window.BENCHMARK_DATA = {
           {
             "name": "iperf3_client",
             "value": 56920,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "142439476+umarbinzahid@users.noreply.github.com",
+            "name": "Umar Bin Zahid",
+            "username": "umarbinzahid"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "7d604587de27de9008d66a5286049aaf7d235099",
+          "message": "Added `defmt::Format` for `FirmwareInfo` (#110)\n\n* Added debug formatter for the firmware info\n\n* fixed the typo.\n\n* spell corrected.",
+          "timestamp": "2025-09-12T15:04:02-07:00",
+          "tree_id": "3d7ab437ccc8f839356e9463dfc3487050134cda",
+          "url": "https://github.com/kaidokert/winc-rs/commit/7d604587de27de9008d66a5286049aaf7d235099"
+        },
+        "date": 1757714710862,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 41564,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 57020,
             "unit": "byte"
           }
         ]
