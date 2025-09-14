@@ -1528,7 +1528,7 @@ impl<X: Xfer> Manager<X> {
     pub(crate) fn send_ssl_sock_create(&mut self, socket: Socket) -> Result<(), Error> {
         let req: [u8; 4] = [socket.v, 0, 0, 0];
 
-        self.write_hif_header(HifRequest::Ip(IpCode::SslCreate), &req, false)?;
+        self.write_hif_header(HifRequest::Ip(IpCode::SslCreate), &req, false, None)?;
 
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
     }
@@ -1546,7 +1546,7 @@ impl<X: Xfer> Manager<X> {
     pub(crate) fn send_ssl_cert_expiry(&mut self, opt: SslCertExpiryOpt) -> Result<(), Error> {
         let req = u32::to_be_bytes(opt.into());
 
-        self.write_hif_header(HifRequest::Ip(IpCode::SslExpCheck), &req, false)?;
+        self.write_hif_header(HifRequest::Ip(IpCode::SslExpCheck), &req, false, None)?;
 
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
     }
@@ -1562,20 +1562,41 @@ impl<X: Xfer> Manager<X> {
     /// * `()` - If the request is successfully sent.
     /// * `Error` - If an error occurs while preparing or sending the request.
     pub(crate) fn send_ssl_cert(&mut self, cert: &[u8]) -> Result<(), Error> {
-        self.write_hif_header(HifRequest::Ssl(SslRequest::SendCertificate), &[0], true)?;
+        self.write_hif_header(
+            HifRequest::Ssl(SslRequest::SendCertificate),
+            &[0],
+            true,
+            Some((cert.len(), 0)),
+        )?;
 
-        self.chip
-            .dma_block_write(self.not_a_reg_ctrl_4_dma + HIF_HEADER_OFFSET as u32, &cert)?;
+        let reg: u32 = self.not_a_reg_ctrl_4_dma + HIF_HEADER_OFFSET as u32 + cert.len() as u32;
+
+        self.chip.dma_block_write(reg, &cert)?;
 
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
     }
 
+    /// Sends a request to configure the provided SSL certificate.
+    ///
+    /// # Arguments
+    ///
+    /// * `cert` - SSL certificate.
+    ///
+    /// # Returns
+    ///
+    /// * `()` - If the request is successfully sent.
+    /// * `Error` - If an error occurs while preparing or sending the request
     pub(crate) fn send_ssl_handshake_resp(
         &mut self,
         ecc_req: &EccReqInfo,
         resp_buffer: &[u8],
     ) -> Result<(), Error> {
-        self.write_hif_header(HifRequest::Ssl(SslRequest::SendCertificate), &[0], true)?;
+        self.write_hif_header(
+            HifRequest::Ssl(SslRequest::SendCertificate),
+            &[0],
+            true,
+            None,
+        )?;
 
         self.chip
             .dma_block_write(self.not_a_reg_ctrl_4_dma + HIF_HEADER_OFFSET as u32, &cert)?;
