@@ -2,7 +2,7 @@ use super::StackError;
 use super::WincClient;
 use super::Xfer;
 
-use crate::manager::{SslCertExpiryOpt, EccReqInfo};
+use crate::manager::{EccReqInfo, SslCertExpiryOpt};
 
 impl<X: Xfer> WincClient<'_, X> {
     /// Configure the SSL certificate expiry option.
@@ -33,7 +33,11 @@ impl<X: Xfer> WincClient<'_, X> {
         Ok(self.manager.send_ssl_cert(cert)?)
     }
 
-    pub fn ssl_handshake_resp(&mut self, ecc_req: &EccReqInfo, resp_buffer: &[u8]) -> Result<(), StackError> {
-        
+    pub fn ssl_send_ecc_resp(
+        &mut self,
+        ecc_req: &EccReqInfo,
+        resp_buffer: &[u8],
+    ) -> Result<(), StackError> {
+        Ok()
     }
 }
