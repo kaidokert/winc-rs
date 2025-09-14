@@ -578,11 +578,11 @@ impl<X: Xfer> Manager<X> {
     /// * `gid` - HIF Group ID. (e.g., WiFi, IP, OTA, HIF).
     /// * `op` - Operation ID.
     /// * `len` - Length of data packet to send.
-    /// * `req_data` -  Request data from chip or not.
+    /// * `req_data` - Request data from chip or not.
     ///
     /// # Returns
     ///
-    /// * `()` - HIF header is successfully prepared and sent to chip.
+    /// * `()` - HIF header is successfully sent to chip.
     /// * `Error` - if any error occured while preparing or writing HIF header.
     fn prep_for_hif_send(
         &mut self,
