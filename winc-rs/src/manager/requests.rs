@@ -24,8 +24,11 @@ use super::constants::{
     SET_SOCK_OPTS_PACKET_SIZE, SET_SSL_SOCK_OPTS_PACKET_SIZE, START_PROVISION_PACKET_SIZE,
 };
 
-use super::net_types::{Ssid, SslSockOpts, WepKey};
+use super::net_types::{EccRequest, Ssid, SslSockOpts, WepKey};
 use super::{AccessPoint, Credentials, HostName};
+
+/// Packet Size of SSL ECC request.
+const SSL_ECC_REQ_PACKET_SIZE: usize = 44;
 
 /// Prepares the packet to connect to access point.
 ///
@@ -145,16 +148,25 @@ pub fn write_ping_req(
     Ok(result)
 }
 
-// tstrBindCmd
-pub fn write_bind_req(
-    socket: Socket,
-    address_family: u16,
-    address: SocketAddrV4,
-) -> Result<[u8; 12], BufferOverflow> {
+/// Prepares the packet to bind the given socket to an IPv4 address.
+///
+/// # Arguments
+///
+/// * `socket` – The socket to bind.
+/// * `address` – The IPv4 address to bind the socket to.
+///
+/// # Returns
+///
+/// * `[u8; 12]` – Bind request as fixed size array..
+/// * `BufferOverflow` – If the data exceeds the buffer capacity.
+pub fn write_bind_req(socket: Socket, address: SocketAddrV4) -> Result<[u8; 12], BufferOverflow> {
+    const AF_INET: u16 = 2; // Address family for IPV4.
+
     let mut result = [0x0u8; 12];
     let mut slice = result.as_mut_slice();
     let ip: u32 = (*address.ip()).into();
-    slice.write(&address_family.to_le_bytes())?;
+
+    slice.write(&AF_INET.to_le_bytes())?;
     slice.write(&address.port().to_be_bytes())?;
     slice.write(&ip.to_be_bytes())?;
     slice.write(&[socket.v, 0])?;
@@ -275,7 +287,7 @@ pub fn write_ssl_setsockopt_req(
     let mut slice = result.as_mut_slice();
 
     // Get value
-    let value = option.get_value();
+    let value = option.get_sni_value().map_err(|_| BufferOverflow)?;
 
     // Socket Identifier (1 byte) and Socket Option (1 byte)
     slice.write(&[socket.v, u8::from(option)])?;
@@ -488,6 +500,57 @@ pub fn write_en_ap_req(ap: &AccessPoint) -> Result<[u8; ENABLE_AP_PACKET_SIZE], 
     Ok(req)
 }
 
+/// Prepares the packet for writing an SSL ECC request.
+///
+/// # Arguments
+///
+/// * `EccReqInfo` - ECC Request Info.
+///
+/// # Returns
+///
+/// * `[u8; SSL_ECC_REQ_PACKET_SIZE])` - The ECC request packet as a fixed-size byte array.
+/// * `BufferOverflow` - If the input data exceeds the allowed size or buffer limit.
+pub(crate) fn write_ssl_ecc_req(
+    ecc_req: &EccRequest,
+) -> Result<[u8; SSL_ECC_REQ_PACKET_SIZE], BufferOverflow> {
+    let mut req = [0u8; SSL_ECC_REQ_PACKET_SIZE];
+    let mut slice = req.as_mut_slice();
+
+    // Request (2 bytes)
+    slice.write(&ecc_req.req.to_le_bytes())?;
+    // Status (2 bytes)
+    slice.write(&ecc_req.status.to_be_bytes())?;
+    // User data (4 bytes)
+    slice.write(&ecc_req.user_data.to_be_bytes())?;
+    // Sequence Number (4 bytes)
+    slice.write(&ecc_req.seq_num.to_be_bytes())?;
+
+    if let Some(ecdh_req) = ecc_req.ecdh_req.as_ref() {
+        // X-cordinates of EC points (32 bytes)
+        slice.write(&ecdh_req.ecc_point.x_cord)?;
+        // Y-cordinates of EC points (32 bytes)
+        slice.write(&ecdh_req.ecc_point.y_cord)?;
+        // Point Size (2 bytes)
+        slice.write(&ecdh_req.ecc_point.point_size.to_le_bytes())?;
+        // Private Key ID (2 bytes)
+        slice.write(&ecdh_req.ecc_point.private_key_id.to_le_bytes())?;
+        // Private Key (32 bytes)
+        slice.write(&ecdh_req.private_key)?;
+    } else if let Some(ecdsa_sign_req) = ecc_req.ecdsa_sign_req.as_ref() {
+        // Curve Type (2 bytes)
+        slice.write(&ecdsa_sign_req.curve_type.to_le_bytes())?;
+        // Hash Size (2 bytes)
+        slice.write(&ecdsa_sign_req.hash_size.to_le_bytes())?;
+    } else if let Some(ecdsa_ver_req) = ecc_req.ecdsa_verify_req.as_ref() {
+        // ECDSA Sign
+        slice.write(&ecdsa_ver_req.to_le_bytes())?;
+    } else {
+        // do nothing
+    }
+
+    Ok(req)
+}
+
 #[cfg(test)]
 mod tests {
     use core::str::FromStr;
@@ -536,7 +599,6 @@ mod tests {
         assert_eq!(
             write_bind_req(
                 Socket::new(7, 521),
-                2,
                 SocketAddrV4::new(Ipv4Addr::new(1, 2, 3, 4), 32769)
             )
             .unwrap(),
@@ -548,11 +610,10 @@ mod tests {
         assert_eq!(
             write_bind_req(
                 Socket::new(0, 3),
-                257,
                 SocketAddrV4::new(Ipv4Addr::new(255, 2, 3, 4), 1000)
             )
             .unwrap(),
-            [1, 1, 3, 232, 0xFF, 2, 3, 4, 0, 0, 3, 0]
+            [2, 0, 3, 232, 0xFF, 2, 3, 4, 0, 0, 3, 0]
         )
     }
     #[test]
