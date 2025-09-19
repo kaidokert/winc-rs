@@ -514,11 +514,11 @@ impl From<u8> for OtaUpdateStatus {
 #[repr(u8)]
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub(crate) enum SslRequest {
-    Unhandled = 0xff, // Invalid Request
+    Unhandled = 0xff,       // Invalid Request
     SendEccResponse = 0x02, // Send ECC Response
-    NotifyCrl = 0x03, // Update Certificate Revocation List
+    NotifyCrl = 0x03,       // Update Certificate Revocation List
     SendCertificate = 0x04, // Send ECC Certificates
-    SetCipherSuits = 0x05, // Set the custom ciphers suits list
+    SetCipherSuits = 0x05,  // Set the custom ciphers suits list
 }
 
 /// SSL responses
@@ -526,9 +526,9 @@ pub(crate) enum SslRequest {
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub(crate) enum SslResponse {
-    EccUpdate = 0x01, // Response of ECC command.
+    EccUpdate = 0x01,        // Response of ECC command.
     CipherSuitUpdate = 0x06, // Response of requested changes in Cipher Suits.
-    Unhandled = 0xff, // Invalid response recevied.
+    Unhandled = 0xff,        // Invalid response recevied.
 }
 
 /// Convert `SslRequest` to `u8` value.
@@ -546,7 +546,7 @@ impl From<SslResponse> for u8 {
 }
 
 /// Convert `SslResponse` to `u8` value.
-impl From<u8> for SslResponse{
+impl From<u8> for SslResponse {
     fn from(val: u8) -> Self {
         match val {
             0x01 => SslResponse::EccUpdate,
@@ -557,7 +557,7 @@ impl From<u8> for SslResponse{
 }
 
 /// Convert `SslRequest` to `u8` value.
-impl From<u8> for SslRequest{
+impl From<u8> for SslRequest {
     fn from(val: u8) -> Self {
         match val {
             0x02 => SslRequest::SendEccResponse,
