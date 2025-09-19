@@ -44,8 +44,8 @@ pub(crate) use constants::{OtaRequest, OtaResponse, OtaUpdateStatus};
 pub(crate) use constants::{SslResponse, PRNG_DATA_LENGTH, SOCKET_BUFFER_MAX_LENGTH};
 
 pub use net_types::{
-    AccessPoint, Credentials, EccReqInfo, HostName, ProvisioningInfo, S8Password, S8Username,
-    SocketOptions, Ssid, SslSockConfig, SslSockOpts, TcpSockOpts, UdpSockOpts, WpaKey,
+    AccessPoint, Credentials, EccPoint, EccRequest, HostName, ProvisioningInfo, S8Password,
+    S8Username, SocketOptions, Ssid, SslSockConfig, SslSockOpts, TcpSockOpts, UdpSockOpts, WpaKey,
 };
 
 #[cfg(feature = "wep")]
@@ -78,6 +78,7 @@ macro_rules! get_ip_code {
 }
 
 /// HIF Response Group.
+#[allow(dead_code)] // todo! remove it once event listener is complete.
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[derive(Debug, PartialEq, Default)]
 pub(crate) enum HifGroup {
@@ -1528,7 +1529,7 @@ impl<X: Xfer> Manager<X> {
     pub(crate) fn send_ssl_sock_create(&mut self, socket: Socket) -> Result<(), Error> {
         let req: [u8; 4] = [socket.v, 0, 0, 0];
 
-        self.write_hif_header(HifRequest::Ip(IpCode::SslCreate), &req, false, None)?;
+        self.write_hif_header(HifRequest::Ip(IpCode::SslCreate), &req, false)?;
 
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
     }
@@ -1546,7 +1547,7 @@ impl<X: Xfer> Manager<X> {
     pub(crate) fn send_ssl_cert_expiry(&mut self, opt: SslCertExpiryOpt) -> Result<(), Error> {
         let req = u32::to_be_bytes(opt.into());
 
-        self.write_hif_header(HifRequest::Ip(IpCode::SslExpCheck), &req, false, None)?;
+        self.write_hif_header(HifRequest::Ip(IpCode::SslExpCheck), &req, false)?;
 
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
     }
@@ -1562,44 +1563,124 @@ impl<X: Xfer> Manager<X> {
     /// * `()` - If the request is successfully sent.
     /// * `Error` - If an error occurs while preparing or sending the request.
     pub(crate) fn send_ssl_cert(&mut self, cert: &[u8]) -> Result<(), Error> {
-        self.write_hif_header(
+        self.write_hif_header_impl(
             HifRequest::Ssl(SslRequest::SendCertificate),
             &[0],
             true,
-            Some((cert.len(), 0)),
+            Some((cert.len(), 0))
         )?;
 
         let reg: u32 = self.not_a_reg_ctrl_4_dma + HIF_HEADER_OFFSET as u32 + cert.len() as u32;
 
-        self.chip.dma_block_write(reg, &cert)?;
+        self.chip.dma_block_write(reg, cert)?;
 
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
     }
 
-    /// Sends a request to configure the provided SSL certificate.
+    /// Sends a ECC response to module.
     ///
     /// # Arguments
     ///
-    /// * `cert` - SSL certificate.
+    /// * `ecc_req` - ECC request
+    /// * `resp_buffer` - Response data to be sent.
     ///
     /// # Returns
     ///
     /// * `()` - If the request is successfully sent.
-    /// * `Error` - If an error occurs while preparing or sending the request
-    pub(crate) fn send_ssl_handshake_resp(
+    /// * `Error` - If an error occurs while preparing or sending the request.
+    pub(crate) fn send_ssl_ecc_resp(
         &mut self,
-        ecc_req: &EccReqInfo,
+        ecc_req: &EccRequest,
         resp_buffer: &[u8],
     ) -> Result<(), Error> {
-        self.write_hif_header(
-            HifRequest::Ssl(SslRequest::SendCertificate),
-            &[0],
+        let req = write_ssl_ecc_req(ecc_req)?;
+
+        self.write_hif_header_impl(
+            HifRequest::Ssl(SslRequest::SendEccResponse),
+            &req,
             true,
-            None,
+            Some((resp_buffer.len(), req.len())),
         )?;
 
+        // write the control packet
+        let mut reg = self.not_a_reg_ctrl_4_dma + HIF_HEADER_OFFSET as u32;
+        self.chip.dma_block_write(reg, &req)?;
+
+        // write the data packet
+        reg += req.len() as u32;
+        self.chip.dma_block_write(reg, resp_buffer)?;
+
+        self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
+    }
+
+    /// Reads SSL certificate features (curve type, hash algorithm,
+    /// and signature) from the WINC module.
+    ///
+    /// # Arguments
+    ///
+    /// * `address` - The register address to start reading from.
+    /// * `resp_buff` - A mutable buffer to store the response data.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - If the data is successfully read.
+    /// * `Err(Error)` - If an error occurs while reading the data.
+    pub(crate) fn read_ssl_cert_feat(
+        &mut self,
+        address: u32,
+        resp_buff: &mut [u8],
+    ) -> Result<(), Error> {
+        let result = self
+            .chip
+            .dma_block_read(address + HIF_HEADER_OFFSET as u32, resp_buff);
+
+        // Set the RX done if error occurs
+        if result.is_err() {
+            error!(
+                "Failed to read SSL certificate feature at address {:x}",
+                address
+            );
+            error!("Sending request to stop reading from the module.");
+            let reg = self.chip.single_reg_read(Regs::WifiHostRcvCtrl0.into())?;
+            self.chip
+                .single_reg_write(Regs::WifiHostRcvCtrl0.into(), reg | 2)?;
+
+            return Err(Error::ReadError);
+        }
+
+        Ok(())
+    }
+
+    /// Sends a request to stop reading the certificate from the module.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - If the module successfully disables certificate reading.
+    /// * `Err(Error)` - If an error occurs while updating the module state.
+    pub(crate) fn send_ssl_cert_read_complete(&mut self) -> Result<(), Error> {
+        let reg = self.chip.single_reg_read(Regs::WifiHostRcvCtrl0.into())?;
         self.chip
-            .dma_block_write(self.not_a_reg_ctrl_4_dma + HIF_HEADER_OFFSET as u32, &cert)?;
+            .single_reg_write(Regs::WifiHostRcvCtrl0.into(), reg | 2)
+    }
+
+    /// Sends a request to set the desired SSL cipher suite.
+    ///
+    /// # Arguments
+    ///
+    /// * `cipher_bitmap` - A `u32` bitmask representing the cipher suites to enable.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - If the request was successfully processed.
+    /// * `Err(Error)` - If an error occurs while updating the module state.
+    pub(crate) fn send_ssl_set_cipher_suit(&mut self, cipher_bitmap: u32) -> Result<(), Error> {
+        let req = cipher_bitmap.to_le_bytes();
+
+        self.write_hif_header(
+            HifRequest::Ssl(SslRequest::SetCipherSuits),
+            &req,
+            false
+        )?;
 
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
     }

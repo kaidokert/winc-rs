@@ -145,34 +145,50 @@ pub struct AccessPoint<'a> {
     pub ip: Ipv4Addr,
 }
 
-pub struct EcdhRequest {
+/// Elliptic Curve Point
+pub struct EccPoint {
     /// The X-coordinate of the ec point.
-    x_cord: [u8; EC_POINT_MAX_SIZE],
+    pub x_cord: [u8; EC_POINT_MAX_SIZE],
     /// The Y-coordinate of the ec point.
-    y_cord: [u8; EC_POINT_MAX_SIZE],
+    pub y_cord: [u8; EC_POINT_MAX_SIZE],
     // Point size in bytes (for each of the coordinates).
-    point_size: u16,
+    pub point_size: u16,
     /// ID for the corresponding private key.
-    private_key_id: u16,
+    pub private_key_id: u16,
+}
+
+/// Elliptic Curve Diffie-Hellman (ECDH) request.
+pub struct EcdhRequest {
+    /// ECC points or EC public key.
+    pub ecc_point: EccPoint,
     /// Private Key
-    private_key: [u8; EC_POINT_MAX_SIZE]
+    pub private_key: [u8; EC_POINT_MAX_SIZE],
 }
 
+/// Elliptic Curve Digital Signature Algorithm (ECDSA) signing request.
 pub struct EcdsaSignRequest {
-    /// Key Curve Type
-    curve_type: u16,
-    /// Hash Size
-    hash_size: u16,
+    /// Key Curve Type (NIST P-256, P-384)
+    pub curve_type: u16,
+    /// Hash Size (32 bytes for SHA-256 or 48 bytes for SHA-384)
+    pub hash_size: u16,
 }
 
-pub struct EccReqInfo {
-    req: u16,
-    status: u16,
-    user_data: u32,
-    seq_num: u32,
-    ecdh_req: Option<EcdhRequest>,
-    ecdsa_sign_req: Option<EcdsaSignRequest>,
-    ecdsa_verify_req: Option<u32>,
+/// ECC Request
+pub struct EccRequest {
+    /// ECC Request type (ECDH, ECDSA Sign or ECDSA Verify)
+    pub req: u16,
+    /// Status of ECC operation.
+    pub status: u16,
+    /// User data
+    pub user_data: u32,
+    /// Sequence number
+    pub seq_num: u32,
+    /// Optional ECDH request
+    pub ecdh_req: Option<EcdhRequest>,
+    /// Optional ECDSA signing request
+    pub ecdsa_sign_req: Option<EcdsaSignRequest>,
+    /// Optional ECDSA signature verification request.
+    pub ecdsa_verify_req: Option<u32>,
 }
 
 /// Implementation to convert the Credentials to Authentication Type
