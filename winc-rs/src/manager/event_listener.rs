@@ -13,13 +13,13 @@
 // limitations under the License.
 
 use super::{EventListener, Manager};
-use super::{HifGroup, IpCode, WifiResponse, SslResponse};
+use super::{HifGroup, IpCode, SslResponse, WifiResponse};
 use crate::errors::CommError as Error;
 use crate::manager::constants::{
     PRNG_DATA_LENGTH, PRNG_PACKET_SIZE, PROVISIONING_INFO_PACKET_SIZE, SOCKET_BUFFER_MAX_LENGTH,
 };
 use crate::manager::responses::*;
-use crate::{transfer::Xfer, error};
+use crate::{error, transfer::Xfer};
 
 #[cfg(feature = "experimental-ota")]
 use crate::manager::constants::OtaResponse;

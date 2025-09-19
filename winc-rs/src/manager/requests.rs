@@ -24,8 +24,11 @@ use super::constants::{
     SET_SOCK_OPTS_PACKET_SIZE, SET_SSL_SOCK_OPTS_PACKET_SIZE, START_PROVISION_PACKET_SIZE,
 };
 
-use super::net_types::{Ssid, SslSockOpts, WepKey};
+use super::net_types::{EccRequest, Ssid, SslSockOpts, WepKey};
 use super::{AccessPoint, Credentials, HostName};
+
+/// Packet Size of SSL ECC request.
+const SSL_ECC_REQ_PACKET_SIZE: usize = 44;
 
 /// Prepares the packet to connect to access point.
 ///
@@ -493,6 +496,57 @@ pub fn write_en_ap_req(ap: &AccessPoint) -> Result<[u8; ENABLE_AP_PACKET_SIZE], 
     slice.write(&dhcp.to_be_bytes())?;
     // WPA key (65 byte)
     slice.write(wpa_key.as_bytes())?;
+
+    Ok(req)
+}
+
+/// Prepares the packet for writing an SSL ECC request.
+///
+/// # Arguments
+///
+/// * `EccReqInfo` - ECC Request Info.
+///
+/// # Returns
+///
+/// * `[u8; SSL_ECC_REQ_PACKET_SIZE])` - The ECC request packet as a fixed-size byte array.
+/// * `BufferOverflow` - If the input data exceeds the allowed size or buffer limit.
+pub(crate) fn write_ssl_ecc_req(
+    ecc_req: &EccRequest,
+) -> Result<[u8; SSL_ECC_REQ_PACKET_SIZE], BufferOverflow> {
+    let mut req = [0u8; SSL_ECC_REQ_PACKET_SIZE];
+    let mut slice = req.as_mut_slice();
+
+    // Request (2 bytes)
+    slice.write(&ecc_req.req.to_le_bytes())?;
+    // Status (2 bytes)
+    slice.write(&ecc_req.status.to_be_bytes())?;
+    // User data (4 bytes)
+    slice.write(&ecc_req.user_data.to_be_bytes())?;
+    // Sequence Number (4 bytes)
+    slice.write(&ecc_req.seq_num.to_be_bytes())?;
+
+    if let Some(ecdh_req) = ecc_req.ecdh_req.as_ref() {
+        // X-cordinates of EC points (32 bytes)
+        slice.write(&ecdh_req.ecc_point.x_cord)?;
+        // Y-cordinates of EC points (32 bytes)
+        slice.write(&ecdh_req.ecc_point.y_cord)?;
+        // Point Size (2 bytes)
+        slice.write(&ecdh_req.ecc_point.point_size.to_le_bytes())?;
+        // Private Key ID (2 bytes)
+        slice.write(&ecdh_req.ecc_point.private_key_id.to_le_bytes())?;
+        // Private Key (32 bytes)
+        slice.write(&ecdh_req.private_key)?;
+    } else if let Some(ecdsa_sign_req) = ecc_req.ecdsa_sign_req.as_ref() {
+        // Curve Type (2 bytes)
+        slice.write(&ecdsa_sign_req.curve_type.to_le_bytes())?;
+        // Hash Size (2 bytes)
+        slice.write(&ecdsa_sign_req.hash_size.to_le_bytes())?;
+    } else if let Some(ecdsa_ver_req) = ecc_req.ecdsa_verify_req.as_ref() {
+        // ECDSA Sign
+        slice.write(&ecdsa_ver_req.to_le_bytes())?;
+    } else {
+        // do nothing
+    }
 
     Ok(req)
 }

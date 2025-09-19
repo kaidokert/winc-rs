@@ -18,7 +18,9 @@ use crate::socket::Socket;
 use crate::Ipv4AddrFormatWrapper;
 
 use super::SockHolder;
-use crate::manager::{PingError, ScanResult, PRNG_DATA_LENGTH, SOCKET_BUFFER_MAX_LENGTH, SslResponse};
+use crate::manager::{
+    PingError, ScanResult, SslResponse, PRNG_DATA_LENGTH, SOCKET_BUFFER_MAX_LENGTH,
+};
 
 use crate::stack::sock_holder::SocketStore;
 
@@ -148,6 +150,7 @@ pub(crate) struct SocketCallbacks {
     pub provisioning_info: Option<Option<ProvisioningInfo>>,
     #[cfg(feature = "experimental-ota")]
     pub ota_state: OtaUpdateState,
+    pub ssl_hif_reg: Option<u32>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -262,6 +265,7 @@ impl SocketCallbacks {
             provisioning_info: None,
             #[cfg(feature = "experimental-ota")]
             ota_state: OtaUpdateState::NotStarted,
+            ssl_hif_reg: None,
         }
     }
     pub fn resolve(&mut self, socket: Socket) -> Option<&mut (Socket, ClientSocketOp)> {
@@ -785,7 +789,7 @@ impl EventListener for SocketCallbacks {
     ///
     /// * `ssl_res` - SSL response type.
     /// * `response` - Response read from module.
-    fn on_ssl(&mut self, ssl_res: SslResponse, response: &[u8]) {
+    fn on_ssl(&mut self, _ssl_res: SslResponse, _response: &[u8]) {
         todo!("SSL Todo");
     }
 }
