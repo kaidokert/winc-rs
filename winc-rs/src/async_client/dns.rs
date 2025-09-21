@@ -1,6 +1,4 @@
-use core::net::IpAddr;
-use core::net::Ipv4Addr;
-
+use crate::net_ops::op::AsyncOp;
 use crate::transfer::Xfer;
 use crate::StackError;
 use embedded_nal_async::AddrType;
@@ -19,34 +17,20 @@ impl<X: Xfer> Dns for AsyncClient<'_, X> {
         if addr_type != AddrType::IPv4 {
             unimplemented!("IPv6 not supported");
         }
-        {
-            let mut callbacks = self.callbacks.borrow_mut();
-            callbacks.dns_resolved_addr = Some(None);
-        }
-        {
-            let mut manager = self.manager.borrow_mut();
-            manager.send_gethostbyname(host)?;
-        }
-        let mut count = Self::DNS_TIMEOUT;
+
+        let dns_op = crate::net_ops::dns::DnsOp::new(host, Self::DNS_TIMEOUT)?;
+        let mut async_dns_op = AsyncOp::new(dns_op, &self.manager, &self.callbacks, || {
+            self.dispatch_events()
+        });
         loop {
-            // todo: make this async so we can simply .await on it
-            self.dispatch_events()?;
-
-            if let Some(result) = &mut self.callbacks.borrow_mut().dns_resolved_addr {
-                if let Some(ip) = result.take() {
-                    *result = None;
-                    return if ip == Ipv4Addr::new(0, 0, 0, 0) {
-                        Err(StackError::DnsFailed)
-                    } else {
-                        Ok(IpAddr::V4(ip))
-                    };
+            match core::future::Future::poll(
+                core::pin::Pin::new(&mut async_dns_op),
+                &mut core::task::Context::from_waker(core::task::Waker::noop()),
+            ) {
+                core::task::Poll::Ready(result) => return result,
+                core::task::Poll::Pending => {
+                    self.yield_once().await;
                 }
-            }
-
-            self.yield_once().await;
-            count -= 1;
-            if count == 0 {
-                return Err(StackError::DnsTimeout);
             }
         }
     }
@@ -67,7 +51,7 @@ mod tests {
     use crate::manager::EventListener;
     use crate::stack::socket_callbacks::SocketCallbacks;
     use core::cell::RefCell;
-    use core::net::Ipv4Addr;
+    use core::net::{IpAddr, Ipv4Addr};
 
     use super::super::tests::make_test_client;
     use embedded_nal_async::Dns;

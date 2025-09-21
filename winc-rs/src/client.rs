@@ -36,6 +36,7 @@ pub struct WincClient<'a, X: Xfer> {
     next_session_id: u16,
     boot: Option<crate::manager::BootState>,
     operation_countdown: u32,
+    dns_op: Option<crate::net_ops::dns::DnsOp>,
     phantom: core::marker::PhantomData<&'a ()>,
     #[cfg(test)]
     debug_callback: Option<&'a mut dyn FnMut(&mut SocketCallbacks)>,
@@ -74,6 +75,7 @@ impl<X: Xfer> WincClient<'_, X> {
             next_session_id: 0,
             boot: None,
             operation_countdown: 0,
+            dns_op: None,
             phantom: core::marker::PhantomData,
             #[cfg(test)]
             debug_callback: None,
