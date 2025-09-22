@@ -5,6 +5,7 @@ use super::ClientSocketOp;
 use super::Handle;
 use super::StackError;
 use super::WincClient;
+use super::MAX_SEND_LENGTH;
 
 use super::Xfer;
 use crate::manager::SocketError;
@@ -14,6 +15,9 @@ use crate::{debug, info};
 use embedded_nal::nb;
 
 use crate::stack::sock_holder::SocketStore;
+
+#[cfg(test)]
+use crate::stack::constants::MAX_SEND_LENGTH_TEST;
 
 impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {
     type TcpSocket = Handle;
@@ -83,7 +87,7 @@ impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {
             self.poll_loop_delay_us,
             |op| matches!(op, AsyncOp::Send(..)),
             |sock, manager| -> Result<ClientSocketOp, StackError> {
-                let to_send = data.len().min(Self::MAX_SEND_LENGTH);
+                let to_send = data.len().min(MAX_SEND_LENGTH);
                 let req = SendRequest {
                     offset: 0,
                     grand_total_sent: 0,
@@ -113,7 +117,7 @@ impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {
                     if offset >= data.len() {
                         Ok(grand_total_sent as usize)
                     } else {
-                        let to_send = data[offset..].len().min(Self::MAX_SEND_LENGTH);
+                        let to_send = data[offset..].len().min(MAX_SEND_LENGTH);
                         let new_req = SendRequest {
                             offset,
                             grand_total_sent,
@@ -447,10 +451,7 @@ mod test {
         let packet = "Hello, World";
 
         let mut my_debug = |callbacks: &mut SocketCallbacks| {
-            callbacks.on_send(
-                Socket::new(0, 0),
-                client::WincClient::<'_, MockTransfer>::MAX_SEND_LENGTH as i16,
-            );
+            callbacks.on_send(Socket::new(0, 0), MAX_SEND_LENGTH_TEST as i16);
         };
 
         client.debug_callback = Some(&mut my_debug);
@@ -550,7 +551,7 @@ mod test {
         let mut tcp_socket = client.socket().unwrap();
         let packet = "Hello, World";
         let socket = Socket::new(0, 0);
-        let valid_len: i16 = client::WincClient::<'_, MockTransfer>::MAX_SEND_LENGTH as i16;
+        let valid_len: i16 = MAX_SEND_LENGTH_TEST as i16;
 
         let mut my_debug = |callbacks: &mut SocketCallbacks| {
             callbacks.on_send(socket, valid_len);

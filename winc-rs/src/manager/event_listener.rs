@@ -283,7 +283,11 @@ impl<X: Xfer> Manager<X> {
     ) -> Result<(), Error> {
         #[cfg(feature = "irq")]
         self.chip.wait_for_interrupt();
-        self.dispatch_events_new(listener)
+        let result = self.dispatch_events_new(listener);
+        // Wake any async tasks waiting for hardware events
+        #[cfg(feature = "async")]
+        self.wake_all_wakers();
+        result
     }
 
     /// Check for new events and dispatches them to the provided event listener.
@@ -304,12 +308,16 @@ impl<X: Xfer> Manager<X> {
         }
         self.clear_interrupt_pending(res.1)?;
         let (hif, _len, address) = self.read_hif_header(res.1)?;
-        match hif {
+        let result = match hif {
             HifGroup::Wifi(e) => self.wifi_events_listener(listener, address, e),
             HifGroup::Ip(e) => self.ip_events_listener(listener, address, e),
             #[cfg(feature = "experimental-ota")]
             HifGroup::Ota(e) => self.ota_events_listener(listener, address, e),
             _ => panic!("Unexpected hif"),
-        }
+        };
+        // Wake any async tasks waiting for hardware events after processing them
+        #[cfg(feature = "async")]
+        self.wake_all_wakers();
+        result
     }
 }

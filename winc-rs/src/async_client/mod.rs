@@ -8,6 +8,7 @@ use core::ops::DerefMut;
 
 mod dns;
 mod module;
+mod udp_stack;
 
 pub struct AsyncClient<'a, X: Xfer> {
     manager: RefCell<Manager<X>>,

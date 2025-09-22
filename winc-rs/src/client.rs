@@ -19,6 +19,11 @@ pub use crate::stack::socket_callbacks::ClientSocketOp;
 use crate::stack::socket_callbacks::SocketCallbacks;
 pub use crate::stack::socket_callbacks::{Handle, PingResult};
 
+#[cfg(not(test))]
+use crate::stack::constants::MAX_SEND_LENGTH;
+#[cfg(test)]
+use crate::stack::constants::MAX_SEND_LENGTH_TEST as MAX_SEND_LENGTH;
+
 use crate::stack::socket_callbacks::{AsyncOp, AsyncState};
 
 use embedded_nal::nb;
@@ -43,13 +48,6 @@ pub struct WincClient<'a, X: Xfer> {
 }
 
 impl<X: Xfer> WincClient<'_, X> {
-    // Max send frame length - conservative limit to avoid overwhelming chip buffers
-    #[cfg(not(test))]
-    const MAX_SEND_LENGTH: usize = 1400;
-
-    #[cfg(test)]
-    const MAX_SEND_LENGTH: usize = 4;
-
     const TCP_SOCKET_BACKLOG: u8 = 4;
     const LISTEN_TIMEOUT: u32 = 100;
     const BIND_TIMEOUT: u32 = 100;
