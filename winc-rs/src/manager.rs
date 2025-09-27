@@ -631,15 +631,15 @@ impl<X: Xfer> Manager<X> {
     ///
     /// # Arguments
     ///
-    /// * `req` - HIF Request (e.g., WiFi, IP, OTA, HIF).
-    /// * `payload` - Request/Control Buffer to be sent.
-    /// * `req_data` - Request data from chip or not.
-    /// * `data_packet` - Optional: Size of data to send and its offset.
+    /// * `req` - HIF request (e.g., WiFi, IP, OTA, HIF).
+    /// * `payload` - The request/control buffer to be sent. Maximum length: 65,535 bytes.
+    /// * `req_data` - Indicates whether request data is expected from the chip.
+    /// * `data_packet` - Optional. A tuple containing the size of the data to send and its offset. Maximum value: 65,535.
     ///
     /// # Returns
     ///
-    /// * `()` - HIF header is successfully prepared and sent to chip.
-    /// * `Error` - if any error occured while preparing or writing HIF header.
+    /// * `Ok(())` - If the HIF header was successfully prepared and sent to the chip.
+    /// * `Err(Error)` - If an error occurred while preparing or writing the HIF header.
     fn write_hif_header_impl(
         &mut self,
         req: HifRequest,
@@ -652,8 +652,14 @@ impl<X: Xfer> Manager<X> {
             Some((size, offset)) => HIF_HEADER_OFFSET + size + offset,
             None => payload.len() + HIF_HEADER_OFFSET,
         };
-        let pkglen = len.to_le_bytes();
-        assert_eq!(pkglen[1], 0);
+
+        if len > u16::MAX as usize {
+            error!("The length of the HIF payload exceeds the maximum allowed value: {len}");
+            return Err(Error::BufferError);
+        }
+
+        let pkglen = (len as u16).to_le_bytes();
+
         // Operation ID.
         let opp: u8 = match req {
             HifRequest::Wifi(opcode) => opcode.into(),
@@ -674,18 +680,18 @@ impl<X: Xfer> Manager<X> {
         )
     }
 
-    /// Prepares and writes the HIF header without data packet.
+    /// Prepares and writes the HIF header without a data packet.
     ///
     /// # Arguments
     ///
-    /// * `req` - HIF Request (e.g., WiFi, IP, OTA, HIF).
-    /// * `payload` - Request/Control Buffer to be sent.
-    /// * `req_data` - Request data from chip or not.
+    /// * `req` - The HIF request type (e.g., WiFi, IP, OTA, HIF).
+    /// * `payload` - The request/control buffer to be sent. Maximum length: 65,535 bytes.
+    /// * `req_data` - Indicates whether request data is expected from the chip.
     ///
     /// # Returns
     ///
-    /// * `()` - HIF header is successfully prepared and sent to chip.
-    /// * `Error` - if any error occured while preparing or writing HIF header.
+    /// * `Ok(())` - If the HIF header was successfully prepared and sent to the chip.
+    /// * `Err(Error)` - If an error occurred while preparing or writing the HIF header.
     fn write_hif_header(
         &mut self,
         req: HifRequest,
