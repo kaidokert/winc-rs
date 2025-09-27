@@ -16,16 +16,19 @@ use super::StackError;
 use super::WincClient;
 use super::Xfer;
 
-use crate::manager::{EccPoint, EccRequest, SslCertExpiryOpt};
+use crate::manager::{EccInfo, EccPoint, EcdhInfo, SslCertExpiryOpt};
 
 // @note: The `m2m_ssl_retrieve_hash` API is not supported because
 // there is no way to validate that the SSL HIF register address
 // received from the ECC response callback points to the memory
 // region containing the certificate hash.
 
-/// SSL Cipher Suits
-/// By default, WINC1500 HW accelerator only supports AES-128.
-/// For using, AES-256 needs to be enabled.
+// Default timeout to wait for response of SSL request is 1 second.
+//const SSL_REQ_TIMEOUT: u32 = 1000;
+
+/// SSL Cipher Suites
+/// By default, the WINC1500 hardware accelerator only supports AES-128.
+/// To use AES-256 cipher suites, call the `ssl_set_cipher_suite` function.
 #[repr(u32)]
 pub enum SslCipherSuite {
     // Individual Ciphers
@@ -98,36 +101,45 @@ impl<X: Xfer> WincClient<'_, X> {
         Ok(self.manager.send_ssl_cert(cert)?)
     }
 
-    /// Sends an ECC response to module.
+    /// Sends an ECC handshake response to the module.
+    ///
+    /// An ECC handshake request is received from the WINC, and
+    /// a response is sent back to the WINC.
     ///
     /// # Arguments
     ///
-    /// * `ecc_req` – ECC request structure.
-    /// * `resp_buffer` - Buffer containing the ECC responses.
+    /// * `ecc_info` – A reference to the ECC operation information structure.
+    /// * `ecdh_info` – A reference to the ECDH information structure.
+    /// * `resp_buffer` – A buffer containing the ECC response.
     ///
     /// # Returns
     ///
-    /// * `Ok(())` – If the certificate was successfully sent.
-    /// * `Err(StackError)` – If an error occurred while sending the certificate.
+    /// * `Ok(())` – If the response was successfully sent.
+    /// * `Err(StackError)` – If an error occurred while sending the response.
     pub fn ssl_send_ecc_resp(
         &mut self,
-        ecc_req: &EccRequest,
+        ecc_info: &EccInfo,
+        ecdh_info: &EcdhInfo,
         resp_buffer: &[u8],
     ) -> Result<(), StackError> {
-        Ok(self.manager.send_ssl_ecc_resp(ecc_req, resp_buffer)?)
+        Ok(self
+            .manager
+            .send_ssl_ecc_resp(ecc_info, ecdh_info, resp_buffer)?)
     }
 
-    /// Reads the SSL response from the Module.
+    /// Reads the SSL certificate from the module.
     ///
     /// # Arguments
     ///
-    /// * `ecc_req` – ECC request structure.
-    /// * `resp_buffer` - Buffer containing the ECC responses.
+    /// * `curve_type` – A mutable reference to store the ECC curve type.
+    /// * `hash` – A mutable buffer to store the hash value.
+    /// * `signature` – A mutable buffer to store the ECC signature.
+    /// * `ecc_point` – A mutable reference to store the ECC public key point.
     ///
     /// # Returns
     ///
-    /// * `Ok(())` – If the certificate was successfully sent.
-    /// * `Err(StackError)` – If an error occurred while sending the certificate.
+    /// * `Ok(())` – If the certificate was successfully read.
+    /// * `Err(StackError)` – If an error occurred while reading the certificate.
     pub fn ssl_read_certificate(
         &mut self,
         curve_type: &mut u16,
@@ -135,7 +147,11 @@ impl<X: Xfer> WincClient<'_, X> {
         signature: &mut [u8],
         ecc_point: &mut EccPoint,
     ) -> Result<(), StackError> {
-        let mut hif_addr = self.callbacks.ssl_hif_reg.ok_or(StackError::InvalidState)?;
+        let mut hif_addr = self
+            .callbacks
+            .ssl_cb_info
+            .ecc_hif_reg
+            .ok_or(StackError::InvalidState)?;
         let mut opts = [0u8; 8]; // read the ssl options.
 
         // Read the Curve Type, Key, Hash and Signature size.
@@ -168,9 +184,9 @@ impl<X: Xfer> WincClient<'_, X> {
             .read_ssl_cert_feat(hif_addr, &mut signature[..sig_size as usize])?;
 
         // clear the Hif register
-        self.callbacks.ssl_hif_reg = None;
+        self.callbacks.ssl_cb_info.ecc_hif_reg = None;
 
-        // mark the Rx done
+        // mark the rx done
         Ok(self.manager.send_ssl_cert_read_complete()?)
     }
 
@@ -178,13 +194,13 @@ impl<X: Xfer> WincClient<'_, X> {
     ///
     /// # Arguments
     ///
-    /// * `ssl_cipher` -  Required cipher suit to set.
+    /// * `ssl_cipher` -  Required cipher suite to set.
     ///
     /// # Returns
     ///
     /// * `Ok(())` - If the cipher suite was successfully set.
-    /// * `Err(StackError)` - If an error occurred while applying the configuration.
-    pub fn ssl_set_cipher_suit(&mut self, ssl_cipher: SslCipherSuite) -> Result<(), StackError> {
-        Ok(self.manager.send_ssl_set_cipher_suit(ssl_cipher.into())?)
+    /// * `Err(StackError)` - If an error occurred while configuring the cipher suite.
+    pub fn ssl_set_cipher_suite(&mut self, ssl_cipher: SslCipherSuite) -> Result<(), StackError> {
+        Ok(self.manager.send_ssl_set_cipher_suite(ssl_cipher.into())?)
     }
 }

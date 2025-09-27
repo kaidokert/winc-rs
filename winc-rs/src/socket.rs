@@ -26,6 +26,7 @@ pub struct Socket {
     /// Receive Timeout.
     receive_timeout: u32,
     /// SSL Configuration
+    #[cfg(feature = "ssl")]
     ssl_cfg: u8,
 }
 
@@ -46,6 +47,7 @@ impl Socket {
             v,
             s,
             receive_timeout: DEFAULT_SOCKET_RECEIVE_TIMEOUT,
+            #[cfg(feature = "ssl")]
             ssl_cfg: 0,
         }
     }
@@ -69,6 +71,7 @@ impl Socket {
     /// # Arguments
     ///
     /// * `ssl_opt` - SSL socket options.
+    #[cfg(feature = "ssl")]
     pub(crate) fn set_ssl_cfg(&mut self, ssl_opt: u8, enable: bool) {
         if enable {
             self.ssl_cfg |= ssl_opt;
@@ -79,7 +82,14 @@ impl Socket {
 
     /// Returns the SSL options value set on a socket.
     pub fn get_ssl_cfg(&self) -> u8 {
-        self.ssl_cfg
+        #[cfg(feature = "ssl")]
+        {
+            self.ssl_cfg
+        }
+        #[cfg(not(feature = "ssl"))]
+        {
+            0
+        }
     }
 }
 
@@ -90,6 +100,7 @@ impl From<(u8, u16)> for Socket {
             v: val.0,
             s: val.1,
             receive_timeout: DEFAULT_SOCKET_RECEIVE_TIMEOUT,
+            #[cfg(feature = "ssl")]
             ssl_cfg: 0,
         }
     }

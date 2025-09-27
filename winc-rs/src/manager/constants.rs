@@ -40,6 +40,7 @@ pub(crate) const ENABLE_AP_PACKET_SIZE: usize = 136;
 /// Packet size to set socket option request.
 pub(crate) const SET_SOCK_OPTS_PACKET_SIZE: usize = 8;
 /// Packet size to set SSL socket option request.
+#[cfg(feature = "ssl")]
 pub(crate) const SET_SSL_SOCK_OPTS_PACKET_SIZE: usize = 72;
 /// Maximum buffer size for the TCP stack. Must be able to handle the full MTU from the chip (1440+ bytes observed).
 pub(crate) const SOCKET_BUFFER_MAX_LENGTH: usize = 1500;
@@ -53,6 +54,12 @@ pub(crate) const PRNG_DATA_LENGTH: usize = 32;
 #[cfg(feature = "flash-rw")]
 /// Page size of Flash memory.
 pub(crate) const FLASH_PAGE_SIZE: usize = 256;
+/// Packet Size of SSL ECC request/response.
+#[cfg(feature = "ssl")]
+pub(crate) const SSL_ECC_REQ_PACKET_SIZE: usize = 112;
+/// Packet size of cipher suite bitmap (u32).
+#[cfg(feature = "ssl")]
+pub(crate) const SSL_CS_MAX_PACKET_SIZE: usize = 4;
 
 #[repr(u32)]
 pub enum Regs {
@@ -278,16 +285,12 @@ pub(crate) enum WifiResponse {
     WifiRxPacket,     // M2M_WIFI_RESP_WIFI_RX_PACKET + tstrM2MWifiRxPacketInfo + data
     // MemoryRecover,   // M2M_WIFI_RESP_MEMORY_RECOVER + 4-byte buffer (commented out in code)
     // IpConfigured,    // M2M_WIFI_RESP_IP_CONFIGURED + no specific data (internal use)
-/* No Crypto and SSL for now
+/* No Crypto for now
     CryptoSha256Init,   // M2M_CRYPTO_RESP_SHA256_INIT + tstrCyptoResp (crypto mode)
     CryptoSha256Update, // M2M_CRYPTO_RESP_SHA256_UPDATE + tstrCyptoResp (crypto mode)
     CryptoSha256Finish, // M2M_CRYPTO_RESP_SHA256_FINSIH + tstrCyptoResp (crypto mode, typo in original)
     CryptoRsaSignGen,   // M2M_CRYPTO_RESP_RSA_SIGN_GEN + tstrCyptoResp (crypto mode)
     CryptoRsaSignVerify,// M2M_CRYPTO_RESP_RSA_SIGN_VERIFY + tstrCyptoResp (crypto mode)
-    SslEcc,             // M2M_SSL_RESP_ECC + no specific data (SSL mode)
-    SslCrl,             // M2M_SSL_IND_CRL + tstrTlsCrlInfo (SSL mode)
-    SslCertsEcc,        // M2M_SSL_IND_CERTS_ECC + no specific data (SSL mode)
-    SslSetCsList,       // M2M_SSL_RESP_SET_CS_LIST + tstrSslSetActiveCsList (SSL mode)
 */
 }
 
@@ -312,16 +315,12 @@ impl From<u8> for WifiResponse {
             0x37 => Self::WifiRxPacket,     // M2M_WIFI_RESP_WIFI_RX_PACKET
             // 0x0E => Self::MemoryRecover,   // M2M_WIFI_RESP_MEMORY_RECOVER (commented out)
             // 0x33 => Self::IpConfigured,       // M2M_WIFI_RESP_IP_CONFIGURED
-/* No Crypto and SSL for now
+/* No Crypto for now
             0x02 => Self::CryptoSha256Init,   // M2M_CRYPTO_RESP_SHA256_INIT
             //0x04 =>Self::CryptoSha256Update,// M2M_CRYPTO_RESP_SHA256_UPDATE ( overlaps with CurrentRssi)
             //0x06 =>Self::CryptoSha256Finish,// M2M_CRYPTO_RESP_SHA256_FINSIH ( overlaps with ConnInfo)
             0x08 => Self::CryptoRsaSignGen,   // M2M_CRYPTO_RESP_RSA_SIGN_GEN
             0x0A => Self::CryptoRsaSignVerify,// M2M_CRYPTO_RESP_RSA_SIGN_VERIFY
-            //0x02 => Self::SslEcc,           // M2M_SSL_RESP_ECC (overlaps with CryptoSha256Init)
-            //0x04 => Self::SslCrl,           // M2M_SSL_IND_CRL (overlaps with CryptoSha256Update)
-            0x05 => Self::SslCertsEcc,        // M2M_SSL_IND_CERTS_ECC
-            0x07 => Self::SslSetCsList,       // M2M_SSL_RESP_SET_CS_LIST
 */
             _ => Self::Unhandled,
         }
@@ -333,30 +332,38 @@ pub enum IpCode {
     #[default]
     Unhandled,
     // Implemented Socket Commands
-    Bind = 0x41,            // SOCKET_CMD_BIND + tstrBindCmd (exists, works)
-    Listen = 0x42,          // SOCKET_CMD_LISTEN + tstrListenCmd (exists, works)
-    Accept = 0x43,          // SOCKET_CMD_ACCEPT + no params (exists, works)
-    Connect = 0x44,         // SOCKET_CMD_CONNECT + tstrConnectCmd (exists, works)
-    Send = 0x45,            // SOCKET_CMD_SEND + tstrSendCmd + data (exists, works)
-    Recv = 0x46,            // SOCKET_CMD_RECV + tstrRecvCmd (exists, works)
-    SendTo = 0x47,          // SOCKET_CMD_SENDTO + tstrSendCmd + data (works)
-    RecvFrom = 0x48,        // SOCKET_CMD_RECVFROM + tstrRecvCmd (exists, works)
-    Close = 0x49,           // SOCKET_CMD_CLOSE + tstrCloseCmd (exists, works)
-    DnsResolve = 0x4A,      // SOCKET_CMD_DNS_RESOLVE + hostname string (works)
-    Ping = 0x52,            // SOCKET_CMD_PING + tstrPingCmd (exists, works)
-    SslConnect = 0x4B,      // SOCKET_CMD_SSL_CONNECT + tstrConnectCmd
-    SslSend = 0x4C,         // SOCKET_CMD_SSL_SEND + tstrSendCmd + data
-    SslRecv = 0x4D,         // SOCKET_CMD_SSL_RECV + tstrRecvCmd
-    SslClose = 0x4E,        // SOCKET_CMD_SSL_CLOSE + tstrCloseCmd
+    Bind = 0x41,       // SOCKET_CMD_BIND + tstrBindCmd (exists, works)
+    Listen = 0x42,     // SOCKET_CMD_LISTEN + tstrListenCmd (exists, works)
+    Accept = 0x43,     // SOCKET_CMD_ACCEPT + no params (exists, works)
+    Connect = 0x44,    // SOCKET_CMD_CONNECT + tstrConnectCmd (exists, works)
+    Send = 0x45,       // SOCKET_CMD_SEND + tstrSendCmd + data (exists, works)
+    Recv = 0x46,       // SOCKET_CMD_RECV + tstrRecvCmd (exists, works)
+    SendTo = 0x47,     // SOCKET_CMD_SENDTO + tstrSendCmd + data (works)
+    RecvFrom = 0x48,   // SOCKET_CMD_RECVFROM + tstrRecvCmd (exists, works)
+    Close = 0x49,      // SOCKET_CMD_CLOSE + tstrCloseCmd (exists, works)
+    DnsResolve = 0x4A, // SOCKET_CMD_DNS_RESOLVE + hostname string (works)
+    Ping = 0x52,       // SOCKET_CMD_PING + tstrPingCmd (exists, works)
+    #[cfg(feature = "ssl")]
+    SslConnect = 0x4B, // SOCKET_CMD_SSL_CONNECT + tstrConnectCmd
+    #[cfg(feature = "ssl")]
+    SslSend = 0x4C, // SOCKET_CMD_SSL_SEND + tstrSendCmd + data
+    #[cfg(feature = "ssl")]
+    SslRecv = 0x4D, // SOCKET_CMD_SSL_RECV + tstrRecvCmd
+    #[cfg(feature = "ssl")]
+    SslClose = 0x4E, // SOCKET_CMD_SSL_CLOSE + tstrCloseCmd
     SetSocketOption = 0x4F, // SOCKET_CMD_SET_SOCKET_OPTION + tstrSetSocketOptCmd
-    SslCreate = 0x50,       // SOCKET_CMD_SSL_CREATE + tstrSSLSocketCreateCmd
-    SslSetSockOpt = 0x51,   // SOCKET_CMD_SSL_SET_SOCK_OPT + tstrSSLSetSockOptCmd
-    SslBind = 0x54,         // SOCKET_CMD_SSL_BIND + tstrBindCmd
-    SslExpCheck = 0x55,     // SOCKET_CMD_SSL_EXP_CHECK + tstrSslCertExpSettings
+    #[cfg(feature = "ssl")]
+    SslCreate = 0x50, // SOCKET_CMD_SSL_CREATE + tstrSSLSocketCreateCmd
+    #[cfg(feature = "ssl")]
+    SslSetSockOpt = 0x51, // SOCKET_CMD_SSL_SET_SOCK_OPT + tstrSSLSetSockOptCmd
+    #[cfg(feature = "ssl")]
+    SslBind = 0x54, // SOCKET_CMD_SSL_BIND + tstrBindCmd
+    #[cfg(feature = "ssl")]
+    SslExpCheck = 0x55, // SOCKET_CMD_SSL_EXP_CHECK + tstrSslCertExpSettings
 
-                            // Unimplemented Socket Commands (defined but not used)
-                            // Socket = 0x40,      // SOCKET_CMD_SOCKET + no params (not sent, implicit in host logic)
-                            // SslSetCsList = 0x53, // SOCKET_CMD_SSL_SET_CS_LIST + no specific data
+                       // Unimplemented Socket Commands (defined but not used)
+                       // Socket = 0x40,      // SOCKET_CMD_SOCKET + no params (not sent, implicit in host logic)
+                       // SslSetCsList = 0x53, // SOCKET_CMD_SSL_SET_CS_LIST + no specific data
 }
 
 /// Implementation to convert `IpCode` to `u8` value.
@@ -379,15 +386,24 @@ impl From<u8> for IpCode {
             0x48 => Self::RecvFrom,
             0x49 => Self::Close,
             0x4A => Self::DnsResolve,
+            #[cfg(feature = "ssl")]
             0x4B => Self::SslConnect,
+            #[cfg(feature = "ssl")]
             0x4C => Self::SslSend,
+            #[cfg(feature = "ssl")]
             0x4D => Self::SslRecv,
+            #[cfg(feature = "ssl")]
             0x4E => Self::SslClose,
+            #[cfg(feature = "ssl")]
             0x4F => Self::SetSocketOption,
+            #[cfg(feature = "ssl")]
             0x50 => Self::SslCreate,
+            #[cfg(feature = "ssl")]
             0x51 => Self::SslSetSockOpt,
             0x52 => Self::Ping,
+            #[cfg(feature = "ssl")]
             0x54 => Self::SslBind,
+            #[cfg(feature = "ssl")]
             0x55 => Self::SslExpCheck,
             _ => Self::Unhandled,
         }
@@ -511,6 +527,7 @@ impl From<u8> for OtaUpdateStatus {
 }
 
 /// SSL requests
+#[cfg(feature = "ssl")]
 #[repr(u8)]
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub(crate) enum SslRequest {
@@ -518,20 +535,22 @@ pub(crate) enum SslRequest {
     SendEccResponse = 0x02, // Send ECC Response
     NotifyCrl = 0x03,       // Update Certificate Revocation List
     SendCertificate = 0x04, // Send ECC Certificates
-    SetCipherSuits = 0x05,  // Set the custom ciphers suits list
+    SetCipherSuites = 0x05, // Set the custom ciphers suites list
 }
 
 /// SSL responses
+#[cfg(feature = "ssl")]
 #[repr(u8)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub(crate) enum SslResponse {
-    EccUpdate = 0x01,        // Response of ECC command.
-    CipherSuitUpdate = 0x06, // Response of requested changes in Cipher Suits.
-    Unhandled = 0xff,        // Invalid response recevied.
+    EccReqUpdate = 0x01,      // Response of ECC command.
+    CipherSuiteUpdate = 0x06, // Response of requested changes in Cipher Suites.
+    Unhandled = 0xff,         // Invalid response recevied.
 }
 
 /// Convert `SslRequest` to `u8` value.
+#[cfg(feature = "ssl")]
 impl From<SslRequest> for u8 {
     fn from(val: SslRequest) -> Self {
         val as u8
@@ -539,6 +558,7 @@ impl From<SslRequest> for u8 {
 }
 
 /// Convert `SslResponse` to `u8` value.
+#[cfg(feature = "ssl")]
 impl From<SslResponse> for u8 {
     fn from(val: SslResponse) -> Self {
         val as u8
@@ -546,24 +566,26 @@ impl From<SslResponse> for u8 {
 }
 
 /// Convert `SslResponse` to `u8` value.
+#[cfg(feature = "ssl")]
 impl From<u8> for SslResponse {
     fn from(val: u8) -> Self {
         match val {
-            0x01 => SslResponse::EccUpdate,
-            0x06 => SslResponse::CipherSuitUpdate,
+            0x01 => SslResponse::EccReqUpdate,
+            0x06 => SslResponse::CipherSuiteUpdate,
             _ => SslResponse::Unhandled,
         }
     }
 }
 
 /// Convert `SslRequest` to `u8` value.
+#[cfg(feature = "ssl")]
 impl From<u8> for SslRequest {
     fn from(val: u8) -> Self {
         match val {
             0x02 => SslRequest::SendEccResponse,
             0x03 => SslRequest::NotifyCrl,
             0x04 => SslRequest::SendCertificate,
-            0x05 => SslRequest::SetCipherSuits,
+            0x05 => SslRequest::SetCipherSuites,
             _ => SslRequest::Unhandled,
         }
     }
@@ -735,6 +757,7 @@ impl From<u8> for WepKeyIndex {
 }
 
 /// Options to configure SSL Certificate Expiry.
+#[cfg(feature = "ssl")]
 #[repr(u32)]
 pub enum SslCertExpiryOpt {
     /// Ignore certificate expiration date validation.
@@ -749,8 +772,88 @@ pub enum SslCertExpiryOpt {
 }
 
 /// Converts the `SslCertExpiryOpt` value to `u32` value.
+#[cfg(feature = "ssl")]
 impl From<SslCertExpiryOpt> for u32 {
     fn from(opt: SslCertExpiryOpt) -> Self {
         opt as Self
+    }
+}
+
+/// ECC request type.
+#[cfg(feature = "ssl")]
+#[repr(u16)]
+#[derive(Clone, Copy, Default)]
+pub enum EccRequestType {
+    #[default]
+    None = 0,
+    ClientEcdh = 1,
+    ServerEcdh = 2,
+    GenerateKey = 3,
+    GenerateSignature = 4,
+    VerifySignature = 5,
+    Unknown,
+}
+
+/// Convert the `EccRequestType` to `u16` value.
+#[cfg(feature = "ssl")]
+impl From<EccRequestType> for u16 {
+    fn from(val: EccRequestType) -> Self {
+        val as u16
+    }
+}
+
+/// Convert the `u16` value to `EccRequestType`.
+#[cfg(feature = "ssl")]
+impl From<u16> for EccRequestType {
+    fn from(val: u16) -> Self {
+        match val {
+            0 => Self::None,
+            1 => Self::ClientEcdh,
+            2 => Self::ServerEcdh,
+            3 => Self::GenerateKey,
+            4 => Self::GenerateSignature,
+            5 => Self::VerifySignature,
+            _ => Self::Unknown,
+        }
+    }
+}
+
+/// ECC Curve type
+#[cfg(feature = "ssl")]
+#[repr(u16)]
+#[derive(Clone, Copy, Default)]
+pub enum EccCurveType {
+    /// NIST-P192
+    Secp192r1 = 19,
+    /// NIST-P256
+    Secp256r1 = 23,
+    /// NIST-P384
+    Secp384r1 = 24,
+    /// NIST-P521
+    Secp521r1 = 25,
+    /// Unknown
+    #[default]
+    Unknown,
+}
+
+/// Convert `EccCurveType` to `u16` value.
+#[cfg(feature = "ssl")]
+impl From<EccCurveType> for u16 {
+    fn from(val: EccCurveType) -> Self {
+        val as u16
+    }
+}
+
+/// Convert `u16` to `EccCurveType` value.
+#[cfg(feature = "ssl")]
+impl From<u16> for EccCurveType {
+    fn from(val: u16) -> Self {
+        match val {
+            19 => Self::Secp192r1,
+            23 => Self::Secp256r1,
+            24 => Self::Secp384r1,
+            25 => Self::Secp521r1,
+            _ => Self::Unknown,
+        }
     }
 }

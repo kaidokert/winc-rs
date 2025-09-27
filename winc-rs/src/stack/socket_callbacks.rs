@@ -1,28 +1,23 @@
 use core::net::Ipv4Addr;
 
-#[cfg(feature = "wep")]
-use crate::manager::WepKey;
-#[cfg(feature = "wep")]
-use crate::manager::WepKeyIndex;
 use crate::manager::{
-    Credentials, EventListener, ProvisioningInfo, SocketError, Ssid, WifiConnError, WifiConnState,
-    WpaKey,
+    AuthType, ConnectionInfo, Credentials, EventListener, PingError, ProvisioningInfo, ScanResult,
+    SocketError, Ssid, WifiConnError, WifiConnState, WpaKey, PRNG_DATA_LENGTH,
+    SOCKET_BUFFER_MAX_LENGTH,
 };
+
 #[cfg(feature = "experimental-ota")]
 use crate::manager::{OtaUpdateError, OtaUpdateStatus};
+
+#[cfg(feature = "wep")]
+use crate::manager::{WepKey, WepKeyIndex};
+
+#[cfg(feature = "ssl")]
+use crate::manager::{EccRequest, SslCallbackInfo, SslResponse};
+
+use super::sock_holder::{SockHolder, SocketStore};
 use crate::{debug, error, info};
-use crate::{AuthType, ConnectionInfo};
-
-use crate::socket::Socket;
-
-use crate::Ipv4AddrFormatWrapper;
-
-use super::SockHolder;
-use crate::manager::{
-    PingError, ScanResult, SslResponse, PRNG_DATA_LENGTH, SOCKET_BUFFER_MAX_LENGTH,
-};
-
-use crate::stack::sock_holder::SocketStore;
+use crate::{socket::Socket, Ipv4AddrFormatWrapper};
 
 /// Opaque handle to a socket. Returned by socket APIs
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -150,7 +145,8 @@ pub(crate) struct SocketCallbacks {
     pub provisioning_info: Option<Option<ProvisioningInfo>>,
     #[cfg(feature = "experimental-ota")]
     pub ota_state: OtaUpdateState,
-    pub ssl_hif_reg: Option<u32>,
+    #[cfg(feature = "ssl")]
+    pub ssl_cb_info: SslCallbackInfo,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -265,7 +261,8 @@ impl SocketCallbacks {
             provisioning_info: None,
             #[cfg(feature = "experimental-ota")]
             ota_state: OtaUpdateState::NotStarted,
-            ssl_hif_reg: None,
+            #[cfg(feature = "ssl")]
+            ssl_cb_info: SslCallbackInfo::default(),
         }
     }
     pub fn resolve(&mut self, socket: Socket) -> Option<&mut (Socket, ClientSocketOp)> {
@@ -783,13 +780,33 @@ impl EventListener for SocketCallbacks {
         };
     }
 
-    /// Callback function for SSL events.
+    /// Callback function for SSL events triggered by the module.
     ///
     /// # Arguments
     ///
-    /// * `ssl_res` - SSL response type.
-    /// * `response` - Response read from module.
-    fn on_ssl(&mut self, _ssl_res: SslResponse, _response: &[u8]) {
-        todo!("SSL Todo");
+    /// * `ssl_res` - Type of SSL response received from the module.
+    /// * `cipher_suite` - Optional 4-byte cipher suite bitmap.
+    /// * `ecc_req` - Optional ECC request data.
+    /// * `hif_reg` - Optional HIF register value (hardware interface register).
+    #[cfg(feature = "ssl")]
+    fn on_ssl(
+        &mut self,
+        ssl_res: SslResponse,
+        cipher_suite: Option<u32>,
+        ecc_req: Option<EccRequest>,
+        hif_reg: Option<u32>,
+    ) {
+        match ssl_res {
+            SslResponse::CipherSuiteUpdate => {
+                self.ssl_cb_info.cipher_suite_bitmap = Some(cipher_suite);
+            }
+            SslResponse::EccReqUpdate => {
+                self.ssl_cb_info.ecc_req = ecc_req;
+                self.ssl_cb_info.ecc_hif_reg = hif_reg;
+            }
+            _ => {
+                error!("Invalid SSL event received.");
+            }
+        }
     }
 }

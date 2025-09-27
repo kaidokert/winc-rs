@@ -12,23 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::manager::net_types::WpaKey;
-use crate::readwrite::BufferOverflow;
-use crate::readwrite::Write;
+use crate::readwrite::{BufferOverflow, Write};
 
 use crate::socket::Socket;
 use core::net::{Ipv4Addr, SocketAddrV4};
 
 use super::constants::{
     AuthType, WifiChannel, CONNECT_AP_PACKET_SIZE, ENABLE_AP_PACKET_SIZE,
-    SET_SOCK_OPTS_PACKET_SIZE, SET_SSL_SOCK_OPTS_PACKET_SIZE, START_PROVISION_PACKET_SIZE,
+    SET_SOCK_OPTS_PACKET_SIZE, START_PROVISION_PACKET_SIZE,
 };
 
-use super::net_types::{EccRequest, Ssid, SslSockOpts, WepKey};
-use super::{AccessPoint, Credentials, HostName};
+use super::net_types::{AccessPoint, Credentials, HostName, Ssid, WepKey, WpaKey};
 
-/// Packet Size of SSL ECC request.
-const SSL_ECC_REQ_PACKET_SIZE: usize = 44;
+#[cfg(feature = "ssl")]
+use super::constants::{SET_SSL_SOCK_OPTS_PACKET_SIZE, SSL_ECC_REQ_PACKET_SIZE};
+
+#[cfg(feature = "ssl")]
+use super::net_types::{EccInfo, EcdhInfo, SslSockOpts};
 
 /// Prepares the packet to connect to access point.
 ///
@@ -279,6 +279,7 @@ pub fn write_setsockopt_req(
 ///
 /// * `[u8; SET_SSL_SOCK_OPTS_PACKET_SIZE]` – Set SSL socket option request packet as fixed-array.
 /// * `BufferOverflow` – If the buffer overflows while preparing the packet.
+#[cfg(feature = "ssl")]
 pub fn write_ssl_setsockopt_req(
     socket: Socket,
     option: &SslSockOpts,
@@ -500,53 +501,45 @@ pub fn write_en_ap_req(ap: &AccessPoint) -> Result<[u8; ENABLE_AP_PACKET_SIZE], 
     Ok(req)
 }
 
-/// Prepares the packet for writing an SSL ECC request.
+/// Prepares a packet for writing an SSL ECC response.
 ///
 /// # Arguments
 ///
-/// * `EccReqInfo` - ECC Request Info.
+/// * `ecc_info` - Reference to the ECC response information.
+/// * `ecdh_info` - Reference to the ECDH response information.
 ///
 /// # Returns
 ///
-/// * `[u8; SSL_ECC_REQ_PACKET_SIZE])` - The ECC request packet as a fixed-size byte array.
-/// * `BufferOverflow` - If the input data exceeds the allowed size or buffer limit.
-pub(crate) fn write_ssl_ecc_req(
-    ecc_req: &EccRequest,
+/// * `Ok([u8; SSL_ECC_REQ_PACKET_SIZE])` – A fixed-size byte array containing the ECC response packet.
+/// * `Err(BufferOverflow)` – If the input data exceeds the allowed size or buffer limit.
+#[cfg(feature = "ssl")]
+pub(crate) fn write_ssl_ecc_resp(
+    ecc_info: &EccInfo,
+    ecdh_info: &EcdhInfo,
 ) -> Result<[u8; SSL_ECC_REQ_PACKET_SIZE], BufferOverflow> {
     let mut req = [0u8; SSL_ECC_REQ_PACKET_SIZE];
     let mut slice = req.as_mut_slice();
 
-    // Request (2 bytes)
-    slice.write(&ecc_req.req.to_le_bytes())?;
+    // ECC request type (2 bytes)
+    let ecc_req_type: u16 = ecc_info.req.into();
+    slice.write(&ecc_req_type.to_le_bytes())?;
     // Status (2 bytes)
-    slice.write(&ecc_req.status.to_be_bytes())?;
+    slice.write(&ecc_info.status.to_be_bytes())?;
     // User data (4 bytes)
-    slice.write(&ecc_req.user_data.to_be_bytes())?;
+    slice.write(&ecc_info.user_data.to_be_bytes())?;
     // Sequence Number (4 bytes)
-    slice.write(&ecc_req.seq_num.to_be_bytes())?;
+    slice.write(&ecc_info.seq_num.to_be_bytes())?;
 
-    if let Some(ecdh_req) = ecc_req.ecdh_req.as_ref() {
-        // X-cordinates of EC points (32 bytes)
-        slice.write(&ecdh_req.ecc_point.x_cord)?;
-        // Y-cordinates of EC points (32 bytes)
-        slice.write(&ecdh_req.ecc_point.y_cord)?;
-        // Point Size (2 bytes)
-        slice.write(&ecdh_req.ecc_point.point_size.to_le_bytes())?;
-        // Private Key ID (2 bytes)
-        slice.write(&ecdh_req.ecc_point.private_key_id.to_le_bytes())?;
-        // Private Key (32 bytes)
-        slice.write(&ecdh_req.private_key)?;
-    } else if let Some(ecdsa_sign_req) = ecc_req.ecdsa_sign_req.as_ref() {
-        // Curve Type (2 bytes)
-        slice.write(&ecdsa_sign_req.curve_type.to_le_bytes())?;
-        // Hash Size (2 bytes)
-        slice.write(&ecdsa_sign_req.hash_size.to_le_bytes())?;
-    } else if let Some(ecdsa_ver_req) = ecc_req.ecdsa_verify_req.as_ref() {
-        // ECDSA Sign
-        slice.write(&ecdsa_ver_req.to_le_bytes())?;
-    } else {
-        // do nothing
-    }
+    // X-cordinates of ECC points (32 bytes)
+    slice.write(&ecdh_info.ecc_point.x_cord)?;
+    // Y-cordinates of ECC points (32 bytes)
+    slice.write(&ecdh_info.ecc_point.y_cord)?;
+    // Point Size (2 bytes)
+    slice.write(&ecdh_info.ecc_point.point_size.to_le_bytes())?;
+    // Private Key ID (2 bytes)
+    slice.write(&ecdh_info.ecc_point.private_key_id.to_le_bytes())?;
+    // Private Key (32 bytes)
+    slice.write(&ecdh_info.private_key)?;
 
     Ok(req)
 }
@@ -842,6 +835,7 @@ mod tests {
         assert_eq!(result.ok(), Some(valid_req))
     }
 
+    #[cfg(feature = "ssl")]
     #[test]
     fn test_write_ssl_setsockopt_req() {
         let valid_req: [u8; SET_SSL_SOCK_OPTS_PACKET_SIZE] = [
