@@ -21,13 +21,17 @@ use super::constants::{
     MAX_S802_USERNAME_LEN, MAX_SSID_LEN, MAX_WEP_KEY_LEN, MIN_PSK_KEY_LEN,
 };
 
+#[cfg(feature = "ssl")]
+use super::constants::{EccCurveType, EccRequestType};
+
 #[cfg(feature = "wep")]
 use super::constants::{WepKeyIndex, MIN_WEP_KEY_LEN};
 use core::net::Ipv4Addr;
 
 /// Default IP address "192.168.1.1" for access point and provisioning mode.
 const DEFAULT_AP_IP: u32 = 0xC0A80101;
-const EC_POINT_MAX_SIZE: usize = 32;
+#[cfg(feature = "ssl")]
+const ECC_POINT_MAX_SIZE: usize = 32;
 
 /// Device Domain name.
 pub type HostName = ArrayString<MAX_HOST_NAME_LEN>;
@@ -41,6 +45,9 @@ pub type WepKey = ArrayString<MAX_WEP_KEY_LEN>;
 pub type S8Username = ArrayString<MAX_S802_USERNAME_LEN>;
 /// S802_1X Password
 pub type S8Password = ArrayString<MAX_S802_PASSWORD_LEN>;
+/// ECDSA Verify Information.
+#[cfg(feature = "ssl")]
+pub type EcdsaVerifyInfo = u32;
 
 /// Wi-Fi Security Credentials.
 #[repr(u8)]
@@ -86,10 +93,12 @@ pub enum TcpSockOpts {
     /// Receive Timeout
     ReceiveTimeout(u32) = 0xff,
     /// SSL Socket Options
+    #[cfg(feature = "ssl")]
     Ssl(SslSockOpts) = 0xfe,
 }
 
 /// TLS Socket Option
+#[cfg(feature = "ssl")]
 #[repr(u8)]
 #[derive(Debug, PartialEq, Eq)]
 // Note: The `Copy` trait is not implemented to avoid
@@ -102,6 +111,7 @@ pub enum SslSockOpts {
 }
 
 /// TLS Socket Configuration
+#[cfg(feature = "ssl")]
 #[repr(u8)]
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum SslSockConfig {
@@ -145,50 +155,76 @@ pub struct AccessPoint<'a> {
     pub ip: Ipv4Addr,
 }
 
-/// Elliptic Curve Point
+/// Elliptic Curve point representation.
+#[cfg(feature = "ssl")]
+#[derive(Default)]
 pub struct EccPoint {
-    /// The X-coordinate of the ec point.
-    pub x_cord: [u8; EC_POINT_MAX_SIZE],
-    /// The Y-coordinate of the ec point.
-    pub y_cord: [u8; EC_POINT_MAX_SIZE],
+    /// The X-coordinate of the ecc point.
+    pub x_cord: [u8; ECC_POINT_MAX_SIZE],
+    /// The Y-coordinate of the ecc point.
+    pub y_cord: [u8; ECC_POINT_MAX_SIZE],
     // Point size in bytes (for each of the coordinates).
     pub point_size: u16,
     /// ID for the corresponding private key.
     pub private_key_id: u16,
 }
 
-/// Elliptic Curve Diffie-Hellman (ECDH) request.
-pub struct EcdhRequest {
-    /// ECC points or EC public key.
+/// Elliptic Curve Diffie-Hellman (ECDH) information.
+#[cfg(feature = "ssl")]
+#[derive(Default)]
+pub struct EcdhInfo {
+    /// ECC public key.
     pub ecc_point: EccPoint,
-    /// Private Key
-    pub private_key: [u8; EC_POINT_MAX_SIZE],
+    /// Pre master secret generated during operations of
+    /// type `ECC_REQ_CLIENT_ECDH` and `ECC_REQ_SERVER_ECDH`.
+    pub private_key: [u8; ECC_POINT_MAX_SIZE],
 }
 
-/// Elliptic Curve Digital Signature Algorithm (ECDSA) signing request.
-pub struct EcdsaSignRequest {
+/// Elliptic Curve Digital Signature Algorithm (ECDSA) signing information.
+#[cfg(feature = "ssl")]
+#[derive(Default)]
+pub struct EcdsaSignInfo {
     /// Key Curve Type (NIST P-256, P-384)
-    pub curve_type: u16,
+    pub curve_type: EccCurveType,
     /// Hash Size (32 bytes for SHA-256 or 48 bytes for SHA-384)
     pub hash_size: u16,
 }
 
-/// ECC Request
-pub struct EccRequest {
+/// ECC Operations Info.
+#[cfg(feature = "ssl")]
+#[derive(Default)]
+pub struct EccInfo {
     /// ECC Request type (ECDH, ECDSA Sign or ECDSA Verify)
-    pub req: u16,
+    pub req: EccRequestType,
     /// Status of ECC operation.
+    /// Value should be used in response and ignored in request.
+    /// zero for success and non-zero for failure.
     pub status: u16,
     /// User data
+    /// Value in response should match the value in request from WINC.
     pub user_data: u32,
     /// Sequence number
+    /// Value in response to WINC should match the value in request from WINC.
     pub seq_num: u32,
-    /// Optional ECDH request
-    pub ecdh_req: Option<EcdhRequest>,
-    /// Optional ECDSA signing request
-    pub ecdsa_sign_req: Option<EcdsaSignRequest>,
-    /// Optional ECDSA signature verification request.
-    pub ecdsa_verify_req: Option<u32>,
+}
+
+/// ECC Request Information received from WINC.
+#[cfg(feature = "ssl")]
+#[derive(Default)]
+pub(crate) struct EccRequest {
+    pub ecc_info: EccInfo,
+    pub ecdh_info: Option<EcdhInfo>,
+    pub ecdsa_sign_info: Option<EcdsaSignInfo>,
+    pub ecdsa_verify_info: Option<EcdsaVerifyInfo>,
+}
+
+/// SSL callback info
+#[cfg(feature = "ssl")]
+#[derive(Default)]
+pub(crate) struct SslCallbackInfo {
+    pub(crate) ecc_req: Option<EccRequest>,
+    pub(crate) cipher_suite_bitmap: Option<Option<u32>>,
+    pub(crate) ecc_hif_reg: Option<u32>,
 }
 
 /// Implementation to convert the Credentials to Authentication Type
@@ -321,6 +357,7 @@ impl UdpSockOpts {
 impl From<TcpSockOpts> for u8 {
     fn from(value: TcpSockOpts) -> Self {
         match value {
+            #[cfg(feature = "ssl")]
             TcpSockOpts::Ssl(_) => 0xfe,
             TcpSockOpts::ReceiveTimeout(_) => 0xff,
         }
@@ -334,12 +371,14 @@ impl TcpSockOpts {
         match self {
             TcpSockOpts::ReceiveTimeout(val) => *val,
             // SSL values don't have 32 bit values.
+            #[cfg(feature = "ssl")]
             TcpSockOpts::Ssl(_) => 0xfe,
         }
     }
 }
 
 /// Implementation to convert `SslSockOpts` to `u8` value.
+#[cfg(feature = "ssl")]
 impl From<SslSockOpts> for u8 {
     fn from(value: SslSockOpts) -> Self {
         match value {
@@ -350,6 +389,7 @@ impl From<SslSockOpts> for u8 {
 }
 
 /// Implementation to convert `&SslSockOpts` to `u8` value.
+#[cfg(feature = "ssl")]
 impl From<&SslSockOpts> for u8 {
     fn from(value: &SslSockOpts) -> Self {
         match value {
@@ -360,6 +400,7 @@ impl From<&SslSockOpts> for u8 {
 }
 
 /// Implementation to convert `SslSockConfig` to `u8` value.
+#[cfg(feature = "ssl")]
 impl From<SslSockConfig> for u8 {
     fn from(value: SslSockConfig) -> Self {
         value as Self
@@ -367,6 +408,7 @@ impl From<SslSockConfig> for u8 {
 }
 
 /// Implementation to get value stored in SSL socket option.
+#[cfg(feature = "ssl")]
 impl SslSockOpts {
     /// Gets the SNI value passed in the `SslSockOpts::SetSni` socket option.
     ///
@@ -451,6 +493,7 @@ impl SocketOptions {
     ///
     /// * `SocketOptions::Tcp(TcpSockOpts::SetSni)` – The configured socket option on success.
     /// * `StackError` – If the hostname length is invalid.
+    #[cfg(feature = "ssl")]
     pub fn set_sni(hostname: &str) -> Result<Self, StackError> {
         let host = HostName::from(hostname).map_err(|_| StackError::InvalidParameters)?;
         Ok(Self::Tcp(TcpSockOpts::Ssl(SslSockOpts::SetSni(host))))
@@ -466,6 +509,7 @@ impl SocketOptions {
     /// # Returns
     ///
     /// * `SocketOptions` – The configured socket option on success.
+    #[cfg(feature = "ssl")]
     pub fn config_ssl(cfg: SslSockConfig, enable: bool) -> Self {
         Self::Tcp(TcpSockOpts::Ssl(SslSockOpts::Config(cfg, enable)))
     }
@@ -920,6 +964,7 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "ssl")]
     #[test]
     fn test_sock_opts_get_sni_array_success() {
         let test_value = "hostname".as_bytes();
@@ -968,6 +1013,7 @@ mod tests {
         assert_eq!(u8::from(sock_opts), 0xffu8);
     }
 
+    #[cfg(feature = "ssl")]
     #[test]
     fn test_sock_opts_tcp_ssl_u8_value() {
         let host = HostName::from("hostname").unwrap();
@@ -975,6 +1021,7 @@ mod tests {
         assert_eq!(u8::from(sock_opts), 0xfeu8);
     }
 
+    #[cfg(feature = "ssl")]
     #[test]
     fn test_sock_opts_get_tcp_ssl_sni_value() {
         let host = HostName::from("hostname").unwrap();
@@ -982,6 +1029,7 @@ mod tests {
         assert_eq!(sock_opts.get_value(), 0xfeu32);
     }
 
+    #[cfg(feature = "ssl")]
     #[test]
     fn test_sock_opts_ssl_sni_u8_value() {
         let host = HostName::from("hostname").unwrap();
@@ -989,6 +1037,7 @@ mod tests {
         assert_eq!(u8::from(sock_opts), 0x02u8);
     }
 
+    #[cfg(feature = "ssl")]
     #[test]
     fn test_sock_opts_ssl_sni_invalid_paramter() {
         let test_string =

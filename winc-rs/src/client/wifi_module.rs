@@ -2,21 +2,18 @@ use crate::errors::CommError as Error;
 
 use embedded_nal::nb;
 
-use super::Handle;
-use crate::error;
-use crate::manager::{AccessPoint, AuthType, FirmwareInfo, IPConf, ScanResult, Ssid, WifiChannel};
-use crate::manager::{Credentials, HostName, ProvisioningInfo, WifiConnError};
-use crate::manager::{SocketOptions, SslSockConfig, SslSockOpts, TcpSockOpts, UdpSockOpts};
-use crate::stack::sock_holder::SocketStore;
+use crate::manager::{
+    AccessPoint, AuthType, Credentials, FirmwareInfo, HostName, IPConf, ProvisioningInfo,
+    ScanResult, SocketOptions, Ssid, TcpSockOpts, UdpSockOpts, WifiChannel, WifiConnError,
+};
+#[cfg(feature = "ssl")]
+use crate::manager::{SslSockConfig, SslSockOpts};
 
-use super::PingResult;
-use super::StackError;
-use super::WincClient;
-use super::Xfer;
+use crate::stack::{sock_holder::SocketStore, socket_callbacks::WifiModuleState};
 
-use crate::stack::socket_callbacks::WifiModuleState;
+use super::{Handle, PingResult, StackError, WincClient, Xfer};
 
-use crate::info;
+use crate::{error, info};
 
 // 1 minute max, if no other delays are added
 const AP_CONNECT_TIMEOUT_MILLISECONDS: u32 = 60_000;
@@ -543,6 +540,7 @@ impl<X: Xfer> WincClient<'_, X> {
                     .ok_or(StackError::SocketNotFound)?;
 
                 match opts {
+                    #[cfg(feature = "ssl")]
                     TcpSockOpts::Ssl(ssl_opts) => {
                         match *ssl_opts {
                             SslSockOpts::SetSni(_) => {
@@ -1142,6 +1140,7 @@ mod tests {
         assert_eq!(result.err(), Some(StackError::SocketNotFound));
     }
 
+    #[cfg(feature = "ssl")]
     #[test]
     fn test_tcp_sock_opt_set_sni() {
         let mut client = make_test_client();

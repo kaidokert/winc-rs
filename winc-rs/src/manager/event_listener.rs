@@ -12,22 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use super::{EventListener, Manager};
-use super::{HifGroup, IpCode, SslResponse, WifiResponse};
-use crate::errors::CommError as Error;
-use crate::manager::constants::{
+use super::{EventListener, HifGroup, IpCode, Manager, WifiResponse};
+
+use super::constants::{
     PRNG_DATA_LENGTH, PRNG_PACKET_SIZE, PROVISIONING_INFO_PACKET_SIZE, SOCKET_BUFFER_MAX_LENGTH,
 };
+
+#[cfg(feature = "ssl")]
+use super::constants::{SslResponse, SSL_CS_MAX_PACKET_SIZE, SSL_ECC_REQ_PACKET_SIZE};
+
+use crate::errors::CommError as Error;
 use crate::manager::responses::*;
 use crate::{error, transfer::Xfer};
 
 #[cfg(feature = "experimental-ota")]
 use crate::manager::constants::OtaResponse;
-
-/// Packet size of ECC info.
-const ECC_MAX_PACKET_SIZE: usize = 112;
-/// Packet size of Cipher suit list.
-const CS_MAX_PACKET_SIZE: usize = 4;
 
 impl<X: Xfer> Manager<X> {
     /// Parses incoming WiFi events from the chip and dispatches them to the provided event listener.
@@ -257,33 +256,27 @@ impl<X: Xfer> Manager<X> {
             IpCode::SetSocketOption => {
                 unimplemented!("There is no response for setsockoption")
             }
-            IpCode::Unhandled
-            | IpCode::SslConnect
-            | IpCode::SslSend
-            | IpCode::SslRecv
-            | IpCode::SslClose
-            | IpCode::SslCreate
-            | IpCode::SslSetSockOpt
-            | IpCode::SslBind
-            | IpCode::SslExpCheck => {
-                panic!("Received unhandled IP HIF code: {:?}", ip_res)
+            _ => {
+                error!("Received unhandled IP HIF code: {:?}", ip_res);
+                return Err(Error::InvalidHifResponse("IP"));
             }
         }
         Ok(())
     }
 
-    /// Parses incoming OTA events from the chip and dispatches them to the provided event listener.
+    #[cfg(feature = "ssl")]
+    /// Parses incoming SSL events from the chip and dispatches them to the provided event listener.
     ///
     /// # Arguments
     ///
-    /// * `listener` - The event callback handler that will be invoked based on the event type.
+    /// * `listener` - The event callback handler that will be invoked based on the SSL event type.
     /// * `address` - The register address of the module from which data can be read.
-    /// * `ota_res` - The OTA response ID indicating the type of event.
+    /// * `ssl_res` - The SSL response ID indicating the type of event.
     ///
     /// # Returns
     ///
-    /// * `()` - If no error occurred while processing the events.
-    /// * `Error` - If an error occurred while processing the events.
+    /// * `Ok(())` - If no error occurred while processing the events.
+    /// * `Err(Error)` - If an error occurred while processing the events.
     fn ssl_events_listener<T: EventListener>(
         &mut self,
         listener: &mut T,
@@ -291,15 +284,22 @@ impl<X: Xfer> Manager<X> {
         ssl_res: SslResponse,
     ) -> Result<(), Error> {
         match ssl_res {
-            SslResponse::EccUpdate => {
-                let mut response = [0u8; ECC_MAX_PACKET_SIZE];
+            SslResponse::EccReqUpdate => {
+                let mut response = [0u8; SSL_ECC_REQ_PACKET_SIZE];
                 self.read_block(address, &mut response)?;
-                listener.on_ssl(ssl_res, &response);
+                let ecc_req = read_ssl_ecc_response(&response)?;
+                listener.on_ssl(
+                    ssl_res,
+                    None,
+                    Some(ecc_req),
+                    Some(address + SSL_ECC_REQ_PACKET_SIZE as u32),
+                );
             }
-            SslResponse::CipherSuitUpdate => {
-                let mut response = [0u8; CS_MAX_PACKET_SIZE];
+            SslResponse::CipherSuiteUpdate => {
+                let mut response = [0u8; SSL_CS_MAX_PACKET_SIZE];
                 self.read_block(address, &mut response)?;
-                listener.on_ssl(ssl_res, &response);
+                let cipher_suite = u32::from_le_bytes(response);
+                listener.on_ssl(ssl_res, Some(cipher_suite), None, None);
             }
             _ => {
                 error!("Received invalid SSL response: {:?}", ssl_res);
@@ -352,6 +352,7 @@ impl<X: Xfer> Manager<X> {
             HifGroup::Ip(e) => self.ip_events_listener(listener, address, e),
             #[cfg(feature = "experimental-ota")]
             HifGroup::Ota(e) => self.ota_events_listener(listener, address, e),
+            #[cfg(feature = "ssl")]
             HifGroup::Ssl(e) => self.ssl_events_listener(listener, address, e),
             _ => panic!("Unexpected hif"),
         }

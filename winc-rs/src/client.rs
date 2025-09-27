@@ -9,6 +9,7 @@ mod flash;
 #[cfg(feature = "experimental-ota")]
 mod ota;
 mod prng;
+#[cfg(feature = "ssl")]
 mod ssl;
 mod tcp_stack;
 mod udp_stack;

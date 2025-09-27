@@ -30,35 +30,48 @@ use crate::{debug, error, trace};
 use chip_access::ChipAccess;
 #[cfg(feature = "experimental-ota")]
 pub use constants::OtaUpdateError;
+
 #[cfg(feature = "wep")]
 pub use constants::WepKeyIndex;
-pub use constants::{
-    AuthType, PingError, SocketError, SslCertExpiryOpt, WifiChannel, WifiConnError, WifiConnState,
-};
-use constants::{IpCode, Regs, SslRequest, WifiRequest, WifiResponse};
+
+pub use constants::{AuthType, PingError, SocketError, WifiChannel, WifiConnError, WifiConnState};
+use constants::{IpCode, Regs, WifiRequest, WifiResponse};
 
 #[cfg(feature = "flash-rw")]
 pub(crate) use constants::FLASH_PAGE_SIZE;
+
 #[cfg(feature = "experimental-ota")]
 pub(crate) use constants::{OtaRequest, OtaResponse, OtaUpdateStatus};
-pub(crate) use constants::{SslResponse, PRNG_DATA_LENGTH, SOCKET_BUFFER_MAX_LENGTH};
+
+pub(crate) use constants::{PRNG_DATA_LENGTH, SOCKET_BUFFER_MAX_LENGTH};
+
+#[cfg(feature = "ssl")]
+pub(crate) use self::{
+    constants::{SslRequest, SslResponse},
+    net_types::{EccRequest, SslCallbackInfo},
+};
+
+#[cfg(feature = "ssl")]
+pub use net_types::{
+    EccInfo, EccPoint, EcdhInfo, EcdsaSignInfo, EcdsaVerifyInfo, SslSockConfig, SslSockOpts,
+};
+
+#[cfg(feature = "ssl")]
+pub use constants::{EccCurveType, EccRequestType, SslCertExpiryOpt};
 
 pub use net_types::{
-    AccessPoint, Credentials, EccPoint, EccRequest, HostName, ProvisioningInfo, S8Password,
-    S8Username, SocketOptions, Ssid, SslSockConfig, SslSockOpts, TcpSockOpts, UdpSockOpts, WpaKey,
+    AccessPoint, Credentials, HostName, ProvisioningInfo, S8Password, S8Username, SocketOptions,
+    Ssid, TcpSockOpts, UdpSockOpts, WpaKey,
 };
 
 #[cfg(feature = "wep")]
 pub use net_types::WepKey;
 
 use requests::*;
-pub use responses::IPConf;
 use responses::*;
-pub use responses::{ConnectionInfo, ScanResult};
+pub use responses::{ConnectionInfo, FirmwareInfo, IPConf, ScanResult};
 
 use core::net::{Ipv4Addr, SocketAddrV4};
-
-pub use responses::FirmwareInfo;
 
 /// Macro to select the appropriate `HifRequest::Ip` variant based on the socket's SSL config.
 ///
@@ -68,17 +81,24 @@ pub use responses::FirmwareInfo;
 ///             `HifRequest::Ip(IpCode::Recv)` otherwise.
 #[macro_export]
 macro_rules! get_ip_code {
-    ($socket:expr, $normal:ident, $ssl:ident) => {
-        if ($socket.get_ssl_cfg() & u8::from(SslSockConfig::EnableSSL)) > 0 {
-            HifRequest::Ip(IpCode::$ssl)
-        } else {
+    ($socket:expr, $normal:ident, $ssl:ident) => {{
+        #[cfg(feature = "ssl")]
+        {
+            if ($socket.get_ssl_cfg() & u8::from(SslSockConfig::EnableSSL)) > 0 {
+                HifRequest::Ip(IpCode::$ssl)
+            } else {
+                HifRequest::Ip(IpCode::$normal)
+            }
+        }
+
+        #[cfg(not(feature = "ssl"))]
+        {
             HifRequest::Ip(IpCode::$normal)
         }
-    };
+    }};
 }
 
 /// HIF Response Group.
-#[allow(dead_code)] // todo! remove it once event listener is complete.
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[derive(Debug, PartialEq, Default)]
 pub(crate) enum HifGroup {
@@ -88,6 +108,7 @@ pub(crate) enum HifGroup {
     Ip(IpCode),
     #[cfg(feature = "experimental-ota")]
     Ota(OtaResponse),
+    #[cfg(feature = "ssl")]
     Ssl(SslResponse),
 }
 
@@ -98,6 +119,7 @@ enum HifRequest {
     Ip(IpCode),
     #[cfg(feature = "experimental-ota")]
     Ota(OtaRequest),
+    #[cfg(feature = "ssl")]
     Ssl(SslRequest),
 }
 
@@ -109,6 +131,7 @@ impl From<HifRequest> for u8 {
             HifRequest::Ip(_) => 2,
             #[cfg(feature = "experimental-ota")]
             HifRequest::Ota(_) => 4,
+            #[cfg(feature = "ssl")]
             HifRequest::Ssl(_) => 5,
         }
     }
@@ -122,6 +145,8 @@ impl From<[u8; 2]> for HifGroup {
             2 => Self::Ip(v[1].into()),
             #[cfg(feature = "experimental-ota")]
             4 => Self::Ota(v[1].into()),
+            #[cfg(feature = "ssl")]
+            5 => Self::Ssl(v[1].into()),
             _ => Self::Unhandled,
         }
     }
@@ -135,6 +160,8 @@ impl From<HifGroup> for u8 {
             HifGroup::Ip(_) => 2,
             #[cfg(feature = "experimental-ota")]
             HifGroup::Ota(_) => 4,
+            #[cfg(feature = "ssl")]
+            HifGroup::Ssl(_) => 5,
             _ => 0xFF,
         }
     }
@@ -202,7 +229,14 @@ pub trait EventListener {
     fn on_provisioning(&mut self, ssid: Ssid, key: WpaKey, security: AuthType, status: bool);
     #[cfg(feature = "experimental-ota")]
     fn on_ota(&mut self, status: OtaUpdateStatus, error: OtaUpdateError);
-    fn on_ssl(&mut self, ssl_res: SslResponse, response: &[u8]);
+    #[cfg(feature = "ssl")]
+    fn on_ssl(
+        &mut self,
+        ssl_res: SslResponse,
+        cipher_suite: Option<u32>,
+        ecc_req: Option<EccRequest>,
+        hif_reg: Option<u32>,
+    );
 }
 
 pub struct Manager<X: Xfer> {
@@ -693,6 +727,7 @@ impl<X: Xfer> Manager<X> {
             HifRequest::Ip(opcode) => opcode.into(),
             #[cfg(feature = "experimental-ota")]
             HifRequest::Ota(opcode) => opcode.into(),
+            #[cfg(feature = "ssl")]
             HifRequest::Ssl(opcode) => opcode.into(),
         };
         // Group ID.
@@ -1007,6 +1042,7 @@ impl<X: Xfer> Manager<X> {
     ///
     /// * `()` - If the request is successfully sent.
     /// * `Error` - If an error occurred while preparing or sending the request.
+    #[cfg(feature = "ssl")]
     pub fn send_ssl_setsockopt(
         &mut self,
         socket: Socket,
@@ -1526,6 +1562,7 @@ impl<X: Xfer> Manager<X> {
     ///
     /// * `()` - If the request is successfully sent.
     /// * `Error` - If an error occurs while preparing or sending the request.
+    #[cfg(feature = "ssl")]
     pub(crate) fn send_ssl_sock_create(&mut self, socket: Socket) -> Result<(), Error> {
         let req: [u8; 4] = [socket.v, 0, 0, 0];
 
@@ -1544,6 +1581,7 @@ impl<X: Xfer> Manager<X> {
     ///
     /// * `()` - If the request is successfully sent.
     /// * `Error` - If an error occurs while preparing or sending the request.
+    #[cfg(feature = "ssl")]
     pub(crate) fn send_ssl_cert_expiry(&mut self, opt: SslCertExpiryOpt) -> Result<(), Error> {
         let req = u32::to_be_bytes(opt.into());
 
@@ -1562,6 +1600,7 @@ impl<X: Xfer> Manager<X> {
     ///
     /// * `()` - If the request is successfully sent.
     /// * `Error` - If an error occurs while preparing or sending the request.
+    #[cfg(feature = "ssl")]
     pub(crate) fn send_ssl_cert(&mut self, cert: &[u8]) -> Result<(), Error> {
         self.write_hif_header_impl(
             HifRequest::Ssl(SslRequest::SendCertificate),
@@ -1577,23 +1616,26 @@ impl<X: Xfer> Manager<X> {
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
     }
 
-    /// Sends a ECC response to module.
+    /// Sends an ECC response to the module.
     ///
     /// # Arguments
     ///
-    /// * `ecc_req` - ECC request
-    /// * `resp_buffer` - Response data to be sent.
+    /// * `ecc_info` – Reference to the ECC operation information.
+    /// * `ecdh_info` – Reference to the ECDH information.
+    /// * `resp_buffer` – Buffer containing the ECC response data to be sent.
     ///
     /// # Returns
     ///
-    /// * `()` - If the request is successfully sent.
-    /// * `Error` - If an error occurs while preparing or sending the request.
+    /// * `Ok(())` – If the response is successfully sent.
+    /// * `Err(Error)` – If an error occurs while preparing or sending the response.
+    #[cfg(feature = "ssl")]
     pub(crate) fn send_ssl_ecc_resp(
         &mut self,
-        ecc_req: &EccRequest,
+        ecc_info: &EccInfo,
+        ecdh_info: &EcdhInfo,
         resp_buffer: &[u8],
     ) -> Result<(), Error> {
-        let req = write_ssl_ecc_req(ecc_req)?;
+        let req = write_ssl_ecc_resp(ecc_info, ecdh_info)?;
 
         self.write_hif_header_impl(
             HifRequest::Ssl(SslRequest::SendEccResponse),
@@ -1625,6 +1667,7 @@ impl<X: Xfer> Manager<X> {
     ///
     /// * `Ok(())` - If the data is successfully read.
     /// * `Err(Error)` - If an error occurs while reading the data.
+    #[cfg(feature = "ssl")]
     pub(crate) fn read_ssl_cert_feat(
         &mut self,
         address: u32,
@@ -1657,6 +1700,7 @@ impl<X: Xfer> Manager<X> {
     ///
     /// * `Ok(())` - If the module successfully disables certificate reading.
     /// * `Err(Error)` - If an error occurs while updating the module state.
+    #[cfg(feature = "ssl")]
     pub(crate) fn send_ssl_cert_read_complete(&mut self) -> Result<(), Error> {
         let reg = self.chip.single_reg_read(Regs::WifiHostRcvCtrl0.into())?;
         self.chip
@@ -1673,11 +1717,12 @@ impl<X: Xfer> Manager<X> {
     ///
     /// * `Ok(())` - If the request was successfully processed.
     /// * `Err(Error)` - If an error occurs while updating the module state.
-    pub(crate) fn send_ssl_set_cipher_suit(&mut self, cipher_bitmap: u32) -> Result<(), Error> {
+    #[cfg(feature = "ssl")]
+    pub(crate) fn send_ssl_set_cipher_suite(&mut self, cipher_bitmap: u32) -> Result<(), Error> {
         let req = cipher_bitmap.to_le_bytes();
 
         self.write_hif_header(
-            HifRequest::Ssl(SslRequest::SetCipherSuits),
+            HifRequest::Ssl(SslRequest::SetCipherSuites),
             &req,
             false
         )?;

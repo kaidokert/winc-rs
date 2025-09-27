@@ -13,27 +13,31 @@
 // limitations under the License.
 
 use crate::readwrite::{Read, ReadExactError};
-use core::net::{Ipv4Addr, SocketAddrV4};
+use core::{
+    net::{Ipv4Addr, SocketAddrV4},
+    str::FromStr,
+};
 
-use super::constants::MAX_HOST_NAME_LEN;
-use super::constants::{AuthType, PingError, SocketError, MAX_PSK_KEY_LEN, MAX_SSID_LEN};
-use super::WpaKey;
+use super::constants::{
+    AuthType, PingError, SocketError, MAX_HOST_NAME_LEN, MAX_PSK_KEY_LEN, MAX_SSID_LEN,
+};
 use crate::errors::CommError as Error;
-type ErrType<'a> = ReadExactError<<&'a [u8] as Read>::ReadError>;
 
-use super::net_types::{HostName, Ssid};
+use super::net_types::{HostName, Ssid, WpaKey};
+#[cfg(feature = "ssl")]
+use super::{
+    constants::EccRequestType,
+    net_types::{EccRequest, EcdhInfo, EcdsaSignInfo},
+};
 use arrayvec::ArrayString;
 
-use crate::error;
-use crate::HexWrap;
-use core::str::FromStr;
+use crate::{error, socket::Socket, HexWrap};
 
 #[cfg(feature = "defmt")]
 use crate::Ipv4AddrFormatWrapper;
 
+type ErrType<'a> = ReadExactError<<&'a [u8] as Read>::ReadError>;
 const AF_INET: u16 = 2;
-
-use crate::socket::Socket;
 
 fn read32be<'a>(v: &mut &[u8]) -> Result<u32, ErrType<'a>> {
     let mut arr = [0u8; 4];
@@ -494,6 +498,71 @@ pub fn read_provisioning_reply(mut response: &[u8]) -> Result<(Ssid, WpaKey, u8,
         security_type,
         provisioning_status,
     ))
+}
+
+/// Reads the ECC request from the WINC module.
+///
+/// # Arguments
+///
+/// * `response` - Data received from the chip that contains provisioning information.
+///
+/// # Returns
+///
+/// * `EccRequest` ECC request structure.
+/// * `Err(Error)` if the data is invalid or incomplete.
+#[cfg(feature = "ssl")]
+pub fn read_ssl_ecc_response(mut response: &[u8]) -> Result<EccRequest, Error> {
+    let reader = &mut response;
+    let mut ecc_req = EccRequest::default();
+
+    // ecc request type
+    ecc_req.ecc_info.req = read16(reader)?.into();
+    // status
+    ecc_req.ecc_info.status = read16(reader)?;
+    // user data
+    ecc_req.ecc_info.user_data = read32le(reader)?;
+    // sequence number
+    ecc_req.ecc_info.seq_num = read32le(reader)?;
+
+    match ecc_req.ecc_info.req {
+        EccRequestType::ClientEcdh | EccRequestType::ServerEcdh => {
+            let mut ecdh_info = EcdhInfo::default();
+
+            // x-coordinate
+            reader.read_exact(&mut ecdh_info.ecc_point.x_cord)?;
+            // y-coordinate
+            reader.read_exact(&mut ecdh_info.ecc_point.y_cord)?;
+            // point size
+            ecdh_info.ecc_point.point_size = read16(reader)?;
+            // private key id
+            ecdh_info.ecc_point.private_key_id = read16(reader)?;
+            // secret / private key
+            reader.read_exact(&mut ecdh_info.private_key)?;
+
+            ecc_req.ecdh_info = Some(ecdh_info);
+        }
+        EccRequestType::GenerateSignature => {
+            let ecdsa_sign = EcdsaSignInfo {
+                curve_type: read16(reader)?.into(),
+                hash_size: read16(reader)?,
+            };
+
+            ecc_req.ecdsa_sign_info = Some(ecdsa_sign);
+        }
+        EccRequestType::VerifySignature => {
+            let ecdsa_verify = read32le(reader)?;
+            ecc_req.ecdsa_verify_info = Some(ecdsa_verify);
+        }
+
+        EccRequestType::Unknown => {
+            return Err(Error::InvalidHifResponse("Invalid ECC request received."));
+        }
+        _ => {
+            // do nothing
+        }
+    }
+
+    Ok(ecc_req)
 }
 
 #[cfg(test)]
