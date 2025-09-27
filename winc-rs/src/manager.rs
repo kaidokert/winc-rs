@@ -578,7 +578,7 @@ impl<X: Xfer> Manager<X> {
     /// * `gid` - HIF Group ID. (e.g., WiFi, IP, OTA, HIF).
     /// * `op` - Operation ID.
     /// * `len` - Length of the data/control packet to send.
-    /// * `req_data` - Indicates whether request data is expected from the chip.
+    /// * `req_data` - Indicates whether to request data from the chip.
     ///
     /// # Returns
     ///
@@ -654,7 +654,10 @@ impl<X: Xfer> Manager<X> {
         };
 
         if len > u16::MAX as usize {
-            error!("The length of the HIF payload exceeds the maximum allowed value: {len}");
+            error!(
+                "The length of the data/control packet exceeds the maximum value: expected up to 65,535, got {}",
+                len
+            );
             return Err(Error::BufferError);
         }
 
