@@ -19,6 +19,9 @@ pub struct AsyncClient<'a, X: Xfer> {
 }
 
 impl<X: Xfer> AsyncClient<'_, X> {
+    #[cfg(test)]
+    const DNS_TIMEOUT: u32 = 50; // Shorter timeout for tests
+    #[cfg(not(test))]
     const DNS_TIMEOUT: u32 = 1000;
 
     pub fn new(transfer: X) -> Self {
