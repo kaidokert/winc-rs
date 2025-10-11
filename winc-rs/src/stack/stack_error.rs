@@ -45,6 +45,8 @@ pub enum StackError {
     SocketNotFound,
     /// Parameters are not valid.
     InvalidParameters,
+    /// Response is invalid
+    InvalidResponse,
     #[cfg(feature = "experimental-ota")]
     /// Ota Error
     OtaFail(OtaUpdateError),
@@ -124,6 +126,7 @@ impl core::fmt::Display for StackError {
             Self::ContinueOperation => write!(f, "Continue operation"),
             Self::SocketNotFound => write!(f, "Socket not found"),
             Self::InvalidParameters => write!(f, "Invalid parameters"),
+            Self::InvalidResponse => write!(f, "Invalid response"),
             #[cfg(feature = "experimental-ota")]
             Self::OtaFail(err) => write!(f, "Ota failure: {:?}", err),
         }

@@ -12,65 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use super::StackError;
-use super::WincClient;
-use super::Xfer;
+use embedded_nal::nb;
 
-use crate::manager::{EccInfo, EccPoint, EcdhInfo, SslCertExpiryOpt};
+use super::{StackError, WincClient, Xfer};
+#[cfg(feature = "experimental-ecc")]
+use crate::error;
 
-// @note: The `m2m_ssl_retrieve_hash` API is not supported because
-// there is no way to validate that the SSL HIF register address
-// received from the ECC response callback points to the memory
-// region containing the certificate hash.
+#[cfg(feature = "experimental-ecc")]
+use crate::manager::{EccInfo, EccPoint, EccRequestType, EcdhInfo};
+
+use crate::manager::{SslCertExpiryOpt, SslCipherSuite};
 
 // Default timeout to wait for response of SSL request is 1 second.
-//const SSL_REQ_TIMEOUT: u32 = 1000;
-
-/// SSL Cipher Suites
-/// By default, the WINC1500 hardware accelerator only supports AES-128.
-/// To use AES-256 cipher suites, call the `ssl_set_cipher_suite` function.
-#[repr(u32)]
-pub enum SslCipherSuite {
-    // Individual Ciphers
-    RsaWithAes128CbcSha = 0x01,
-    RsaWithAes128CbcSha256 = 0x02,
-    DheRsaWithAes128CbcSha = 0x04,
-    DheRsaWithAes128CbcSha256 = 0x08,
-    RsaWithAes128GcmSha256 = 0x10,
-    DheRsaWithAes128GcmSha256 = 0x20,
-    RsaWithAes256CbcSha = 0x40,
-    RsaWithAes256CbcSha256 = 0x80,
-    DheRsaWithAes256CbcSha = 0x100,
-    DheRsaWithAes256CbcSha256 = 0x200,
-    EcdheRsaWithAes128CbcSha = 0x400,
-    EcdheRsaWithAes256CbcSha = 0x800,
-    EcdheRsaWithAes128CbcSha256 = 0x1000,
-    EcdheEcdsaWithAes128CbcSha256 = 0x2000,
-    EcdheRsaWithAes128GcmSha256 = 0x4000,
-    EcdheEcdsaWithAes128GcmSha256 = 0x8000,
-    // Grouped Ciphers
-    /// ECC ciphers using ECC authentication with AES 128 encryption only.
-    /// By default, this group is disabled on startup.
-    EccOnlyAes128 = 0xA000,
-    /// ECC ciphers using any authentication with AES-128 encryption.
-    /// By default, this group is disabled on startup.
-    EccAllAes128 = 0xF400,
-    /// All none ECC ciphers using AES-128 encryption.
-    /// By default, this group is active on startup.
-    NoEccAes128 = 0x3F,
-    /// All none ECC ciphers using AES-256 encryption.
-    NoEccAes256 = 0x3C0,
-    /// All supported ciphers.
-    /// By default, this group is disabled on startup.
-    AllCiphers = 0xFFFF,
-}
-
-/// Implementation to convert `SslCipherSuite` to `u32`.
-impl From<SslCipherSuite> for u32 {
-    fn from(val: SslCipherSuite) -> Self {
-        val as u32
-    }
-}
+const SSL_REQ_TIMEOUT: u32 = 1000; 
 
 impl<X: Xfer> WincClient<'_, X> {
     /// Configure the SSL certificate expiry option.
@@ -87,18 +41,44 @@ impl<X: Xfer> WincClient<'_, X> {
         Ok(self.manager.send_ssl_cert_expiry(opt)?)
     }
 
-    /// Sends an SSL certificate to the module.
+    /// Sets the SSL/TLS cipher suite for the WINC module.
     ///
     /// # Arguments
     ///
-    /// * `cert` – A byte slice containing the SSL certificate data.
+    /// * `ssl_cipher` - The cipher suite to be set.
     ///
     /// # Returns
     ///
-    /// * `Ok(())` – If the certificate was successfully sent.
-    /// * `Err(StackError)` – If an error occurred while sending the certificate.
-    pub fn ssl_send_certificate(&mut self, cert: &[u8]) -> Result<(), StackError> {
-        Ok(self.manager.send_ssl_cert(cert)?)
+    /// * `Ok(())` - If the cipher suite was successfully set.
+    /// * `Err(StackError)` - If an error occurred while configuring the cipher suite.
+    pub fn ssl_set_cipher_suite(&mut self, ssl_cipher: SslCipherSuite) -> nb::Result<(), StackError> {
+        match self.callbacks.ssl_cb_info.cipher_suite_bitmap {
+            None => {
+                self.manager.send_ssl_set_cipher_suite(ssl_cipher.into())?;
+                self.operation_countdown = SSL_REQ_TIMEOUT;
+                self.callbacks.ssl_cb_info.cipher_suite_bitmap = Some(None);
+            }
+            Some(rcvd_cs_opt) => {
+                if let Some(rcvd_cs_bitmap) = rcvd_cs_opt {
+                    self.callbacks.ssl_cb_info.cipher_suite_bitmap = None;
+                    if rcvd_cs_bitmap == u32::from(ssl_cipher) {
+                        return Ok(());
+                    } else {
+                        return Err(nb::Error::Other(StackError::InvalidResponse));
+                    }
+                } else {
+                    self.delay_us(self.poll_loop_delay_us);
+                    self.operation_countdown -= 1;
+                    if self.operation_countdown == 0 {
+                        self.callbacks.ssl_cb_info.cipher_suite_bitmap = None;
+                        return Err(nb::Error::Other(StackError::GeneralTimeout));
+                    }
+                }
+            }
+        }
+
+        self.dispatch_events_may_wait()?;
+        Err(nb::Error::WouldBlock)
     }
 
     /// Sends an ECC handshake response to the module.
@@ -116,18 +96,27 @@ impl<X: Xfer> WincClient<'_, X> {
     ///
     /// * `Ok(())` – If the response was successfully sent.
     /// * `Err(StackError)` – If an error occurred while sending the response.
+    #[cfg(feature = "experimental-ecc")]
     pub fn ssl_send_ecc_resp(
         &mut self,
         ecc_info: &EccInfo,
         ecdh_info: &EcdhInfo,
         resp_buffer: &[u8],
     ) -> Result<(), StackError> {
+        // clear the previously acquired ECC HIF register.
+        if let Some(ecc_req) = self.callbacks.ssl_cb_info.ecc_req.as_mut() {
+            ecc_req.hif_reg = 0;
+        }
+
         Ok(self
             .manager
-            .send_ssl_ecc_resp(ecc_info, ecdh_info, resp_buffer)?)
+            .send_ecc_resp(ecc_info, ecdh_info, resp_buffer)?)
     }
 
-    /// Reads the SSL certificate from the module.
+    /// Reads the SSL certificate from the WINC module.
+    ///
+    /// This function only attempts to read the certificate if an ECC request of type
+    /// `EccRequestType::VerifySignature` is received from the WINC module.
     ///
     /// # Arguments
     ///
@@ -140,6 +129,7 @@ impl<X: Xfer> WincClient<'_, X> {
     ///
     /// * `Ok(())` – If the certificate was successfully read.
     /// * `Err(StackError)` – If an error occurred while reading the certificate.
+    #[cfg(feature = "experimental-ecc")]
     pub fn ssl_read_certificate(
         &mut self,
         curve_type: &mut u16,
@@ -147,60 +137,143 @@ impl<X: Xfer> WincClient<'_, X> {
         signature: &mut [u8],
         ecc_point: &mut EccPoint,
     ) -> Result<(), StackError> {
-        let mut hif_addr = self
-            .callbacks
-            .ssl_cb_info
-            .ecc_hif_reg
-            .ok_or(StackError::InvalidState)?;
-        let mut opts = [0u8; 8]; // read the ssl options.
+        match self.callbacks.ssl_cb_info.ecc_req.as_ref() {
+            None => {
+                error!("ECC request is not received from the module.");
+                return Err(StackError::InvalidState);
+            }
+            Some(ecc_req) => {
+                // Check if the ECC request type is valid.
+                if ecc_req.ecc_info.req != EccRequestType::VerifySignature {
+                    error!(
+                        "Received ECC request type is invalid for this operation. Expected: {:?}, got: {:?}.",
+                        EccRequestType::VerifySignature,
+                        ecc_req.ecc_info.req
+                    );
+                    return Err(StackError::InvalidState);
+                }
 
-        // Read the Curve Type, Key, Hash and Signature size.
-        self.manager.read_ssl_cert_feat(hif_addr, &mut opts)?;
-        hif_addr += 8;
+                let mut hif_addr = self
+                    .callbacks
+                    .ssl_cb_info
+                    .ecc_req
+                    .as_ref()
+                    .map(|ecc_req| ecc_req.hif_reg)
+                    .ok_or(StackError::InvalidState)?;
 
-        // Parse the values from the buffer
-        *curve_type = u16::from_be_bytes([opts[0], opts[1]]);
-        ecc_point.point_size = u16::from_be_bytes([opts[2], opts[3]]);
-        let hash_size = u16::from_be_bytes([opts[4], opts[5]]);
-        let sig_size = u16::from_be_bytes([opts[6], opts[7]]);
+                let mut opts = [0u8; 8]; // read the ssl options.
 
-        // Read the ECC Point-X
-        let to_read_len = (ecc_point.point_size * 2) as usize;
-        if ecc_point.x_cord.len() < to_read_len {
-            return Err(StackError::InvalidParameters);
+                // Read the Curve Type, Key, Hash and Signature size.
+                self.manager.read_ecc_info(hif_addr, &mut opts)?;
+                hif_addr += 8;
+
+                // Parse the values from the buffer
+                *curve_type = u16::from_be_bytes([opts[0], opts[1]]);
+                ecc_point.point_size = u16::from_be_bytes([opts[2], opts[3]]);
+                let hash_size = u16::from_be_bytes([opts[4], opts[5]]);
+                let sig_size = u16::from_be_bytes([opts[6], opts[7]]);
+
+                // Read the ECC Point-X
+                let to_read_len = (ecc_point.point_size * 2) as usize;
+                if ecc_point.x_cord.len() < to_read_len {
+                    return Err(StackError::InvalidParameters);
+                }
+
+                self.manager
+                    .read_ecc_info(hif_addr, &mut ecc_point.x_cord[..to_read_len])?;
+                hif_addr += to_read_len as u32;
+
+                // Read the hash
+                self.manager
+                    .read_ecc_info(hif_addr, &mut hash[..hash_size as usize])?;
+                hif_addr += hash_size as u32;
+
+                // Read the Signature
+                self.manager
+                    .read_ecc_info(hif_addr, &mut signature[..sig_size as usize])?;
+
+                Ok(())
+            }
         }
-
-        self.manager
-            .read_ssl_cert_feat(hif_addr, &mut ecc_point.x_cord[..to_read_len])?;
-        hif_addr += to_read_len as u32;
-
-        // Read the hash
-        self.manager
-            .read_ssl_cert_feat(hif_addr, &mut hash[..hash_size as usize])?;
-        hif_addr += hash_size as u32;
-
-        // Read the Signature
-        self.manager
-            .read_ssl_cert_feat(hif_addr, &mut signature[..sig_size as usize])?;
-
-        // clear the Hif register
-        self.callbacks.ssl_cb_info.ecc_hif_reg = None;
-
-        // mark the rx done
-        Ok(self.manager.send_ssl_cert_read_complete()?)
     }
 
-    /// Sets the SSL/TLS cipher suite for the WINC module.
+    /// Clears the ECC information available to read from the WINC module.
     ///
-    /// # Arguments
-    ///
-    /// * `ssl_cipher` -  Required cipher suite to set.
+    /// This function should only be called if an ECC request of type
+    /// `EccRequestType::VerifySignature` or `EccRequestType::GenerateSignature`
+    /// has been received from the WINC module.
+    /// It must not be called if all information has already been read,
+    /// as calling it in that case will clear all remaining information.
     ///
     /// # Returns
     ///
-    /// * `Ok(())` - If the cipher suite was successfully set.
-    /// * `Err(StackError)` - If an error occurred while configuring the cipher suite.
-    pub fn ssl_set_cipher_suite(&mut self, ssl_cipher: SslCipherSuite) -> Result<(), StackError> {
-        Ok(self.manager.send_ssl_set_cipher_suite(ssl_cipher.into())?)
+    /// * `Ok(())` - If the ECC information was successfully cleared.
+    /// * `Err(StackError)` - If an error occurred while clearing the information.
+    #[cfg(feature = "experimental-ecc")]
+    pub fn ssl_clear_ecc_readable(&mut self) -> Result<(), StackError> {
+        // check if ecc request is received from the module.
+        match self.callbacks.ssl_cb_info.ecc_req.as_ref() {
+            Some(ecc_req) => {
+                // check if the valid ecc request type is received from the module.
+                if ecc_req.ecc_info.req != EccRequestType::VerifySignature
+                    && ecc_req.ecc_info.req != EccRequestType::GenerateSignature
+                {
+                    error!("Received ECC request type is invalid for this operation.");
+                    return Err(StackError::InvalidState);
+                }
+
+                Ok(self.manager.send_ecc_read_complete()?)
+            }
+            None => {
+                error!("ECC request is not received from the module.");
+                return Err(StackError::InvalidState);
+            }
+        }
+    }
+
+    /// Reads the ECDSA digest from the WINC module.
+    ///
+    /// The size of the digest or hash to be read can be determined from
+    /// the `EccRequestType::GenerateSignature` request received from the module.
+    ///
+    /// # Arguments
+    ///
+    /// * `digest` - A mutable buffer to store the ECDSA digest.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - If the digest was successfully read.
+    /// * `Err(StackError)` - If an error occurred while reading the digest.
+    #[cfg(feature = "experimental-ecc")]
+    pub fn ssl_read_ecdsa_digest(&mut self, digest: &mut [u8]) -> Result<(), StackError> {
+        // check if ecc request is received from the module.
+        match self.callbacks.ssl_cb_info.ecc_req.as_ref() {
+            Some(ecc_req) => {
+                // check if the valid ecc request type is received from the module.
+                if ecc_req.ecc_info.req != EccRequestType::GenerateSignature {
+                    error!(
+                        "Received ECC request type is invalid for this operation. Expected: {:?}, got: {:?}.",
+                        EccRequestType::GenerateSignature,
+                        ecc_req.ecc_info.req
+                    );
+                    return Err(StackError::InvalidState);
+                }
+
+                // read the ECDSA signing digest.
+                let ecc_reg = self
+                    .callbacks
+                    .ssl_cb_info
+                    .ecc_req
+                    .as_ref()
+                    .map(|ecc_req| ecc_req.hif_reg)
+                    .ok_or(StackError::InvalidState)?;
+
+                Ok(self.manager.read_ecc_info(ecc_reg, digest)?)
+            }
+            None => {
+                error!("ECC request is not received from the module.");
+                return Err(StackError::InvalidState);
+            }
+        }
     }
 }

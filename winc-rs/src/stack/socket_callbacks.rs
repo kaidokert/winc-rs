@@ -13,7 +13,10 @@ use crate::manager::{OtaUpdateError, OtaUpdateStatus};
 use crate::manager::{WepKey, WepKeyIndex};
 
 #[cfg(feature = "ssl")]
-use crate::manager::{EccRequest, SslCallbackInfo, SslResponse};
+use crate::manager::{SslCallbackInfo, SslResponse};
+
+#[cfg(feature = "experimental-ecc")]
+use crate::manager::EccRequest;
 
 use super::sock_holder::{SockHolder, SocketStore};
 use crate::{debug, error, info};
@@ -793,16 +796,15 @@ impl EventListener for SocketCallbacks {
         &mut self,
         ssl_res: SslResponse,
         cipher_suite: Option<u32>,
-        ecc_req: Option<EccRequest>,
-        hif_reg: Option<u32>,
+        #[cfg(feature = "experimental-ecc")] ecc_req: Option<EccRequest>,
     ) {
         match ssl_res {
             SslResponse::CipherSuiteUpdate => {
                 self.ssl_cb_info.cipher_suite_bitmap = Some(cipher_suite);
             }
+            #[cfg(feature = "experimental-ecc")]
             SslResponse::EccReqUpdate => {
                 self.ssl_cb_info.ecc_req = ecc_req;
-                self.ssl_cb_info.ecc_hif_reg = hif_reg;
             }
             _ => {
                 error!("Invalid SSL event received.");
