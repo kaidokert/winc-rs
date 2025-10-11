@@ -24,7 +24,7 @@ use super::constants::{
 use crate::errors::CommError as Error;
 
 use super::net_types::{HostName, Ssid, WpaKey};
-#[cfg(feature = "ssl")]
+#[cfg(feature = "experimental-ecc")]
 use super::{
     constants::EccRequestType,
     net_types::{EccRequest, EcdhInfo, EcdsaSignInfo},
@@ -510,7 +510,7 @@ pub fn read_provisioning_reply(mut response: &[u8]) -> Result<(Ssid, WpaKey, u8,
 ///
 /// * `EccRequest` ECC request structure.
 /// * `Err(Error)` if the data is invalid or incomplete.
-#[cfg(feature = "ssl")]
+#[cfg(feature = "experimental-ecc")]
 pub fn read_ssl_ecc_response(mut response: &[u8]) -> Result<EccRequest, Error> {
     let reader = &mut response;
     let mut ecc_req = EccRequest::default();

@@ -21,7 +21,7 @@ use super::constants::{
     MAX_S802_USERNAME_LEN, MAX_SSID_LEN, MAX_WEP_KEY_LEN, MIN_PSK_KEY_LEN,
 };
 
-#[cfg(feature = "ssl")]
+#[cfg(feature = "experimental-ecc")]
 use super::constants::{EccCurveType, EccRequestType};
 
 #[cfg(feature = "wep")]
@@ -30,7 +30,7 @@ use core::net::Ipv4Addr;
 
 /// Default IP address "192.168.1.1" for access point and provisioning mode.
 const DEFAULT_AP_IP: u32 = 0xC0A80101;
-#[cfg(feature = "ssl")]
+#[cfg(feature = "experimental-ecc")]
 const ECC_POINT_MAX_SIZE: usize = 32;
 
 /// Device Domain name.
@@ -46,7 +46,7 @@ pub type S8Username = ArrayString<MAX_S802_USERNAME_LEN>;
 /// S802_1X Password
 pub type S8Password = ArrayString<MAX_S802_PASSWORD_LEN>;
 /// ECDSA Verify Information.
-#[cfg(feature = "ssl")]
+#[cfg(feature = "experimental-ecc")]
 pub type EcdsaVerifyInfo = u32;
 
 /// Wi-Fi Security Credentials.
@@ -66,7 +66,7 @@ pub enum Credentials {
 }
 
 /// Socket Options
-#[derive(Debug, PartialEq, Eq)]
+#[derive(PartialEq, Eq)]
 pub enum SocketOptions {
     Tcp(TcpSockOpts),
     Udp(UdpSockOpts),
@@ -74,7 +74,7 @@ pub enum SocketOptions {
 
 /// Socket Options
 #[repr(u8)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 pub enum UdpSockOpts {
     /// Receive Timeout
     ReceiveTimeout(u32) = 0xff,
@@ -88,7 +88,7 @@ pub enum UdpSockOpts {
 
 /// TCP Socket Options
 #[repr(u8)]
-#[derive(Debug, PartialEq, Eq)]
+#[derive(PartialEq, Eq)]
 pub enum TcpSockOpts {
     /// Receive Timeout
     ReceiveTimeout(u32) = 0xff,
@@ -100,7 +100,7 @@ pub enum TcpSockOpts {
 /// TLS Socket Option
 #[cfg(feature = "ssl")]
 #[repr(u8)]
-#[derive(Debug, PartialEq, Eq)]
+#[derive(PartialEq, Eq)]
 // Note: The `Copy` trait is not implemented to avoid
 // copying the `ArrayString` (HostName).
 pub enum SslSockOpts {
@@ -113,7 +113,7 @@ pub enum SslSockOpts {
 /// TLS Socket Configuration
 #[cfg(feature = "ssl")]
 #[repr(u8)]
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(PartialEq, Eq, Clone, Copy)]
 pub enum SslSockConfig {
     /// Enable SSL.
     EnableSSL = 0x21, // 0x01 | 0x20 (SSL_FLAGS_NO_TX_COPY)
@@ -156,7 +156,7 @@ pub struct AccessPoint<'a> {
 }
 
 /// Elliptic Curve point representation.
-#[cfg(feature = "ssl")]
+#[cfg(feature = "experimental-ecc")]
 #[derive(Default)]
 pub struct EccPoint {
     /// The X-coordinate of the ecc point.
@@ -170,7 +170,7 @@ pub struct EccPoint {
 }
 
 /// Elliptic Curve Diffie-Hellman (ECDH) information.
-#[cfg(feature = "ssl")]
+#[cfg(feature = "experimental-ecc")]
 #[derive(Default)]
 pub struct EcdhInfo {
     /// ECC public key.
@@ -181,7 +181,7 @@ pub struct EcdhInfo {
 }
 
 /// Elliptic Curve Digital Signature Algorithm (ECDSA) signing information.
-#[cfg(feature = "ssl")]
+#[cfg(feature = "experimental-ecc")]
 #[derive(Default)]
 pub struct EcdsaSignInfo {
     /// Key Curve Type (NIST P-256, P-384)
@@ -191,7 +191,7 @@ pub struct EcdsaSignInfo {
 }
 
 /// ECC Operations Info.
-#[cfg(feature = "ssl")]
+#[cfg(feature = "experimental-ecc")]
 #[derive(Default)]
 pub struct EccInfo {
     /// ECC Request type (ECDH, ECDSA Sign or ECDSA Verify)
@@ -209,9 +209,10 @@ pub struct EccInfo {
 }
 
 /// ECC Request Information received from WINC.
-#[cfg(feature = "ssl")]
+#[cfg(feature = "experimental-ecc")]
 #[derive(Default)]
 pub(crate) struct EccRequest {
+    pub hif_reg: u32,
     pub ecc_info: EccInfo,
     pub ecdh_info: Option<EcdhInfo>,
     pub ecdsa_sign_info: Option<EcdsaSignInfo>,
@@ -222,9 +223,9 @@ pub(crate) struct EccRequest {
 #[cfg(feature = "ssl")]
 #[derive(Default)]
 pub(crate) struct SslCallbackInfo {
-    pub(crate) ecc_req: Option<EccRequest>,
     pub(crate) cipher_suite_bitmap: Option<Option<u32>>,
-    pub(crate) ecc_hif_reg: Option<u32>,
+    #[cfg(feature = "experimental-ecc")]
+    pub(crate) ecc_req: Option<EccRequest>,
 }
 
 /// Implementation to convert the Credentials to Authentication Type

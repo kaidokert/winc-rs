@@ -55,7 +55,7 @@ pub(crate) const PRNG_DATA_LENGTH: usize = 32;
 /// Page size of Flash memory.
 pub(crate) const FLASH_PAGE_SIZE: usize = 256;
 /// Packet Size of SSL ECC request/response.
-#[cfg(feature = "ssl")]
+#[cfg(feature = "experimental-ecc")]
 pub(crate) const SSL_ECC_REQ_PACKET_SIZE: usize = 112;
 /// Packet size of cipher suite bitmap (u32).
 #[cfg(feature = "ssl")]
@@ -332,38 +332,30 @@ pub enum IpCode {
     #[default]
     Unhandled,
     // Implemented Socket Commands
-    Bind = 0x41,       // SOCKET_CMD_BIND + tstrBindCmd (exists, works)
-    Listen = 0x42,     // SOCKET_CMD_LISTEN + tstrListenCmd (exists, works)
-    Accept = 0x43,     // SOCKET_CMD_ACCEPT + no params (exists, works)
-    Connect = 0x44,    // SOCKET_CMD_CONNECT + tstrConnectCmd (exists, works)
-    Send = 0x45,       // SOCKET_CMD_SEND + tstrSendCmd + data (exists, works)
-    Recv = 0x46,       // SOCKET_CMD_RECV + tstrRecvCmd (exists, works)
-    SendTo = 0x47,     // SOCKET_CMD_SENDTO + tstrSendCmd + data (works)
-    RecvFrom = 0x48,   // SOCKET_CMD_RECVFROM + tstrRecvCmd (exists, works)
-    Close = 0x49,      // SOCKET_CMD_CLOSE + tstrCloseCmd (exists, works)
-    DnsResolve = 0x4A, // SOCKET_CMD_DNS_RESOLVE + hostname string (works)
-    Ping = 0x52,       // SOCKET_CMD_PING + tstrPingCmd (exists, works)
-    #[cfg(feature = "ssl")]
-    SslConnect = 0x4B, // SOCKET_CMD_SSL_CONNECT + tstrConnectCmd
-    #[cfg(feature = "ssl")]
-    SslSend = 0x4C, // SOCKET_CMD_SSL_SEND + tstrSendCmd + data
-    #[cfg(feature = "ssl")]
-    SslRecv = 0x4D, // SOCKET_CMD_SSL_RECV + tstrRecvCmd
-    #[cfg(feature = "ssl")]
-    SslClose = 0x4E, // SOCKET_CMD_SSL_CLOSE + tstrCloseCmd
+    Bind = 0x41,            // SOCKET_CMD_BIND + tstrBindCmd (exists, works)
+    Listen = 0x42,          // SOCKET_CMD_LISTEN + tstrListenCmd (exists, works)
+    Accept = 0x43,          // SOCKET_CMD_ACCEPT + no params (exists, works)
+    Connect = 0x44,         // SOCKET_CMD_CONNECT + tstrConnectCmd (exists, works)
+    Send = 0x45,            // SOCKET_CMD_SEND + tstrSendCmd + data (exists, works)
+    Recv = 0x46,            // SOCKET_CMD_RECV + tstrRecvCmd (exists, works)
+    SendTo = 0x47,          // SOCKET_CMD_SENDTO + tstrSendCmd + data (works)
+    RecvFrom = 0x48,        // SOCKET_CMD_RECVFROM + tstrRecvCmd (exists, works)
+    Close = 0x49,           // SOCKET_CMD_CLOSE + tstrCloseCmd (exists, works)
+    DnsResolve = 0x4A,      // SOCKET_CMD_DNS_RESOLVE + hostname string (works)
+    Ping = 0x52,            // SOCKET_CMD_PING + tstrPingCmd (exists, works)
+    SslConnect = 0x4B,      // SOCKET_CMD_SSL_CONNECT + tstrConnectCmd
+    SslSend = 0x4C,         // SOCKET_CMD_SSL_SEND + tstrSendCmd + data
+    SslRecv = 0x4D,         // SOCKET_CMD_SSL_RECV + tstrRecvCmd
+    SslClose = 0x4E,        // SOCKET_CMD_SSL_CLOSE + tstrCloseCmd
     SetSocketOption = 0x4F, // SOCKET_CMD_SET_SOCKET_OPTION + tstrSetSocketOptCmd
-    #[cfg(feature = "ssl")]
     SslCreate = 0x50, // SOCKET_CMD_SSL_CREATE + tstrSSLSocketCreateCmd
-    #[cfg(feature = "ssl")]
     SslSetSockOpt = 0x51, // SOCKET_CMD_SSL_SET_SOCK_OPT + tstrSSLSetSockOptCmd
-    #[cfg(feature = "ssl")]
-    SslBind = 0x54, // SOCKET_CMD_SSL_BIND + tstrBindCmd
-    #[cfg(feature = "ssl")]
+    SslBind = 0x54,         // SOCKET_CMD_SSL_BIND + tstrBindCmd
     SslExpCheck = 0x55, // SOCKET_CMD_SSL_EXP_CHECK + tstrSslCertExpSettings
 
-                       // Unimplemented Socket Commands (defined but not used)
-                       // Socket = 0x40,      // SOCKET_CMD_SOCKET + no params (not sent, implicit in host logic)
-                       // SslSetCsList = 0x53, // SOCKET_CMD_SSL_SET_CS_LIST + no specific data
+                            // Unimplemented Socket Commands (defined but not used)
+                            // Socket = 0x40,      // SOCKET_CMD_SOCKET + no params (not sent, implicit in host logic)
+                            // SslSetCsList = 0x53, // SOCKET_CMD_SSL_SET_CS_LIST + no specific data
 }
 
 /// Implementation to convert `IpCode` to `u8` value.
@@ -386,24 +378,15 @@ impl From<u8> for IpCode {
             0x48 => Self::RecvFrom,
             0x49 => Self::Close,
             0x4A => Self::DnsResolve,
-            #[cfg(feature = "ssl")]
             0x4B => Self::SslConnect,
-            #[cfg(feature = "ssl")]
             0x4C => Self::SslSend,
-            #[cfg(feature = "ssl")]
             0x4D => Self::SslRecv,
-            #[cfg(feature = "ssl")]
             0x4E => Self::SslClose,
-            #[cfg(feature = "ssl")]
             0x4F => Self::SetSocketOption,
-            #[cfg(feature = "ssl")]
             0x50 => Self::SslCreate,
-            #[cfg(feature = "ssl")]
             0x51 => Self::SslSetSockOpt,
             0x52 => Self::Ping,
-            #[cfg(feature = "ssl")]
             0x54 => Self::SslBind,
-            #[cfg(feature = "ssl")]
             0x55 => Self::SslExpCheck,
             _ => Self::Unhandled,
         }
@@ -534,7 +517,7 @@ pub(crate) enum SslRequest {
     Unhandled = 0xff,       // Invalid Request
     SendEccResponse = 0x02, // Send ECC Response
     NotifyCrl = 0x03,       // Update Certificate Revocation List
-    SendCertificate = 0x04, // Send ECC Certificates
+    SendCertificate = 0x04, // Send SSL Certificates
     SetCipherSuites = 0x05, // Set the custom ciphers suites list
 }
 
@@ -780,9 +763,10 @@ impl From<SslCertExpiryOpt> for u32 {
 }
 
 /// ECC request type.
-#[cfg(feature = "ssl")]
+#[cfg(feature = "experimental-ecc")]
 #[repr(u16)]
-#[derive(Clone, Copy, Default)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[derive(Clone, Copy, Default, PartialEq, Eq)]
 pub enum EccRequestType {
     #[default]
     None = 0,
@@ -795,7 +779,7 @@ pub enum EccRequestType {
 }
 
 /// Convert the `EccRequestType` to `u16` value.
-#[cfg(feature = "ssl")]
+#[cfg(feature = "experimental-ecc")]
 impl From<EccRequestType> for u16 {
     fn from(val: EccRequestType) -> Self {
         val as u16
@@ -803,7 +787,7 @@ impl From<EccRequestType> for u16 {
 }
 
 /// Convert the `u16` value to `EccRequestType`.
-#[cfg(feature = "ssl")]
+#[cfg(feature = "experimental-ecc")]
 impl From<u16> for EccRequestType {
     fn from(val: u16) -> Self {
         match val {
@@ -819,7 +803,7 @@ impl From<u16> for EccRequestType {
 }
 
 /// ECC Curve type
-#[cfg(feature = "ssl")]
+#[cfg(feature = "experimental-ecc")]
 #[repr(u16)]
 #[derive(Clone, Copy, Default)]
 pub enum EccCurveType {
@@ -837,7 +821,7 @@ pub enum EccCurveType {
 }
 
 /// Convert `EccCurveType` to `u16` value.
-#[cfg(feature = "ssl")]
+#[cfg(feature = "experimental-ecc")]
 impl From<EccCurveType> for u16 {
     fn from(val: EccCurveType) -> Self {
         val as u16
@@ -845,7 +829,7 @@ impl From<EccCurveType> for u16 {
 }
 
 /// Convert `u16` to `EccCurveType` value.
-#[cfg(feature = "ssl")]
+#[cfg(feature = "experimental-ecc")]
 impl From<u16> for EccCurveType {
     fn from(val: u16) -> Self {
         match val {
@@ -855,5 +839,61 @@ impl From<u16> for EccCurveType {
             25 => Self::Secp521r1,
             _ => Self::Unknown,
         }
+    }
+}
+
+/// SSL Cipher Suites
+/// By default, the WINC1500 hardware accelerator only supports AES-128.
+/// To use AES-256 cipher suites, call the `ssl_set_cipher_suite` function.
+#[repr(u32)]
+pub enum SslCipherSuite {
+    // Individual Ciphers
+    RsaWithAes128CbcSha = 0x01,
+    RsaWithAes128CbcSha256 = 0x02,
+    DheRsaWithAes128CbcSha = 0x04,
+    DheRsaWithAes128CbcSha256 = 0x08,
+    RsaWithAes128GcmSha256 = 0x10,
+    DheRsaWithAes128GcmSha256 = 0x20,
+    RsaWithAes256CbcSha = 0x40,
+    RsaWithAes256CbcSha256 = 0x80,
+    DheRsaWithAes256CbcSha = 0x100,
+    DheRsaWithAes256CbcSha256 = 0x200,
+    #[cfg(feature = "experimental-ecc")]
+    EcdheRsaWithAes128CbcSha = 0x400,
+    #[cfg(feature = "experimental-ecc")]
+    EcdheRsaWithAes256CbcSha = 0x800,
+    #[cfg(feature = "experimental-ecc")]
+    EcdheRsaWithAes128CbcSha256 = 0x1000,
+    #[cfg(feature = "experimental-ecc")]
+    EcdheEcdsaWithAes128CbcSha256 = 0x2000,
+    #[cfg(feature = "experimental-ecc")]
+    EcdheRsaWithAes128GcmSha256 = 0x4000,
+    #[cfg(feature = "experimental-ecc")]
+    EcdheEcdsaWithAes128GcmSha256 = 0x8000,
+    // Grouped Ciphers
+    /// ECC ciphers using ECC authentication with AES 128 encryption only.
+    /// By default, this group is disabled on startup.
+    #[cfg(feature = "experimental-ecc")]
+    EccOnlyAes128 = 0xA000,
+    /// ECC ciphers using any authentication with AES-128 encryption.
+    /// By default, this group is disabled on startup.
+    #[cfg(feature = "experimental-ecc")]
+    EccAllAes128 = 0xF400,
+    /// All none ECC ciphers using AES-128 encryption.
+    /// By default, this group is active on startup.
+    NoEccAes128 = 0x3F,
+    /// All none ECC ciphers using AES-256 encryption.
+    NoEccAes256 = 0x3C0,
+    /// All RSA+AES ciphers
+    AllRsaAes = 0xD3,
+    /// All supported ciphers.
+    /// By default, this group is disabled on startup.
+    AllCiphers = 0xFFFF,
+}
+
+/// Implementation to convert `SslCipherSuite` to `u32`.
+impl From<SslCipherSuite> for u32 {
+    fn from(val: SslCipherSuite) -> Self {
+        val as u32
     }
 }

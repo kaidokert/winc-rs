@@ -66,6 +66,7 @@ irq = [] # Use the IRQ pin on the module.
 experimental-ota = [] # To enable OTA.
 flash-rw = [] # Enable SPI Flash Read/Write access.
 ssl = [] # Enable SSL.
+experimental-ecc = ["ssl"] # Enables the ECDSA/ECDH functions. Depends on "ssl".
 
 # Todo: add feature flags to save binary space
 # - TCP

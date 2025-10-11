@@ -25,10 +25,13 @@ use super::constants::{
 use super::net_types::{AccessPoint, Credentials, HostName, Ssid, WepKey, WpaKey};
 
 #[cfg(feature = "ssl")]
-use super::constants::{SET_SSL_SOCK_OPTS_PACKET_SIZE, SSL_ECC_REQ_PACKET_SIZE};
+use super::{constants::SET_SSL_SOCK_OPTS_PACKET_SIZE, net_types::SslSockOpts};
 
-#[cfg(feature = "ssl")]
-use super::net_types::{EccInfo, EcdhInfo, SslSockOpts};
+#[cfg(feature = "experimental-ecc")]
+use super::{
+    constants::SSL_ECC_REQ_PACKET_SIZE,
+    net_types::{EccInfo, EcdhInfo},
+};
 
 /// Prepares the packet to connect to access point.
 ///
@@ -512,7 +515,7 @@ pub fn write_en_ap_req(ap: &AccessPoint) -> Result<[u8; ENABLE_AP_PACKET_SIZE], 
 ///
 /// * `Ok([u8; SSL_ECC_REQ_PACKET_SIZE])` – A fixed-size byte array containing the ECC response packet.
 /// * `Err(BufferOverflow)` – If the input data exceeds the allowed size or buffer limit.
-#[cfg(feature = "ssl")]
+#[cfg(feature = "experimental-ecc")]
 pub(crate) fn write_ssl_ecc_resp(
     ecc_info: &EccInfo,
     ecdh_info: &EcdhInfo,

@@ -48,16 +48,23 @@ pub(crate) use constants::{PRNG_DATA_LENGTH, SOCKET_BUFFER_MAX_LENGTH};
 #[cfg(feature = "ssl")]
 pub(crate) use self::{
     constants::{SslRequest, SslResponse},
-    net_types::{EccRequest, SslCallbackInfo},
+    net_types::SslCallbackInfo,
 };
 
 #[cfg(feature = "ssl")]
-pub use net_types::{
-    EccInfo, EccPoint, EcdhInfo, EcdsaSignInfo, EcdsaVerifyInfo, SslSockConfig, SslSockOpts,
+pub use self::{
+    constants::{SslCertExpiryOpt, SslCipherSuite},
+    net_types::{SslSockConfig, SslSockOpts},
 };
 
-#[cfg(feature = "ssl")]
-pub use constants::{EccCurveType, EccRequestType, SslCertExpiryOpt};
+#[cfg(feature = "experimental-ecc")]
+pub use self::{
+    constants::{EccCurveType, EccRequestType},
+    net_types::{EccInfo, EccPoint, EcdhInfo, EcdsaSignInfo, EcdsaVerifyInfo},
+};
+
+#[cfg(feature = "experimental-ecc")]
+pub(crate) use net_types::EccRequest;
 
 pub use net_types::{
     AccessPoint, Credentials, HostName, ProvisioningInfo, S8Password, S8Username, SocketOptions,
@@ -234,8 +241,7 @@ pub trait EventListener {
         &mut self,
         ssl_res: SslResponse,
         cipher_suite: Option<u32>,
-        ecc_req: Option<EccRequest>,
-        hif_reg: Option<u32>,
+        #[cfg(feature = "experimental-ecc")] ecc_req: Option<EccRequest>,
     );
 }
 
@@ -1568,6 +1574,9 @@ impl<X: Xfer> Manager<X> {
 
         self.write_hif_header(HifRequest::Ip(IpCode::SslCreate), &req, false)?;
 
+        self.chip
+            .dma_block_write(self.not_a_reg_ctrl_4_dma + HIF_HEADER_OFFSET as u32, &req)?;
+
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
     }
 
@@ -1587,31 +1596,8 @@ impl<X: Xfer> Manager<X> {
 
         self.write_hif_header(HifRequest::Ip(IpCode::SslExpCheck), &req, false)?;
 
-        self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
-    }
-
-    /// Sends a request to configure the provided SSL certificate.
-    ///
-    /// # Arguments
-    ///
-    /// * `cert` - SSL certificate.
-    ///
-    /// # Returns
-    ///
-    /// * `()` - If the request is successfully sent.
-    /// * `Error` - If an error occurs while preparing or sending the request.
-    #[cfg(feature = "ssl")]
-    pub(crate) fn send_ssl_cert(&mut self, cert: &[u8]) -> Result<(), Error> {
-        self.write_hif_header_impl(
-            HifRequest::Ssl(SslRequest::SendCertificate),
-            &[0],
-            true,
-            Some((cert.len(), 0))
-        )?;
-
-        let reg: u32 = self.not_a_reg_ctrl_4_dma + HIF_HEADER_OFFSET as u32 + cert.len() as u32;
-
-        self.chip.dma_block_write(reg, cert)?;
+        self.chip
+            .dma_block_write(self.not_a_reg_ctrl_4_dma + HIF_HEADER_OFFSET as u32, &req)?;
 
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
     }
@@ -1628,8 +1614,8 @@ impl<X: Xfer> Manager<X> {
     ///
     /// * `Ok(())` – If the response is successfully sent.
     /// * `Err(Error)` – If an error occurs while preparing or sending the response.
-    #[cfg(feature = "ssl")]
-    pub(crate) fn send_ssl_ecc_resp(
+    #[cfg(feature = "experimental-ecc")]
+    pub(crate) fn send_ecc_resp(
         &mut self,
         ecc_info: &EccInfo,
         ecdh_info: &EcdhInfo,
@@ -1655,8 +1641,7 @@ impl<X: Xfer> Manager<X> {
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
     }
 
-    /// Reads SSL certificate features (curve type, hash algorithm,
-    /// and signature) from the WINC module.
+    /// Reads ECC information (curve type, hash algorithm, and signature) from the WINC module.
     ///
     /// # Arguments
     ///
@@ -1665,10 +1650,10 @@ impl<X: Xfer> Manager<X> {
     ///
     /// # Returns
     ///
-    /// * `Ok(())` - If the data is successfully read.
-    /// * `Err(Error)` - If an error occurs while reading the data.
-    #[cfg(feature = "ssl")]
-    pub(crate) fn read_ssl_cert_feat(
+    /// * `Ok(())` - If the data was successfully read.
+    /// * `Err(Error)` - If an error occurred while reading the data.
+    #[cfg(feature = "experimental-ecc")]
+    pub(crate) fn read_ecc_info(
         &mut self,
         address: u32,
         resp_buff: &mut [u8],
@@ -1677,12 +1662,10 @@ impl<X: Xfer> Manager<X> {
             .chip
             .dma_block_read(address + HIF_HEADER_OFFSET as u32, resp_buff);
 
-        // Set the RX done if error occurs
+        // Set the RX done if error occurs, this will clear the information
+        // from the module.
         if result.is_err() {
-            error!(
-                "Failed to read SSL certificate feature at address {:x}",
-                address
-            );
+            error!("Failed to read SSL info at address {:x}", address);
             error!("Sending request to stop reading from the module.");
             let reg = self.chip.single_reg_read(Regs::WifiHostRcvCtrl0.into())?;
             self.chip
@@ -1694,14 +1677,14 @@ impl<X: Xfer> Manager<X> {
         Ok(())
     }
 
-    /// Sends a request to stop reading the certificate from the module.
+    /// Sends a request to stop reading ECC information from the module.
     ///
     /// # Returns
     ///
-    /// * `Ok(())` - If the module successfully disables certificate reading.
+    /// * `Ok(())` - If the module successfully disables ECC information reading.
     /// * `Err(Error)` - If an error occurs while updating the module state.
-    #[cfg(feature = "ssl")]
-    pub(crate) fn send_ssl_cert_read_complete(&mut self) -> Result<(), Error> {
+    #[cfg(feature = "experimental-ecc")]
+    pub(crate) fn send_ecc_read_complete(&mut self) -> Result<(), Error> {
         let reg = self.chip.single_reg_read(Regs::WifiHostRcvCtrl0.into())?;
         self.chip
             .single_reg_write(Regs::WifiHostRcvCtrl0.into(), reg | 2)
@@ -1721,11 +1704,10 @@ impl<X: Xfer> Manager<X> {
     pub(crate) fn send_ssl_set_cipher_suite(&mut self, cipher_bitmap: u32) -> Result<(), Error> {
         let req = cipher_bitmap.to_le_bytes();
 
-        self.write_hif_header(
-            HifRequest::Ssl(SslRequest::SetCipherSuites),
-            &req,
-            false
-        )?;
+        self.write_hif_header(HifRequest::Ssl(SslRequest::SetCipherSuites), &req, false)?;
+
+        self.chip
+            .dma_block_write(self.not_a_reg_ctrl_4_dma + HIF_HEADER_OFFSET as u32, &req)?;
 
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
     }
