@@ -16,12 +16,12 @@ use wincwifi::{
 
 const DEFAULT_TEST_SSID: &str = "network";
 const DEFAULT_TEST_PASSWORD: &str = "password";
-const DEFAULT_TEST_HOST: &str = "dhe-rsa-gcm128.ssltest.coapbin.org";
+const DEFAULT_TEST_HOST: &str = "example.org";
 const DEFAULT_TEST_SSL_PORT: &str = "443";
 
 fn program() -> Result<(), StackError> {
     if let Ok(mut ini) = init() {
-        info!("Hello, Winc Module");
+        info!("Hello, SSL");
 
         let mut cnt = create_countdowns(&ini.delay_tick);
         let red_led = &mut ini.red_led;
@@ -38,6 +38,7 @@ fn program() -> Result<(), StackError> {
             ssid.as_str(),
             password
         );
+        info!("Target host: '{}' port: '{}'", host, port_str);
         let mut stack = WincClient::new(SpiStream::new(ini.cs, ini.spi));
 
         let mut v = 0;
@@ -86,6 +87,50 @@ fn program() -> Result<(), StackError> {
         // connect with server
         nb::block!(stack.connect(&mut socket, addr))?;
         info!("Connected with Server");
+
+        // Build and send HTTP GET request with Host header
+        let mut http_get_buf = [0u8; 256];
+        let base = b"GET / HTTP/1.1\r\nHost: ";
+        let suffix = b"\r\n\r\n                            ";
+        let mut pos = 0;
+
+        http_get_buf[..base.len()].copy_from_slice(base);
+        pos += base.len();
+
+        let host_bytes = host.as_bytes();
+        http_get_buf[pos..pos + host_bytes.len()].copy_from_slice(host_bytes);
+        pos += host_bytes.len();
+
+        http_get_buf[pos..pos + suffix.len()].copy_from_slice(suffix);
+        pos += suffix.len();
+
+        let http_get = &http_get_buf[..pos];
+
+        // Debug: print the actual request
+        if let Ok(req_str) = core::str::from_utf8(http_get) {
+            info!("Sending request: '{}'", req_str);
+        }
+
+        // Send the HTTP request
+        let nbytes = nb::block!(stack.send(&mut socket, http_get))?;
+        info!("Request sent {} bytes", nbytes);
+
+        // Receive the response
+        let mut respbuf = [0; 1500];
+        let resplen = nb::block!(stack.receive(&mut socket, &mut respbuf))?;
+        info!("Response received {} bytes", resplen);
+
+        // Parse and display the response
+        let the_received_slice = &respbuf[..resplen];
+        if let Ok(recvd_str) = core::str::from_utf8(the_received_slice) {
+            info!("Response: {}", recvd_str);
+        } else {
+            info!("Response contains non-UTF8 data");
+        }
+
+        // Close the socket
+        stack.close(socket)?;
+        info!("Socket closed");
 
         loop {
             delay_ms(200);

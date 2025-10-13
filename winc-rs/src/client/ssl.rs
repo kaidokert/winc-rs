@@ -24,7 +24,7 @@ use crate::manager::{EccInfo, EccPoint, EccRequestType, EcdhInfo};
 use crate::manager::{SslCertExpiryOpt, SslCipherSuite};
 
 // Default timeout to wait for response of SSL request is 1 second.
-const SSL_REQ_TIMEOUT: u32 = 1000; 
+const SSL_REQ_TIMEOUT: u32 = 1000;
 
 impl<X: Xfer> WincClient<'_, X> {
     /// Configure the SSL certificate expiry option.
@@ -51,7 +51,10 @@ impl<X: Xfer> WincClient<'_, X> {
     ///
     /// * `Ok(())` - If the cipher suite was successfully set.
     /// * `Err(StackError)` - If an error occurred while configuring the cipher suite.
-    pub fn ssl_set_cipher_suite(&mut self, ssl_cipher: SslCipherSuite) -> nb::Result<(), StackError> {
+    pub fn ssl_set_cipher_suite(
+        &mut self,
+        ssl_cipher: SslCipherSuite,
+    ) -> nb::Result<(), StackError> {
         match self.callbacks.ssl_cb_info.cipher_suite_bitmap {
             None => {
                 self.manager.send_ssl_set_cipher_suite(ssl_cipher.into())?;
