@@ -407,12 +407,15 @@ impl EventListener for SocketCallbacks {
         debug!("on_connect: socket {:?}", socket);
         match self.resolve(socket) {
             Some((
-                _,
+                _sock,
                 ClientSocketOp::AsyncOp(
                     AsyncOp::Connect(option),
                     asyncstate @ AsyncState::Pending(_),
                 ),
             )) => {
+                #[cfg(feature = "ssl")]
+                // update the data offset for ssl operations.
+                _sock.set_ssl_data_offset(socket.get_ssl_data_offset());
                 option.replace(ConnectResult { error: err });
                 *asyncstate = AsyncState::Done;
             }

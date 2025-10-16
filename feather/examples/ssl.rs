@@ -11,13 +11,82 @@ use feather::init::init;
 use feather::shared::{create_countdowns, delay_fn};
 use feather::{debug, error, info};
 use wincwifi::{
-    Credentials, SocketOptions, Ssid, SslSockConfig, StackError, WifiChannel, WincClient, SslCipherSuite
+    CommError, Credentials, SocketOptions, Ssid, SslCipherSuite, SslSockConfig, StackError,
+    WifiChannel, WincClient,
 };
 
 const DEFAULT_TEST_SSID: &str = "network";
 const DEFAULT_TEST_PASSWORD: &str = "password";
 const DEFAULT_TEST_HOST: &str = "dhe-rsa-gcm128.ssltest.coapbin.org";
 const DEFAULT_TEST_SSL_PORT: &str = "443";
+
+/// HTTP response parsing errors.
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[derive(Debug, PartialEq, Eq)]
+enum Error {
+    EmptyResponse,
+    IncompleteResponse,
+    DataCorrupted,
+    InvalidStatus(u16),
+}
+
+/// Parse the HTTP response.
+///
+/// # Arguments
+///
+/// `response` - The HTTP response recevied from the server.
+fn parse_http_response(response: &str) -> Result<(), Error> {
+    // Valid HTTP code.
+    const HTTP_OK: u16 = 200;
+    // split the response at line endings.
+    let mut resp_lines = response.lines();
+
+    // 1. Parse status line
+    let status_line = match resp_lines.next() {
+        Some(line) => line,
+        None => return Err(Error::EmptyResponse),
+    };
+
+    // a. split the status line in three parts from space.
+    // e.g: "HTTP/1.1 200 OK" -> ["HTTP/1.1", "200", "OK"]
+    let mut status_parts = status_line.splitn(3, ' ');
+
+    // b. Skip HTTP version
+    let _ = status_parts.next();
+
+    // c. Parse status code
+    let status_code: u16 = status_parts
+        .next()
+        .ok_or(Error::IncompleteResponse)?
+        .parse()
+        .map_err(|_| Error::DataCorrupted)?;
+
+    if status_code != HTTP_OK {
+        return Err(Error::InvalidStatus(status_code));
+    }
+
+    // 2. Skip headers till blank line ("\r\n").
+    for line in &mut resp_lines {
+        if line.trim().is_empty() {
+            break;
+        }
+    }
+
+    // 3. Check if meesage is received in body.
+    let mut body_lines = resp_lines.peekable();
+    if body_lines.peek().is_none() {
+        return Err(Error::IncompleteResponse);
+    } else {
+        info!("-> HTTP Response: {}", status_code);
+
+        // 4. Print the body.
+        for line in body_lines {
+            info!("-> {}", line);
+        }
+    }
+
+    Ok(())
+}
 
 fn program() -> Result<(), StackError> {
     if let Ok(mut ini) = init() {
@@ -86,6 +155,41 @@ fn program() -> Result<(), StackError> {
         // connect with server
         nb::block!(stack.connect(&mut socket, addr))?;
         info!("Connected with Server");
+
+        // Sending HTTP request
+        info!("Sending HTTP request!");
+        let request = b"\
+            GET / HTTP/1.1\r\n\
+            Host: dhe-rsa-gcm128.ssltest.coapbin.org\r\n\
+            User-Agent: winc-rs/0.2.2\r\n\
+            Accept: */*\r\n\r\n";
+
+        nb::block!(stack.send(&mut socket, request))?;
+
+        // receivng okay
+        info!("Waiting for response!");
+        let mut resp_buffer = [0u8; 300];
+        nb::block!(stack.receive(&mut socket, &mut resp_buffer))?;
+
+        let str_response = core::str::from_utf8(&resp_buffer)
+            .map_err(|err| StackError::WincWifiFail(CommError::Utf8Error(err)))?;
+
+        info!("Response received:");
+
+        let result = parse_http_response(str_response);
+
+        if let Err(err) = result {
+            match err {
+                Error::InvalidStatus(code) => {
+                    error!("-> HTTP request failed with error: {}", code);
+                }
+                _ => {
+                    error!("-> Parsing HTTP response failed with error {}", err);
+                }
+            }
+
+            return Err(StackError::InvalidResponse);
+        }
 
         loop {
             delay_ms(200);

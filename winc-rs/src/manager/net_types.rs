@@ -47,7 +47,7 @@ pub type S8Username = ArrayString<MAX_S802_USERNAME_LEN>;
 pub type S8Password = ArrayString<MAX_S802_PASSWORD_LEN>;
 /// ECDSA Verify Information.
 #[cfg(feature = "experimental-ecc")]
-pub type EcdsaVerifyInfo = u32;
+pub(crate) type EcdsaVerifyInfo = u32;
 
 /// Wi-Fi Security Credentials.
 #[repr(u8)]

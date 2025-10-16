@@ -207,7 +207,14 @@ impl<X: Xfer> Manager<X> {
                 let rep = read_ping_reply(&result)?;
                 listener.on_ping(rep.0, rep.1, rep.2, rep.3, rep.4, rep.5)
             }
-            IpCode::Bind | IpCode::SslBind => {
+            IpCode::Bind => {
+                let mut result = [0; 4];
+                self.read_block(address, &mut result)?;
+                let rep = read_common_socket_reply(&result)?;
+                listener.on_bind(rep.0, rep.1);
+            }
+            #[cfg(feature = "ssl")]
+            IpCode::SslBind => {
                 let mut result = [0; 4];
                 self.read_block(address, &mut result)?;
                 let rep = read_common_socket_reply(&result)?;
@@ -225,10 +232,11 @@ impl<X: Xfer> Manager<X> {
                 let rep = read_accept_reply(&result)?;
                 listener.on_accept(rep.0, rep.1, rep.2, rep.3);
             }
-            IpCode::Connect | IpCode::SslConnect => {
+            // The reply for `IpCode::SslConnect` is the same as for `IpCode::Connect`.
+            IpCode::Connect => {
                 let mut result = [0; 4];
                 self.read_block(address, &mut result)?;
-                let rep = read_common_socket_reply(&result)?;
+                let rep = read_connect_socket_reply(&result)?;
                 listener.on_connect(rep.0, rep.1)
             }
             IpCode::SendTo => {
@@ -237,13 +245,14 @@ impl<X: Xfer> Manager<X> {
                 let rep = read_send_reply(&result)?;
                 listener.on_send_to(rep.0, rep.1)
             }
-            IpCode::Send | IpCode::SslSend => {
+            // The reply for `IpCode::SslSend` is the same as for `IpCode::Send`.
+            IpCode::Send => {
                 let mut result = [0; 8];
                 self.read_block(address, &mut result)?;
                 let rep = read_send_reply(&result)?;
                 listener.on_send(rep.0, rep.1)
             }
-            IpCode::Recv | IpCode::SslRecv => {
+            IpCode::Recv => {
                 let mut buffer = [0; SOCKET_BUFFER_MAX_LENGTH];
                 let rep = self.get_recv_reply(address, &mut buffer)?;
                 listener.on_recv(rep.0, rep.1, rep.2, rep.3)
@@ -253,7 +262,13 @@ impl<X: Xfer> Manager<X> {
                 let rep = self.get_recv_reply(address, &mut buffer)?;
                 listener.on_recvfrom(rep.0, rep.1, rep.2, rep.3)
             }
-            IpCode::Close | IpCode::SslClose => {
+            #[cfg(feature = "ssl")]
+            IpCode::SslRecv => {
+                let mut buffer = [0; SOCKET_BUFFER_MAX_LENGTH];
+                let rep = self.get_recv_reply(address, &mut buffer)?;
+                listener.on_recv(rep.0, rep.1, rep.2, rep.3)
+            }
+            IpCode::Close => {
                 unimplemented!("There is no response for close")
             }
             IpCode::SetSocketOption => {

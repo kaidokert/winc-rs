@@ -98,7 +98,7 @@ pub use manager::{
 pub use manager::{WepKey, WepKeyIndex};
 
 #[cfg(feature = "ssl")]
-pub use manager::{SslSockConfig, SslCertExpiryOpt, SslCipherSuite};
+pub use manager::{SslCertExpiryOpt, SslCipherSuite, SslSockConfig};
 
 // TODO: maybe don't expose this directly
 pub use manager::ScanResult;

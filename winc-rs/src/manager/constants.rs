@@ -332,30 +332,38 @@ pub enum IpCode {
     #[default]
     Unhandled,
     // Implemented Socket Commands
-    Bind = 0x41,            // SOCKET_CMD_BIND + tstrBindCmd (exists, works)
-    Listen = 0x42,          // SOCKET_CMD_LISTEN + tstrListenCmd (exists, works)
-    Accept = 0x43,          // SOCKET_CMD_ACCEPT + no params (exists, works)
-    Connect = 0x44,         // SOCKET_CMD_CONNECT + tstrConnectCmd (exists, works)
-    Send = 0x45,            // SOCKET_CMD_SEND + tstrSendCmd + data (exists, works)
-    Recv = 0x46,            // SOCKET_CMD_RECV + tstrRecvCmd (exists, works)
-    SendTo = 0x47,          // SOCKET_CMD_SENDTO + tstrSendCmd + data (works)
-    RecvFrom = 0x48,        // SOCKET_CMD_RECVFROM + tstrRecvCmd (exists, works)
-    Close = 0x49,           // SOCKET_CMD_CLOSE + tstrCloseCmd (exists, works)
-    DnsResolve = 0x4A,      // SOCKET_CMD_DNS_RESOLVE + hostname string (works)
-    Ping = 0x52,            // SOCKET_CMD_PING + tstrPingCmd (exists, works)
-    SslConnect = 0x4B,      // SOCKET_CMD_SSL_CONNECT + tstrConnectCmd
-    SslSend = 0x4C,         // SOCKET_CMD_SSL_SEND + tstrSendCmd + data
-    SslRecv = 0x4D,         // SOCKET_CMD_SSL_RECV + tstrRecvCmd
-    SslClose = 0x4E,        // SOCKET_CMD_SSL_CLOSE + tstrCloseCmd
+    Bind = 0x41,       // SOCKET_CMD_BIND + tstrBindCmd (exists, works)
+    Listen = 0x42,     // SOCKET_CMD_LISTEN + tstrListenCmd (exists, works)
+    Accept = 0x43,     // SOCKET_CMD_ACCEPT + no params (exists, works)
+    Connect = 0x44,    // SOCKET_CMD_CONNECT + tstrConnectCmd (exists, works)
+    Send = 0x45,       // SOCKET_CMD_SEND + tstrSendCmd + data (exists, works)
+    Recv = 0x46,       // SOCKET_CMD_RECV + tstrRecvCmd (exists, works)
+    SendTo = 0x47,     // SOCKET_CMD_SENDTO + tstrSendCmd + data (works)
+    RecvFrom = 0x48,   // SOCKET_CMD_RECVFROM + tstrRecvCmd (exists, works)
+    Close = 0x49,      // SOCKET_CMD_CLOSE + tstrCloseCmd (exists, works)
+    DnsResolve = 0x4A, // SOCKET_CMD_DNS_RESOLVE + hostname string (works)
+    Ping = 0x52,       // SOCKET_CMD_PING + tstrPingCmd (exists, works)
+    #[cfg(feature = "ssl")]
+    SslConnect = 0x4B, // SOCKET_CMD_SSL_CONNECT + tstrConnectCmd
+    #[cfg(feature = "ssl")]
+    SslSend = 0x4C, // SOCKET_CMD_SSL_SEND + tstrSendCmd + data
+    #[cfg(feature = "ssl")]
+    SslRecv = 0x4D, // SOCKET_CMD_SSL_RECV + tstrRecvCmd
+    #[cfg(feature = "ssl")]
+    SslClose = 0x4E, // SOCKET_CMD_SSL_CLOSE + tstrCloseCmd
     SetSocketOption = 0x4F, // SOCKET_CMD_SET_SOCKET_OPTION + tstrSetSocketOptCmd
+    #[cfg(feature = "ssl")]
     SslCreate = 0x50, // SOCKET_CMD_SSL_CREATE + tstrSSLSocketCreateCmd
+    #[cfg(feature = "ssl")]
     SslSetSockOpt = 0x51, // SOCKET_CMD_SSL_SET_SOCK_OPT + tstrSSLSetSockOptCmd
-    SslBind = 0x54,         // SOCKET_CMD_SSL_BIND + tstrBindCmd
+    #[cfg(feature = "ssl")]
+    SslBind = 0x54, // SOCKET_CMD_SSL_BIND + tstrBindCmd
+    #[cfg(feature = "ssl")]
     SslExpCheck = 0x55, // SOCKET_CMD_SSL_EXP_CHECK + tstrSslCertExpSettings
 
-                            // Unimplemented Socket Commands (defined but not used)
-                            // Socket = 0x40,      // SOCKET_CMD_SOCKET + no params (not sent, implicit in host logic)
-                            // SslSetCsList = 0x53, // SOCKET_CMD_SSL_SET_CS_LIST + no specific data
+                       // Unimplemented Socket Commands (defined but not used)
+                       // Socket = 0x40,      // SOCKET_CMD_SOCKET + no params (not sent, implicit in host logic)
+                       // SslSetCsList = 0x53, // SOCKET_CMD_SSL_SET_CS_LIST + no specific data
 }
 
 /// Implementation to convert `IpCode` to `u8` value.
@@ -378,15 +386,23 @@ impl From<u8> for IpCode {
             0x48 => Self::RecvFrom,
             0x49 => Self::Close,
             0x4A => Self::DnsResolve,
+            #[cfg(feature = "ssl")]
             0x4B => Self::SslConnect,
+            #[cfg(feature = "ssl")]
             0x4C => Self::SslSend,
+            #[cfg(feature = "ssl")]
             0x4D => Self::SslRecv,
+            #[cfg(feature = "ssl")]
             0x4E => Self::SslClose,
             0x4F => Self::SetSocketOption,
+            #[cfg(feature = "ssl")]
             0x50 => Self::SslCreate,
+            #[cfg(feature = "ssl")]
             0x51 => Self::SslSetSockOpt,
             0x52 => Self::Ping,
+            #[cfg(feature = "ssl")]
             0x54 => Self::SslBind,
+            #[cfg(feature = "ssl")]
             0x55 => Self::SslExpCheck,
             _ => Self::Unhandled,
         }
@@ -766,7 +782,7 @@ impl From<SslCertExpiryOpt> for u32 {
 #[cfg(feature = "experimental-ecc")]
 #[repr(u16)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-#[derive(Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum EccRequestType {
     #[default]
     None = 0,

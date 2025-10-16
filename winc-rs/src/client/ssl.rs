@@ -19,12 +19,12 @@ use super::{StackError, WincClient, Xfer};
 use crate::error;
 
 #[cfg(feature = "experimental-ecc")]
-use crate::manager::{EccInfo, EccPoint, EccRequestType, EcdhInfo};
+use crate::manager::{EccInfo, EccPoint, EccRequestType, EcdhInfo, EcdsaSignInfo};
 
 use crate::manager::{SslCertExpiryOpt, SslCipherSuite};
 
 // Default timeout to wait for response of SSL request is 1 second.
-const SSL_REQ_TIMEOUT: u32 = 1000; 
+const SSL_REQ_TIMEOUT: u32 = 1000;
 
 impl<X: Xfer> WincClient<'_, X> {
     /// Configure the SSL certificate expiry option.
@@ -51,7 +51,10 @@ impl<X: Xfer> WincClient<'_, X> {
     ///
     /// * `Ok(())` - If the cipher suite was successfully set.
     /// * `Err(StackError)` - If an error occurred while configuring the cipher suite.
-    pub fn ssl_set_cipher_suite(&mut self, ssl_cipher: SslCipherSuite) -> nb::Result<(), StackError> {
+    pub fn ssl_set_cipher_suite(
+        &mut self,
+        ssl_cipher: SslCipherSuite,
+    ) -> nb::Result<(), StackError> {
         match self.callbacks.ssl_cb_info.cipher_suite_bitmap {
             None => {
                 self.manager.send_ssl_set_cipher_suite(ssl_cipher.into())?;
@@ -106,6 +109,9 @@ impl<X: Xfer> WincClient<'_, X> {
         // clear the previously acquired ECC HIF register.
         if let Some(ecc_req) = self.callbacks.ssl_cb_info.ecc_req.as_mut() {
             ecc_req.hif_reg = 0;
+        } else {
+            // no ECC request is received from the module.
+            return Err(StackError::InvalidState);
         }
 
         Ok(self
@@ -115,12 +121,12 @@ impl<X: Xfer> WincClient<'_, X> {
 
     /// Reads the SSL certificate from the WINC module.
     ///
-    /// This function only attempts to read the certificate if an ECC request of type
+    /// This function attempts to read the certificate only when an ECC request of type
     /// `EccRequestType::VerifySignature` is received from the WINC module.
     ///
     /// # Arguments
     ///
-    /// * `curve_type` – A mutable reference to store the ECC curve type.
+    /// * `ecdsa_info` – A mutable reference to store ECDSA information (curve type and hash size).
     /// * `hash` – A mutable buffer to store the hash value.
     /// * `signature` – A mutable buffer to store the ECC signature.
     /// * `ecc_point` – A mutable reference to store the ECC public key point.
@@ -132,7 +138,7 @@ impl<X: Xfer> WincClient<'_, X> {
     #[cfg(feature = "experimental-ecc")]
     pub fn ssl_read_certificate(
         &mut self,
-        curve_type: &mut u16,
+        ecdsa_info: &mut EcdsaSignInfo,
         hash: &mut [u8],
         signature: &mut [u8],
         ecc_point: &mut EccPoint,
@@ -168,9 +174,9 @@ impl<X: Xfer> WincClient<'_, X> {
                 hif_addr += 8;
 
                 // Parse the values from the buffer
-                *curve_type = u16::from_be_bytes([opts[0], opts[1]]);
+                ecdsa_info.curve_type = u16::from_be_bytes([opts[0], opts[1]]).into();
                 ecc_point.point_size = u16::from_be_bytes([opts[2], opts[3]]);
-                let hash_size = u16::from_be_bytes([opts[4], opts[5]]);
+                ecdsa_info.hash_size = u16::from_be_bytes([opts[4], opts[5]]);
                 let sig_size = u16::from_be_bytes([opts[6], opts[7]]);
 
                 // Read the ECC Point-X
@@ -185,8 +191,8 @@ impl<X: Xfer> WincClient<'_, X> {
 
                 // Read the hash
                 self.manager
-                    .read_ecc_info(hif_addr, &mut hash[..hash_size as usize])?;
-                hif_addr += hash_size as u32;
+                    .read_ecc_info(hif_addr, &mut hash[..ecdsa_info.hash_size as usize])?;
+                hif_addr += ecdsa_info.hash_size as u32;
 
                 // Read the Signature
                 self.manager
@@ -275,5 +281,65 @@ impl<X: Xfer> WincClient<'_, X> {
                 return Err(StackError::InvalidState);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        client::{test_shared::*, SocketCallbacks},
+        manager::{EventListener, SslResponse},
+    };
+
+    #[test]
+    fn test_ssl_set_cipher_suit_success() {
+        let mut client = make_test_client();
+        let mut my_debug = |callbacks: &mut SocketCallbacks| {
+            callbacks.on_ssl(
+                SslResponse::CipherSuiteUpdate,
+                Some(SslCipherSuite::AllCiphers.into()),
+                #[cfg(feature = "experimental-ecc")]
+                None,
+            );
+        };
+        client.debug_callback = Some(&mut my_debug);
+        let result = nb::block!(client.ssl_set_cipher_suite(SslCipherSuite::AllCiphers));
+        assert_eq!(result, Ok(()));
+    }
+
+    #[test]
+    fn test_ssl_set_cipher_suit_failure() {
+        let mut client = make_test_client();
+        let mut my_debug = |callbacks: &mut SocketCallbacks| {
+            callbacks.on_ssl(
+                SslResponse::CipherSuiteUpdate,
+                Some(SslCipherSuite::DheRsaWithAes128CbcSha.into()),
+                #[cfg(feature = "experimental-ecc")]
+                None,
+            );
+        };
+        client.debug_callback = Some(&mut my_debug);
+        let result = nb::block!(client.ssl_set_cipher_suite(SslCipherSuite::AllCiphers));
+        assert_eq!(result, Err(StackError::InvalidResponse));
+    }
+
+    #[test]
+    fn test_ssl_set_cert_expiry_success() {
+        let mut client = make_test_client();
+
+        let result = client.ssl_check_cert_expiry(SslCertExpiryOpt::Enabled);
+
+        assert_eq!(result, Ok(()));
+    }
+
+    #[test]
+    #[cfg(feature = "experimental-ecc")]
+    fn test_ssl_send_ecc_resp_success() {
+        use crate::manager::EccRequest;
+
+        let mut client = make_test_client();
+
+        client.callbacks.ssl_cb_info.ecc_req = Some(EccRequest::default());
     }
 }

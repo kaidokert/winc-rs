@@ -419,7 +419,7 @@ pub fn read_recv_reply(mut response: &[u8]) -> Result<(Socket, SocketAddrV4, i16
     ))
 }
 
-// tstrBindReply, tstrListenReply, tstrConnectReply
+// tstrBindReply, tstrListenReply
 pub fn read_common_socket_reply<'a>(
     mut response: &[u8],
 ) -> Result<(Socket, SocketError), ErrType<'a>> {
@@ -428,6 +428,38 @@ pub fn read_common_socket_reply<'a>(
     let err = read8(reader)?;
     let session = read16(reader)?;
     Ok(((socket, session).into(), err.into()))
+}
+
+/// Reads the connect socket command reply.
+///
+/// # Arguments
+///
+/// * `response` - Data received from the chip.
+///
+/// # Returns
+///
+/// - `Ok((socket, socket_error))`:
+///     - `Socket` — The socket information returned by the module.
+///     - `SocketError` — Any error that occurred while connecting to the server.
+/// - `Err(Error)` — If an error occurred while reading the connect socket response.
+pub(crate) fn read_connect_socket_reply(
+    mut response: &[u8],
+) -> Result<(Socket, SocketError), Error> {
+    let reader = &mut response;
+
+    // read socket (1 byte)
+    let sock = read8(reader)?;
+    // read error (1 byte)
+    let err = read8(reader)?;
+    // read data offset (2 byte)
+    let _offset = read16(reader)?;
+
+    let mut _socket = Socket::new(sock, 0);
+
+    #[cfg(feature = "ssl")]
+    _socket.set_ssl_data_offset(_offset);
+
+    Ok((_socket, err.into()))
 }
 
 /// Reads the PRNG data packet from the response received from the chip.

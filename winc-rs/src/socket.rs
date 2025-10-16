@@ -15,6 +15,15 @@
 /// Default receive timeout (in milliseconds) for both TCP and UDP socket operations.
 const DEFAULT_SOCKET_RECEIVE_TIMEOUT: u32 = 10_000;
 
+/// SSL Socket Options
+#[cfg(feature = "ssl")]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[derive(Default, PartialEq, Debug, Clone, Copy)]
+struct SslSockInfo {
+    pub cfg: u8,
+    pub data_offset: u16,
+}
+
 /// Network Socket.
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[derive(PartialEq, Debug, Clone, Copy)]
@@ -25,9 +34,9 @@ pub struct Socket {
     pub s: u16,
     /// Receive Timeout.
     receive_timeout: u32,
-    /// SSL Configuration
+    /// SSL Sockets Information.
     #[cfg(feature = "ssl")]
-    ssl_cfg: u8,
+    ssl: SslSockInfo,
 }
 
 /// Implementation of `Socket` to create new instance and managing the receive timeout.
@@ -48,7 +57,7 @@ impl Socket {
             s,
             receive_timeout: DEFAULT_SOCKET_RECEIVE_TIMEOUT,
             #[cfg(feature = "ssl")]
-            ssl_cfg: 0,
+            ssl: SslSockInfo::default(),
         }
     }
 
@@ -74,22 +83,38 @@ impl Socket {
     #[cfg(feature = "ssl")]
     pub(crate) fn set_ssl_cfg(&mut self, ssl_opt: u8, enable: bool) {
         if enable {
-            self.ssl_cfg |= ssl_opt;
+            self.ssl.cfg |= ssl_opt;
         } else {
-            self.ssl_cfg &= !ssl_opt;
+            self.ssl.cfg &= !ssl_opt;
         }
     }
 
     /// Returns the SSL options value set on a socket.
-    pub fn get_ssl_cfg(&self) -> u8 {
+    pub(crate) fn get_ssl_cfg(&self) -> u8 {
         #[cfg(feature = "ssl")]
         {
-            self.ssl_cfg
+            self.ssl.cfg
         }
         #[cfg(not(feature = "ssl"))]
         {
             0
         }
+    }
+
+    /// Set the data offset for SSL operations.
+    ///
+    /// # Arguments
+    ///
+    /// * `offset` - Data offset received from SSL connect command.
+    #[cfg(feature = "ssl")]
+    pub(crate) fn set_ssl_data_offset(&mut self, offset: u16) {
+        self.ssl.data_offset = offset
+    }
+
+    /// Returns the data offset for SSL operations.
+    #[cfg(feature = "ssl")]
+    pub(crate) fn get_ssl_data_offset(&self) -> u16 {
+        self.ssl.data_offset
     }
 }
 
@@ -101,7 +126,7 @@ impl From<(u8, u16)> for Socket {
             s: val.1,
             receive_timeout: DEFAULT_SOCKET_RECEIVE_TIMEOUT,
             #[cfg(feature = "ssl")]
-            ssl_cfg: 0,
+            ssl: SslSockInfo::default(),
         }
     }
 }

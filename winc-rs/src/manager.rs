@@ -59,8 +59,8 @@ pub use self::{
 
 #[cfg(feature = "experimental-ecc")]
 pub use self::{
-    constants::{EccCurveType, EccRequestType},
-    net_types::{EccInfo, EccPoint, EcdhInfo, EcdsaSignInfo, EcdsaVerifyInfo},
+    constants::EccRequestType,
+    net_types::{EccInfo, EccPoint, EcdhInfo, EcdsaSignInfo},
 };
 
 #[cfg(feature = "experimental-ecc")]
@@ -79,31 +79,6 @@ use responses::*;
 pub use responses::{ConnectionInfo, FirmwareInfo, IPConf, ScanResult};
 
 use core::net::{Ipv4Addr, SocketAddrV4};
-
-/// Macro to select the appropriate `HifRequest::Ip` variant based on the socket's SSL config.
-///
-/// Usage: `get_ip_code!(socket, Recv, SslRecv)`
-///
-/// Expands to: `HifRequest::Ip(IpCode::SslRecv)` if SSL is enabled,
-///             `HifRequest::Ip(IpCode::Recv)` otherwise.
-#[macro_export]
-macro_rules! get_ip_code {
-    ($socket:expr, $normal:ident, $ssl:ident) => {{
-        #[cfg(feature = "ssl")]
-        {
-            if ($socket.get_ssl_cfg() & u8::from(SslSockConfig::EnableSSL)) > 0 {
-                HifRequest::Ip(IpCode::$ssl)
-            } else {
-                HifRequest::Ip(IpCode::$normal)
-            }
-        }
-
-        #[cfg(not(feature = "ssl"))]
-        {
-            HifRequest::Ip(IpCode::$normal)
-        }
-    }};
-}
 
 /// HIF Response Group.
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
@@ -780,6 +755,47 @@ impl<X: Xfer> Manager<X> {
         )
     }
 
+    /// Determines the appropriate SSL `IpCode` variant for the given socket.
+    ///
+    /// If the provided `socket` has SSL enabled, the function converts the
+    /// *base* `IpCode` (e.g., `IpCode::Connect`) into its SSL counterpart
+    /// (e.g., `IpCode::SslConnect`). When SSL is not active, the original `base`
+    /// value is returned unchanged.
+    ///
+    /// # Arguments
+    ///
+    /// * `_socket` – A reference to the `Socket` whose SSL configuration will be inspected.
+    /// * `base` – The `IpCode` command to convert to its SSL counterpart.
+    ///
+    /// # Returns
+    ///
+    /// * An `IpCode::Ssl...` variant when SSL is enabled.
+    /// * The original `base` value when SSL is disabled.
+    fn get_ssl_ip_code(&mut self, _socket: &Socket, base: IpCode) -> IpCode {
+        #[cfg(feature = "ssl")]
+        {
+            if (_socket.get_ssl_cfg() & u8::from(SslSockConfig::EnableSSL))
+                == u8::from(SslSockConfig::EnableSSL)
+            {
+                match base {
+                    IpCode::Connect => IpCode::SslConnect,
+                    IpCode::Send => IpCode::SslSend,
+                    IpCode::Recv => IpCode::SslRecv,
+                    IpCode::Bind => IpCode::SslBind,
+                    IpCode::Close => IpCode::SslClose,
+                    _ => base,
+                }
+            } else {
+                base
+            }
+        }
+
+        #[cfg(not(feature = "ssl"))]
+        {
+            base
+        }
+    }
+
     pub fn send_default_connect(&mut self) -> Result<(), Error> {
         self.write_hif_header(HifRequest::Wifi(WifiRequest::DefaultConnect), &[], false)?;
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
@@ -875,9 +891,9 @@ impl<X: Xfer> Manager<X> {
     /// * `Error` – If an error occurred while sending the bind request.
     pub fn send_bind(&mut self, socket: Socket, address: SocketAddrV4) -> Result<(), Error> {
         let req = write_bind_req(socket, address)?;
-        let cmd = get_ip_code!(socket, Bind, SslBind);
+        let cmd = self.get_ssl_ip_code(&socket, IpCode::Bind);
 
-        self.write_hif_header(cmd, &req, false)?;
+        self.write_hif_header(HifRequest::Ip(cmd), &req, false)?;
         self.chip
             .dma_block_write(self.not_a_reg_ctrl_4_dma + HIF_HEADER_OFFSET as u32, &req)?;
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
@@ -907,9 +923,9 @@ impl<X: Xfer> Manager<X> {
         address: SocketAddrV4,
     ) -> Result<(), Error> {
         let req = write_connect_req(socket, 2, address, socket.get_ssl_cfg())?;
-        let cmd = get_ip_code!(socket, Connect, SslConnect);
+        let cmd = self.get_ssl_ip_code(&socket, IpCode::Connect);
 
-        self.write_hif_header(cmd, &req, false)?;
+        self.write_hif_header(HifRequest::Ip(cmd), &req, false)?;
         self.chip
             .dma_block_write(self.not_a_reg_ctrl_4_dma + HIF_HEADER_OFFSET as u32, &req)?;
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
@@ -957,13 +973,30 @@ impl<X: Xfer> Manager<X> {
             data.len(),
         )?;
 
-        let cmd = get_ip_code!(socket, Send, SslSend);
+        let cmd = self.get_ssl_ip_code(&socket, IpCode::Send);
 
-        self.write_hif_header(cmd, &req, true)?;
+        let offset = {
+            #[cfg(feature = "ssl")]
+            {
+                if matches!(cmd, IpCode::SslSend) {
+                    // Offset received from connect command response.
+                    socket.get_ssl_data_offset() as usize - HIF_HEADER_OFFSET
+                } else {
+                    TCP_TX_PACKET_OFFSET
+                }
+            }
+
+            #[cfg(not(feature = "ssl"))]
+            {
+                TCP_TX_PACKET_OFFSET
+            }
+        };
+
+        self.write_hif_header_impl(HifRequest::Ip(cmd), &req, true, Some((data.len(), offset)))?;
         self.chip
             .dma_block_write(self.not_a_reg_ctrl_4_dma + HIF_HEADER_OFFSET as u32, &req)?;
         self.chip.dma_block_write(
-            self.not_a_reg_ctrl_4_dma + TCP_TX_PACKET_OFFSET as u32,
+            self.not_a_reg_ctrl_4_dma + (offset + HIF_HEADER_OFFSET) as u32,
             data,
         )?;
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
@@ -982,9 +1015,9 @@ impl<X: Xfer> Manager<X> {
     /// * `Error` – If an error occurred while sending the receive request.
     pub fn send_recv(&mut self, socket: Socket, timeout: u32) -> Result<(), Error> {
         let req = write_recv_req(socket, timeout)?;
-        let cmd = get_ip_code!(socket, Recv, SslRecv);
+        let cmd = self.get_ssl_ip_code(&socket, IpCode::Recv);
 
-        self.write_hif_header(cmd, &req, false)?;
+        self.write_hif_header(HifRequest::Ip(cmd), &req, false)?;
         self.chip
             .dma_block_write(self.not_a_reg_ctrl_4_dma + HIF_HEADER_OFFSET as u32, &req)?;
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
@@ -1010,9 +1043,9 @@ impl<X: Xfer> Manager<X> {
     /// * `Error` – If an error occurred while sending the request.
     pub fn send_close(&mut self, socket: Socket) -> Result<(), Error> {
         let req = write_close_req(socket)?;
-        let cmd = get_ip_code!(socket, Close, SslClose);
+        let cmd = self.get_ssl_ip_code(&socket, IpCode::Close);
 
-        self.write_hif_header(cmd, &req, false)?;
+        self.write_hif_header(HifRequest::Ip(cmd), &req, false)?;
         self.chip
             .dma_block_write(self.not_a_reg_ctrl_4_dma + HIF_HEADER_OFFSET as u32, &req)?;
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
@@ -1592,7 +1625,7 @@ impl<X: Xfer> Manager<X> {
     /// * `Error` - If an error occurs while preparing or sending the request.
     #[cfg(feature = "ssl")]
     pub(crate) fn send_ssl_cert_expiry(&mut self, opt: SslCertExpiryOpt) -> Result<(), Error> {
-        let req = u32::to_be_bytes(opt.into());
+        let req = u32::to_le_bytes(opt.into());
 
         self.write_hif_header(HifRequest::Ip(IpCode::SslExpCheck), &req, false)?;
 
