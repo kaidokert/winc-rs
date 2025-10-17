@@ -1732,4 +1732,19 @@ mod tests {
 
         assert_eq!(buff[CMD_OFFSET], WifiRequest::DisableAp.into());
     }
+
+    #[test]
+    fn test_hif_header_exceeded_len() {
+        let mut buff = [0u8; 73];
+        let mut writer = buff.as_mut_slice();
+        let mut mgr = make_manager(&mut writer);
+
+        let req = HifRequest::Wifi(WifiRequest::Connect);
+        let payload = [0u8; 65535];
+        let data_pkt = Some((65535, 128));
+
+        let res = mgr.write_hif_header_impl(req, &payload, true, data_pkt);
+
+        assert_eq!(res, Err(Error::BufferError));
+    }
 }
