@@ -1133,7 +1133,7 @@ mod tests {
         let mut client = make_test_client();
         let socket = UdpClientStack::socket(&mut client).unwrap();
 
-        let option = SocketOptions::set_receive_timeout(1500, false);
+        let option = SocketOptions::set_tcp_receive_timeout(1500);
 
         let result = client.set_socket_option(&socket, &option);
 
@@ -1159,7 +1159,7 @@ mod tests {
         let timeout = 1500 as u32;
         let socket = UdpClientStack::socket(&mut client).unwrap();
 
-        let options = SocketOptions::set_receive_timeout(timeout, true);
+        let options = SocketOptions::set_udp_receive_timeout(timeout);
 
         let result = client.set_socket_option(&socket, &options);
 
@@ -1176,7 +1176,7 @@ mod tests {
         let timeout = 150000 as u32;
         let socket = TcpClientStack::socket(&mut client).unwrap();
 
-        let options = SocketOptions::set_receive_timeout(timeout, false);
+        let options = SocketOptions::set_tcp_receive_timeout(timeout);
 
         let result = client.set_socket_option(&socket, &options);
 

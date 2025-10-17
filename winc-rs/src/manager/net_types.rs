@@ -466,22 +466,30 @@ impl SocketOptions {
         Self::Udp(UdpSockOpts::SetUdpSendCallback(status))
     }
 
-    /// Sets a socket option to configure the receive timeout for a UDP or TCP socket.
+    /// Set a socket option to configure the UDP socket receive timeout.
     ///
     /// # Arguments
     ///
     /// * `timeout` – Timeout duration in milliseconds.
-    /// * `is_udp` – Whether the socket is UDP (`true`) or TCP (`false`).
     ///
     /// # Returns
     ///
-    /// * `SocketOptions` – A `SocketOption` variant containing the configured receive timeout.
-    pub fn set_receive_timeout(timeout: u32, is_udp: bool) -> Self {
-        if is_udp {
-            Self::Udp(UdpSockOpts::ReceiveTimeout(timeout))
-        } else {
-            Self::Tcp(TcpSockOpts::ReceiveTimeout(timeout))
-        }
+    /// * `SocketOption::Udp(UdpSockOpts::ReceiveTimeout` - The configured socket option.
+    pub fn set_udp_receive_timeout(timeout: u32) -> Self {
+        Self::Udp(UdpSockOpts::ReceiveTimeout(timeout))
+    }
+
+    /// Set a socket option to configure the TCP socket receive timeout.
+    ///
+    /// # Arguments
+    ///
+    /// * `timeout` - Timeout duration in milliseconds.
+    ///
+    /// # Returns
+    ///
+    /// * `SocketOption::Tcp(TcpSockOpts::ReceiveTimeout` - The configured socket option.
+    pub fn set_tcp_receive_timeout(timeout: u32) -> Self {
+        Self::Tcp(TcpSockOpts::ReceiveTimeout(timeout))
     }
 
     /// Set the socket option to configure SNI (Server Name Indication) for TLS connections.
@@ -944,7 +952,7 @@ mod tests {
     #[test]
     fn test_sock_opts_get_udp_recv_timeout_value() {
         let test_value = 1500u32;
-        let sock_opts = SocketOptions::set_receive_timeout(test_value, true);
+        let sock_opts = SocketOptions::set_udp_receive_timeout(test_value);
 
         if let SocketOptions::Udp(opt) = sock_opts {
             assert_eq!(test_value, opt.get_value());
@@ -956,7 +964,7 @@ mod tests {
     #[test]
     fn test_sock_opts_get_tcp_recv_timeout_value() {
         let test_value = 2500u32;
-        let sock_opts = SocketOptions::set_receive_timeout(test_value, false);
+        let sock_opts = SocketOptions::set_tcp_receive_timeout(test_value);
 
         if let SocketOptions::Tcp(opt) = sock_opts {
             assert_eq!(test_value, opt.get_value());
