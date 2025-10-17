@@ -16,7 +16,7 @@ use embedded_nal::nb;
 
 use super::{StackError, WincClient, Xfer};
 #[cfg(feature = "experimental-ecc")]
-use crate::error;
+use crate::{error, warn};
 
 #[cfg(feature = "experimental-ecc")]
 use crate::manager::{EccInfo, EccPoint, EccRequestType, EcdhInfo, EcdsaSignInfo};
@@ -179,24 +179,41 @@ impl<X: Xfer> WincClient<'_, X> {
                 ecdsa_info.hash_size = u16::from_be_bytes([opts[4], opts[5]]);
                 let sig_size = u16::from_be_bytes([opts[6], opts[7]]);
 
+                let warn_truncated = |label: &str, expected: usize, available: usize| {
+                    if available < expected {
+                        warn!(
+                            "{} read truncated: expected {} bytes, but only {} bytes available in buffer",
+                            label, expected, available
+                        );
+                    }
+                };
+
                 // Read the ECC Point-X
-                let to_read_len = (ecc_point.point_size * 2) as usize;
-                if ecc_point.x_cord.len() < to_read_len {
-                    return Err(StackError::InvalidParameters);
-                }
+                let expected_size = (ecc_point.point_size * 2) as usize;
+                let mut to_read = ecc_point.x_cord.len().min(expected_size);
+
+                warn_truncated("ECC x-cordinate", expected_size, to_read);
 
                 self.manager
-                    .read_ecc_info(hif_addr, &mut ecc_point.x_cord[..to_read_len])?;
-                hif_addr += to_read_len as u32;
+                    .read_ecc_info(hif_addr, &mut ecc_point.x_cord[..to_read])?;
+                hif_addr += (ecc_point.point_size * 2) as u32;
 
                 // Read the hash
+                to_read = hash.len().min(ecdsa_info.hash_size as usize);
+
+                warn_truncated("Hash", ecdsa_info.hash_size as usize, to_read);
+
                 self.manager
-                    .read_ecc_info(hif_addr, &mut hash[..ecdsa_info.hash_size as usize])?;
+                    .read_ecc_info(hif_addr, &mut hash[..to_read as usize])?;
                 hif_addr += ecdsa_info.hash_size as u32;
 
                 // Read the Signature
+                to_read = signature.len().min(sig_size as usize);
+
+                warn_truncated("Signature", sig_size as usize, to_read);
+
                 self.manager
-                    .read_ecc_info(hif_addr, &mut signature[..sig_size as usize])?;
+                    .read_ecc_info(hif_addr, &mut signature[..to_read])?;
 
                 Ok(())
             }
@@ -292,6 +309,9 @@ mod tests {
         manager::{EventListener, SslResponse},
     };
 
+    #[cfg(feature = "experimental-ecc")]
+    use crate::manager::EccRequest;
+
     #[test]
     fn test_ssl_set_cipher_suit_success() {
         let mut client = make_test_client();
@@ -325,6 +345,14 @@ mod tests {
     }
 
     #[test]
+    fn test_ssl_set_cipher_suit_timeout() {
+        let mut client = make_test_client();
+        client.callbacks.ssl_cb_info.cipher_suite_bitmap = None;
+        let result = nb::block!(client.ssl_set_cipher_suite(SslCipherSuite::AllCiphers));
+        assert_eq!(result, Err(StackError::GeneralTimeout));
+    }
+
+    #[test]
     fn test_ssl_set_cert_expiry_success() {
         let mut client = make_test_client();
 
@@ -333,13 +361,210 @@ mod tests {
         assert_eq!(result, Ok(()));
     }
 
-    #[test]
     #[cfg(feature = "experimental-ecc")]
+    #[test]
     fn test_ssl_send_ecc_resp_success() {
-        use crate::manager::EccRequest;
-
         let mut client = make_test_client();
 
         client.callbacks.ssl_cb_info.ecc_req = Some(EccRequest::default());
+
+        let ecc_info = EccInfo::default();
+        let ecdh_info = EcdhInfo::default();
+
+        let result = client.ssl_send_ecc_resp(&ecc_info, &ecdh_info, &[0]);
+
+        assert_eq!(result, Ok(()))
+    }
+
+    #[cfg(feature = "experimental-ecc")]
+    #[test]
+    fn test_ssl_send_ecc_resp_fail() {
+        let mut client = make_test_client();
+
+        client.callbacks.ssl_cb_info.ecc_req = None;
+
+        let ecc_info = EccInfo::default();
+        let ecdh_info = EcdhInfo::default();
+
+        let result = client.ssl_send_ecc_resp(&ecc_info, &ecdh_info, &[0]);
+
+        assert_eq!(result, Err(StackError::InvalidState));
+    }
+
+    #[cfg(feature = "experimental-ecc")]
+    #[test]
+    fn test_ssl_send_ecc_resp_hif_reg_override() {
+        let mut client = make_test_client();
+        let mut ecc_req = EccRequest::default();
+        ecc_req.hif_reg = 15;
+
+        client.callbacks.ssl_cb_info.ecc_req = Some(ecc_req);
+
+        let ecc_info = EccInfo::default();
+        let ecdh_info = EcdhInfo::default();
+
+        let result = client.ssl_send_ecc_resp(&ecc_info, &ecdh_info, &[0]);
+        let reg = client
+            .callbacks
+            .ssl_cb_info
+            .ecc_req
+            .as_ref()
+            .map(|ecc_req| ecc_req.hif_reg);
+
+        assert_eq!(result, Ok(()));
+
+        assert_eq!(reg, Some(0));
+    }
+
+    #[cfg(feature = "experimental-ecc")]
+    #[test]
+    fn test_ssl_read_cert_success() {
+        let mut client = make_test_client();
+        let mut ecc_req = EccRequest::default();
+        let mut ecdsa_info = EcdsaSignInfo::default();
+        let mut hash = [0u8; 10];
+        let mut sign = [0u8; 10];
+        let mut ecc_point = EccPoint::default();
+
+        ecc_req.ecc_info.req = EccRequestType::VerifySignature;
+        client.callbacks.ssl_cb_info.ecc_req = Some(ecc_req);
+
+        let result =
+            client.ssl_read_certificate(&mut ecdsa_info, &mut hash, &mut sign, &mut ecc_point);
+
+        assert_eq!(result, Ok(()));
+    }
+
+    #[cfg(feature = "experimental-ecc")]
+    #[test]
+    fn test_ssl_read_cert_invalid_ecc_request() {
+        let mut client = make_test_client();
+        let mut ecc_req = EccRequest::default();
+        let mut ecdsa_info = EcdsaSignInfo::default();
+        let mut hash = [0u8; 10];
+        let mut sign = [0u8; 10];
+        let mut ecc_point = EccPoint::default();
+
+        ecc_req.ecc_info.req = EccRequestType::GenerateSignature;
+        client.callbacks.ssl_cb_info.ecc_req = Some(ecc_req);
+
+        let result =
+            client.ssl_read_certificate(&mut ecdsa_info, &mut hash, &mut sign, &mut ecc_point);
+
+        assert_eq!(result, Err(StackError::InvalidState));
+    }
+
+    #[cfg(feature = "experimental-ecc")]
+    #[test]
+    fn test_ssl_read_cert_invalid_state() {
+        let mut client = make_test_client();
+        let mut ecdsa_info = EcdsaSignInfo::default();
+        let mut hash = [0u8; 10];
+        let mut sign = [0u8; 10];
+        let mut ecc_point = EccPoint::default();
+
+        client.callbacks.ssl_cb_info.ecc_req = None;
+
+        let result =
+            client.ssl_read_certificate(&mut ecdsa_info, &mut hash, &mut sign, &mut ecc_point);
+
+        assert_eq!(result, Err(StackError::InvalidState));
+    }
+
+    #[cfg(feature = "experimental-ecc")]
+    #[test]
+    fn test_ssl_clear_ecc_read_success() {
+        let mut client = make_test_client();
+        let mut ecc_req = EccRequest::default();
+
+        ecc_req.ecc_info.req = EccRequestType::GenerateSignature;
+        client.callbacks.ssl_cb_info.ecc_req = Some(ecc_req);
+
+        let result = client.ssl_clear_ecc_readable();
+
+        assert_eq!(result, Ok(()));
+    }
+
+    #[cfg(feature = "experimental-ecc")]
+    #[test]
+    fn test_ssl_clear_ecc_read_ok_req() {
+        let mut client = make_test_client();
+        let mut ecc_req = EccRequest::default();
+
+        ecc_req.ecc_info.req = EccRequestType::VerifySignature;
+        client.callbacks.ssl_cb_info.ecc_req = Some(ecc_req);
+
+        let result = client.ssl_clear_ecc_readable();
+
+        assert_eq!(result, Ok(()));
+    }
+
+    #[cfg(feature = "experimental-ecc")]
+    #[test]
+    fn test_ssl_clear_ecc_read_invalid_request() {
+        let mut client = make_test_client();
+        let mut ecc_req = EccRequest::default();
+
+        ecc_req.ecc_info.req = EccRequestType::ClientEcdh;
+        client.callbacks.ssl_cb_info.ecc_req = Some(ecc_req);
+
+        let result = client.ssl_clear_ecc_readable();
+
+        assert_eq!(result, Err(StackError::InvalidState));
+    }
+
+    #[cfg(feature = "experimental-ecc")]
+    #[test]
+    fn test_ssl_clear_ecc_read_fail() {
+        let mut client = make_test_client();
+
+        client.callbacks.ssl_cb_info.ecc_req = None;
+
+        let result = client.ssl_clear_ecc_readable();
+
+        assert_eq!(result, Err(StackError::InvalidState));
+    }
+
+    #[cfg(feature = "experimental-ecc")]
+    #[test]
+    fn test_ssl_read_ecc_digest_success() {
+        let mut client = make_test_client();
+        let mut ecc_req = EccRequest::default();
+        let mut digest = [0u8; 10];
+
+        ecc_req.ecc_info.req = EccRequestType::GenerateSignature;
+        client.callbacks.ssl_cb_info.ecc_req = Some(ecc_req);
+
+        let result = client.ssl_read_ecdsa_digest(&mut digest);
+
+        assert_eq!(result, Ok(()));
+    }
+
+    #[cfg(feature = "experimental-ecc")]
+    #[test]
+    fn test_ssl_read_ecc_digest_invalid_request() {
+        let mut client = make_test_client();
+        let mut ecc_req = EccRequest::default();
+        let mut digest = [0u8; 10];
+
+        ecc_req.ecc_info.req = EccRequestType::VerifySignature;
+        client.callbacks.ssl_cb_info.ecc_req = Some(ecc_req);
+
+        let result = client.ssl_read_ecdsa_digest(&mut digest);
+
+        assert_eq!(result, Err(StackError::InvalidState));
+    }
+
+    #[cfg(feature = "experimental-ecc")]
+    #[test]
+    fn test_ssl_read_ecc_digest_fail() {
+        let mut client = make_test_client();
+        let mut digest = [0u8; 10];
+
+        client.callbacks.ssl_cb_info.ecc_req = None;
+
+        let result = client.ssl_read_ecdsa_digest(&mut digest);
+
+        assert_eq!(result, Err(StackError::InvalidState));
     }
 }

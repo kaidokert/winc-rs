@@ -13,8 +13,8 @@
 // limitations under the License.
 
 use super::{EventListener, HifGroup, IpCode, Manager, WifiResponse};
-
-use super::constants::{
+use crate::errors::CommError as Error;
+use crate::manager::constants::{
     PRNG_DATA_LENGTH, PRNG_PACKET_SIZE, PROVISIONING_INFO_PACKET_SIZE, SOCKET_BUFFER_MAX_LENGTH,
 };
 
@@ -24,7 +24,6 @@ use super::constants::{SslResponse, SSL_CS_MAX_PACKET_SIZE};
 #[cfg(feature = "experimental-ecc")]
 use super::constants::SSL_ECC_REQ_PACKET_SIZE;
 
-use crate::errors::CommError as Error;
 use crate::manager::responses::*;
 use crate::{error, transfer::Xfer};
 

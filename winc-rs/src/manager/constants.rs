@@ -265,7 +265,7 @@ impl From<WifiRequest> for u8 {
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[derive(Debug, PartialEq, Default)]
 #[rustfmt::skip]  // Because of the commented out responses
-pub(crate) enum WifiResponse {
+pub enum WifiResponse {
     #[default]
     Unhandled,
     CurrentRssi,      // Done

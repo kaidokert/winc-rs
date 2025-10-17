@@ -582,6 +582,9 @@ mod tests {
     use crate::{WepKey, WepKeyIndex};
     use embedded_nal::{TcpClientStack, UdpClientStack};
 
+    #[cfg(feature = "ssl")]
+    use crate::manager::SslSockConfig;
+
     #[test]
     fn test_heartbeat() {
         assert_eq!(make_test_client().heartbeat(), Ok(()));
@@ -1185,5 +1188,62 @@ mod tests {
         let (sock, _) = client.callbacks.tcp_sockets.get(socket).unwrap();
 
         assert_eq!(sock.get_recv_timeout(), timeout);
+    }
+
+    #[cfg(feature = "ssl")]
+    #[test]
+    fn test_tcp_ssl_cfg() {
+        let mut client = make_test_client();
+
+        let ssl_opt = SocketOptions::config_ssl(SslSockConfig::EnableSSL, true);
+        let socket = TcpClientStack::socket(&mut client).unwrap();
+
+        let result = client.set_socket_option(&socket, &ssl_opt);
+
+        assert!(result.is_ok());
+
+        let (sock, _) = client.callbacks.tcp_sockets.get(socket).unwrap();
+
+        assert_eq!(sock.get_ssl_cfg(), u8::from(SslSockConfig::EnableSSL));
+    }
+
+    #[cfg(feature = "ssl")]
+    #[test]
+    fn test_tcp_ssl_cfg_disable() {
+        let mut client = make_test_client();
+        let socket = TcpClientStack::socket(&mut client).unwrap();
+
+        // Enable first SSL config.
+        let ssl_opt = SocketOptions::config_ssl(SslSockConfig::EnableSSL, true);
+        let result = client.set_socket_option(&socket, &ssl_opt);
+        assert!(result.is_ok());
+
+        // Enable second config
+        let ssl_opt = SocketOptions::config_ssl(SslSockConfig::EnableSniValidation, true);
+        let result = client.set_socket_option(&socket, &ssl_opt);
+        assert!(result.is_ok());
+
+        // check the combined value
+        {
+            let (sock, _) = client.callbacks.tcp_sockets.get(socket).unwrap();
+
+            assert_eq!(
+                sock.get_ssl_cfg(),
+                (u8::from(SslSockConfig::EnableSSL))
+                    | (u8::from(SslSockConfig::EnableSniValidation))
+            );
+        }
+
+        // Disable the first one
+        let ssl_opt = SocketOptions::config_ssl(SslSockConfig::EnableSSL, false);
+        let result = client.set_socket_option(&socket, &ssl_opt);
+        assert!(result.is_ok());
+
+        // check if first value is disabled
+        let (sock, _) = client.callbacks.tcp_sockets.get(socket).unwrap();
+        assert_eq!(
+            sock.get_ssl_cfg(),
+            u8::from(SslSockConfig::EnableSniValidation)
+        );
     }
 }

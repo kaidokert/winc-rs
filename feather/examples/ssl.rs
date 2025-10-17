@@ -1,3 +1,5 @@
+//! SSL example.
+
 #![no_main]
 #![no_std]
 
@@ -90,7 +92,7 @@ fn parse_http_response(response: &str) -> Result<(), Error> {
 
 fn program() -> Result<(), StackError> {
     if let Ok(mut ini) = init() {
-        info!("Hello, Winc Module");
+        info!("Hello, Winc SSL Module");
 
         let mut cnt = create_countdowns(&ini.delay_tick);
         let red_led = &mut ini.red_led;

@@ -470,7 +470,7 @@ impl SocketOptions {
     ///
     /// # Arguments
     ///
-    /// * `timeout` – Timeout duration in milliseconds.
+    /// * `timeout` - Timeout duration in milliseconds.
     ///
     /// # Returns
     ///
@@ -1053,5 +1053,36 @@ mod tests {
             "This is a test string that definitely contains more than sixty-three bytes of data.";
         let sock_opts = SocketOptions::set_sni(test_string);
         assert_eq!(sock_opts.err(), Some(StackError::InvalidParameters));
+    }
+
+    #[cfg(feature = "ssl")]
+    #[test]
+    fn test_ssl_sock_opt_conv() {
+        let sock_opt = SslSockOpts::Config(SslSockConfig::EnableSessionCache, true);
+
+        let u8_value = u8::from(sock_opt);
+
+        assert_eq!(u8_value, u8::from(SslSockConfig::EnableSessionCache));
+    }
+
+    #[cfg(feature = "ssl")]
+    #[test]
+    fn test_ssl_sock_opt_ref_conv() {
+        let sock_opt = SslSockOpts::Config(SslSockConfig::EnableSniValidation, true);
+        let sock_opt_ref = &sock_opt;
+
+        let u8_value = u8::from(sock_opt_ref);
+
+        assert_eq!(u8_value, u8::from(SslSockConfig::EnableSniValidation));
+    }
+
+    #[cfg(feature = "ssl")]
+    #[test]
+    fn test_ssl_sock_opt_invalid_opt() {
+        let sock_opt = SslSockOpts::Config(SslSockConfig::EnableSniValidation, true);
+
+        let res = sock_opt.get_sni_value();
+
+        assert_eq!(res, Err(StackError::InvalidParameters));
     }
 }
