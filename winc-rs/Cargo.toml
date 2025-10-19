@@ -36,6 +36,9 @@ embedded-nal = "0.9.0"
 # TODO: Sparsely used, maybe drop
 arrayvec =  { version = "0.7.2", default-features = false }
 
+# For fixed-size strings - gradually replacing arrayvec
+heapless = { version = "0.8.0", default-features = false }
+
 # TODO: Remove maybe ?
 void = { version =  "1", default-features = false }
 

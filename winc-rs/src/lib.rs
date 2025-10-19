@@ -133,3 +133,5 @@ impl<'a> defmt::Format for HexWrap<'a> {
 
 mod nonstd;
 use nonstd::Ipv4AddrFormatWrapper;
+
+mod net_ops;

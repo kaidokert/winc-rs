@@ -20,7 +20,7 @@ use crate::socket::Socket;
 use crate::transfer::Xfer;
 
 mod chip_access;
-mod constants;
+pub(crate) mod constants;
 mod event_listener;
 mod net_types;
 mod requests;

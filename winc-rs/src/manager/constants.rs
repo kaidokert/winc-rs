@@ -23,7 +23,7 @@ pub(crate) const MIN_WEP_KEY_LEN: usize = 10;
 pub const MAX_PSK_KEY_LEN: usize = 63;
 /// Minimum length for the WPA PSK Key.
 pub(crate) const MIN_PSK_KEY_LEN: usize = 8;
-/// Maximum length for device domain name for provisioning mode.
+/// Maximum length for device domain name / hostname (DNS, provisioning, etc.).
 pub const MAX_HOST_NAME_LEN: usize = 63;
 /// Packet size of the Start Provisioning Mode request.
 pub(crate) const START_PROVISION_PACKET_SIZE: usize = 204;

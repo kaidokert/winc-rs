@@ -1,3 +1,4 @@
+pub mod constants;
 pub mod sock_holder;
 pub mod socket_callbacks;
 /// Shared stack code for both sync and async clients

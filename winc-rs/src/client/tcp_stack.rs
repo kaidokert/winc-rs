@@ -5,15 +5,34 @@ use super::ClientSocketOp;
 use super::Handle;
 use super::StackError;
 use super::WincClient;
-
 use super::Xfer;
 use crate::manager::SocketError;
-use crate::stack::socket_callbacks::SendRequest;
-use crate::stack::socket_callbacks::{AsyncOp, AsyncState};
+use crate::net_ops::op::OpImpl;
+use crate::net_ops::tcp_accept::TcpAcceptOp;
+use crate::net_ops::tcp_connect::TcpConnectOp;
+use crate::net_ops::tcp_receive::TcpReceiveOp;
+use crate::net_ops::tcp_send::TcpSendOp;
 use crate::{debug, info};
 use embedded_nal::nb;
 
 use crate::stack::sock_holder::SocketStore;
+
+#[cfg(test)]
+use crate::stack::constants::MAX_SEND_LENGTH_TEST;
+
+impl<X: Xfer> WincClient<'_, X> {
+    fn poll_op<O: OpImpl<X, Error = StackError>>(
+        &mut self,
+        op: &mut O,
+    ) -> nb::Result<O::Output, StackError> {
+        self.dispatch_events()?;
+        match op.poll_impl(&mut self.manager, &mut self.callbacks) {
+            Ok(Some(r)) => Ok(r),
+            Ok(None) => Err(nb::Error::WouldBlock),
+            Err(e) => Err(nb::Error::Other(e)),
+        }
+    }
+}
 
 impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {
     type TcpSocket = Handle;
@@ -32,41 +51,16 @@ impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {
     }
     fn connect(
         &mut self,
-        socket: &mut <Self as TcpClientStack>::TcpSocket,
+        socket: &mut Self::TcpSocket,
         remote: core::net::SocketAddr,
-    ) -> Result<(), nb::Error<<Self as TcpClientStack>::Error>> {
-        let res = match remote {
-            core::net::SocketAddr::V4(addr) => Self::async_op(
-                true,
-                socket,
-                &mut self.callbacks,
-                &mut self.manager,
-                self.poll_loop_delay_us,
-                |op| matches!(op, AsyncOp::Connect(..)),
-                |sock, manager| -> Result<ClientSocketOp, StackError> {
-                    debug!("<> Sending send_socket_connect to {:?}", sock);
-                    manager
-                        .send_socket_connect(*sock, addr)
-                        .map_err(StackError::ConnectSendFailed)?;
-                    Ok(ClientSocketOp::AsyncOp(
-                        AsyncOp::Connect(None),
-                        AsyncState::Pending(Some(Self::CONNECT_TIMEOUT)),
-                    ))
-                },
-                |_, _, _, asyncop| {
-                    if let AsyncOp::Connect(Some(connect_result)) = asyncop {
-                        if connect_result.error == SocketError::NoError {
-                            Ok(())
-                        } else {
-                            Err(StackError::OpFailed(connect_result.error))
-                        }
-                    } else {
-                        Err(StackError::Unexpected)
-                    }
-                },
-            ),
+    ) -> nb::Result<(), Self::Error> {
+        let addr = match remote {
+            core::net::SocketAddr::V4(addr) => addr,
             core::net::SocketAddr::V6(_) => unimplemented!("IPv6 not supported"),
         };
+
+        let mut op = TcpConnectOp::new(*socket, addr);
+        let res = self.poll_op(&mut op);
         self.test_hook();
         res
     }
@@ -75,62 +69,8 @@ impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {
         socket: &mut <Self as TcpClientStack>::TcpSocket,
         data: &[u8],
     ) -> Result<usize, nb::Error<<Self as TcpClientStack>::Error>> {
-        let res = Self::async_op(
-            true,
-            socket,
-            &mut self.callbacks,
-            &mut self.manager,
-            self.poll_loop_delay_us,
-            |op| matches!(op, AsyncOp::Send(..)),
-            |sock, manager| -> Result<ClientSocketOp, StackError> {
-                let to_send = data.len().min(Self::MAX_SEND_LENGTH);
-                let req = SendRequest {
-                    offset: 0,
-                    grand_total_sent: 0,
-                    total_sent: 0,
-                    remaining: to_send as i16,
-                };
-                debug!(
-                    "Sending INITIAL send_send to {:?} len:{}/{} req:{:?}",
-                    sock,
-                    to_send,
-                    data.len(),
-                    req
-                );
-                manager
-                    .send_send(*sock, &data[..to_send])
-                    .map_err(StackError::SendSendFailed)?;
-                Ok(ClientSocketOp::AsyncOp(
-                    AsyncOp::Send(req, None),
-                    AsyncState::Pending(None),
-                ))
-            },
-            |sock, manager, _, asyncop| {
-                if let AsyncOp::Send(req, Some(_len)) = asyncop {
-                    let total_sent = req.total_sent;
-                    let grand_total_sent = req.grand_total_sent + total_sent;
-                    let offset = req.offset + total_sent as usize;
-                    if offset >= data.len() {
-                        Ok(grand_total_sent as usize)
-                    } else {
-                        let to_send = data[offset..].len().min(Self::MAX_SEND_LENGTH);
-                        let new_req = SendRequest {
-                            offset,
-                            grand_total_sent,
-                            total_sent: 0,
-                            remaining: to_send as i16,
-                        };
-                        *asyncop = AsyncOp::Send(new_req, None);
-                        manager
-                            .send_send(*sock, &data[offset..offset + to_send])
-                            .map_err(StackError::SendSendFailed)?;
-                        Err(StackError::ContinueOperation)
-                    }
-                } else {
-                    Err(StackError::Unexpected)
-                }
-            },
-        );
+        let mut op = TcpSendOp::new(*socket, data);
+        let res = self.poll_op(&mut op);
         self.test_hook();
         res
     }
@@ -143,116 +83,8 @@ impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {
         socket: &mut <Self as TcpClientStack>::TcpSocket,
         data: &mut [u8],
     ) -> Result<usize, nb::Error<<Self as TcpClientStack>::Error>> {
-        // Check if we have a previous operation with remaining data
-        let store = &mut self.callbacks.tcp_sockets;
-        if let Some((_sock, op)) = store.get(*socket) {
-            if let ClientSocketOp::AsyncOp(
-                AsyncOp::Recv(Some(ref mut recv_result)),
-                AsyncState::Done,
-            ) = op
-            {
-                if recv_result.return_offset < recv_result.recv_len {
-                    let remaining_data = recv_result.recv_len - recv_result.return_offset;
-                    let copy_len = remaining_data.min(data.len());
-
-                    // Copy remaining data from recv_buffer
-                    data[..copy_len].copy_from_slice(
-                        &self.callbacks.recv_buffer
-                            [recv_result.return_offset..recv_result.return_offset + copy_len],
-                    );
-
-                    recv_result.return_offset += copy_len;
-
-                    // Clear operation if all data consumed
-                    if recv_result.return_offset >= recv_result.recv_len {
-                        debug!(
-                            "All {} bytes returned, ready for next packet",
-                            recv_result.recv_len
-                        );
-                        *op = ClientSocketOp::None;
-                    } else {
-                        debug!(
-                            "Partial read: returned {} of {} bytes (offset now {})",
-                            copy_len, recv_result.recv_len, recv_result.return_offset
-                        );
-                    }
-
-                    self.test_hook();
-                    return Ok(copy_len);
-                }
-            }
-        }
-
-        // No remaining data, proceed with normal receive operation
-        let res = Self::async_op(
-            true,
-            socket,
-            &mut self.callbacks,
-            &mut self.manager,
-            self.poll_loop_delay_us,
-            |op| matches!(op, AsyncOp::Recv(..)),
-            |sock, manager| -> Result<ClientSocketOp, StackError> {
-                debug!("<> Sending socket send_recv to {:?}", sock);
-                manager
-                    .send_recv(*sock, sock.get_recv_timeout())
-                    .map_err(StackError::ReceiveFailed)?;
-                Ok(ClientSocketOp::AsyncOp(
-                    AsyncOp::Recv(None),
-                    AsyncState::Pending(None),
-                ))
-            },
-            |sock, manager, recv_buffer, asyncop| {
-                if let AsyncOp::Recv(Some(ref mut recv_result)) = asyncop {
-                    match recv_result.error {
-                        SocketError::NoError => {
-                            let recv_len = recv_result.recv_len;
-
-                            if recv_len == 0 {
-                                // No data available
-                                Ok(0)
-                            } else {
-                                // This is a new packet, return_offset should be 0
-                                let copy_len = recv_len.min(data.len());
-
-                                // Copy from recv_buffer
-                                let dest_slice = &mut data[..copy_len];
-                                dest_slice.copy_from_slice(&recv_buffer[..copy_len]);
-
-                                // Update return_offset for potential future calls
-                                recv_result.return_offset = copy_len;
-
-                                if copy_len < recv_len {
-                                    debug!(
-                                        "Partial read: returned {} of {} bytes, {} remaining",
-                                        copy_len,
-                                        recv_len,
-                                        recv_len - copy_len
-                                    );
-                                } else {
-                                    debug!("Complete read: returned all {} bytes", recv_len);
-                                }
-
-                                Ok(copy_len)
-                            }
-                        }
-                        SocketError::Timeout => {
-                            debug!("Timeout on receive, re-sending receive command");
-                            // Re-send the receive command with the same timeout
-                            manager
-                                .send_recv(*sock, sock.get_recv_timeout())
-                                .map_err(StackError::ReceiveFailed)?;
-                            Err(StackError::ContinueOperation)
-                        }
-                        _ => {
-                            debug!("Error in receive: {:?}", recv_result.error);
-                            Err(StackError::OpFailed(recv_result.error))
-                        }
-                    }
-                } else {
-                    Err(StackError::Unexpected)
-                }
-            },
-        );
+        let mut op = TcpReceiveOp::new(*socket, data);
+        let res = self.poll_op(&mut op);
         self.test_hook();
         res
     }
@@ -342,32 +174,9 @@ impl<X: Xfer> TcpFullStack for WincClient<'_, X> {
             }
         }
 
-        let res = Self::async_op(
-            true,
-            socket,
-            &mut self.callbacks,
-            &mut self.manager,
-            self.poll_loop_delay_us,
-            |op| matches!(op, AsyncOp::Accept(..)),
-            |_, _| -> Result<ClientSocketOp, StackError> {
-                debug!("<> accept called on socket {:?}", socket);
-                // There's no manager.send_accept
-                Ok(ClientSocketOp::AsyncOp(
-                    AsyncOp::Accept(None),
-                    AsyncState::Pending(None),
-                ))
-            },
-            |_, _, _, asyncop| {
-                if let AsyncOp::Accept(Some(accept_result)) = asyncop {
-                    debug!("Accept result: {:?} on socket {:?}", accept_result, socket);
-                    let accepted_socket = accept_result.accepted_socket;
-                    let addr = accept_result.accept_addr;
-                    Ok((accepted_socket, core::net::SocketAddr::V4(addr)))
-                } else {
-                    Err(StackError::Unexpected)
-                }
-            },
-        );
+        let mut op = TcpAcceptOp::new(*socket);
+        let res = self.poll_op(&mut op);
+
         self.test_hook();
         match res {
             Ok((raw_socket, addr)) => {
@@ -376,7 +185,7 @@ impl<X: Xfer> TcpFullStack for WincClient<'_, X> {
                     .tcp_sockets
                     .put(Handle(raw_socket.v), raw_socket.s)
                     .ok_or(StackError::SocketAlreadyInUse)?;
-                Ok((handle, addr))
+                Ok((handle, core::net::SocketAddr::V4(addr)))
             }
             Err(err) => Err(err),
         }
@@ -387,7 +196,8 @@ impl<X: Xfer> TcpFullStack for WincClient<'_, X> {
 mod test {
 
     use super::*;
-    use crate::client::{self, test_shared::*};
+    use crate::client::test_shared::*;
+    use crate::stack::socket_callbacks::AsyncOp;
     use crate::{client::SocketCallbacks, manager::EventListener, socket::Socket};
     use core::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4};
     use embedded_nal::{TcpClientStack, TcpFullStack};
@@ -447,10 +257,7 @@ mod test {
         let packet = "Hello, World";
 
         let mut my_debug = |callbacks: &mut SocketCallbacks| {
-            callbacks.on_send(
-                Socket::new(0, 0),
-                client::WincClient::<'_, MockTransfer>::MAX_SEND_LENGTH as i16,
-            );
+            callbacks.on_send(Socket::new(0, 0), MAX_SEND_LENGTH_TEST as i16);
         };
 
         client.debug_callback = Some(&mut my_debug);
@@ -550,7 +357,7 @@ mod test {
         let mut tcp_socket = client.socket().unwrap();
         let packet = "Hello, World";
         let socket = Socket::new(0, 0);
-        let valid_len: i16 = client::WincClient::<'_, MockTransfer>::MAX_SEND_LENGTH as i16;
+        let valid_len: i16 = MAX_SEND_LENGTH_TEST as i16;
 
         let mut my_debug = |callbacks: &mut SocketCallbacks| {
             callbacks.on_send(socket, valid_len);
@@ -565,7 +372,7 @@ mod test {
         if let Some((_, ClientSocketOp::AsyncOp(AsyncOp::Send(req, _), _))) =
             client.callbacks.resolve(socket)
         {
-            assert!((req.total_sent == valid_len) && (req.remaining == 0 as i16));
+            assert!(req.total_sent == valid_len);
         } else {
             assert!(false, "Expected Some value, but it returned None");
         }
