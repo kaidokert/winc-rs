@@ -674,7 +674,6 @@ class TestRunner:
                                           ('-----Listening-----' in line and config.client_protocol == 'tcp')
                             if server_ready:
                                 print(f"[{elapsed()}] [RUN] Device server is bound and ready")
-                                client_data_sent = True  # Mark as sent so we don't send multiple times
 
                                 # For TCP, give the device a moment to fully enter accept() state
                                 if config.client_protocol == 'tcp':
@@ -698,6 +697,8 @@ class TestRunner:
                                                 print(f"[{elapsed()}] [FAIL] Multi-request verification failed")
                                                 process.kill()
                                                 break
+                                            # Mark as sent only after successful multi-request verification
+                                            client_data_sent = True
                                         except Exception as e:
                                             print(f"[{elapsed()}] [CLIENT] Multi-request callback error: {e}")
                                             print(f"[{elapsed()}] [FAIL] Multi-request verification failed")
@@ -724,14 +725,18 @@ class TestRunner:
                                                 verify_passed, verify_msg = config.client_verify_callback(response, nonce)
                                                 if verify_passed:
                                                     print(f"[{elapsed()}] [CLIENT] {verify_msg}")
+                                                    # Mark as sent only after successful verification
+                                                    client_data_sent = True
                                                 else:
                                                     print(f"[{elapsed()}] [CLIENT] {verify_msg}")
-                                                    print(f"[{elapsed()}] [CLIENT] Full response ({len(response)} bytes): {repr(response)}")
+                                                    print(f"[{elapsed()}] [CLIENT] Full response ({len(response)} bytes): {response!r}")
                                                     print(f"[{elapsed()}] [FAIL] Client verification failed")
                                                     process.kill()
                                                     break
                                             else:
                                                 print(f"[{elapsed()}] [CLIENT] Got response: {response}")
+                                                # Mark as sent after getting response (no callback verification)
+                                                client_data_sent = True
                                         else:
                                             print(f"[{elapsed()}] [CLIENT] No response received")
                                             print(f"[{elapsed()}] [FAIL] No response from device server")

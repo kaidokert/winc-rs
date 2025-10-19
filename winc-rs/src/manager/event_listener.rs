@@ -283,7 +283,6 @@ impl<X: Xfer> Manager<X> {
     ) -> Result<(), Error> {
         #[cfg(feature = "irq")]
         self.chip.wait_for_interrupt();
-        // dispatch_events_new already calls wake_all_wakers() internally (line 320)
         self.dispatch_events_new(listener)
     }
 

@@ -44,22 +44,12 @@ impl<X: Xfer> UnconnectedUdp for AsyncClient<'_, X> {
         let udp_send_op = UdpSendOp::new(handle, remote_v4, data);
 
         // Create async operation wrapper
-        let mut async_udp_send = AsyncOp::new(udp_send_op, &self.manager, &self.callbacks, || {
+        let async_udp_send = AsyncOp::new(udp_send_op, &self.manager, &self.callbacks, || {
             self.dispatch_events()
         });
 
-        // Await completion using the same pattern as DNS
-        loop {
-            match core::future::Future::poll(
-                core::pin::Pin::new(&mut async_udp_send),
-                &mut core::task::Context::from_waker(core::task::Waker::noop()),
-            ) {
-                core::task::Poll::Ready(result) => return result,
-                core::task::Poll::Pending => {
-                    self.yield_once().await;
-                }
-            }
-        }
+        // Await completion - the runtime's waker will drive progress
+        async_udp_send.await
     }
 
     async fn receive_into(
@@ -76,36 +66,23 @@ impl<X: Xfer> UnconnectedUdp for AsyncClient<'_, X> {
         let udp_receive_op = UdpReceiveOp::new(handle, buffer);
 
         // Create async operation wrapper
-        let mut async_udp_receive =
+        let async_udp_receive =
             AsyncOp::new(udp_receive_op, &self.manager, &self.callbacks, || {
                 self.dispatch_events()
             });
 
-        // Await completion using the same pattern as DNS
-        loop {
-            match core::future::Future::poll(
-                core::pin::Pin::new(&mut async_udp_receive),
-                &mut core::task::Context::from_waker(core::task::Waker::noop()),
-            ) {
-                core::task::Poll::Ready(result) => {
-                    return match result {
-                        Ok((len, remote_addr)) => {
-                            // For UnconnectedUdp, we need to return (len, local, remote)
-                            // but we don't track the local address properly in this simplified impl
-                            let local_addr =
-                                core::net::SocketAddr::V4(core::net::SocketAddrV4::new(
-                                    core::net::Ipv4Addr::new(0, 0, 0, 0),
-                                    0,
-                                ));
-                            Ok((len, local_addr, remote_addr))
-                        }
-                        Err(e) => Err(e),
-                    };
-                }
-                core::task::Poll::Pending => {
-                    self.yield_once().await;
-                }
+        // Await completion - the runtime's waker will drive progress
+        match async_udp_receive.await {
+            Ok((len, remote_addr)) => {
+                // For UnconnectedUdp, we need to return (len, local, remote)
+                // but we don't track the local address properly in this simplified impl
+                let local_addr = core::net::SocketAddr::V4(core::net::SocketAddrV4::new(
+                    core::net::Ipv4Addr::new(0, 0, 0, 0),
+                    0,
+                ));
+                Ok((len, local_addr, remote_addr))
             }
+            Err(e) => Err(e),
         }
     }
 }

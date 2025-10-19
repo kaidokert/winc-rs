@@ -174,3 +174,22 @@ where
         }
     }
 }
+
+#[cfg(feature = "async")]
+impl<Op, X: Xfer, F> Drop for AsyncOp<'_, Op, X, F>
+where
+    Op: OpImpl<X>,
+{
+    fn drop(&mut self) {
+        // Unregister any stored waker when the future is dropped while pending
+        // This prevents the manager from retaining stale wakers that will never be used again
+        if let Some(waker) = self.waker.take() {
+            // Try to unregister the waker, but ignore any errors to keep Drop infallible
+            // If try_borrow_mut fails (manager already borrowed), we can't unregister,
+            // but that's acceptable - Drop must not panic
+            if let Ok(mut manager) = self.manager.try_borrow_mut() {
+                manager.unregister_waker(&waker);
+            }
+        }
+    }
+}

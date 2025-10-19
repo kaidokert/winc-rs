@@ -225,7 +225,7 @@ impl<X: Xfer> Manager<X> {
             not_a_reg_ctrl_4_dma: 0xbf0000,
             chip: ChipAccess::new(xfer),
             #[cfg(feature = "async")]
-            wakers: [None, None, None, None], // Initialize all waker slots as empty
+            wakers: core::array::from_fn(|_| None),
         }
     }
     #[cfg(test)]

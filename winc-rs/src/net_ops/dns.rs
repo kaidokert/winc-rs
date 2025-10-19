@@ -37,7 +37,10 @@ impl<X: Xfer> OpImpl<X> for DnsOp {
     ) -> Result<Option<Self::Output>, Self::Error> {
         // Initialize DNS request if not done yet
         if !self.initialized {
-            callbacks.dns_resolved_addr = Some(None);
+            // Only initialize if not already set (e.g., by test mock/debug callback)
+            if callbacks.dns_resolved_addr.is_none() {
+                callbacks.dns_resolved_addr = Some(None);
+            }
             manager.send_gethostbyname(&self.host)?;
             self.initialized = true;
         }

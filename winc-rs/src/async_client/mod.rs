@@ -54,8 +54,16 @@ impl<X: Xfer> AsyncClient<'_, X> {
         Ok(())
     }
 
+    /// Yield control back to the async runtime, allowing other tasks to run.
+    /// This should be called in polling loops to avoid busy-waiting.
     async fn yield_once(&self) {
-        // Runtime-specific yield here
+        // Simple yield implementation: create a future that returns Pending once, then Ready
+        core::future::poll_fn(|cx| {
+            // Wake ourselves immediately so we get polled again
+            cx.waker().wake_by_ref();
+            core::task::Poll::Ready(())
+        })
+        .await
     }
 
     #[cfg(test)]

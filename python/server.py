@@ -3,9 +3,13 @@ import select
 import sys
 import time
 
-def start_combined_server(base_port, port_range, additional_ports=[],
+def start_combined_server(base_port, port_range, additional_ports=None,
                          on_tcp_connect=None, on_tcp_data=None,
                          on_udp_data=None, verbose=True):
+    # Avoid mutable default argument - create fresh list if None
+    if additional_ports is None:
+        additional_ports = []
+
     # Retrieve all IP addresses for the hostname
     hostname = socket.gethostname()
     local_ips = socket.gethostbyname_ex(hostname)[2]
