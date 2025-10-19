@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1760894404070,
+  "lastUpdate": 1760894643215,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -4227,6 +4227,40 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/kaidokert/winc-rs/commit/4e81a30544c30e2c53d0c94c86640014b007e348"
         },
         "date": 1760894403561,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 41512,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 57008,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "kaidokert@gmail.com",
+            "name": "Kaido Kert",
+            "username": "kaidokert"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "ff48100b5317f3b999f92f71dce9e3cf0c8853ac",
+          "message": "Update feather/regression_test.py\n\nCo-authored-by: gemini-code-assist[bot] <176961590+gemini-code-assist[bot]@users.noreply.github.com>",
+          "timestamp": "2025-10-19T10:23:01-07:00",
+          "tree_id": "08ac68e5f4da618f03b39ec23f2fecf3c5dce29c",
+          "url": "https://github.com/kaidokert/winc-rs/commit/ff48100b5317f3b999f92f71dce9e3cf0c8853ac"
+        },
+        "date": 1760894642155,
         "tool": "customSmallerIsBetter",
         "benches": [
           {
