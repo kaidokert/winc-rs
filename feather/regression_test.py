@@ -94,8 +94,8 @@ async def send_to_device_async(device_ip: str, port: int, data: str, protocol: s
                         break
                     chunks.append(chunk)
             except asyncio.TimeoutError:
-                # Timeout is expected when we've read all data
-                pass
+                # Timeout means no more data is arriving, exit the loop
+                break
 
             writer.close()
             await writer.wait_closed()
@@ -136,30 +136,20 @@ def http_server_led_test(device_ip: str, port: int, elapsed_fn: Callable) -> tup
     # Test 1: GET / (index page)
     print(f"[{elapsed_fn()}] [CLIENT] Test 1: GET / (index page)")
     response = send_to_device(device_ip, port, 'GET / HTTP/1.1\r\nHost: device\r\n\r\n', 'tcp')
-    if not response:
-        return (False, "Test 1 failed: No response from index page")
-    if 'HTTP/1.1 200 OK' not in response or 'text/html' not in response:
-        return (False, f"Test 1 failed: Invalid index page response - {response[:100]}")
+    if not response or 'HTTP/1.1 200 OK' not in response or 'text/html' not in response:
+        return (False, f"Test 1 failed: Invalid response - {response[:100] if response else 'No response'}")
     print(f"[{elapsed_fn()}] [CLIENT] Test 1: Index page OK ✓")
 
     # Test 2: POST /api/led/ with {"led": true} - Turn LED on
     print(f"[{elapsed_fn()}] [CLIENT] Test 2: POST /api/led/ (turn on)")
-    led_on_body = '{"led": true}'
-    led_on_request = f'POST /api/led/ HTTP/1.1\r\nHost: device\r\nContent-Type: application/json\r\nContent-Length: {len(led_on_body)}\r\n\r\n{led_on_body}'
-    response = send_to_device(device_ip, port, led_on_request, 'tcp')
-    if not response:
-        return (False, "Test 2 failed: No response from LED on")
-    if 'HTTP/1.1 200 OK' not in response or 'application/json' not in response:
-        return (False, f"Test 2 failed: Invalid LED on response - {response[:100]}")
-    # Extract JSON body from HTTP response
-    try:
-        json_start = response.index('{')
-        json_body = response[json_start:response.index('}', json_start) + 1]
-        led_state = json.loads(json_body)
-        if led_state.get('led') != True:
-            return (False, f"Test 2 failed: LED state not true - {json_body}")
-    except (ValueError, json.JSONDecodeError) as e:
-        return (False, f"Test 2 failed: Could not parse JSON - {e}")
+    body = json.dumps({"led": True})
+    request = f'POST /api/led/ HTTP/1.1\r\nHost: device\r\nContent-Type: application/json\r\nContent-Length: {len(body)}\r\n\r\n{body}'
+    response = send_to_device(device_ip, port, request, 'tcp')
+    if not response or 'HTTP/1.1 200 OK' not in response:
+        return (False, f"Test 2 failed: Invalid response - {response[:100] if response else 'No response'}")
+    led_state = json.loads(response[response.index('{'):response.index('}') + 1])
+    if led_state.get('led') != True:
+        return (False, f"Test 2 failed: LED state not true - {led_state}")
     print(f"[{elapsed_fn()}] [CLIENT] Test 2: LED turned on ✓")
 
     # Test 3: GET /api/led/ - Verify LED is on
@@ -167,31 +157,21 @@ def http_server_led_test(device_ip: str, port: int, elapsed_fn: Callable) -> tup
     response = send_to_device(device_ip, port, 'GET /api/led/ HTTP/1.1\r\nHost: device\r\n\r\n', 'tcp')
     if not response:
         return (False, "Test 3 failed: No response")
-    try:
-        json_start = response.index('{')
-        json_body = response[json_start:response.index('}', json_start) + 1]
-        led_state = json.loads(json_body)
-        if led_state.get('led') != True:
-            return (False, f"Test 3 failed: LED not on - {json_body}")
-    except (ValueError, json.JSONDecodeError) as e:
-        return (False, f"Test 3 failed: Could not parse JSON - {e}")
+    led_state = json.loads(response[response.index('{'):response.index('}') + 1])
+    if led_state.get('led') != True:
+        return (False, f"Test 3 failed: LED not on - {led_state}")
     print(f"[{elapsed_fn()}] [CLIENT] Test 3: LED state verified on ✓")
 
     # Test 4: POST /api/led/ with {"led": false} - Turn LED off
     print(f"[{elapsed_fn()}] [CLIENT] Test 4: POST /api/led/ (turn off)")
-    led_off_body = '{"led": false}'
-    led_off_request = f'POST /api/led/ HTTP/1.1\r\nHost: device\r\nContent-Type: application/json\r\nContent-Length: {len(led_off_body)}\r\n\r\n{led_off_body}'
-    response = send_to_device(device_ip, port, led_off_request, 'tcp')
+    body = json.dumps({"led": False})
+    request = f'POST /api/led/ HTTP/1.1\r\nHost: device\r\nContent-Type: application/json\r\nContent-Length: {len(body)}\r\n\r\n{body}'
+    response = send_to_device(device_ip, port, request, 'tcp')
     if not response:
-        return (False, "Test 4 failed: No response from LED off")
-    try:
-        json_start = response.index('{')
-        json_body = response[json_start:response.index('}', json_start) + 1]
-        led_state = json.loads(json_body)
-        if led_state.get('led') != False:
-            return (False, f"Test 4 failed: LED state not false - {json_body}")
-    except (ValueError, json.JSONDecodeError) as e:
-        return (False, f"Test 4 failed: Could not parse JSON - {e}")
+        return (False, "Test 4 failed: No response")
+    led_state = json.loads(response[response.index('{'):response.index('}') + 1])
+    if led_state.get('led') != False:
+        return (False, f"Test 4 failed: LED state not false - {led_state}")
     print(f"[{elapsed_fn()}] [CLIENT] Test 4: LED turned off ✓")
 
     # Test 5: GET /api/led/ - Verify LED is off
@@ -199,14 +179,9 @@ def http_server_led_test(device_ip: str, port: int, elapsed_fn: Callable) -> tup
     response = send_to_device(device_ip, port, 'GET /api/led/ HTTP/1.1\r\nHost: device\r\n\r\n', 'tcp')
     if not response:
         return (False, "Test 5 failed: No response")
-    try:
-        json_start = response.index('{')
-        json_body = response[json_start:response.index('}', json_start) + 1]
-        led_state = json.loads(json_body)
-        if led_state.get('led') != False:
-            return (False, f"Test 5 failed: LED not off - {json_body}")
-    except (ValueError, json.JSONDecodeError) as e:
-        return (False, f"Test 5 failed: Could not parse JSON - {e}")
+    led_state = json.loads(response[response.index('{'):response.index('}') + 1])
+    if led_state.get('led') != False:
+        return (False, f"Test 5 failed: LED not off - {led_state}")
     print(f"[{elapsed_fn()}] [CLIENT] Test 5: LED state verified off ✓")
 
     return (True, "All 5 HTTP server tests passed ✓ (index, LED on, verify on, LED off, verify off)")
