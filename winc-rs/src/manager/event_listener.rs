@@ -283,11 +283,8 @@ impl<X: Xfer> Manager<X> {
     ) -> Result<(), Error> {
         #[cfg(feature = "irq")]
         self.chip.wait_for_interrupt();
-        let result = self.dispatch_events_new(listener);
-        // Wake any async tasks waiting for hardware events
-        #[cfg(feature = "async")]
-        self.wake_all_wakers();
-        result
+        // dispatch_events_new already calls wake_all_wakers() internally (line 320)
+        self.dispatch_events_new(listener)
     }
 
     /// Check for new events and dispatches them to the provided event listener.

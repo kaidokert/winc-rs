@@ -54,14 +54,25 @@ impl<X: Xfer> OpImpl<X> for TcpSendOp<'_> {
                         total_sent: 0,
                         remaining: to_send as i16,
                     };
-                    *op = ClientSocketOp::AsyncOp(
-                        AsyncOp::Send(new_req, None),
-                        AsyncState::Pending(None),
+
+                    // Set operation state BEFORE calling send_send to avoid reentrancy races
+                    let prev_op = core::mem::replace(
+                        op,
+                        ClientSocketOp::AsyncOp(
+                            AsyncOp::Send(new_req, None),
+                            AsyncState::Pending(None),
+                        ),
                     );
-                    manager
-                        .send_send(socket, &self.data[offset..offset + to_send])
-                        .map_err(StackError::SendSendFailed)?;
-                    Ok(None) // Still in progress
+
+                    // Now call send_send - if it fails, revert to previous state
+                    match manager.send_send(socket, &self.data[offset..offset + to_send]) {
+                        Ok(()) => Ok(None), // Still in progress
+                        Err(e) => {
+                            // Revert to previous state on failure
+                            *op = prev_op;
+                            Err(StackError::SendSendFailed(e))
+                        }
+                    }
                 }
             }
             ClientSocketOp::AsyncOp(AsyncOp::Send(_, None), AsyncState::Pending(_)) => {
@@ -77,11 +88,23 @@ impl<X: Xfer> OpImpl<X> for TcpSendOp<'_> {
                     total_sent: 0,
                     remaining: to_send as i16,
                 };
-                manager
-                    .send_send(socket, &self.data[..to_send])
-                    .map_err(StackError::SendSendFailed)?;
-                *op = ClientSocketOp::AsyncOp(AsyncOp::Send(req, None), AsyncState::Pending(None));
-                Ok(None)
+
+                // Set operation state BEFORE calling send_send to avoid reentrancy races
+                // if callbacks run synchronously
+                let prev_op = core::mem::replace(
+                    op,
+                    ClientSocketOp::AsyncOp(AsyncOp::Send(req, None), AsyncState::Pending(None)),
+                );
+
+                // Now call send_send - if it fails, revert to previous state
+                match manager.send_send(socket, &self.data[..to_send]) {
+                    Ok(()) => Ok(None), // Still in progress
+                    Err(e) => {
+                        // Revert to previous state on failure
+                        *op = prev_op;
+                        Err(StackError::SendSendFailed(e))
+                    }
+                }
             }
         }
     }

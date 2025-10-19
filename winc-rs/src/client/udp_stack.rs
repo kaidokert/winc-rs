@@ -31,18 +31,13 @@ impl<X: Xfer> WincClient<'_, X> {
         addr: SocketAddrV4,
         data: &[u8],
     ) -> nb::Result<(), StackError> {
-        #[cfg(feature = "defmt")]
         debug!(
-            "Sending UDP to {:?}:{} len:{} via {:?}",
-            crate::Ipv4AddrFormatWrapper::new(addr.ip()),
+            "Sending UDP to {}.{}.{}.{}:{} len:{} via {:?}",
+            addr.ip().octets()[0],
+            addr.ip().octets()[1],
+            addr.ip().octets()[2],
+            addr.ip().octets()[3],
             addr.port(),
-            data.len(),
-            socket
-        );
-        #[cfg(not(feature = "defmt"))]
-        debug!(
-            "Sending UDP to {:?} len:{} via {:?}",
-            addr,
             data.len(),
             socket
         );

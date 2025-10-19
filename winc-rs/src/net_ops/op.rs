@@ -107,23 +107,33 @@ where
     ) -> core::task::Poll<Self::Output> {
         let this = self.get_mut();
 
-        // Register waker with manager and store locally for unregistration
-        let new_waker = cx.waker().clone();
+        // Only update waker registration if the new waker is different from the stored one
+        let new_waker = cx.waker();
+        let waker_changed = this
+            .waker
+            .as_ref()
+            .is_none_or(|old_waker| !old_waker.will_wake(new_waker));
 
-        // Unregister previous waker if we had one
-        if let Some(ref old_waker) = this.waker {
-            this.manager.borrow_mut().unregister_waker(old_waker);
+        if waker_changed {
+            // Unregister previous waker if we had one
+            if let Some(ref old_waker) = this.waker {
+                this.manager.borrow_mut().unregister_waker(old_waker);
+            }
+
+            // Register new waker with manager
+            let new_waker_cloned = new_waker.clone();
+            let waker_registered = this
+                .manager
+                .borrow_mut()
+                .register_waker(new_waker_cloned.clone());
+            if !waker_registered {
+                // If we can't register waker, still proceed but warn
+                // This shouldn't happen in normal operation with our fixed-size array
+            }
+
+            // Store waker for later unregistration
+            this.waker = Some(new_waker_cloned);
         }
-
-        // Register new waker with manager
-        let waker_registered = this.manager.borrow_mut().register_waker(new_waker.clone());
-        if !waker_registered {
-            // If we can't register waker, still proceed but warn
-            // This shouldn't happen in normal operation with our fixed-size array
-        }
-
-        // Store waker for later unregistration
-        this.waker = Some(new_waker);
 
         // Dispatch events first
         if let Err(e) = (this.dispatch_events)() {

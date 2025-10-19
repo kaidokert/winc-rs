@@ -37,6 +37,7 @@ impl<X: Xfer> UnconnectedUdp for AsyncClient<'_, X> {
         // Create a UDP socket for this send operation
         // Note: This is a simplified implementation - a real implementation would
         // need proper socket management
+        // TODO: This is placeholder code.
         let handle = Handle(7); // Placeholder handle
 
         // Create UDP send operation
@@ -68,6 +69,7 @@ impl<X: Xfer> UnconnectedUdp for AsyncClient<'_, X> {
         // Create a UDP socket for this receive operation
         // Note: This is a simplified implementation - a real implementation would
         // need proper socket management
+        // TODO: This is placeholder code.
         let handle = Handle(7); // Placeholder handle
 
         // Create UDP receive operation
