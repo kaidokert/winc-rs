@@ -87,15 +87,15 @@ async def send_to_device_async(device_ip: str, port: int, data: str, protocol: s
             # Read until connection closes or timeout
             # For HTTP responses, we need to read the full response
             chunks = []
-            try:
-                while True:
+            while True:
+                try:
                     chunk = await asyncio.wait_for(reader.read(1024), timeout=2.0)
                     if not chunk:
                         break
                     chunks.append(chunk)
-            except asyncio.TimeoutError:
-                # Timeout means no more data is arriving, exit the loop
-                break
+                except asyncio.TimeoutError:
+                    # Timeout means no more data is arriving, exit the loop
+                    break
 
             writer.close()
             await writer.wait_closed()
