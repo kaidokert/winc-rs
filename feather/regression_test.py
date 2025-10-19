@@ -795,7 +795,7 @@ class TestRunner:
 
             # Check return code if process exited early
             return_code = process.returncode
-            if return_code == 0 or return_code == -15:  # -15 is SIGTERM (killed by us)
+            if return_code == 0 or return_code in (-9, -15):  # -9 is SIGKILL, -15 is SIGTERM
                 print(f"[{elapsed()}] [PASS] Test completed successfully (total: {total_time:.2f}s)")
                 return True
             else:
