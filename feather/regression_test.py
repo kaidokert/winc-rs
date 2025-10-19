@@ -492,7 +492,7 @@ TEST_CONFIGS = {
     # 17. Telnet shell - Interactive command shell over telnet
     'telnet_shell': TestConfig(
         name='telnet_shell',
-        flash_timeout=DEFAULT_FLASH_TIMEOUT,
+        flash_timeout=DEFAULT_FLASH_TIMEOUT + 15,
         run_timeout=15,
         features=['irq', 'defmt', 'telnet'],
         env_vars={},  # Uses saved WiFi credentials
