@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1760898127372,
+  "lastUpdate": 1760898564376,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -4329,6 +4329,40 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/kaidokert/winc-rs/commit/64720615419b0beafc0ba635c3cc31dda265fa99"
         },
         "date": 1760898126867,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 42288,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 57008,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "kaidokert@gmail.com",
+            "name": "Kaido Kert",
+            "username": "kaidokert"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "05c57a53f966759644f76b1bbabecef1661f9329",
+          "message": "Add a regression test (#116)\n\nAdd a Python regression test script that runs most demos.",
+          "timestamp": "2025-10-19T11:28:18-07:00",
+          "tree_id": "7090ee2063a30df6aeae1d8fd0a0611c33870af6",
+          "url": "https://github.com/kaidokert/winc-rs/commit/05c57a53f966759644f76b1bbabecef1661f9329"
+        },
+        "date": 1760898564037,
         "tool": "customSmallerIsBetter",
         "benches": [
           {
