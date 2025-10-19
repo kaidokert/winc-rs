@@ -54,7 +54,7 @@ impl<X: Xfer> Dns for WincClient<'_, X> {
                 }
             }
         } else {
-            Err(nb::Error::WouldBlock)
+            unreachable!("dns_op should be initialized here")
         }
     }
 

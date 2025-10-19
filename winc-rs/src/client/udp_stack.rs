@@ -57,20 +57,13 @@ impl<X: Xfer> WincClient<'_, X> {
         let mut udp_send_op = UdpSendOp::new(*socket, addr, data);
 
         // Poll the UDP send operation using the trait
-        match udp_send_op.poll_impl(&mut self.manager, &mut self.callbacks) {
-            Ok(Some(())) => {
-                self.test_hook();
-                Ok(())
-            }
-            Ok(None) => {
-                self.test_hook();
-                Err(nb::Error::WouldBlock)
-            }
-            Err(e) => {
-                self.test_hook();
-                Err(nb::Error::Other(e))
-            }
-        }
+        let result = match udp_send_op.poll_impl(&mut self.manager, &mut self.callbacks) {
+            Ok(Some(())) => Ok(()),
+            Ok(None) => Err(nb::Error::WouldBlock),
+            Err(e) => Err(nb::Error::Other(e)),
+        };
+        self.test_hook();
+        result
     }
 }
 
@@ -150,20 +143,13 @@ impl<X: Xfer> UdpClientStack for WincClient<'_, X> {
         let mut udp_receive_op = UdpReceiveOp::new(*socket, buffer);
 
         // Poll the UDP receive operation using the trait
-        match udp_receive_op.poll_impl(&mut self.manager, &mut self.callbacks) {
-            Ok(Some((len, addr))) => {
-                self.test_hook();
-                Ok((len, addr))
-            }
-            Ok(None) => {
-                self.test_hook();
-                Err(nb::Error::WouldBlock)
-            }
-            Err(e) => {
-                self.test_hook();
-                Err(nb::Error::Other(e))
-            }
-        }
+        let result = match udp_receive_op.poll_impl(&mut self.manager, &mut self.callbacks) {
+            Ok(Some((len, addr))) => Ok((len, addr)),
+            Ok(None) => Err(nb::Error::WouldBlock),
+            Err(e) => Err(nb::Error::Other(e)),
+        };
+        self.test_hook();
+        result
     }
 
     // Not a blocking call

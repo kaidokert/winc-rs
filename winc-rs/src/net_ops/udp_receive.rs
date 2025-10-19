@@ -67,7 +67,10 @@ impl<X: Xfer> OpImpl<X> for UdpReceiveOp<'_> {
                         let recv_len = recv_result.recv_len;
                         let from_addr = recv_result.from_addr;
                         if recv_len == 0 {
-                            return Ok(None);
+                            // Zero-length datagram - clear state and return immediately
+                            recv_result.return_offset = 0;
+                            *op = ClientSocketOp::None;
+                            return Ok(Some((0, SocketAddr::V4(from_addr))));
                         }
                         let copy_len = recv_len.min(self.buffer.len());
                         self.buffer[..copy_len].copy_from_slice(&callbacks.recv_buffer[..copy_len]);

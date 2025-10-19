@@ -48,11 +48,21 @@ impl<X: Xfer> OpImpl<X> for TcpConnectOp {
             }
             ClientSocketOp::AsyncOp(AsyncOp::Connect(None), AsyncState::Pending(_)) => Ok(None),
             _ => {
-                manager
-                    .send_socket_connect(socket, self.addr)
-                    .map_err(StackError::ConnectSendFailed)?;
-                *op = ClientSocketOp::AsyncOp(AsyncOp::Connect(None), AsyncState::Pending(None));
-                Ok(None)
+                // Set operation state BEFORE calling send_socket_connect to avoid reentrancy races
+                let prev_op = core::mem::replace(
+                    op,
+                    ClientSocketOp::AsyncOp(AsyncOp::Connect(None), AsyncState::Pending(None)),
+                );
+
+                // Now call send_socket_connect - if it fails, revert to previous state
+                match manager.send_socket_connect(socket, self.addr) {
+                    Ok(()) => Ok(None),
+                    Err(e) => {
+                        // Revert to previous state on failure
+                        *op = prev_op;
+                        Err(StackError::ConnectSendFailed(e))
+                    }
+                }
             }
         }
     }
