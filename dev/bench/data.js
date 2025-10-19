@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1760838082065,
+  "lastUpdate": 1760841201879,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -3999,6 +3999,40 @@ window.BENCHMARK_DATA = {
           {
             "name": "iperf3_client",
             "value": 52964,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "kaidokert@gmail.com",
+            "name": "Kaido Kert",
+            "username": "kaidokert"
+          },
+          "committer": {
+            "email": "kaidokert@gmail.com",
+            "name": "Kaido Kert",
+            "username": "kaidokert"
+          },
+          "distinct": true,
+          "id": "ea57eccc6e53f338ca0e30ac47816d5897765e15",
+          "message": "Fixes",
+          "timestamp": "2025-10-18T19:31:51-07:00",
+          "tree_id": "b53c39037c68eca480821e4d3521c17cbd7b4585",
+          "url": "https://github.com/kaidokert/winc-rs/commit/ea57eccc6e53f338ca0e30ac47816d5897765e15"
+        },
+        "date": 1760841200976,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 37408,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 52980,
             "unit": "byte"
           }
         ]
