@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1760906732508,
+  "lastUpdate": 1760907396299,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -4465,6 +4465,40 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/kaidokert/winc-rs/commit/b5dd74370cb2f1252e4fbe1e65432db08baf4165"
         },
         "date": 1760906732109,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 38132,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 52936,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "kaidokert@gmail.com",
+            "name": "Kaido Kert",
+            "username": "kaidokert"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "e8157a40b61d26b84027830ae9ad1b6ab4b7d156",
+          "message": "Migrate async_op to more async-friendly structure (#117)\n\n* Split up async_op to be standalone structures, which makes it easier to share code with async client",
+          "timestamp": "2025-10-19T13:55:36-07:00",
+          "tree_id": "a45f77c5d08fef7360ecb8b1261ad31eb18b6a06",
+          "url": "https://github.com/kaidokert/winc-rs/commit/e8157a40b61d26b84027830ae9ad1b6ab4b7d156"
+        },
+        "date": 1760907395366,
         "tool": "customSmallerIsBetter",
         "benches": [
           {
