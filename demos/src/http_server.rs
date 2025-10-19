@@ -140,13 +140,20 @@ where
 
         let mut headers = [httparse::EMPTY_HEADER; 16];
         let mut req = httparse::Request::new(&mut headers);
-        match req.parse(&buf[..received_len]) {
+
+        // Parse the HTTP request to extract headers and determine body offset
+        // We need to copy path to avoid borrowing from buf
+        let mut path_buf = [0u8; 128];
+        let (header_size, path_len, content_length) = match req.parse(&buf[..received_len]) {
             Ok(httparse::Status::Complete(size)) => {
                 debug!("-----Request parsed----- {} bytes", size);
                 debug!(
                     " method: {:?} path: {:?} version: {:?}",
                     req.method, req.path, req.version
                 );
+
+                // Find Content-Length header
+                let mut content_length: Option<usize> = None;
                 for header in req.headers {
                     if ["Host", "Content-Length", "Content-Type", "Connection"]
                         .contains(&header.name)
@@ -156,71 +163,131 @@ where
                             header.name,
                             core::str::from_utf8(header.value).unwrap_or("(invalid utf-8)")
                         );
+                        if header.name == "Content-Length" {
+                            if let Ok(s) = core::str::from_utf8(header.value) {
+                                content_length = s.parse().ok();
+                            }
+                        }
                     } else {
                         trace!("-----Ignored header: {:?}-----", header.name);
                     }
                 }
-                let body_length = received_len - size;
-                let body = if body_length > 0 {
-                    debug!("-----Request body: {} bytes-----", body_length);
-                    &buf[size..received_len]
-                } else {
-                    &[]
-                };
-                let request_path = req.path.unwrap_or("(invalid path)");
 
-                let mut handled = false;
+                // Copy the path to avoid borrow issues
+                let path = req.path.unwrap_or("(invalid path)");
+                let path_bytes = path.as_bytes();
+                let copy_len = path_bytes.len().min(path_buf.len());
+                path_buf[..copy_len].copy_from_slice(&path_bytes[..copy_len]);
 
-                for path in known_paths.iter_mut() {
-                    if path.paths.contains(&request_path) {
-                        send_buffer.fill(0);
-                        match (path.handler)(body, &mut send_buffer) {
-                            Ok(len) => {
-                                block!(stack.send(
-                                    &mut client_sock,
-                                    "HTTP/1.1 200 OK\r\nContent-Length: ".as_bytes()
-                                ))?;
-                                let content_length =
-                                    usize_to_decimal_string(len, &mut content_length_buffer);
-                                block!(stack.send(&mut client_sock, content_length.as_bytes()))?;
-
-                                if path.is_json {
-                                    block!(stack.send(
-                                        &mut client_sock,
-                                        "\r\nContent-Type: application/json\r\n\r\n".as_bytes()
-                                    ))?;
-                                } else {
-                                    block!(stack.send(
-                                        &mut client_sock,
-                                        "\r\nContent-Type: text/html\r\n\r\n".as_bytes()
-                                    ))?;
-                                }
-                                block!(stack.send(&mut client_sock, &send_buffer[..len]))?;
-                            }
-                            Err(e) => {
-                                let mut error_code_buf = [0; 20];
-                                let error_code =
-                                    usize_to_decimal_string(e as usize, &mut error_code_buf);
-                                block!(stack.send(&mut client_sock, "HTTP/1.1 ".as_bytes()))?;
-                                block!(stack.send(&mut client_sock, error_code.as_bytes()))?;
-                                block!(stack.send(&mut client_sock, " Error\r\n".as_bytes()))?;
-                                continue;
-                            }
-                        };
-
-                        handled = true;
-                        break;
-                    }
-                }
-                if !handled {
-                    block!(stack.send(&mut client_sock, "HTTP/1.1 404 Not found\r\n".as_bytes()))?;
-                }
+                (size, copy_len, content_length)
             }
             Err(e) => {
                 error!("-----Error parsing request: {:?}-----", WrapError(e));
+                stack.close(client_sock)?;
+                continue;
             }
             Ok(httparse::Status::Partial) => {
                 error!("-----Request parsed, but not complete-----");
+                stack.close(client_sock)?;
+                continue;
+            }
+        };
+
+        let request_path = core::str::from_utf8(&path_buf[..path_len]).unwrap_or("(invalid path)");
+
+        // Now req is dropped, we can safely work with buf
+        let mut total_received = received_len;
+        let body_start = header_size;
+        let mut body_length = total_received - header_size;
+
+        // If Content-Length header exists and we don't have enough body data, read more
+        if let Some(expected_length) = content_length {
+            debug!(
+                "Content-Length header indicates {} bytes of body data",
+                expected_length
+            );
+            debug!("Already have {} bytes of body in buffer", body_length);
+
+            if body_length < expected_length {
+                debug!("Need to read {} more bytes", expected_length - body_length);
+                // Read more data to get the body
+                let additional_len =
+                    block!(stack.receive(&mut client_sock, &mut buf[total_received..]))?;
+                debug!("Read additional {} bytes", additional_len);
+                total_received += additional_len;
+                body_length = total_received - header_size;
+            }
+        }
+
+        let body = if body_length > 0 {
+            debug!("-----Request body: {} bytes-----", body_length);
+            debug!(
+                "Body first 30 bytes: {:?}",
+                &buf[body_start..total_received.min(body_start + 30)]
+            );
+            &buf[body_start..body_start + body_length]
+        } else {
+            debug!("-----No request body-----");
+            &[]
+        };
+
+        debug!("Request path: {:?}", request_path);
+
+        // Continue with request handling using extracted values
+        {
+            let mut handled = false;
+
+            for (idx, path) in known_paths.iter_mut().enumerate() {
+                debug!(
+                    "Checking path group {}: {:?} against request {:?}",
+                    idx, path.paths, request_path
+                );
+                if path.paths.contains(&request_path) {
+                    debug!("Path matched! Calling handler for path group {}", idx);
+                    send_buffer.fill(0);
+                    match (path.handler)(body, &mut send_buffer) {
+                        Ok(len) => {
+                            block!(stack.send(
+                                &mut client_sock,
+                                "HTTP/1.1 200 OK\r\nContent-Length: ".as_bytes()
+                            ))?;
+                            let content_length =
+                                usize_to_decimal_string(len, &mut content_length_buffer);
+                            block!(stack.send(&mut client_sock, content_length.as_bytes()))?;
+
+                            if path.is_json {
+                                block!(stack.send(
+                                    &mut client_sock,
+                                    "\r\nContent-Type: application/json\r\n\r\n".as_bytes()
+                                ))?;
+                            } else {
+                                block!(stack.send(
+                                    &mut client_sock,
+                                    "\r\nContent-Type: text/html\r\n\r\n".as_bytes()
+                                ))?;
+                            }
+                            block!(stack.send(&mut client_sock, &send_buffer[..len]))?;
+                        }
+                        Err(e) => {
+                            let mut error_code_buf = [0; 20];
+                            let error_code =
+                                usize_to_decimal_string(e as usize, &mut error_code_buf);
+                            block!(stack.send(&mut client_sock, "HTTP/1.1 ".as_bytes()))?;
+                            block!(stack.send(&mut client_sock, error_code.as_bytes()))?;
+                            block!(stack.send(&mut client_sock, " Error\r\n".as_bytes()))?;
+                            continue;
+                        }
+                    };
+
+                    handled = true;
+                    break;
+                }
+            }
+            if !handled {
+                debug!("No handler matched for path: {:?}", request_path);
+                block!(stack.send(&mut client_sock, "HTTP/1.1 404 Not found\r\n".as_bytes()))?;
+            } else {
+                debug!("Request handled successfully");
             }
         }
 

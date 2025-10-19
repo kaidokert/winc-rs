@@ -131,57 +131,73 @@ def http_server_led_test(device_ip: str, port: int, elapsed_fn: Callable) -> tup
     Returns:
         (success: bool, message: str)
     """
+    import urllib.request
+    import urllib.error
     import json
+
+    base_url = f"http://{device_ip}:{port}"
 
     # Test 1: GET / (index page)
     print(f"[{elapsed_fn()}] [CLIENT] Test 1: GET / (index page)")
-    response = send_to_device(device_ip, port, 'GET / HTTP/1.1\r\nHost: device\r\n\r\n', 'tcp')
-    if not response or 'HTTP/1.1 200 OK' not in response or 'text/html' not in response:
-        return (False, f"Test 1 failed: Invalid response - {response[:100] if response else 'No response'}")
+    with urllib.request.urlopen(f"{base_url}/", timeout=15) as resp:
+        body = resp.read()
+        print(f"[{elapsed_fn()}] [CLIENT] Status {resp.status}, body length: {len(body)} bytes")
+        if resp.status != 200:
+            return (False, f"Test 1 failed: HTTP {resp.status}")
+        if 'text/html' not in resp.headers.get('content-type', ''):
+            return (False, f"Test 1 failed: Wrong content-type")
     print(f"[{elapsed_fn()}] [CLIENT] Test 1: Index page OK ✓")
 
     # Test 2: POST /api/led/ with {"led": true} - Turn LED on
     print(f"[{elapsed_fn()}] [CLIENT] Test 2: POST /api/led/ (turn on)")
-    body = json.dumps({"led": True})
-    request = f'POST /api/led/ HTTP/1.1\r\nHost: device\r\nContent-Type: application/json\r\nContent-Length: {len(body)}\r\n\r\n{body}'
-    response = send_to_device(device_ip, port, request, 'tcp')
-    if not response or 'HTTP/1.1 200 OK' not in response:
-        return (False, f"Test 2 failed: Invalid response - {response[:100] if response else 'No response'}")
-    led_state = json.loads(response[response.index('{'):response.index('}') + 1])
+    data = json.dumps({"led": True}).encode('utf-8')
+    req = urllib.request.Request(f"{base_url}/api/led/", data=data, headers={'Content-Type': 'application/json'})
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        response_body = resp.read()
+        print(f"[{elapsed_fn()}] [CLIENT] Status {resp.status}, response: {response_body!r}")
+        if resp.status != 200:
+            return (False, f"Test 2 failed: HTTP {resp.status}")
+        led_state = json.loads(response_body.decode('utf-8'))
     if led_state.get('led') != True:
-        return (False, f"Test 2 failed: LED state not true - {led_state}")
+        return (False, f"Test 2 failed: LED state not true, got: {led_state}")
     print(f"[{elapsed_fn()}] [CLIENT] Test 2: LED turned on ✓")
 
     # Test 3: GET /api/led/ - Verify LED is on
     print(f"[{elapsed_fn()}] [CLIENT] Test 3: GET /api/led/ (verify on)")
-    response = send_to_device(device_ip, port, 'GET /api/led/ HTTP/1.1\r\nHost: device\r\n\r\n', 'tcp')
-    if not response:
-        return (False, "Test 3 failed: No response")
-    led_state = json.loads(response[response.index('{'):response.index('}') + 1])
+    with urllib.request.urlopen(f"{base_url}/api/led/", timeout=10) as resp:
+        response_body = resp.read()
+        print(f"[{elapsed_fn()}] [CLIENT] Status {resp.status}, response: {response_body!r}")
+        if resp.status != 200:
+            return (False, f"Test 3 failed: HTTP {resp.status}")
+        led_state = json.loads(response_body.decode('utf-8'))
     if led_state.get('led') != True:
-        return (False, f"Test 3 failed: LED not on - {led_state}")
+        return (False, f"Test 3 failed: LED not on, got: {led_state}")
     print(f"[{elapsed_fn()}] [CLIENT] Test 3: LED state verified on ✓")
 
     # Test 4: POST /api/led/ with {"led": false} - Turn LED off
     print(f"[{elapsed_fn()}] [CLIENT] Test 4: POST /api/led/ (turn off)")
-    body = json.dumps({"led": False})
-    request = f'POST /api/led/ HTTP/1.1\r\nHost: device\r\nContent-Type: application/json\r\nContent-Length: {len(body)}\r\n\r\n{body}'
-    response = send_to_device(device_ip, port, request, 'tcp')
-    if not response:
-        return (False, "Test 4 failed: No response")
-    led_state = json.loads(response[response.index('{'):response.index('}') + 1])
+    data = json.dumps({"led": False}).encode('utf-8')
+    req = urllib.request.Request(f"{base_url}/api/led/", data=data, headers={'Content-Type': 'application/json'})
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        response_body = resp.read()
+        print(f"[{elapsed_fn()}] [CLIENT] Status {resp.status}, response: {response_body!r}")
+        if resp.status != 200:
+            return (False, f"Test 4 failed: HTTP {resp.status}")
+        led_state = json.loads(response_body.decode('utf-8'))
     if led_state.get('led') != False:
-        return (False, f"Test 4 failed: LED state not false - {led_state}")
+        return (False, f"Test 4 failed: LED state not false, got: {led_state}")
     print(f"[{elapsed_fn()}] [CLIENT] Test 4: LED turned off ✓")
 
     # Test 5: GET /api/led/ - Verify LED is off
     print(f"[{elapsed_fn()}] [CLIENT] Test 5: GET /api/led/ (verify off)")
-    response = send_to_device(device_ip, port, 'GET /api/led/ HTTP/1.1\r\nHost: device\r\n\r\n', 'tcp')
-    if not response:
-        return (False, "Test 5 failed: No response")
-    led_state = json.loads(response[response.index('{'):response.index('}') + 1])
+    with urllib.request.urlopen(f"{base_url}/api/led/", timeout=10) as resp:
+        response_body = resp.read()
+        print(f"[{elapsed_fn()}] [CLIENT] Status {resp.status}, response: {response_body!r}")
+        if resp.status != 200:
+            return (False, f"Test 5 failed: HTTP {resp.status}")
+        led_state = json.loads(response_body.decode('utf-8'))
     if led_state.get('led') != False:
-        return (False, f"Test 5 failed: LED not off - {led_state}")
+        return (False, f"Test 5 failed: LED not off, got: {led_state}")
     print(f"[{elapsed_fn()}] [CLIENT] Test 5: LED state verified off ✓")
 
     return (True, "All 5 HTTP server tests passed ✓ (index, LED on, verify on, LED off, verify off)")

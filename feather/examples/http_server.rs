@@ -79,20 +79,37 @@ fn program() -> Result<(), StackError> {
 
         let mut led_state = false;
         let mut handle_led = |body: &[u8], output: &mut [u8]| -> Result<usize, u16> {
-            if !body.is_empty() && body.contains(&b':') {
-                led_state = body.windows(4).any(|w| w == b"true");
-                if led_state {
-                    red_led.set_high().map_err(|_| 500u16)?;
+            debug!("LED handler called, body.len()={}", body.len());
+            if !body.is_empty() {
+                debug!("Body first 20 bytes: {:?}", &body[..body.len().min(20)]);
+                if body.contains(&b':') {
+                    let new_state = body.windows(4).any(|w| w == b"true");
+                    debug!("Body contains ':', checking for 'true': {}", new_state);
+                    led_state = new_state;
+                    if led_state {
+                        debug!("Setting LED HIGH");
+                        red_led.set_high().map_err(|_| 500u16)?;
+                    } else {
+                        debug!("Setting LED LOW");
+                        red_led.set_low().map_err(|_| 500u16)?;
+                    }
                 } else {
-                    red_led.set_low().map_err(|_| 500u16)?;
+                    debug!("Body does not contain ':'");
                 }
+            } else {
+                debug!("Body is empty");
             }
+            debug!("Current LED state: {}", led_state);
             let response = if led_state {
                 b"{\"led\": true }"
             } else {
                 b"{\"led\": false}"
             };
             output[..response.len()].copy_from_slice(response);
+            debug!(
+                "Sending response: {:?}",
+                core::str::from_utf8(response).unwrap_or("(invalid)")
+            );
             Ok(response.len())
         };
 
