@@ -3,7 +3,9 @@ import select
 import sys
 import time
 
-def start_combined_server(base_port, port_range, additional_ports=[]):
+def start_combined_server(base_port, port_range, additional_ports=[],
+                         on_tcp_connect=None, on_tcp_data=None,
+                         on_udp_data=None, verbose=True):
     # Retrieve all IP addresses for the hostname
     hostname = socket.gethostname()
     local_ips = socket.gethostbyname_ex(hostname)[2]
@@ -37,11 +39,13 @@ def start_combined_server(base_port, port_range, additional_ports=[]):
         udp_sockets.append(udp_sock)
         socket_to_port[udp_sock] = port
 
-        print(f"Listening on TCP and UDP port {port}")
+        if verbose:
+            print(f"Listening on TCP and UDP port {port}")
 
-    print("Available network interface addresses:")
-    for ip in local_ips:
-        print(f"  - {ip}")
+    if verbose:
+        print("Available network interface addresses:")
+        for ip in local_ips:
+            print(f"  - {ip}")
 
     # Lists to keep track of client sockets
     client_sockets = []
@@ -59,16 +63,23 @@ def start_combined_server(base_port, port_range, additional_ports=[]):
                 if s in tcp_sockets:
                     # This is a listening TCP socket, accept new connection
                     client_sock, client_address = s.accept()
-                    print(f"TCP Connection from {client_address} on port {s.getsockname()[1]}")
+                    port = s.getsockname()[1]
+                    if verbose:
+                        print(f"TCP Connection from {client_address} on port {port}")
+                    if on_tcp_connect:
+                        on_tcp_connect(client_address, port)
                     client_sock.setblocking(False)
                     client_sockets.append(client_sock)
-                    client_socket_to_port[client_sock] = s.getsockname()[1]
+                    client_socket_to_port[client_sock] = port
                 elif s in udp_sockets:
                     # This is a UDP socket
                     data, client_address = s.recvfrom(1024)
                     port = s.getsockname()[1]
                     decoded = data.decode('utf-8', errors='replace')  # or use errors='ignore'
-                    print(f"Received UDP from {client_address} on port {port}: {decoded}")
+                    if verbose:
+                        print(f"Received UDP from {client_address} on port {port}: {decoded}")
+                    if on_udp_data:
+                        on_udp_data(client_address, port, data)
 
                     # Send response including port number
                     response = f"UDP/1.0 200 OK from port {port}\r\n\r\n".encode()
@@ -78,17 +89,22 @@ def start_combined_server(base_port, port_range, additional_ports=[]):
                     data = s.recv(1024)
                     port = client_socket_to_port[s]
                     if data:
-                        print(f"Received TCP from {s.getpeername()} on port {port}: {data.decode()}")
+                        if verbose:
+                            print(f"Received TCP from {s.getpeername()} on port {port}: {data.decode()}")
+                        if on_tcp_data:
+                            on_tcp_data(s.getpeername(), port, data)
 
                         if port==12350:
-                            print("Intentionally not responding on port 12350")
+                            if verbose:
+                                print("Intentionally not responding on port 12350")
                         else:
                             # Send response including port number
                             response = f"HTTP/1.0 200 OK from port {port}\r\n\r\n".encode()
                             s.sendall(response)
                     else:
                         # No data, client has closed the connection
-                        print(f"TCP Client {s.getpeername()} disconnected")
+                        if verbose:
+                            print(f"TCP Client {s.getpeername()} disconnected")
                         client_sockets.remove(s)
                         del client_socket_to_port[s]
                         s.close()

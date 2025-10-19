@@ -197,6 +197,7 @@ mod test {
 
     use super::*;
     use crate::client::{self, test_shared::*};
+    use crate::stack::socket_callbacks::AsyncOp;
     use crate::{client::SocketCallbacks, manager::EventListener, socket::Socket};
     use core::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4};
     use embedded_nal::{TcpClientStack, TcpFullStack};

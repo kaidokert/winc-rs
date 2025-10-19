@@ -21,8 +21,18 @@ where
             SocketAddrWrap { addr: &addr }
         );
 
-        let response = "Hello, client!";
-        block!(stack.send_to(&mut sock, addr, response.as_bytes()))?;
+        // Extract last alphabetic character as nonce, or use 'x' as default
+        let nonce = buf[..n]
+            .iter()
+            .rev()
+            .find(|&&c| c.is_ascii_alphabetic())
+            .copied()
+            .unwrap_or(b'x');
+
+        // Build response with nonce: "Hello, client_X!" where X is the nonce
+        let mut response = *b"Hello, client_x!";
+        response[14] = nonce; // Replace 'x' with actual nonce
+        block!(stack.send_to(&mut sock, addr, &response))?;
         info!(
             "-----Sent response to {:?}-----",
             SocketAddrWrap { addr: &addr }
