@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1760892209663,
+  "lastUpdate": 1760893261787,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -4159,6 +4159,40 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/kaidokert/winc-rs/commit/f6748f7934e3eb6705656a36847ad7b4ac7776b9"
         },
         "date": 1760892209275,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 41512,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 57008,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "kaidokert@gmail.com",
+            "name": "Kaido Kert",
+            "username": "kaidokert"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "320587d99e1f3d4c2e7bfd39fcb9e9870810f1c6",
+          "message": "Apply suggestions from code review\n\nCo-authored-by: sourcery-ai[bot] <58596630+sourcery-ai[bot]@users.noreply.github.com>",
+          "timestamp": "2025-10-19T09:59:49-07:00",
+          "tree_id": "2d56ac9ee4e9c3f1e62c9c67581fa5d7fc3bd525",
+          "url": "https://github.com/kaidokert/winc-rs/commit/320587d99e1f3d4c2e7bfd39fcb9e9870810f1c6"
+        },
+        "date": 1760893261269,
         "tool": "customSmallerIsBetter",
         "benches": [
           {
