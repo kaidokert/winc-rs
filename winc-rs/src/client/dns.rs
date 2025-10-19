@@ -1,10 +1,11 @@
 use core::net::IpAddr;
-use core::net::Ipv4Addr;
 use embedded_nal::nb;
 use embedded_nal::AddrType;
 use embedded_nal::Dns;
 
 use super::StackError;
+use crate::net_ops::dns::DnsOp;
+use crate::net_ops::op::OpImpl;
 use crate::transfer::Xfer;
 use crate::WincClient;
 
@@ -16,33 +17,45 @@ impl<X: Xfer> Dns for WincClient<'_, X> {
         hostname: &str,
         addr_type: AddrType,
     ) -> embedded_nal::nb::Result<IpAddr, Self::Error> {
-        match &mut self.callbacks.dns_resolved_addr {
-            None => {
-                if addr_type != AddrType::IPv4 {
-                    unimplemented!("IPv6 not supported");
-                }
-                self.dispatch_events()?;
-                self.manager.send_gethostbyname(hostname)?;
-                // Signal operation in progress
-                self.operation_countdown = Self::DNS_TIMEOUT;
-                self.callbacks.dns_resolved_addr = Some(None);
-            }
-            Some(result) => {
-                if let Some(ip) = result.take() {
-                    self.callbacks.dns_resolved_addr = None;
-                    if ip == Ipv4Addr::new(0, 0, 0, 0) {
-                        return Err(StackError::DnsFailed.into());
-                    }
-                    return Ok(IpAddr::V4(ip));
-                }
-                self.operation_countdown -= 1;
-                if self.operation_countdown == 0 {
-                    return Err(nb::Error::Other(StackError::DnsTimeout));
-                }
+        if addr_type != AddrType::IPv4 {
+            unimplemented!("IPv6 not supported");
+        }
+
+        // Initialize DNS op if not already started
+        if self.dns_op.is_none() {
+            match DnsOp::new(hostname, Self::DNS_TIMEOUT) {
+                Ok(dns_op) => self.dns_op = Some(dns_op),
+                Err(e) => return Err(nb::Error::Other(e)),
             }
         }
+
+        // Handle test debug callback
+        #[cfg(test)]
+        {
+            if let Some(callback) = &mut self.debug_callback {
+                callback(&mut self.callbacks);
+            }
+        }
+
+        // Dispatch events first
         self.dispatch_events()?;
-        Err(nb::Error::WouldBlock)
+
+        // Poll the DNS operation using the trait
+        if let Some(dns_op) = &mut self.dns_op {
+            match dns_op.poll_impl(&mut self.manager, &mut self.callbacks) {
+                Ok(Some(ip)) => {
+                    self.dns_op = None; // Clear the operation
+                    Ok(ip)
+                }
+                Ok(None) => Err(nb::Error::WouldBlock),
+                Err(e) => {
+                    self.dns_op = None; // Clear the operation on error
+                    Err(nb::Error::Other(e))
+                }
+            }
+        } else {
+            Err(nb::Error::WouldBlock)
+        }
     }
 
     fn get_host_by_address(

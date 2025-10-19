@@ -38,8 +38,28 @@ where
             debug!("-----Failed to decode-----");
         }
 
-        let response = "HTTP/1.1 200 OK\r\nContent-Length: 13\r\n\r\nHello, client!";
-        block!(stack.send(&mut client_sock, response.as_bytes()))?;
+        // Extract last alphabetic character as nonce, or use 'x' as default
+        let nonce = buf[..n]
+            .iter()
+            .rev()
+            .find(|&&c| c.is_ascii_alphabetic())
+            .copied()
+            .unwrap_or(b'x');
+
+        // Build response body with nonce: "Hello, client_X!" where X is the nonce
+        let mut body = [0u8; 16];
+        body[..14].copy_from_slice(b"Hello, client_");
+        body[14] = nonce;
+        body[15] = b'!';
+
+        // Build full HTTP response
+        let header = b"HTTP/1.1 200 OK\r\nContent-Length: 16\r\n\r\n";
+        let header_len = header.len(); // 39 bytes
+        let mut response = [0u8; 55]; // header (39) + body (16)
+        response[..header_len].copy_from_slice(header);
+        response[header_len..].copy_from_slice(&body);
+
+        block!(stack.send(&mut client_sock, &response))?;
         info!(
             "-----Sent response to {:?}-----",
             SocketAddrWrap { addr: &addr }

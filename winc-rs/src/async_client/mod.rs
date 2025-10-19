@@ -8,6 +8,7 @@ use core::ops::DerefMut;
 
 mod dns;
 mod module;
+mod udp_stack;
 
 pub struct AsyncClient<'a, X: Xfer> {
     manager: RefCell<Manager<X>>,
@@ -18,6 +19,9 @@ pub struct AsyncClient<'a, X: Xfer> {
 }
 
 impl<X: Xfer> AsyncClient<'_, X> {
+    #[cfg(test)]
+    const DNS_TIMEOUT: u32 = 50; // Shorter timeout for tests
+    #[cfg(not(test))]
     const DNS_TIMEOUT: u32 = 1000;
 
     pub fn new(transfer: X) -> Self {
@@ -50,8 +54,25 @@ impl<X: Xfer> AsyncClient<'_, X> {
         Ok(())
     }
 
+    /// Yield control back to the async runtime, allowing other tasks to run.
+    /// This should be called in polling loops to avoid busy-waiting.
     async fn yield_once(&self) {
-        // Runtime-specific yield here
+        use core::cell::Cell;
+
+        // Stateful future that yields once: returns Pending on first poll, Ready on second
+        let polled = Cell::new(false);
+        core::future::poll_fn(|cx| {
+            if polled.get() {
+                // Second poll - return Ready to complete
+                core::task::Poll::Ready(())
+            } else {
+                // First poll - mark as polled, wake ourselves, and return Pending
+                polled.set(true);
+                cx.waker().wake_by_ref();
+                core::task::Poll::Pending
+            }
+        })
+        .await
     }
 
     #[cfg(test)]

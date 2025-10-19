@@ -1,6 +1,4 @@
 use crate::manager::Manager;
-use crate::manager::SocketError;
-use crate::socket::Socket;
 use crate::transfer::Xfer;
 
 mod dns;
@@ -19,12 +17,6 @@ pub use crate::stack::socket_callbacks::ClientSocketOp;
 use crate::stack::socket_callbacks::SocketCallbacks;
 pub use crate::stack::socket_callbacks::{Handle, PingResult};
 
-use crate::stack::socket_callbacks::{AsyncOp, AsyncState};
-
-use embedded_nal::nb;
-
-use crate::stack::sock_holder::SocketStore;
-
 /// Client for the WincWifi chip.
 ///
 /// This manages the state of the chip and
@@ -36,25 +28,16 @@ pub struct WincClient<'a, X: Xfer> {
     next_session_id: u16,
     boot: Option<crate::manager::BootState>,
     operation_countdown: u32,
+    dns_op: Option<crate::net_ops::dns::DnsOp>,
     phantom: core::marker::PhantomData<&'a ()>,
     #[cfg(test)]
     debug_callback: Option<&'a mut dyn FnMut(&mut SocketCallbacks)>,
 }
 
 impl<X: Xfer> WincClient<'_, X> {
-    // Max send frame length - conservative limit to avoid overwhelming chip buffers
-    #[cfg(not(test))]
-    const MAX_SEND_LENGTH: usize = 1400;
-
-    #[cfg(test)]
-    const MAX_SEND_LENGTH: usize = 4;
-
     const TCP_SOCKET_BACKLOG: u8 = 4;
     const LISTEN_TIMEOUT: u32 = 100;
     const BIND_TIMEOUT: u32 = 100;
-    // This only impacts for interval for loops, but doesn't actually
-    // cause timeouts, as all calls are non-blocking.
-    const CONNECT_TIMEOUT: u32 = 1000;
     const DNS_TIMEOUT: u32 = 1000;
     const POLL_LOOP_DELAY_US: u32 = 100;
     /// Create a new WincClient..
@@ -74,6 +57,7 @@ impl<X: Xfer> WincClient<'_, X> {
             next_session_id: 0,
             boot: None,
             operation_countdown: 0,
+            dns_op: None,
             phantom: core::marker::PhantomData,
             #[cfg(test)]
             debug_callback: None,
@@ -149,76 +133,6 @@ impl<X: Xfer> WincClient<'_, X> {
             self.dispatch_events()?;
             timeout -= self.poll_loop_delay_us as i32;
             elapsed += self.poll_loop_delay_us;
-        }
-    }
-
-    // Todo: Too many arguments: poll delay should be removable
-    // General async op state machine, with closures for init and complete
-    #[allow(clippy::too_many_arguments)]
-    fn async_op<T>(
-        tcp: bool,
-        socket: &Handle,
-        callbacks: &mut SocketCallbacks,
-        manager: &mut Manager<X>,
-        poll_delay: u32,
-        matcher: impl Fn(&AsyncOp) -> bool,
-        init_callback: impl FnOnce(&Socket, &mut Manager<X>) -> Result<ClientSocketOp, StackError>,
-        complete_callback: impl FnOnce(
-            &Socket,
-            &mut Manager<X>,
-            &[u8],
-            &mut AsyncOp,
-        ) -> Result<T, StackError>,
-    ) -> Result<T, nb::Error<StackError>> {
-        let store: &mut dyn SocketStore = if tcp {
-            &mut callbacks.tcp_sockets
-        } else {
-            &mut callbacks.udp_sockets
-        };
-
-        let (sock, op) = store.get(*socket).ok_or(StackError::SocketNotFound)?;
-        match op {
-            ClientSocketOp::None | ClientSocketOp::New => {
-                *op = init_callback(sock, manager)?;
-                manager
-                    .dispatch_events_may_wait(callbacks)
-                    .map_err(StackError::DispatchError)?;
-                Err(nb::Error::WouldBlock)
-            }
-            ClientSocketOp::AsyncOp(asyncop, AsyncState::Pending(timeout_option))
-                if matcher(asyncop) =>
-            {
-                manager.delay_us(poll_delay);
-                if let Some(timeout) = timeout_option {
-                    *timeout -= 1;
-                    if *timeout == 0 {
-                        Err(nb::Error::Other(StackError::OpFailed(SocketError::Timeout)))
-                    } else {
-                        manager
-                            .dispatch_events_may_wait(callbacks)
-                            .map_err(StackError::DispatchError)?;
-                        Err(nb::Error::WouldBlock)
-                    }
-                } else {
-                    manager
-                        .dispatch_events_may_wait(callbacks)
-                        .map_err(StackError::DispatchError)?;
-                    Err(nb::Error::WouldBlock)
-                }
-            }
-            ClientSocketOp::AsyncOp(asyncop, AsyncState::Done) if matcher(asyncop) => {
-                let res = complete_callback(sock, manager, &callbacks.recv_buffer, asyncop);
-                if let Err(StackError::ContinueOperation) = res {
-                    *op = ClientSocketOp::AsyncOp(*asyncop, AsyncState::Pending(None));
-                    Err(nb::Error::WouldBlock)
-                } else {
-                    *op = ClientSocketOp::None;
-                    res.map_err(nb::Error::Other)
-                }
-            }
-            _ => {
-                unimplemented!("Unexpected async state: {:?}", op);
-            }
         }
     }
 }

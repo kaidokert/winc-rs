@@ -39,10 +39,20 @@ fn program() -> Result<(), StackError> {
         nb::block!(stack.connect_to_saved_ap())?;
         delay_ms(1000);
 
-        let info = nb::block!(stack.get_connection_info())?;
-        info!("Connection info: {}", info);
+        debug!("Getting IP settings..");
+        let ip_info = nb::block!(stack.get_ip_settings())?;
+        let ip = ip_info.ip;
 
-        info!(".. connected to AP, running telnet shell ..");
+        let conn_info = nb::block!(stack.get_connection_info())?;
+        info!("Connection info: {}", conn_info);
+
+        info!(
+            ".. connected to AP, running telnet shell at {}.{}.{}.{}:23 ..",
+            ip.octets()[0],
+            ip.octets()[1],
+            ip.octets()[2],
+            ip.octets()[3]
+        );
 
         telnet_shell::telnet_shell(&mut stack, None)?;
     }
