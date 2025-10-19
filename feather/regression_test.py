@@ -646,16 +646,16 @@ class TestRunner:
                         output_lines.append(line)
 
                         # Detect first output in run phase (any line with [INFO], [DEBUG], [WARN], [ERROR], [TRACE])
-                        if run_phase_start_time is not None and first_output_time is None:
-                            if any(marker in line for marker in ['[INFO ]', '[DEBUG]', '[WARN ]', '[ERROR]', '[TRACE]']):
-                                first_output_time = time.time() - run_phase_start_time
-                                print(f"[{elapsed()}] [RUN] First output detected ({first_output_time:.2f}s into run phase)")
+                        if run_phase_start_time is not None and first_output_time is None and any(marker in line for marker in ['[INFO ]', '[DEBUG]', '[WARN ]', '[ERROR]', '[TRACE]']):
+                            first_output_time = time.time() - run_phase_start_time
+                            print(f"[{elapsed()}] [RUN] First output detected ({first_output_time:.2f}s into run phase)")
+
 
                         # Detect expected output pattern
-                        if run_phase_start_time is not None and expected_output_time is None:
-                            if config.expected_output and config.expected_output in line:
-                                expected_output_time = time.time() - run_phase_start_time
-                                print(f"[{elapsed()}] [RUN] Expected output detected: '{config.expected_output}' ({expected_output_time:.2f}s into run phase)")
+                        if run_phase_start_time is not None and expected_output_time is None and (config.expected_output and config.expected_output in line):
+                            expected_output_time = time.time() - run_phase_start_time
+                            print(f"[{elapsed()}] [RUN] Expected output detected: '{config.expected_output}' ({expected_output_time:.2f}s into run phase)")
+
 
                         # For server tests, try to parse device IP from output
                         if config.device_is_server and device_ip is None:
@@ -905,7 +905,7 @@ class TestRunner:
         # Verify server received data if callback provided
         if config.requires_server and config.server_verify_callback:
             if not config.server_verify_callback(server_data):
-                print(f"[FAIL] Server verification failed - no data received")
+                print("[FAIL] Server verification failed - no data received")
                 success = False
 
         if success:
@@ -984,7 +984,7 @@ def main():
         return 0
 
     runner = TestRunner(verbose=args.verbose)
-    success = runner.run_all_tests(args.tests if args.tests else None)
+    success = runner.run_all_tests(args.tests or None)
 
     return 0 if success else 1
 
