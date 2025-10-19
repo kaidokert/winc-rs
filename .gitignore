@@ -9,3 +9,5 @@ nodefmt/
 winc-rs/tarpaulin-report.html
 .vscode/
 .venv/
+*.pyc
+*.log

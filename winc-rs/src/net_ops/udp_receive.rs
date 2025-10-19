@@ -81,14 +81,24 @@ impl<X: Xfer> OpImpl<X> for UdpReceiveOp<'_> {
                         Ok(Some((copy_len, SocketAddr::V4(from_addr))))
                     }
                     SocketError::Timeout => {
-                        manager
-                            .send_recvfrom(socket, socket.get_recv_timeout())
-                            .map_err(StackError::ReceiveFailed)?;
-                        *op = ClientSocketOp::AsyncOp(
-                            AsyncOp::RecvFrom(None),
-                            AsyncState::Pending(None),
+                        // Set operation state BEFORE calling send_recvfrom to avoid reentrancy races
+                        let prev_op = core::mem::replace(
+                            op,
+                            ClientSocketOp::AsyncOp(
+                                AsyncOp::RecvFrom(None),
+                                AsyncState::Pending(None),
+                            ),
                         );
-                        Ok(None)
+
+                        // Now call send_recvfrom - if it fails, revert to previous state
+                        match manager.send_recvfrom(socket, socket.get_recv_timeout()) {
+                            Ok(()) => Ok(None),
+                            Err(e) => {
+                                // Revert to previous state on failure
+                                *op = prev_op;
+                                Err(StackError::ReceiveFailed(e))
+                            }
+                        }
                     }
                     error => {
                         *op = ClientSocketOp::None;
@@ -99,11 +109,21 @@ impl<X: Xfer> OpImpl<X> for UdpReceiveOp<'_> {
             ClientSocketOp::AsyncOp(AsyncOp::RecvFrom(None), AsyncState::Pending(_)) => Ok(None),
             _ => {
                 // Not initialized, so start the operation
-                manager
-                    .send_recvfrom(socket, socket.get_recv_timeout())
-                    .map_err(StackError::ReceiveFailed)?;
-                *op = ClientSocketOp::AsyncOp(AsyncOp::RecvFrom(None), AsyncState::Pending(None));
-                Ok(None)
+                // Set operation state BEFORE calling send_recvfrom to avoid reentrancy races
+                let prev_op = core::mem::replace(
+                    op,
+                    ClientSocketOp::AsyncOp(AsyncOp::RecvFrom(None), AsyncState::Pending(None)),
+                );
+
+                // Now call send_recvfrom - if it fails, revert to previous state
+                match manager.send_recvfrom(socket, socket.get_recv_timeout()) {
+                    Ok(()) => Ok(None),
+                    Err(e) => {
+                        // Revert to previous state on failure
+                        *op = prev_op;
+                        Err(StackError::ReceiveFailed(e))
+                    }
+                }
             }
         }
     }
