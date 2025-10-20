@@ -1,6 +1,6 @@
 [target.'cfg(all(target_arch = "arm", target_os = "none"))']
 # Restore-unwritten is needed to keep the bootloader intact, when present
-runner = "probe-rs run --restore-unwritten --chip ATSAMD21G18A"
+runner = "probe-rs run --chip ATSAMD21G18A"
 
 rustflags = [
   "-C", "linker=flip-link",

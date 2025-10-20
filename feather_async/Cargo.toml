@@ -24,6 +24,7 @@ systick-timer = { version = "0.1",  features=["cortex-m","embassy-time-driver"] 
 embassy-time-driver = { version ="0.2" }
 embassy-time = { version = "0.4" }
 embedded-nal-async = { version = "0.8" }
+demos_async = { path = "../demos_async", default-features = false, features = ["defmt"] }
 
 # cargo build/run
 [profile.dev]
