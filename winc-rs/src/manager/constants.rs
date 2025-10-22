@@ -900,8 +900,8 @@ pub enum SslCipherSuite {
     NoEccAes128 = 0x3F,
     /// All none ECC ciphers using AES-256 encryption.
     NoEccAes256 = 0x3C0,
-    /// All RSA+AES+128 ciphers
-    AllRsaAes128 = 0xD3,
+    /// All RSA+AES (128 and 256) ciphers
+    AllRsaAes = 0xD3,
     /// All supported ciphers.
     /// By default, this group is disabled on startup.
     AllCiphers = 0xFFFF,
