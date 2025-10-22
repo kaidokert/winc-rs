@@ -29,7 +29,7 @@ use super::{constants::SET_SSL_SOCK_OPTS_PACKET_SIZE, net_types::SslSockOpts};
 
 #[cfg(feature = "experimental-ecc")]
 use super::{
-    constants::SSL_ECC_REQ_PACKET_SIZE,
+    constants::{EccRequestType, SSL_ECC_REQ_PACKET_SIZE},
     net_types::{EccInfo, EcdhInfo},
 };
 
@@ -509,7 +509,7 @@ pub fn write_en_ap_req(ap: &AccessPoint) -> Result<[u8; ENABLE_AP_PACKET_SIZE], 
 /// # Arguments
 ///
 /// * `ecc_info` - Reference to the ECC response information.
-/// * `ecdh_info` - Reference to the ECDH response information.
+/// * `ecdh_info` - An optional reference to the ECDH response information.
 ///
 /// # Returns
 ///
@@ -518,7 +518,7 @@ pub fn write_en_ap_req(ap: &AccessPoint) -> Result<[u8; ENABLE_AP_PACKET_SIZE], 
 #[cfg(feature = "experimental-ecc")]
 pub(crate) fn write_ssl_ecc_resp(
     ecc_info: &EccInfo,
-    ecdh_info: &EcdhInfo,
+    ecdh_info: Option<&EcdhInfo>,
 ) -> Result<[u8; SSL_ECC_REQ_PACKET_SIZE], BufferOverflow> {
     let mut req = [0u8; SSL_ECC_REQ_PACKET_SIZE];
     let mut slice = req.as_mut_slice();
@@ -527,22 +527,31 @@ pub(crate) fn write_ssl_ecc_resp(
     let ecc_req_type: u16 = ecc_info.req.into();
     slice.write(&ecc_req_type.to_le_bytes())?;
     // Status (2 bytes)
-    slice.write(&ecc_info.status.to_be_bytes())?;
+    slice.write(&ecc_info.status.to_le_bytes())?;
     // User data (4 bytes)
-    slice.write(&ecc_info.user_data.to_be_bytes())?;
+    slice.write(&ecc_info.user_data.to_le_bytes())?;
     // Sequence Number (4 bytes)
-    slice.write(&ecc_info.seq_num.to_be_bytes())?;
+    slice.write(&ecc_info.seq_num.to_le_bytes())?;
 
-    // X-cordinates of ECC points (32 bytes)
-    slice.write(&ecdh_info.ecc_point.x_cord)?;
-    // Y-cordinates of ECC points (32 bytes)
-    slice.write(&ecdh_info.ecc_point.y_cord)?;
-    // Point Size (2 bytes)
-    slice.write(&ecdh_info.ecc_point.point_size.to_le_bytes())?;
-    // Private Key ID (2 bytes)
-    slice.write(&ecdh_info.ecc_point.private_key_id.to_le_bytes())?;
-    // Private Key (32 bytes)
-    slice.write(&ecdh_info.private_key)?;
+    if ecc_info.req == EccRequestType::ClientEcdh || ecc_info.req == EccRequestType::GenerateKey {
+        if let Some(ecdh_info) = ecdh_info.as_ref() {
+            // X-cordinates of ECC points (32 bytes)
+            slice.write(&ecdh_info.ecc_point.x_pos)?;
+            // Y-cordinates of ECC points (32 bytes)
+            slice.write(&ecdh_info.ecc_point.y_pos)?;
+            // Point Size (2 bytes)
+            slice.write(&ecdh_info.ecc_point.point_size.to_le_bytes())?;
+            // Private Key ID (2 bytes)
+            slice.write(&ecdh_info.ecc_point.private_key_id.to_le_bytes())?;
+        }
+    }
+
+    if ecc_info.req == EccRequestType::ClientEcdh || ecc_info.req == EccRequestType::ServerEcdh {
+        if let Some(ecdh_info) = ecdh_info.as_ref() {
+            // Private Key (32 bytes)
+            slice.write(&ecdh_info.private_key)?;
+        }
+    }
 
     Ok(req)
 }

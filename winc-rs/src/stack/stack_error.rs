@@ -45,7 +45,7 @@ pub enum StackError {
     SocketNotFound,
     /// Parameters are not valid.
     InvalidParameters,
-    /// Response is invalid
+    /// Response from the module is invalid or malformed.
     InvalidResponse,
     #[cfg(feature = "experimental-ota")]
     /// Ota Error

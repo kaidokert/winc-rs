@@ -773,27 +773,19 @@ impl<X: Xfer> Manager<X> {
     /// * The original `base` value when SSL is disabled.
     fn get_ssl_ip_code(&mut self, _socket: &Socket, base: IpCode) -> IpCode {
         #[cfg(feature = "ssl")]
+        if (_socket.get_ssl_cfg() & u8::from(SslSockConfig::EnableSSL))
+            == u8::from(SslSockConfig::EnableSSL)
         {
-            if (_socket.get_ssl_cfg() & u8::from(SslSockConfig::EnableSSL))
-                == u8::from(SslSockConfig::EnableSSL)
-            {
-                match base {
-                    IpCode::Connect => IpCode::SslConnect,
-                    IpCode::Send => IpCode::SslSend,
-                    IpCode::Recv => IpCode::SslRecv,
-                    IpCode::Bind => IpCode::SslBind,
-                    IpCode::Close => IpCode::SslClose,
-                    _ => base,
-                }
-            } else {
-                base
-            }
+            return match base {
+                IpCode::Connect => IpCode::SslConnect,
+                IpCode::Send => IpCode::SslSend,
+                IpCode::Recv => IpCode::SslRecv,
+                IpCode::Bind => IpCode::SslBind,
+                IpCode::Close => IpCode::SslClose,
+                _ => base,
+            };
         }
-
-        #[cfg(not(feature = "ssl"))]
-        {
-            base
-        }
+        base
     }
 
     pub fn send_default_connect(&mut self) -> Result<(), Error> {
@@ -1647,7 +1639,7 @@ impl<X: Xfer> Manager<X> {
     /// # Arguments
     ///
     /// * `ecc_info` - A reference to the ECC operation information.
-    /// * `ecdh_info` - A reference to the ECDH operation information.
+    /// * `ecdh_info` - An optional reference to the ECDH operation information.
     /// * `resp_buffer` - A buffer containing the ECC response data to send.
     ///
     /// # Returns
@@ -1658,7 +1650,7 @@ impl<X: Xfer> Manager<X> {
     pub(crate) fn send_ecc_resp(
         &mut self,
         ecc_info: &EccInfo,
-        ecdh_info: &EcdhInfo,
+        ecdh_info: Option<&EcdhInfo>,
         resp_buffer: &[u8],
     ) -> Result<(), Error> {
         let req = write_ssl_ecc_resp(ecc_info, ecdh_info)?;
@@ -2098,7 +2090,7 @@ mod tests {
         let ip_code = IpCode::Connect;
 
         sock.set_ssl_cfg(SslSockConfig::EnableSSL.into(), true);
-        sock.set_ssl_cfg(SslSockConfig::BypassX509Verifcation.into(), true);
+        sock.set_ssl_cfg(SslSockConfig::BypassX509Verification.into(), true);
 
         let new_ip_code = mgr.get_ssl_ip_code(&sock, ip_code);
 
@@ -2119,7 +2111,7 @@ mod tests {
         let mut sock = Socket::new(1, 1);
         let ip_code = IpCode::Send;
 
-        sock.set_ssl_cfg(SslSockConfig::BypassX509Verifcation.into(), true);
+        sock.set_ssl_cfg(SslSockConfig::BypassX509Verification.into(), true);
 
         let new_ip_code = mgr.get_ssl_ip_code(&sock, ip_code);
 

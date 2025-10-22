@@ -793,7 +793,6 @@ impl EventListener for SocketCallbacks {
     /// * `ssl_res` - Type of SSL response received from the module.
     /// * `cipher_suite` - Optional 4-byte cipher suite bitmap.
     /// * `ecc_req` - Optional ECC request data.
-    /// * `hif_reg` - Optional HIF register value (hardware interface register).
     #[cfg(feature = "ssl")]
     fn on_ssl(
         &mut self,

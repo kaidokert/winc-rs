@@ -536,7 +536,7 @@ pub fn read_provisioning_reply(mut response: &[u8]) -> Result<(Ssid, WpaKey, u8,
 ///
 /// # Arguments
 ///
-/// * `response` - Data received from the chip that contains provisioning information.
+/// * `response` - Data received from the chip that contains an SSL ECC request.
 ///
 /// # Returns
 ///
@@ -561,9 +561,9 @@ pub fn read_ssl_ecc_response(mut response: &[u8]) -> Result<EccRequest, Error> {
             let mut ecdh_info = EcdhInfo::default();
 
             // x-coordinate
-            reader.read_exact(&mut ecdh_info.ecc_point.x_cord)?;
+            reader.read_exact(&mut ecdh_info.ecc_point.x_pos)?;
             // y-coordinate
-            reader.read_exact(&mut ecdh_info.ecc_point.y_cord)?;
+            reader.read_exact(&mut ecdh_info.ecc_point.y_pos)?;
             // point size
             ecdh_info.ecc_point.point_size = read16(reader)?;
             // private key id
@@ -600,6 +600,9 @@ pub fn read_ssl_ecc_response(mut response: &[u8]) -> Result<EccRequest, Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(feature = "experimental-ecc")]
+    use crate::manager::constants::EccCurveType;
 
     #[test]
     fn test_socket() {
@@ -835,5 +838,216 @@ mod tests {
         assert_eq!(info.1.as_str(), "test_password");
         assert_eq!(info.2, 2);
         assert_eq!(info.3, true);
+    }
+
+    #[test]
+    fn test_connect_reply() {
+        let buffer = [2, 255, 101, 0];
+
+        let result = read_connect_socket_reply(&buffer);
+
+        assert!(result.is_ok());
+
+        let (sock, err) = result.unwrap();
+
+        assert_eq!(sock.v, 2);
+        assert_eq!(err, SocketError::InvalidAddress);
+    }
+
+    #[cfg(feature = "ssl")]
+    #[test]
+    fn test_connect_ssl_reply() {
+        let buffer = [5, 243, 101, 101];
+
+        let result = read_connect_socket_reply(&buffer);
+
+        assert!(result.is_ok());
+
+        let (sock, err) = result.unwrap();
+
+        assert_eq!(sock.v, 5);
+        assert_eq!(sock.s, 0);
+        assert_eq!(err, SocketError::Timeout);
+        assert_eq!(sock.get_ssl_data_offset(), 25957);
+    }
+
+    #[cfg(feature = "experimental-ecc")]
+    #[test]
+    fn test_ssl_client_ecdh_response() {
+        let buffer = [
+            1, 0, /* ecc request type */
+            52, 52, /* status */
+            20, 40, 20, 40, /* user data */
+            1, 1, 1, 1, /* sequence number */
+            10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10,
+            10, 10, 10, 10, 10, 10, 10, 10, 10, 10, /* x-coordinate */
+            11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11,
+            11, 11, 11, 11, 11, 11, 11, 11, 11, 11, /* y-coordinate */
+            12, 12, /* point size */
+            13, 13, /* private key id */
+            14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14,
+            14, 14, 14, 14, 14, 14, 14, 14, 14, 14, /* private key */
+        ];
+
+        let result = read_ssl_ecc_response(&buffer);
+        assert!(result.is_ok());
+        // ecc request
+        let ecc_req = result.unwrap();
+        // ecc request type
+        assert_eq!(ecc_req.ecc_info.req, EccRequestType::ClientEcdh);
+        // status
+        assert_eq!(ecc_req.ecc_info.status, 13364);
+        // user data
+        assert_eq!(ecc_req.ecc_info.user_data, 672409620);
+        // sequence number
+        assert_eq!(ecc_req.ecc_info.seq_num, 16843009);
+        // ecdh info opt
+        assert!(ecc_req.ecdh_info.is_some());
+        // ecdsa sign info opt
+        assert!(ecc_req.ecdsa_sign_info.is_none());
+        // ecdsa verify info opt
+        assert!(ecc_req.ecdsa_verify_info.is_none());
+        // ecdh info
+        let ecdh_info = ecc_req.ecdh_info.unwrap();
+        // x-coordinate
+        let buffer = [10u8; 32];
+        assert_eq!(ecdh_info.ecc_point.x_pos, buffer);
+        // y-coordinate
+        let buffer = [11u8; 32];
+        assert_eq!(ecdh_info.ecc_point.y_pos, buffer);
+        // point size
+        assert_eq!(ecdh_info.ecc_point.point_size, 3084);
+        // private key id
+        assert_eq!(ecdh_info.ecc_point.private_key_id, 3341);
+        // private key
+        let buffer = [14u8; 32];
+        assert_eq!(ecdh_info.private_key, buffer);
+    }
+
+    #[cfg(feature = "experimental-ecc")]
+    #[test]
+    fn test_ssl_ecdsa_sign_response() {
+        let buffer = [
+            4, 0, /* ecc request type */
+            52, 52, /* status */
+            20, 40, 20, 40, /* user data */
+            1, 2, 3, 4, /* sequence number */
+            19, 0, /* Curve type */
+            15, 16, /* hash size */
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0,
+        ];
+
+        let result = read_ssl_ecc_response(&buffer);
+        assert!(result.is_ok());
+        // ecc request
+        let ecc_req = result.unwrap();
+        // ecc request type
+        assert_eq!(ecc_req.ecc_info.req, EccRequestType::GenerateSignature);
+        // status
+        assert_eq!(ecc_req.ecc_info.status, 13364);
+        // user data
+        assert_eq!(ecc_req.ecc_info.user_data, 672409620);
+        // sequence number
+        assert_eq!(ecc_req.ecc_info.seq_num, 67305985);
+        // ecdh info opt
+        assert!(ecc_req.ecdh_info.is_none());
+        // ecdsa sign info opt
+        assert!(ecc_req.ecdsa_sign_info.is_some());
+        // ecdsa verify info opt
+        assert!(ecc_req.ecdsa_verify_info.is_none());
+        // ecdsa sign info
+        let ecdsa_info = ecc_req.ecdsa_sign_info.unwrap();
+        // curve type
+        assert_eq!(ecdsa_info.curve_type, EccCurveType::Secp192r1);
+        // hash size
+        assert_eq!(ecdsa_info.hash_size, 4111);
+    }
+
+    #[cfg(feature = "experimental-ecc")]
+    #[test]
+    fn test_ssl_ecdsa_verify_response() {
+        let buffer = [
+            5, 0, /* ecc request type */
+            52, 52, /* status */
+            20, 40, 20, 40, /* user data */
+            4, 4, 2, 2, /* sequence number */
+            19, 20, 21, 22, /* ecdsa verify */
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0,
+        ];
+
+        let result = read_ssl_ecc_response(&buffer);
+        assert!(result.is_ok());
+        // ecc request
+        let ecc_req = result.unwrap();
+        // ecc request type
+        assert_eq!(ecc_req.ecc_info.req, EccRequestType::VerifySignature);
+        // status
+        assert_eq!(ecc_req.ecc_info.status, 13364);
+        // user data
+        assert_eq!(ecc_req.ecc_info.user_data, 672409620);
+        // sequence number
+        assert_eq!(ecc_req.ecc_info.seq_num, 33686532);
+        // ecdh info opt
+        assert!(ecc_req.ecdh_info.is_none());
+        // ecdsa sign info opt
+        assert!(ecc_req.ecdsa_sign_info.is_none());
+        // ecdsa verify info opt
+        assert!(ecc_req.ecdsa_verify_info.is_some());
+        // ecdsa verify info
+        assert_eq!(ecc_req.ecdsa_verify_info.unwrap(), 370480147);
+    }
+
+    #[cfg(feature = "experimental-ecc")]
+    #[test]
+    fn test_ssl_ecc_response_unknown() {
+        let buffer = [
+            1, 1, /* ecc request type */
+            52, 52, /* status */
+            20, 40, 20, 40, /* user data */
+            4, 4, 2, 2, /* sequence number */
+            19, 20, 21, 22, /* ecdsa verify */
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0,
+        ];
+
+        let result = read_ssl_ecc_response(&buffer);
+        assert!(result.is_err());
+    }
+
+    #[cfg(feature = "experimental-ecc")]
+    #[test]
+    fn test_ssl_ecc_response_no_request() {
+        let buffer = [
+            0, 0, /* ecc request type */
+            52, 52, /* status */
+            20, 40, 20, 40, /* user data */
+            4, 4, 2, 2, /* sequence number */
+            19, 20, 21, 22, /* ecdsa verify */
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0,
+        ];
+
+        let result = read_ssl_ecc_response(&buffer);
+        assert!(result.is_ok());
+        // ecc request
+        let ecc_req = result.unwrap();
+        // ecc request type
+        assert_eq!(ecc_req.ecc_info.req, EccRequestType::None);
+        // status
+        assert_eq!(ecc_req.ecc_info.status, 13364);
+        // user data
+        assert_eq!(ecc_req.ecc_info.user_data, 672409620);
+        // sequence number
+        assert_eq!(ecc_req.ecc_info.seq_num, 33686532);
     }
 }

@@ -119,7 +119,7 @@ pub enum SslSockConfig {
     EnableSSL = 0x21, // 0x01 | 0x20 (SSL_FLAGS_NO_TX_COPY)
     /// Bypass X.509 certificate verification.
     /// Not recommended for production environments.
-    BypassX509Verifcation = 0x02,
+    BypassX509Verification = 0x02,
     /// Enable session caching to allow TLS
     /// session resumption for faster future connections.
     EnableSessionCache = 0x10,
@@ -160,9 +160,9 @@ pub struct AccessPoint<'a> {
 #[derive(Default)]
 pub struct EccPoint {
     /// The X-coordinate of the ecc point.
-    pub x_cord: [u8; ECC_POINT_MAX_SIZE],
+    pub x_pos: [u8; ECC_POINT_MAX_SIZE],
     /// The Y-coordinate of the ecc point.
-    pub y_cord: [u8; ECC_POINT_MAX_SIZE],
+    pub y_pos: [u8; ECC_POINT_MAX_SIZE],
     // Point size in bytes (for each of the coordinates).
     pub point_size: u16,
     /// ID for the corresponding private key.
@@ -487,7 +487,7 @@ impl SocketOptions {
     ///
     /// # Returns
     ///
-    /// * `SocketOption::Tcp(TcpSockOpts::ReceiveTimeout` - The configured socket option.
+    /// * `SocketOption::Tcp(TcpSockOpts::ReceiveTimeout)` - The configured socket option.
     pub fn set_tcp_receive_timeout(timeout: u32) -> Self {
         Self::Tcp(TcpSockOpts::ReceiveTimeout(timeout))
     }
@@ -500,7 +500,7 @@ impl SocketOptions {
     ///
     /// # Returns
     ///
-    /// * `SocketOptions::Tcp(TcpSockOpts::SetSni)` – The configured socket option on success.
+    /// * `SocketOptions` – The configured socket option on success.
     /// * `StackError` – If the hostname length is invalid.
     #[cfg(feature = "ssl")]
     pub fn set_sni(hostname: &str) -> Result<Self, StackError> {

@@ -564,7 +564,7 @@ impl From<SslResponse> for u8 {
     }
 }
 
-/// Convert `SslResponse` to `u8` value.
+/// Convert `u8` to `SslResponse` value.
 #[cfg(feature = "ssl")]
 impl From<u8> for SslResponse {
     fn from(val: u8) -> Self {
@@ -761,12 +761,12 @@ impl From<u8> for WepKeyIndex {
 pub enum SslCertExpiryOpt {
     /// Ignore certificate expiration date validation.
     Disabled = 0x00,
-    /// Validate certificate expiration date. If a certificate is expired or
-    /// there is no configured system time, the SSL connection FAILs.
+    /// Validate certificate expiration date.
+    /// If expired or system time is not configured, the SSL connection fails.
     Enabled = 0x01,
     /// Validate the certificate expiration date only if there is a configured system time.
     /// If there is no configured system time, the certificate expiration is bypassed and the
-    /// SSL connection SUCCEEDs.
+    /// SSL connection succeeds.
     EnabledIfSysTime = 0x02,
 }
 
@@ -821,7 +821,7 @@ impl From<u16> for EccRequestType {
 /// ECC Curve type
 #[cfg(feature = "experimental-ecc")]
 #[repr(u16)]
-#[derive(Clone, Copy, Default)]
+#[derive(Debug, PartialEq, Default)]
 pub enum EccCurveType {
     /// NIST-P192
     Secp192r1 = 19,

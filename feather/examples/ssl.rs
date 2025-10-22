@@ -36,7 +36,7 @@ enum Error {
 ///
 /// # Arguments
 ///
-/// `response` - The HTTP response recevied from the server.
+/// `response` - The HTTP response received from the server.
 fn parse_http_response(response: &str) -> Result<(), Error> {
     // Valid HTTP code.
     const HTTP_OK: u16 = 200;
@@ -74,7 +74,7 @@ fn parse_http_response(response: &str) -> Result<(), Error> {
         }
     }
 
-    // 3. Check if meesage is received in body.
+    // 3. Check if a message body is present.
     let mut body_lines = resp_lines.peekable();
     if body_lines.peek().is_none() {
         return Err(Error::IncompleteResponse);
@@ -129,7 +129,7 @@ fn program() -> Result<(), StackError> {
             delay_ms(200);
         }
 
-        // set cipher suit
+        // set cipher suite
         nb::block!(stack.ssl_set_cipher_suite(SslCipherSuite::AllCiphers))?;
 
         info!("Started, connecting to AP ..");
@@ -160,20 +160,33 @@ fn program() -> Result<(), StackError> {
 
         // Sending HTTP request
         info!("Sending HTTP request!");
-        let request = b"\
-            GET / HTTP/1.1\r\n\
-            Host: dhe-rsa-gcm128.ssltest.coapbin.org\r\n\
-            User-Agent: winc-rs/0.2.2\r\n\
-            Accept: */*\r\n\r\n";
+        let mut http_get_buf = [0u8; 128];
+        let request = {
+            let base = b"GET / HTTP/1.1\r\nHost: ";
+            let middle = b"\r\nUser-Agent: winc-rs/0.2.2\r\nAccept: */*\r\n\r\n";
+            let mut pos = 0;
+
+            http_get_buf[..base.len()].copy_from_slice(base);
+            pos += base.len();
+
+            let host_bytes = host.as_bytes();
+            http_get_buf[pos..pos + host_bytes.len()].copy_from_slice(host_bytes);
+            pos += host_bytes.len();
+
+            http_get_buf[pos..pos + middle.len()].copy_from_slice(middle);
+            pos += middle.len();
+
+            &http_get_buf[..pos]
+        };
 
         nb::block!(stack.send(&mut socket, request))?;
 
         // receivng okay
         info!("Waiting for response!");
         let mut resp_buffer = [0u8; 300];
-        nb::block!(stack.receive(&mut socket, &mut resp_buffer))?;
+        let rcv_len = nb::block!(stack.receive(&mut socket, &mut resp_buffer))?;
 
-        let str_response = core::str::from_utf8(&resp_buffer)
+        let str_response = core::str::from_utf8(&resp_buffer[..rcv_len])
             .map_err(|err| StackError::WincWifiFail(CommError::Utf8Error(err)))?;
 
         info!("Response received:");

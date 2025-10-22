@@ -92,7 +92,7 @@ impl<X: Xfer> WincClient<'_, X> {
     /// # Arguments
     ///
     /// * `ecc_info` – A reference to the ECC operation information structure.
-    /// * `ecdh_info` – A reference to the ECDH information structure.
+    /// * `ecdh_info` – An optional reference to the ECDH information structure.
     /// * `resp_buffer` – A buffer containing the ECC response.
     ///
     /// # Returns
@@ -103,7 +103,7 @@ impl<X: Xfer> WincClient<'_, X> {
     pub fn ssl_send_ecc_resp(
         &mut self,
         ecc_info: &EccInfo,
-        ecdh_info: &EcdhInfo,
+        ecdh_info: Option<&EcdhInfo>,
         resp_buffer: &[u8],
     ) -> Result<(), StackError> {
         // clear the previously acquired ECC HIF register.
@@ -189,14 +189,23 @@ impl<X: Xfer> WincClient<'_, X> {
                 };
 
                 // Read the ECC Point-X
-                let expected_size = (ecc_point.point_size * 2) as usize;
-                let mut to_read = ecc_point.x_cord.len().min(expected_size);
+                let expected_size = (ecc_point.point_size) as usize;
+                let mut to_read = ecc_point.x_pos.len().min(expected_size);
 
-                warn_truncated("ECC x-cordinate", expected_size, to_read);
+                warn_truncated("ECC x-coordinates", expected_size, to_read);
 
                 self.manager
-                    .read_ecc_info(hif_addr, &mut ecc_point.x_cord[..to_read])?;
-                hif_addr += (ecc_point.point_size * 2) as u32;
+                    .read_ecc_info(hif_addr, &mut ecc_point.x_pos[..to_read])?;
+                hif_addr += (ecc_point.point_size) as u32;
+
+                // Read the ECC Point-Y
+                to_read = ecc_point.y_pos.len().min(expected_size);
+
+                warn_truncated("ECC y-coordinates", expected_size, to_read);
+
+                self.manager
+                    .read_ecc_info(hif_addr, &mut ecc_point.y_pos[..to_read])?;
+                hif_addr += (ecc_point.point_size) as u32;
 
                 // Read the hash
                 to_read = hash.len().min(ecdsa_info.hash_size as usize);
@@ -368,10 +377,11 @@ mod tests {
 
         client.callbacks.ssl_cb_info.ecc_req = Some(EccRequest::default());
 
-        let ecc_info = EccInfo::default();
+        let mut ecc_info = EccInfo::default();
         let ecdh_info = EcdhInfo::default();
+        ecc_info.req = EccRequestType::ClientEcdh;
 
-        let result = client.ssl_send_ecc_resp(&ecc_info, &ecdh_info, &[0]);
+        let result = client.ssl_send_ecc_resp(&ecc_info, Some(&ecdh_info), &[0]);
 
         assert_eq!(result, Ok(()))
     }
@@ -383,10 +393,11 @@ mod tests {
 
         client.callbacks.ssl_cb_info.ecc_req = None;
 
-        let ecc_info = EccInfo::default();
+        let mut ecc_info = EccInfo::default();
         let ecdh_info = EcdhInfo::default();
+        ecc_info.req = EccRequestType::ServerEcdh;
 
-        let result = client.ssl_send_ecc_resp(&ecc_info, &ecdh_info, &[0]);
+        let result = client.ssl_send_ecc_resp(&ecc_info, Some(&ecdh_info), &[0]);
 
         assert_eq!(result, Err(StackError::InvalidState));
     }
@@ -395,15 +406,32 @@ mod tests {
     #[test]
     fn test_ssl_send_ecc_resp_hif_reg_override() {
         let mut client = make_test_client();
-        let mut ecc_req = EccRequest::default();
-        ecc_req.hif_reg = 15;
 
-        client.callbacks.ssl_cb_info.ecc_req = Some(ecc_req);
+        let mut my_debug = |callbacks: &mut SocketCallbacks| {
+            callbacks.on_ssl(
+                SslResponse::EccReqUpdate,
+                None,
+                Some(EccRequest {
+                    hif_reg: 15,
+                    ecc_info: EccInfo::default(),
+                    ecdh_info: None,
+                    ecdsa_sign_info: None,
+                    ecdsa_verify_info: None,
+                }),
+            );
+        };
 
-        let ecc_info = EccInfo::default();
+        client.debug_callback = Some(&mut my_debug);
+
+        let result = client.dispatch_events_may_wait();
+        assert!(result.is_ok());
+
+        let mut ecc_info = EccInfo::default();
         let ecdh_info = EcdhInfo::default();
 
-        let result = client.ssl_send_ecc_resp(&ecc_info, &ecdh_info, &[0]);
+        ecc_info.req = EccRequestType::GenerateKey;
+
+        let result = client.ssl_send_ecc_resp(&ecc_info, Some(&ecdh_info), &[0]);
         let reg = client
             .callbacks
             .ssl_cb_info
