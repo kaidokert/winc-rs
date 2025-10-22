@@ -165,6 +165,11 @@ fn program() -> Result<(), StackError> {
             let base = b"GET / HTTP/1.1\r\nHost: ";
             let middle = b"\r\nUser-Agent: winc-rs/0.2.2\r\nAccept: */*\r\n\r\n";
             let mut pos = 0;
+            let header_len = base.len() + host.as_bytes().len() + middle.len();
+            if header_len > http_get_buf.len() {
+                error!("HTTP request buffer is not sufficient to store the HTTP header.");
+                return Err(StackError::InvalidParameters);
+            }
 
             http_get_buf[..base.len()].copy_from_slice(base);
             pos += base.len();

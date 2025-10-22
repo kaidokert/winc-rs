@@ -1048,7 +1048,7 @@ mod tests {
 
     #[cfg(feature = "ssl")]
     #[test]
-    fn test_sock_opts_ssl_sni_invalid_paramter() {
+    fn test_sock_opts_ssl_sni_invalid_parameter() {
         let test_string =
             "This is a test string that definitely contains more than sixty-three bytes of data.";
         let sock_opts = SocketOptions::set_sni(test_string);

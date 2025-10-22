@@ -534,7 +534,7 @@ pub(crate) enum SslRequest {
     SendEccResponse = 0x02, // Send ECC Response
     NotifyCrl = 0x03,       // Update Certificate Revocation List
     SendCertificate = 0x04, // Send SSL Certificates
-    SetCipherSuites = 0x05, // Set the custom ciphers suites list
+    SetCipherSuites = 0x05, // Set the custom cipher suites list
 }
 
 /// SSL responses
@@ -545,7 +545,7 @@ pub(crate) enum SslRequest {
 pub(crate) enum SslResponse {
     EccReqUpdate = 0x01,      // Response of ECC command.
     CipherSuiteUpdate = 0x06, // Response of requested changes in Cipher Suites.
-    Unhandled = 0xff,         // Invalid response recevied.
+    Unhandled = 0xff,         // Invalid response received.
 }
 
 /// Convert `SslRequest` to `u8` value.
@@ -900,8 +900,8 @@ pub enum SslCipherSuite {
     NoEccAes128 = 0x3F,
     /// All none ECC ciphers using AES-256 encryption.
     NoEccAes256 = 0x3C0,
-    /// All RSA+AES ciphers
-    AllRsaAes = 0xD3,
+    /// All RSA+AES+128 ciphers
+    AllRsaAes128 = 0xD3,
     /// All supported ciphers.
     /// By default, this group is disabled on startup.
     AllCiphers = 0xFFFF,
