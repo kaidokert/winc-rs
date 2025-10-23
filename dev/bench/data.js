@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1760907396299,
+  "lastUpdate": 1761195682000,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -4509,6 +4509,40 @@ window.BENCHMARK_DATA = {
           {
             "name": "iperf3_client",
             "value": 52936,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "142439476+umarbinzahid@users.noreply.github.com",
+            "name": "Umar Bin Zahid",
+            "username": "umarbinzahid"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "4361474945548dd7b86af9eda7d7cf01c0df4882",
+          "message": "Add data packet size and offset to HIF header function (#113)\n\n* Updated HIF header function to send data packet size and offset.\n\n* updated function description\n\n* Added a new function to write HIF header without data packet.\n\n* Updated the HIF header function documentation, removed the assert check,\nand added a maximum length check.\n\n* fixed function header.\n\n* fixed the error message.\n\n* Add test for maximum HIF header packet length.",
+          "timestamp": "2025-10-22T22:00:14-07:00",
+          "tree_id": "b83d40a79c8aaf65f26f8a1209df5d5c841f1c34",
+          "url": "https://github.com/kaidokert/winc-rs/commit/4361474945548dd7b86af9eda7d7cf01c0df4882"
+        },
+        "date": 1761195681007,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 37956,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 53068,
             "unit": "byte"
           }
         ]
