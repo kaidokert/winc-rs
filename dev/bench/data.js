@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1761277962771,
+  "lastUpdate": 1761318624851,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -4577,6 +4577,40 @@ window.BENCHMARK_DATA = {
           {
             "name": "iperf3_client",
             "value": 53120,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "142439476+umarbinzahid@users.noreply.github.com",
+            "name": "Umar Bin Zahid",
+            "username": "umarbinzahid"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "a25c1c368dffdc46de101d1a2ce1f2009181b198",
+          "message": "Add support for SSL operations (#114)\n\n* Added support for SSL apis.\n\n* Added feature flag for SSL and updated ECC functions.\n\n* Updated SSL and ECC apis.\n\n* Fixed Socket socket send and code clean-up.",
+          "timestamp": "2025-10-24T08:09:18-07:00",
+          "tree_id": "2bbe194f50e831e272dd759d560fc222791b0143",
+          "url": "https://github.com/kaidokert/winc-rs/commit/a25c1c368dffdc46de101d1a2ce1f2009181b198"
+        },
+        "date": 1761318623874,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 37820,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 52896,
             "unit": "byte"
           }
         ]
