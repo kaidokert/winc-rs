@@ -548,7 +548,11 @@ impl<X: Xfer> WincClient<'_, X> {
                             }
                             SslSockOpts::Config(cfg, en) => {
                                 if cfg == SslSockConfig::EnableSSL && en {
-                                    self.manager.send_ssl_sock_create(*sock)?;
+                                    if (sock.get_ssl_cfg() & u8::from(cfg)) == cfg.into() {
+                                        return Ok(());
+                                    } else {
+                                        self.manager.send_ssl_sock_create(*sock)?;
+                                    }
                                 }
                                 // Set the SSL flags
                                 sock.set_ssl_cfg(cfg.into(), en);
