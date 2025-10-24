@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1761195682000,
+  "lastUpdate": 1761277962771,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -4543,6 +4543,40 @@ window.BENCHMARK_DATA = {
           {
             "name": "iperf3_client",
             "value": 53068,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "kaidokert@gmail.com",
+            "name": "Kaido Kert",
+            "username": "kaidokert"
+          },
+          "committer": {
+            "email": "kaidokert@gmail.com",
+            "name": "Kaido Kert",
+            "username": "kaidokert"
+          },
+          "distinct": true,
+          "id": "0a78887e72e620e2dedbc2bac2569775c2a3b9e6",
+          "message": "Initial async UDP code",
+          "timestamp": "2025-10-23T20:50:51-07:00",
+          "tree_id": "84dba00194c934e60a3f1b84681c6198f4b25f6d",
+          "url": "https://github.com/kaidokert/winc-rs/commit/0a78887e72e620e2dedbc2bac2569775c2a3b9e6"
+        },
+        "date": 1761277961841,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 38260,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 53120,
             "unit": "byte"
           }
         ]
