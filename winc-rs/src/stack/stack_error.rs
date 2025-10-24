@@ -35,7 +35,7 @@ pub enum StackError {
     /// Operation was attempted in wrong state
     InvalidState,
     AlreadyConnected,
-    /// Acess point join failed
+    /// Access point join failed
     ApJoinFailed(WifiConnError),
     /// Scan operation failed
     ApScanFailed(WifiConnError),

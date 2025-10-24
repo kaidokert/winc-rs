@@ -186,7 +186,7 @@ fn program() -> Result<(), StackError> {
 
         nb::block!(stack.send(&mut socket, request))?;
 
-        // receivng okay
+        // receiving okay
         info!("Waiting for response!");
         let mut resp_buffer = [0u8; 300];
         let rcv_len = nb::block!(stack.receive(&mut socket, &mut resp_buffer))?;

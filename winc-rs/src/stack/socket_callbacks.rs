@@ -781,7 +781,7 @@ impl EventListener for SocketCallbacks {
             }
             _ => {
                 error!("OTA status does not match the required state.");
-                self.ota_state // retain the value if conditions dosen't match
+                self.ota_state // retain the value if conditions doesn't match
             }
         };
     }

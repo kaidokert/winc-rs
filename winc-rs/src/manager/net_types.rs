@@ -54,7 +54,7 @@ pub(crate) type EcdsaVerifyInfo = u32;
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum Credentials {
     Open = 1,
-    /// WPA-PSK Passpharase: Must be at least 8 bytes (MIN) and no more than 63 bytes long.
+    /// WPA-PSK Passphrase: Must be at least 8 bytes (MIN) and no more than 63 bytes long.
     WpaPSK(WpaKey) = 2,
     /// Wep Passphrase: Should be 10 bytes for 40-bit and 26 bytes for 104-bit.
     /// Wep key Index: Between 1 and 4.
@@ -651,7 +651,7 @@ impl<'a> AccessPoint<'a> {
     /// * `StackError` - If the IP address is invalid.
     pub fn set_ip(&mut self, ip: Ipv4Addr) -> Result<(), StackError> {
         let octets = ip.octets();
-        // WINC fimrware limitation; IP address of client is always x.x.x.100
+        // WINC firmware limitation; IP address of client is always x.x.x.100
         if !((1..100).contains(&octets[3])) {
             return Err(StackError::InvalidParameters);
         }

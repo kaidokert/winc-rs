@@ -1205,7 +1205,7 @@ impl<X: Xfer> Manager<X> {
     ///
     /// # Arguments
     ///
-    /// * `server_url` - Server URL from where firware image will be downloaded.
+    /// * `server_url` - Server URL from where firmware image will be downloaded.
     /// * `cortus_update` - Whether the OTA update is for cortus processor or winc1500 stack.
     ///
     /// # Returns
@@ -1825,7 +1825,7 @@ mod tests {
         assert_eq!(
             slice,
             &[
-                2, 0, // addres family
+                2, 0, // address family
                 0xBA, 0xDE, // port
                 192, 168, 5, 196, // ip
                 42, 0, //socket + dummy
@@ -1846,7 +1846,7 @@ mod tests {
     }
 
     #[test]
-    fn test_connnect() {
+    fn test_connect() {
         let mut buff = [0u8; 100];
         let mut writer = buff.as_mut_slice();
         let mut mgr = make_manager(&mut writer);

@@ -518,7 +518,7 @@ pub fn read_provisioning_reply(mut response: &[u8]) -> Result<(Ssid, WpaKey, u8,
     read8(reader)?;
     // read the passphrase
     reader.read_exact(&mut key)?;
-    // read the null termiantor (+1 for extra PSK key byte)
+    // read the null terminator (+1 for extra PSK key byte)
     read16(reader)?;
     // read the security type
     let security_type = read8(reader)?;

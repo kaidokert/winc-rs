@@ -535,9 +535,9 @@ pub(crate) fn write_ssl_ecc_resp(
 
     if ecc_info.req == EccRequestType::ClientEcdh || ecc_info.req == EccRequestType::GenerateKey {
         if let Some(ecdh_info) = ecdh_info.as_ref() {
-            // X-cordinates of ECC points (32 bytes)
+            // X-coordinates of ECC points (32 bytes)
             slice.write(&ecdh_info.ecc_point.x_pos)?;
-            // Y-cordinates of ECC points (32 bytes)
+            // Y-coordinates of ECC points (32 bytes)
             slice.write(&ecdh_info.ecc_point.y_pos)?;
             // Point Size (2 bytes)
             slice.write(&ecdh_info.ecc_point.point_size.to_le_bytes())?;
@@ -760,9 +760,9 @@ mod tests {
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         ];
         let test_ssid = Ssid::from("sample_ssid").unwrap();
-        let test_usermane = S8Username::from("username").unwrap();
+        let test_username = S8Username::from("username").unwrap();
         let test_password = S8Password::from("password").unwrap();
-        let test_pass = Credentials::S802_1X(test_usermane, test_password);
+        let test_pass = Credentials::S802_1X(test_username, test_password);
         assert_eq!(
             test_vector,
             write_connect_request(&test_ssid, &test_pass, WifiChannel::ChannelAll, false).unwrap()
@@ -871,7 +871,7 @@ mod tests {
     #[test]
     fn test_write_setsockopt_req() {
         let valid_req: [u8; SET_SOCK_OPTS_PACKET_SIZE] = [
-            /* Option Value */ 0x0c0, 0xa8, 0x01, 0x01, /* Sockte Identifier */ 0x02,
+            /* Option Value */ 0x0c0, 0xa8, 0x01, 0x01, /* Socket Identifier */ 0x02,
             /* Socket Option */ 0x01, /* Session Id */ 0x02, 0x00,
         ];
         let addr = Ipv4Addr::from_str("192.168.1.1").unwrap();

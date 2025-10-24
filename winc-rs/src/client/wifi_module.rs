@@ -487,7 +487,7 @@ impl<X: Xfer> WincClient<'_, X> {
     ///
     /// # Returns
     ///
-    /// * `()` - Access point mode is successfully disbaled.
+    /// * `()` - Access point mode is successfully disabled.
     /// * `StackError` - If an error occurs while disabling access point mode.
     pub fn disable_access_point(&mut self) -> Result<(), StackError> {
         if self.callbacks.state == WifiModuleState::AccessPoint {
@@ -966,7 +966,7 @@ mod tests {
         // set the module state to unconnected.
         client.callbacks.state = WifiModuleState::Unconnected;
 
-        let result = nb::block!(client.provisioning_mode(&ap, &hostname, false, 1500)); // Time is in miliseconds
+        let result = nb::block!(client.provisioning_mode(&ap, &hostname, false, 1500)); // Time is in milliseconds
 
         assert!(result.is_err());
         if let Err(err) = result {

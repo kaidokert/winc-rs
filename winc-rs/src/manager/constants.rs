@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/// Maxmimum length of SSID.
+/// Maximum length of SSID.
 pub const MAX_SSID_LEN: usize = 32;
-/// Length for 104 bit string passpharase.
+/// Length for 104 bit string passphrase.
 pub(crate) const MAX_WEP_KEY_LEN: usize = 26;
 #[cfg(feature = "wep")]
-/// Length for 40 bit string passpharase.
+/// Length for 40 bit string passphrase.
 pub(crate) const MIN_WEP_KEY_LEN: usize = 10;
 /// Maximum length for the WPA PSK Key.
 pub const MAX_PSK_KEY_LEN: usize = 63;

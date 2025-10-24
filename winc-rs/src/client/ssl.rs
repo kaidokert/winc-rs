@@ -322,7 +322,7 @@ mod tests {
     use crate::manager::EccRequest;
 
     #[test]
-    fn test_ssl_set_cipher_suit_success() {
+    fn test_ssl_set_cipher_suite_success() {
         let mut client = make_test_client();
         let mut my_debug = |callbacks: &mut SocketCallbacks| {
             callbacks.on_ssl(
@@ -338,7 +338,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ssl_set_cipher_suit_failure() {
+    fn test_ssl_set_cipher_suite_failure() {
         let mut client = make_test_client();
         let mut my_debug = |callbacks: &mut SocketCallbacks| {
             callbacks.on_ssl(
@@ -354,7 +354,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ssl_set_cipher_suit_timeout() {
+    fn test_ssl_set_cipher_suite_timeout() {
         let mut client = make_test_client();
         client.callbacks.ssl_cb_info.cipher_suite_bitmap = None;
         let result = nb::block!(client.ssl_set_cipher_suite(SslCipherSuite::AllCiphers));
