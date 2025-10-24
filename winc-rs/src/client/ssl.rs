@@ -23,7 +23,7 @@ use crate::manager::{EccInfo, EccPoint, EccRequestType, EcdhInfo, EcdsaSignInfo}
 
 use crate::manager::{SslCertExpiryOpt, SslCipherSuite};
 
-// Default timeout to wait for response of SSL request is 1 second.
+// The default timeout for waiting for an SSL request response is 100 milliseconds.
 const SSL_REQ_TIMEOUT: u32 = 1000;
 
 impl<X: Xfer> WincClient<'_, X> {
