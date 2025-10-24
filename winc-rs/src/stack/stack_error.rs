@@ -6,6 +6,9 @@ use crate::manager::SocketError;
 
 use embedded_nal::nb;
 
+#[cfg(feature = "async")]
+use embedded_io_async;
+
 /// Stack errors
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[derive(Debug, PartialEq)]
@@ -129,3 +132,13 @@ impl core::fmt::Display for StackError {
         }
     }
 }
+
+#[cfg(feature = "async")]
+impl embedded_io_async::Error for StackError {
+    fn kind(&self) -> embedded_io_async::ErrorKind {
+        embedded_io_async::ErrorKind::Other
+    }
+}
+
+#[cfg(feature = "async")]
+impl core::error::Error for StackError {}
