@@ -6,7 +6,7 @@
 use super::{debug, error, info};
 use core::net::{IpAddr, Ipv4Addr, SocketAddr};
 use embedded_nal::nb::block;
-use embedded_nal::{TcpClientStack /* , TcpError */};
+use embedded_nal::{TcpClientStack, TcpError};
 
 // Test server configuration
 pub const TEST_SERVER_IP: &str = "18.155.192.71"; // kaidokert.com IP (AWS)
@@ -196,22 +196,13 @@ where
                 // No data available, continue
                 continue;
             }
-            Err(embedded_nal::nb::Error::Other(_e)) => {
-                // Temporary: see below
-                info!("Receive ended - connection closed by server");
-                break;
-
-                /* This code is correct but doesn't yet work correctly on winc-rs #83
-                // Check if this is a connection close (normal for HTTP)
-                // We expect PipeClosed when server closes the connection after sending data
+            Err(embedded_nal::nb::Error::Other(e)) => {
                 if matches!(e.kind(), embedded_nal::TcpErrorKind::PipeClosed) {
-                    info!("Connection closed by server");
-                    break;
+                    error!("Connection closed by server");
                 } else {
                     error!("Receive failed");
-                    return Err(SpeedTestError::NetworkError);
                 }
-                 */
+                return Err(SpeedTestError::NetworkError);
             }
         }
     }
