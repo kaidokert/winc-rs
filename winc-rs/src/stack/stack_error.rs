@@ -84,7 +84,7 @@ impl From<core::net::AddrParseError> for StackError {
 
 impl embedded_nal::TcpError for StackError {
     fn kind(&self) -> embedded_nal::TcpErrorKind {
-        if matches!(self,  StackError::OpFailed(SocketError::ConnAborted)) {
+        if matches!(self, StackError::OpFailed(SocketError::ConnAborted)) {
             embedded_nal::TcpErrorKind::PipeClosed
         } else {
             embedded_nal::TcpErrorKind::Other
