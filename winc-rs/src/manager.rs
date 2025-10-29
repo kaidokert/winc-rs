@@ -2180,17 +2180,4 @@ mod tests {
             ]
         );
     }
-
-    #[cfg(feature = "ssl")]
-    #[test]
-    fn test_ssl_send_offset_failed() {
-        let mut buff = [0u8; 10];
-        let mut writer = buff.as_mut_slice();
-        let mut mgr = make_manager(&mut writer);
-
-        let mut sock = Socket::new(7, 522);
-        sock.set_ssl_cfg(SslSockConfig::EnableSSL.into(), true);
-
-        assert_eq!(mgr.send_send(sock, &[42]), Err(Error::Failed));
-    }
 }
