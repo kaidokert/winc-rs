@@ -987,7 +987,7 @@ impl<X: Xfer> Manager<X> {
         self.write_hif_header_impl(HifRequest::Ip(cmd), &req, true, Some((data.len(), offset)))?;
         self.chip
             .dma_block_write(self.not_a_reg_ctrl_4_dma + HIF_HEADER_OFFSET as u32, &req)?;
-        // Note: No need to add the `HIF_HEADER_OFFSET` to offset, as it is already included.
+        // The offset already includes the HIF_HEADER_OFFSET, so it is not added here.
         self.chip
             .dma_block_write(self.not_a_reg_ctrl_4_dma + offset as u32, data)?;
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
