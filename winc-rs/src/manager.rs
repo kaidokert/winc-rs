@@ -972,7 +972,12 @@ impl<X: Xfer> Manager<X> {
             {
                 if matches!(cmd, IpCode::SslSend) {
                     // Offset received from connect command response.
-                    socket.get_ssl_data_offset() as usize
+                    let data_offset = socket.get_ssl_data_offset() as usize;
+                    if data_offset == 0 {
+                        error!("Attempted to send on an SSL socket with an invalid data offset.");
+                        return Err(Error::Failed);
+                    }
+                    data_offset
                 } else {
                     TCP_TX_PACKET_OFFSET
                 }
@@ -2179,5 +2184,18 @@ mod tests {
                 0, 0 // dummy
             ]
         );
+    }
+
+    #[cfg(feature = "ssl")]
+    #[test]
+    fn test_ssl_send_offset_failed() {
+        let mut buff = [0u8; 10];
+        let mut writer = buff.as_mut_slice();
+        let mut mgr = make_manager(&mut writer);
+
+        let mut sock = Socket::new(7, 522);
+        sock.set_ssl_cfg(SslSockConfig::EnableSSL.into(), true);
+
+        assert_eq!(mgr.send_send(sock, &[42]), Err(Error::Failed));
     }
 }
