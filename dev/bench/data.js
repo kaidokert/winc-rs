@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1761318624851,
+  "lastUpdate": 1761836104918,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -4611,6 +4611,40 @@ window.BENCHMARK_DATA = {
           {
             "name": "iperf3_client",
             "value": 52896,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "142439476+umarbinzahid@users.noreply.github.com",
+            "name": "Umar Bin Zahid",
+            "username": "umarbinzahid"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "91bd6384f612f08a29e07e18ffc02575c2d64954",
+          "message": "[Bug] Fix TCP send data offset issue (#120)\n\n* Fixed data offset for TCP send.\n\n* Removed the unit test.\n\n* updated comment.\n\n* comment updated.\n\n* Added fix for invalid offset.",
+          "timestamp": "2025-10-30T07:53:56-07:00",
+          "tree_id": "1e8112d91cc3c449efa6600e6467e903d8a7adb0",
+          "url": "https://github.com/kaidokert/winc-rs/commit/91bd6384f612f08a29e07e18ffc02575c2d64954"
+        },
+        "date": 1761836104296,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 37868,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 52968,
             "unit": "byte"
           }
         ]
