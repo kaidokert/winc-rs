@@ -17,6 +17,11 @@ pub const TEST_SERVER_HOST: &str = "kaidokert.com";
 pub const TEST_FILE_1MB: &str = "/test-file-1mb.json"; // 0.93 MB
 pub const TEST_FILE_10MB: &str = "/test-file-10mb.json"; // 9.37 MB
 
+// HTTP success code
+const HTTP_SUCCESS_CODE: u16 = 200;
+// HTTP default error code
+const HTTP_ERROR_CODE: u16 = 500;
+
 #[derive(Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum SpeedTestError {
@@ -138,6 +143,8 @@ where
 
     info!("Starting download...");
 
+    let mut last_rsp_code = 0u16;
+
     // Receive loop
     loop {
         match stack.receive(&mut s, &mut buffer) {
@@ -173,8 +180,12 @@ where
                             error!("-----Error parsing response: {:?}-----", WrapError(e));
                         }
                     }
-                    if !matches!(response.code, Some(200)) {
+                    if !matches!(response.code, Some(HTTP_SUCCESS_CODE)) {
                         error!("HTTP response code: {:?}", response.code);
+                    }
+                    last_rsp_code = match response.code {
+                        None => HTTP_ERROR_CODE,
+                        Some(code) => code,
                     }
                 }
 
@@ -198,7 +209,12 @@ where
             }
             Err(embedded_nal::nb::Error::Other(e)) => {
                 if matches!(e.kind(), embedded_nal::TcpErrorKind::PipeClosed) {
-                    error!("Connection closed by server");
+                    if last_rsp_code == HTTP_SUCCESS_CODE {
+                        info!("Connection closed by server. Download complete!");
+                        break;
+                    } else {
+                        error!("Connection closed by server. Download failed!");
+                    }
                 } else {
                     error!("Receive failed");
                 }
