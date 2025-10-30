@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1761836104918,
+  "lastUpdate": 1761836300941,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -4635,6 +4635,40 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/kaidokert/winc-rs/commit/91bd6384f612f08a29e07e18ffc02575c2d64954"
         },
         "date": 1761836104296,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 37868,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 52968,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "142439476+umarbinzahid@users.noreply.github.com",
+            "name": "Umar Bin Zahid",
+            "username": "umarbinzahid"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "11cc9802e707aa89dc97e7046ff649c5e78bb830",
+          "message": "Implement TcpErrorKind::PipeClosed (#119)\n\n* Added to `StackError` conversion to `TcpErrorKind::PipeClosed`.\n\n* fixed pre-commit\n\n* Fix connection close issue.",
+          "timestamp": "2025-10-30T07:57:15-07:00",
+          "tree_id": "4ba69c90a588a8f8fdabaca8b8c208757c4d4b73",
+          "url": "https://github.com/kaidokert/winc-rs/commit/11cc9802e707aa89dc97e7046ff649c5e78bb830"
+        },
+        "date": 1761836299841,
         "tool": "customSmallerIsBetter",
         "benches": [
           {
