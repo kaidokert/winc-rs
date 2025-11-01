@@ -48,8 +48,8 @@ where
             }
             None => b"GET / HTTP/1.1\r\n\r\n",
         };
-        let nbytes = block!(stack.send(&mut s, http_get));
-        info!("-----Request sent {}-----", nbytes.unwrap());
+        let nbytes = block!(stack.send(&mut s, http_get))?;
+        info!("-----Request sent {}-----", nbytes);
         let mut respbuf = [0; 1500];
         let resplen = block!(stack.receive(&mut s, &mut respbuf))?;
         info!("-----Response received {}-----", resplen);

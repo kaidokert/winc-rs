@@ -441,7 +441,7 @@ impl EventListener for SocketCallbacks {
             )) => {
                 req.total_sent += len;
                 req.remaining -= len;
-                if req.remaining <= 0 {
+                if (req.remaining <= 0) || (len < 0) {
                     debug!("FIN: on_send_to: socket:{:?} length:{:?}", s, len);
                     option.replace(len);
                     *asyncstate = AsyncState::Done;
@@ -471,7 +471,7 @@ impl EventListener for SocketCallbacks {
             )) => {
                 req.total_sent += len;
                 req.remaining -= len;
-                if req.remaining <= 0 {
+                if (req.remaining <= 0) || (len < 0) {
                     debug!("FIN: on_send: socket:{:?} length:{:?}", s, len);
                     option.replace(len);
                     *asyncstate = AsyncState::Done;
