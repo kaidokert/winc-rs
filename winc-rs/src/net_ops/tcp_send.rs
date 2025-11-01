@@ -42,7 +42,7 @@ impl<X: Xfer> OpImpl<X> for TcpSendOp<'_> {
                 if callback_len < 0 {
                     // Negative length is invalid - treat as error
                     *op = ClientSocketOp::None;
-                    return Err(StackError::InvalidParameters);
+                    return Err(StackError::OpFailed(callback_len.into()));
                 }
 
                 // Validate callback length doesn't exceed remaining data in buffer

@@ -611,7 +611,6 @@ impl From<u8> for PingError {
     }
 }
 
-#[allow(dead_code)] // Todo: once complete maybe can remove
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[derive(Debug, PartialEq, Default, Clone, Copy)]
 pub enum SocketError {
@@ -631,6 +630,7 @@ pub enum SocketError {
     BufferFull = -14,      // 242
 }
 
+/// Convert the `u8` value to `SocketError`.
 impl From<u8> for SocketError {
     fn from(v: u8) -> Self {
         match v {
@@ -646,6 +646,27 @@ impl From<u8> for SocketError {
             244 => Self::ConnAborted,
             243 => Self::Timeout,
             242 => Self::BufferFull,
+            _ => Self::Unhandled,
+        }
+    }
+}
+
+/// Convert the `i16` value to `SocketError`.
+impl From<i16> for SocketError {
+    fn from(v: i16) -> Self {
+        match v {
+            0 => Self::NoError,
+            -1 => Self::InvalidAddress,
+            -2 => Self::AddrAlreadyInUse,
+            -3 => Self::MaxTcpSock,
+            -4 => Self::MaxUdpSock,
+            -6 => Self::InvalidArg,
+            -7 => Self::MaxListenSock,
+            -9 => Self::Invalid,
+            -11 => Self::AddrIsRequired,
+            -12 => Self::ConnAborted,
+            -13 => Self::Timeout,
+            -14 => Self::BufferFull,
             _ => Self::Unhandled,
         }
     }
