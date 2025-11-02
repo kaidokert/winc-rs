@@ -3,41 +3,29 @@ import select
 import sys
 import time
 
-def on_udp_data(client_address, port, data):
+def verify_request(data, protocol, peer, port, expected_prefix):
     decoded = data.decode('utf-8', errors='replace')
 
-    # Expected request: "UDP /v1"
-    if not decoded.startswith("UDP /v1"):
-        print(f"UDP [{client_address}:{port}] Invalid request: missing UDP header.")
+    if not decoded.startswith(expected_prefix):
+        print(f"{protocol} [{peer}:{port}] Invalid request: missing {protocol} header.")
         return False
 
-    # Check proper termination
     if not decoded.endswith("\r\n\r\n"):
-        print(f"TCP [{client_address}:{port}] Invalid request: missing CRLF sequence.")
+        print(f"{protocol} [{peer}:{port}] Invalid request: missing CRLF sequence.")
         return False
 
-    print(f"UDP [{client_address}:{port}] Valid UDP request received.")
+    print(f"{protocol} [{peer}:{port}] Valid request received.")
     return True
+
+def on_udp_data(client_address, port, data):
+    return verify_request(data, "UDP", client_address, port, "UDP /v1")
 
 def on_tcp_data(peername, port, data):
-    decoded = data.decode('utf-8', errors='replace')
-
-    # Expected request: "GET / HTTP/1.1"
-    if not decoded.startswith("GET / HTTP/1.1"):
-        print(f"TCP [{peername}:{port}] Invalid request: missing HTTP header.")
-        return False
-
-    # Check proper termination
-    if not decoded.endswith("\r\n\r\n"):
-        print(f"TCP [{peername}:{port}] Invalid request: missing CRLF sequence.")
-        return False
-
-    print(f"TCP [{peername}:{port}] Valid HTTP GET request received.")
-    return True
+    return verify_request(data, "TCP", peername, port, "GET / HTTP/1.1")
 
 def start_combined_server(base_port, port_range, additional_ports=None,
-                         on_tcp_connect=None, on_tcp_data=None,
-                         on_udp_data=None, verbose=True):
+                          on_tcp_connect=None, on_tcp_data=None,
+                          on_udp_data=None, verbose=True):
     # Avoid mutable default argument - create fresh list if None
     if additional_ports is None:
         additional_ports = []
@@ -114,12 +102,11 @@ def start_combined_server(base_port, port_range, additional_ports=None,
                     decoded = data.decode('utf-8', errors='replace')  # or use errors='ignore'
                     if verbose:
                         print(f"Received UDP from {client_address} on port {port}: {decoded}")
-                    if on_udp_data:
-                        if on_udp_data(client_address, port, data) == False:
-                            # Send failure response including port number
-                            response = f"UDP/1.0 400 Bad Request from port {port}\r\n\r\n".encode()
-                            s.sendto(response, client_address)
-                            continue
+                    if on_udp_data and not on_udp_data(client_address, port, data):
+                        # Send failure response including port number
+                        response = f"UDP/1.0 400 Bad Request from port {port}\r\n\r\n".encode()
+                        s.sendto(response, client_address)
+                        continue
 
                     # Send okay response including port number
                     response = f"UDP/1.0 200 OK from port {port}\r\n\r\n".encode()
@@ -131,12 +118,11 @@ def start_combined_server(base_port, port_range, additional_ports=None,
                     if data:
                         if verbose:
                             print(f"Received TCP from {s.getpeername()} on port {port}: {data.decode()}")
-                        if on_tcp_data:
-                            if on_tcp_data(s.getpeername(), port, data) == False:
-                                # Send failure response including port number
-                                response = f"HTTP/1.0 400 Bad Request from port {port}\r\n\r\n".encode()
-                                s.sendall(response)
-                                continue
+                        if on_tcp_data and not on_tcp_data(s.getpeername(), port, data):
+                            # Send failure response including port number
+                            response = f"HTTP/1.0 400 Bad Request from port {port}\r\n\r\n".encode()
+                            s.sendall(response)
+                            continue
 
                         if port==12350:
                             if verbose:
