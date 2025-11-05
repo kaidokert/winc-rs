@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1761836300941,
+  "lastUpdate": 1762315456524,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -4679,6 +4679,40 @@ window.BENCHMARK_DATA = {
           {
             "name": "iperf3_client",
             "value": 52968,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "142439476+umarbinzahid@users.noreply.github.com",
+            "name": "Umar Bin Zahid",
+            "username": "umarbinzahid"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "a42640ff7d100b997714d15fbdf646399da90fc9",
+          "message": "Implement HTTP/UDP request verification handler in `server.py` (#122)\n\n* Added request checking.\n\n* Addressed bots comments..",
+          "timestamp": "2025-11-04T20:03:15-08:00",
+          "tree_id": "1a742702e1b41eb2682caf38d058dd836d5db5b4",
+          "url": "https://github.com/kaidokert/winc-rs/commit/a42640ff7d100b997714d15fbdf646399da90fc9"
+        },
+        "date": 1762315456184,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 37816,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 52272,
             "unit": "byte"
           }
         ]
