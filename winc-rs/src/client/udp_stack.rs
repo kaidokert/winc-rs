@@ -675,7 +675,7 @@ mod test {
         let mut client = make_test_client();
         let mut udp_socket = client.socket().unwrap();
         let packet = "Hello, World";
-        let valid_len: i16 = -9 as i16;
+        let error_code: i16 = -9;
 
         // Connect to address
         let socket_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 80);
@@ -684,7 +684,7 @@ mod test {
 
         // set callback
         let mut my_debug = |callbacks: &mut SocketCallbacks| {
-            callbacks.on_send_to(Socket::new(7, 0), valid_len as i16);
+            callbacks.on_send_to(Socket::new(7, 0), error_code);
         };
         client.debug_callback = Some(&mut my_debug);
 
