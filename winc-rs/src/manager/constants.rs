@@ -654,21 +654,8 @@ impl From<u8> for SocketError {
 /// Convert the `i16` value to `SocketError`.
 impl From<i16> for SocketError {
     fn from(v: i16) -> Self {
-        match v {
-            0 => Self::NoError,
-            -1 => Self::InvalidAddress,
-            -2 => Self::AddrAlreadyInUse,
-            -3 => Self::MaxTcpSock,
-            -4 => Self::MaxUdpSock,
-            -6 => Self::InvalidArg,
-            -7 => Self::MaxListenSock,
-            -9 => Self::Invalid,
-            -11 => Self::AddrIsRequired,
-            -12 => Self::ConnAborted,
-            -13 => Self::Timeout,
-            -14 => Self::BufferFull,
-            _ => Self::Unhandled,
-        }
+        let u8_val = v as u8;
+        u8_val.into()
     }
 }
 
