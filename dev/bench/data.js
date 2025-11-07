@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1762315456524,
+  "lastUpdate": 1762487423769,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -4713,6 +4713,40 @@ window.BENCHMARK_DATA = {
           {
             "name": "iperf3_client",
             "value": 52272,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "142439476+umarbinzahid@users.noreply.github.com",
+            "name": "Umar Bin Zahid",
+            "username": "umarbinzahid"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "985bbb6a2686d9e91726a31fffefe019c21bacdc",
+          "message": "[Bug] Fix TCP/UDP send operation to terminate with an error when the server is not connected. (#121)\n\n* Fixes the send operation to terminate with an error if the server is not connected.\n\n* Addressed comments.\n\n* Added udp test case.\n\n* updated variable name.",
+          "timestamp": "2025-11-06T19:49:25-08:00",
+          "tree_id": "777a03172b34abe0e030f9ecb59190f16b8baed4",
+          "url": "https://github.com/kaidokert/winc-rs/commit/985bbb6a2686d9e91726a31fffefe019c21bacdc"
+        },
+        "date": 1762487423438,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 37824,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 52160,
             "unit": "byte"
           }
         ]
