@@ -30,6 +30,9 @@ use crate::{error, transfer::Xfer};
 #[cfg(feature = "experimental-ota")]
 use crate::manager::constants::OtaResponse;
 
+#[cfg(feature = "ethernet")]
+use crate::manager::{constants::NET_XFER_PACKET_SIZE, HIF_HEADER_OFFSET};
+
 impl<X: Xfer> Manager<X> {
     /// Parses incoming WiFi events from the chip and dispatches them to the provided event listener.
     ///
@@ -128,11 +131,28 @@ impl<X: Xfer> Manager<X> {
                 )?;
                 listener.on_prng(&response[0..len as usize]);
             }
-            WifiResponse::Unhandled
-            | WifiResponse::Wps
-            | WifiResponse::EthernetRxPacket
-            | WifiResponse::WifiRxPacket => {
-                panic!("Unhandled Wifi HIF")
+            WifiResponse::EthernetRxPacket => {
+                #[cfg(feature = "ethernet")]
+                {
+                    let mut response = [0u8; NET_XFER_PACKET_SIZE];
+
+                    self.recv_ethernet_packet(
+                        address + HIF_HEADER_OFFSET as u32,
+                        &mut response,
+                        false,
+                    )?;
+                    let reply = read_eth_rx_reply(&response)?;
+                    listener.on_eth(reply.0, reply.1, address + HIF_HEADER_OFFSET as u32);
+                }
+                #[cfg(not(feature = "ethernet"))]
+                {
+                    error!("Ethernet feature not enabled: WiFi HIF: {:?}", wifi_res);
+                    return Err(Error::InvalidHifResponse("WiFi"));
+                }
+            }
+            WifiResponse::Unhandled | WifiResponse::Wps | WifiResponse::WifiRxPacket => {
+                error!("Unhandled Wifi HIF: {:?}", wifi_res);
+                return Err(Error::InvalidHifResponse("WiFi"));
             }
         }
         Ok(())

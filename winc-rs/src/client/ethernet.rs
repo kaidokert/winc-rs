@@ -1,0 +1,169 @@
+// Copyright 2025 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+use super::{StackError, WincClient, Xfer};
+use embedded_nal::nb;
+
+impl<X: Xfer> WincClient<'_, X> {
+    /// Reads an Ethernet packet from the module if available.
+    ///
+    /// # Arguments
+    ///
+    /// * `buffer` - An optional mutable slice used to store the received Ethernet packet.
+    ///   If `None`, the internal receive buffer of `SOCKET_BUFFER_MAX_LENGTH` bytes will be used.
+    /// * `timeout` - The maximum time (in milliseconds) to wait for an Ethernet packet.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(()))` – If packet is successfully read from the module.
+    /// * `Err(StackError)` – If an error occurred while reading data from the module.
+    pub fn read_ethernet_packet(
+        &mut self,
+        buffer: Option<&mut [u8]>,
+        timeout: u32,
+    ) -> nb::Result<(), StackError> {
+        match &mut self.callbacks.eth_rx_info {
+            None => {
+                self.callbacks.eth_rx_info = Some(None);
+                self.operation_countdown = timeout;
+            }
+            Some(info) => {
+                if let Some(info) = info {
+                    let recv_buffer = match buffer {
+                        None => {
+                            self.callbacks.recv_buffer.fill(0);
+                            self.callbacks.recv_buffer.as_mut_slice()
+                        }
+                        Some(buffer) => buffer,
+                    };
+                    let len_to_read = recv_buffer.len().min(info.packet_size as usize);
+                    let rx_done = len_to_read >= info.packet_size as usize;
+                    self.manager.recv_ethernet_packet(
+                        info.hif_address + info.data_offset as u32,
+                        &mut recv_buffer[..len_to_read],
+                        rx_done,
+                    )?;
+                    // check if all data is read from the module.
+                    if rx_done {
+                        // no bytes left to read
+                        self.callbacks.eth_rx_info = None;
+                    } else {
+                        info.data_offset += len_to_read as u16;
+                        info.packet_size -= len_to_read as u16;
+                    };
+
+                    return Ok(());
+                } else {
+                    self.delay_us(self.poll_loop_delay_us);
+                    if self.operation_countdown == 0 {
+                        self.callbacks.eth_rx_info = None;
+                        return Err(nb::Error::Other(StackError::GeneralTimeout));
+                    }
+                    self.operation_countdown -= 1;
+                }
+            }
+        }
+        self.dispatch_events()?;
+        Err(nb::Error::WouldBlock)
+    }
+
+    /// Sends an Ethernet packet from the module.
+    ///
+    /// # Arguments
+    ///
+    /// * `net_pkt` - The raw Ethernet packet data to be transmitted.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` – If packet is successfully sent from the module.
+    /// * `Err(StackError)` – If an error occurred while sending data from the module.
+    pub fn send_ethernet_packet(&mut self, net_pkt: &[u8]) -> Result<(), StackError> {
+        Ok(self.manager.send_ethernet_packet(net_pkt)?)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::client::{test_shared::*, SocketCallbacks};
+    use crate::manager::EventListener;
+    use crate::CommError;
+
+    #[test]
+    fn test_send_ethernet_packet_success() {
+        let mut client = make_test_client();
+        let packet = [0xffu8; 10];
+
+        let result = client.send_ethernet_packet(&packet);
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_send_ethernet_packet_failed() {
+        let mut client = make_test_client();
+        let result = client.send_ethernet_packet(&[]);
+
+        assert_eq!(
+            result,
+            Err(StackError::WincWifiFail(CommError::BufferError))
+        );
+    }
+
+    #[test]
+    fn test_read_ethernet_packet_success() {
+        let mut client = make_test_client();
+        let rx_info = (100 as u16, 111 as u16, 0xAABBCCDD as u32);
+        let mut rx_buffer = [0u8; 200];
+        let timeout = 1000 as u32;
+
+        let mut my_debug = |callbacks: &mut SocketCallbacks| {
+            callbacks.on_eth(rx_info.0, rx_info.1, rx_info.2);
+        };
+        client.debug_callback = Some(&mut my_debug);
+
+        let result = nb::block!(client.read_ethernet_packet(Some(&mut rx_buffer), timeout));
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_read_ethernet_packet_timeout() {
+        let mut client = make_test_client();
+        let mut rx_buffer = [0u8; 200];
+        let timeout = 1000 as u32;
+
+        let result = nb::block!(client.read_ethernet_packet(Some(&mut rx_buffer), timeout));
+
+        assert_eq!(result, Err(StackError::GeneralTimeout));
+    }
+
+    #[test]
+    fn test_read_ethernet_packet_internal_buffer() {
+        let mut client = make_test_client();
+        client.callbacks.recv_buffer.fill(0xff);
+        let rx_info = (1600 as u16, 111 as u16, 0xAABBCCDD as u32);
+        let timeout = 1000 as u32;
+
+        let mut my_debug = |callbacks: &mut SocketCallbacks| {
+            callbacks.on_eth(rx_info.0, rx_info.1, rx_info.2);
+        };
+        client.debug_callback = Some(&mut my_debug);
+
+        let result = nb::block!(client.read_ethernet_packet(None, timeout));
+
+        assert!(result.is_ok());
+        assert!(client.callbacks.recv_buffer.iter().all(|&b| b == 0));
+    }
+}

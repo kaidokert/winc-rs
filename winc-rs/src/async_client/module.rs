@@ -1,5 +1,6 @@
 use super::AsyncClient;
 use super::StackError;
+use crate::manager::{BootMode, BootState};
 use crate::stack::socket_callbacks::WifiModuleState;
 use crate::transfer::Xfer;
 
@@ -15,7 +16,7 @@ impl<X: Xfer> AsyncClient<'_, X> {
         self.callbacks.borrow_mut().state = WifiModuleState::Starting;
         self.manager.borrow_mut().set_crc_state(true);
 
-        let mut state = Default::default();
+        let mut state = BootState::new(BootMode::Normal);
         loop {
             let result = self.manager.borrow_mut().boot_the_chip(&mut state)?;
             if result {

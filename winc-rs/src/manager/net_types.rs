@@ -228,6 +228,14 @@ pub(crate) struct SslCallbackInfo {
     pub(crate) ecc_req: Option<EccRequest>,
 }
 
+/// Ethernet RX information.
+#[cfg(feature = "ethernet")]
+pub(crate) struct EthernetRxInfo {
+    pub(crate) packet_size: u16,
+    pub(crate) data_offset: u16,
+    pub(crate) hif_address: u32,
+}
+
 /// Implementation to convert the Credentials to Authentication Type
 impl From<Credentials> for AuthType {
     fn from(cred: Credentials) -> Self {
