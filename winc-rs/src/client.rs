@@ -2,6 +2,8 @@ use crate::manager::Manager;
 use crate::transfer::Xfer;
 
 mod dns;
+#[cfg(feature = "ethernet")]
+mod ethernet;
 #[cfg(feature = "flash-rw")]
 mod flash;
 #[cfg(feature = "experimental-ota")]

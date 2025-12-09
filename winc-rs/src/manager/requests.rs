@@ -33,6 +33,9 @@ use super::{
     net_types::{EccInfo, EcdhInfo},
 };
 
+#[cfg(feature = "ethernet")]
+use super::constants::NET_XFER_PACKET_SIZE;
+
 /// Prepares the packet to connect to access point.
 ///
 /// # Arguments
@@ -552,6 +555,20 @@ pub(crate) fn write_ssl_ecc_resp(
             slice.write(&ecdh_info.private_key)?;
         }
     }
+
+    Ok(req)
+}
+
+#[cfg(feature = "ethernet")]
+pub(crate) fn write_send_net_pkt_req(
+    net_pkt_len: u16,
+    net_header_len: u16,
+) -> Result<[u8; NET_XFER_PACKET_SIZE], BufferOverflow> {
+    let mut req = [0u8; NET_XFER_PACKET_SIZE];
+    let mut slice = req.as_mut_slice();
+
+    slice.write(&net_pkt_len.to_le_bytes())?;
+    slice.write(&net_header_len.to_le_bytes())?;
 
     Ok(req)
 }

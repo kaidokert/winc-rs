@@ -18,6 +18,9 @@ use crate::manager::{SslCallbackInfo, SslResponse};
 #[cfg(feature = "experimental-ecc")]
 use crate::manager::EccRequest;
 
+#[cfg(feature = "ethernet")]
+use crate::manager::EthernetRxInfo;
+
 use super::sock_holder::{SockHolder, SocketStore};
 use crate::{debug, error, info};
 use crate::{socket::Socket, Ipv4AddrFormatWrapper};
@@ -150,6 +153,8 @@ pub(crate) struct SocketCallbacks {
     pub ota_state: OtaUpdateState,
     #[cfg(feature = "ssl")]
     pub ssl_cb_info: SslCallbackInfo,
+    #[cfg(feature = "ethernet")]
+    pub eth_rx_info: Option<Option<EthernetRxInfo>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -266,6 +271,8 @@ impl SocketCallbacks {
             ota_state: OtaUpdateState::NotStarted,
             #[cfg(feature = "ssl")]
             ssl_cb_info: SslCallbackInfo::default(),
+            #[cfg(feature = "ethernet")]
+            eth_rx_info: None,
         }
     }
     pub fn resolve(&mut self, socket: Socket) -> Option<&mut (Socket, ClientSocketOp)> {
@@ -811,6 +818,24 @@ impl EventListener for SocketCallbacks {
             _ => {
                 error!("Invalid SSL event received.");
             }
+        }
+    }
+
+    /// Callback function for Ethernet RX events triggered by the module.
+    ///
+    /// # Arguments
+    ///
+    /// * `packet_size` - The size of the data available to read.
+    /// * `data_offset` - The register address offset from which data can be read.
+    /// * `hif_address` - The HIF memory address where the Ethernet frame is stored.
+    #[cfg(feature = "ethernet")]
+    fn on_eth(&mut self, packet_size: u16, data_offset: u16, hif_address: u32) {
+        if let Some(None) = self.eth_rx_info {
+            self.eth_rx_info = Some(Some(EthernetRxInfo {
+                packet_size,
+                data_offset,
+                hif_address,
+            }));
         }
     }
 }

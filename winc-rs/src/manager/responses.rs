@@ -597,6 +597,28 @@ pub fn read_ssl_ecc_response(mut response: &[u8]) -> Result<EccRequest, Error> {
     Ok(ecc_req)
 }
 
+/// Reads the Ethernet RX packet information from a data packet received from the chip.
+///
+/// # Arguments
+///
+/// * `response` - Buffer containing Ethernet RX packet information.
+///
+/// # Returns
+///
+/// * `Ok((size, offset))`:
+///     - `size` (`u16`) — Number of bytes available to read.
+///     - `offset` (`u16`) — Offset within the data where the packet begins.
+/// * `Err(Error)` if the data is invalid, incomplete, or cannot be parsed.
+#[cfg(feature = "ethernet")]
+pub fn read_eth_rx_reply(mut response: &[u8]) -> Result<(u16, u16), Error> {
+    let reader = &mut response;
+
+    let packet_size = read16(reader)?;
+    let offset = read16(reader)?;
+
+    Ok((packet_size, offset))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1049,5 +1071,18 @@ mod tests {
         assert_eq!(ecc_req.ecc_info.user_data, 672409620);
         // sequence number
         assert_eq!(ecc_req.ecc_info.seq_num, 33686532);
+    }
+
+    #[cfg(feature = "ethernet")]
+    #[test]
+    fn test_read_ethernet_reply() {
+        let response = [25, 25, 00, 31];
+
+        let result = read_eth_rx_reply(&response);
+        assert!(result.is_ok());
+
+        let (packet_size, data_offset) = result.unwrap();
+        assert_eq!(packet_size, 6425 as u16);
+        assert_eq!(data_offset, 7936 as u16)
     }
 }

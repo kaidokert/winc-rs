@@ -43,7 +43,7 @@ pub(crate) use constants::FLASH_PAGE_SIZE;
 #[cfg(feature = "experimental-ota")]
 pub(crate) use constants::{OtaRequest, OtaResponse, OtaUpdateStatus};
 
-pub(crate) use constants::{PRNG_DATA_LENGTH, SOCKET_BUFFER_MAX_LENGTH};
+pub(crate) use constants::{BootMode, PRNG_DATA_LENGTH, SOCKET_BUFFER_MAX_LENGTH};
 
 #[cfg(feature = "ssl")]
 pub(crate) use self::{
@@ -73,6 +73,9 @@ pub use net_types::{
 
 #[cfg(feature = "wep")]
 pub use net_types::WepKey;
+
+#[cfg(feature = "ethernet")]
+pub(crate) use net_types::EthernetRxInfo;
 
 use requests::*;
 use responses::*;
@@ -165,6 +168,7 @@ const FLASH_REG_READ_RETRIES: usize = 10;
 #[cfg(feature = "flash-rw")]
 const FLASH_DUMMY_VALUE: u32 = 0x1084;
 const OTP_REG_ADDR_BITS: u32 = 0x3_0000;
+const DEFAULT_CHIP_CFG: u32 = 0x102; // Reserved (0x100) + ENABLE_PMU bit (0x02)
 
 // todo this needs to be used
 #[allow(dead_code)]
@@ -219,6 +223,8 @@ pub trait EventListener {
         cipher_suite: Option<u32>,
         #[cfg(feature = "experimental-ecc")] ecc_req: Option<EccRequest>,
     );
+    #[cfg(feature = "ethernet")]
+    fn on_eth(&mut self, packet_size: u16, data_offset: u16, hif_address: u32);
 }
 
 pub struct Manager<X: Xfer> {
@@ -245,12 +251,14 @@ pub(crate) enum BootStage {
 pub(crate) struct BootState {
     stage: BootStage,
     loop_value: u32,
+    mode: BootMode,
 }
-impl Default for BootState {
-    fn default() -> Self {
+impl BootState {
+    pub fn new(mode: BootMode) -> Self {
         Self {
             stage: BootStage::Start,
             loop_value: 0,
+            mode,
         }
     }
 }
@@ -452,8 +460,7 @@ impl<X: Xfer> Manager<X> {
                     .single_reg_write(Regs::NmiState.into(), driver_rev)?;
                 self.chip_id()?;
                 // write conf
-                let mut conf: u32 = 0;
-                conf |= 0x102; // Reserved + ENABLE_PMU bit
+                let conf = u32::from(state.mode) | DEFAULT_CHIP_CFG;
                 self.chip.single_reg_write(Regs::NmiGp1.into(), conf)?;
                 let verify = self.chip.single_reg_read(Regs::NmiGp1.into())?;
                 assert_eq!(verify, conf); // todo: loop
@@ -1789,6 +1796,81 @@ impl<X: Xfer> Manager<X> {
         self.chip.dma_block_read(reg, mac_address.as_mut_slice())?;
 
         Ok(mac_address)
+    }
+
+    /// Sends an Ethernet packet to the module.
+    ///
+    /// # Note
+    ///
+    /// The user application is responsible for constructing the Ethernet packet
+    /// using an external TCP/IP stack, and the device must be in Ethernet mode.
+    ///
+    /// # Arguments
+    ///
+    /// * `net_pkt` - The Ethernet packet to send.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` if the packet was successfully sent.
+    /// * `Err(Error)` if an error occurred while sending the packet.
+    #[cfg(feature = "ethernet")]
+    pub(crate) fn send_ethernet_packet(&mut self, net_pkt: &[u8]) -> Result<(), Error> {
+        if net_pkt.is_empty() {
+            return Err(Error::BufferError);
+        }
+        let req = write_send_net_pkt_req(net_pkt.len() as u16, ETHERNET_HEADER_LENGTH as u16)?;
+
+        self.write_hif_header_impl(
+            HifRequest::Wifi(WifiRequest::SendEthernetPacket),
+            &req,
+            true,
+            Some((net_pkt.len(), ETHERNET_HEADER_OFFSET - HIF_HEADER_OFFSET)),
+        )?;
+
+        self.chip
+            .dma_block_write(self.not_a_reg_ctrl_4_dma + HIF_HEADER_OFFSET as u32, &req)?;
+
+        self.chip.dma_block_write(
+            self.not_a_reg_ctrl_4_dma + ETHERNET_HEADER_OFFSET as u32,
+            net_pkt,
+        )?;
+
+        self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
+    }
+
+    /// Receives an Ethernet packet from the module.
+    ///
+    /// # Note
+    ///
+    /// The user application is responsible for parsing the Ethernet packet
+    /// using an external TCP/IP stack, and the device must be in Ethernet mode.
+    /// Function
+    ///
+    /// # Arguments
+    ///
+    /// * `buffer` - A mutable buffer where received Ethernet packet will be storred.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(size)` containing the number of bytes written into the buffer if the
+    ///   packet was successfully received.
+    /// * `Err(Error)` if an error occurred while receiving the packet.
+    #[cfg(feature = "ethernet")]
+    pub(crate) fn recv_ethernet_packet(
+        &mut self,
+        address: u32,
+        data: &mut [u8],
+        rx_done: bool,
+    ) -> Result<(), Error> {
+        self.chip.dma_block_read(address, data)?;
+        // clear RX if no more data is available to read.
+        if rx_done {
+            let reg = self.chip.single_reg_read(Regs::WifiHostRcvCtrl0.into())?;
+            self.chip
+                .single_reg_write(Regs::WifiHostRcvCtrl0.into(), reg | 2)?;
+        }
+
+        Ok(())
     }
 
     // #endregion write
