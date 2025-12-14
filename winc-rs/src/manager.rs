@@ -1802,8 +1802,7 @@ impl<X: Xfer> Manager<X> {
     ///
     /// # Note
     ///
-    /// The user application is responsible for constructing the Ethernet packet
-    /// using an external TCP/IP stack, and the device must be in Ethernet mode.
+    /// The user application is responsible for constructing the Ethernet packet.
     ///
     /// # Arguments
     ///
@@ -1811,8 +1810,8 @@ impl<X: Xfer> Manager<X> {
     ///
     /// # Returns
     ///
-    /// * `Ok(())` if the packet was successfully sent.
-    /// * `Err(Error)` if an error occurred while sending the packet.
+    /// * `Ok(())` - if the packet was successfully sent.
+    /// * `Err(Error)` - if an error occurred while sending the packet.
     #[cfg(feature = "ethernet")]
     pub(crate) fn send_ethernet_packet(&mut self, net_pkt: &[u8]) -> Result<(), Error> {
         if net_pkt.is_empty() {
@@ -1842,19 +1841,16 @@ impl<X: Xfer> Manager<X> {
     ///
     /// # Note
     ///
-    /// The user application is responsible for parsing the Ethernet packet
-    /// using an external TCP/IP stack, and the device must be in Ethernet mode.
-    /// Function
+    /// The user application is responsible for parsing the Ethernet packet.
     ///
     /// # Arguments
     ///
-    /// * `buffer` - A mutable buffer where received Ethernet packet will be storred.
+    /// * `buffer` - A mutable buffer where the received Ethernet packet will be stored.
     ///
     /// # Returns
     ///
-    /// * `Ok(size)` containing the number of bytes written into the buffer if the
-    ///   packet was successfully received.
-    /// * `Err(Error)` if an error occurred while receiving the packet.
+    /// * `Ok(())` - If the packet is successully read from the module.
+    /// * `Err(Error)` - Returned if an error occurred while receiving the packet.
     #[cfg(feature = "ethernet")]
     pub(crate) fn recv_ethernet_packet(
         &mut self,

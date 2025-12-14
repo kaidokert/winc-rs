@@ -559,6 +559,18 @@ pub(crate) fn write_ssl_ecc_resp(
     Ok(req)
 }
 
+/// Prepares a request packet for sending a network frame.
+///
+/// # Arguments
+///
+/// * `net_pkt_len` - The length of the network packet payload, in bytes.
+/// * `net_header_len` - The length of the network packet header, in bytes.
+///
+/// # Returns
+///
+/// * `Ok([u8; NET_XFER_PACKET_SIZE])` - A fixed-size array containing the network
+///   packet request.
+/// * `Err(BufferOverflow)` - If the packet data exceeds the available buffer size.
 #[cfg(feature = "ethernet")]
 pub(crate) fn write_send_net_pkt_req(
     net_pkt_len: u16,

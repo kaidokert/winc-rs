@@ -15,7 +15,7 @@
 use super::{StackError, WincClient, Xfer};
 use embedded_nal::nb;
 
-/// 1 millisecond timeout to read etherent packet.
+/// 1 second timeout to read etherent packet.
 const ETHERNET_RX_TIMEOUT_MSEC: u32 = 1000;
 
 impl<X: Xfer> WincClient<'_, X> {
@@ -23,15 +23,15 @@ impl<X: Xfer> WincClient<'_, X> {
     ///
     /// # Arguments
     ///
-    /// * `buffer` – An optional mutable slice used to store the received Ethernet packet.
+    /// * `buffer` - An optional mutable slice used to store the received Ethernet packet.
     ///   If `None`, the internal receive buffer of `SOCKET_BUFFER_MAX_LENGTH` bytes will be used.
-    /// * `timeout` – An optional maximum time (in milliseconds) to wait for an Ethernet packet.
+    /// * `timeout` - An optional maximum time (in milliseconds) to wait for an Ethernet packet.
     ///   If not provided, a default timeout value of `ETHERNET_RX_TIMEOUT_MSEC` will be used.
     ///
     /// # Returns
     ///
-    /// * `Ok(usize)` – The number of bytes read from the module.
-    /// * `Err(StackError)` – An error occurred while reading data from the module.
+    /// * `Ok(usize)` - The number of bytes read from the module.
+    /// * `Err(StackError)` - An error occurred while reading data from the module.
     pub fn read_ethernet_packet(
         &mut self,
         buffer: Option<&mut [u8]>,
@@ -94,8 +94,8 @@ impl<X: Xfer> WincClient<'_, X> {
     ///
     /// # Returns
     ///
-    /// * `Ok(())` – If packet is successfully sent from the module.
-    /// * `Err(StackError)` – If an error occurred while sending data from the module.
+    /// * `Ok(())` - If packet is successfully sent from the module.
+    /// * `Err(StackError)` - If an error occurred while sending data from the module.
     pub fn send_ethernet_packet(&mut self, net_pkt: &[u8]) -> Result<(), StackError> {
         Ok(self.manager.send_ethernet_packet(net_pkt)?)
     }
