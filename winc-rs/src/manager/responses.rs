@@ -606,9 +606,9 @@ pub fn read_ssl_ecc_response(mut response: &[u8]) -> Result<EccRequest, Error> {
 /// # Returns
 ///
 /// * `Ok((size, offset))`:
-///     - `size` (`u16`) — Number of bytes available to read.
-///     - `offset` (`u16`) — Offset within the data where the packet begins.
-/// * `Err(Error)` if the data is invalid, incomplete, or cannot be parsed.
+///     - `size` (`u16`) - Number of bytes available to read.
+///     - `offset` (`u16`) - Offset within the data where the packet begins.
+/// * `Err(Error)` - if the data is invalid, incomplete, or cannot be parsed.
 #[cfg(feature = "ethernet")]
 pub fn read_eth_rx_reply(mut response: &[u8]) -> Result<(u16, u16), Error> {
     let reader = &mut response;
