@@ -19,19 +19,24 @@ use embedded_nal::nb;
 const ETHERNET_RX_TIMEOUT_MSEC: u32 = 1000;
 
 impl<X: Xfer> WincClient<'_, X> {
-    /// Reads an Ethernet packet from the module, if available.
+    /// Tries to read an Ethernet packet fromt he module within a specified timeout.
+    ///
+    /// # Note
+    ///
+    /// The user application is responsible for parsing the Ethernet packet.
     ///
     /// # Arguments
     ///
     /// * `buffer` - An optional mutable slice used to store the received Ethernet packet.
-    ///   If `None`, the internal receive buffer of `SOCKET_BUFFER_MAX_LENGTH` bytes will be used.
-    /// * `timeout` - An optional maximum time (in milliseconds) to wait for an Ethernet packet.
-    ///   If not provided, a default timeout value of `ETHERNET_RX_TIMEOUT_MSEC` will be used.
+    ///   If `None`, the internal receive buffer with a capacity of `SOCKET_BUFFER_MAX_LENGTH`
+    ///   bytes is used.
+    /// * `timeout` - An optional timeout in milliseconds, to wait for an Ethernet packet.
+    ///   If `None`, the default timeout value `ETHERNET_RX_TIMEOUT_MSEC` is used.
     ///
     /// # Returns
     ///
     /// * `Ok(usize)` - The number of bytes read from the module.
-    /// * `Err(StackError)` - An error occurred while reading data from the module.
+    /// * `Err(StackError)` - If an error occurs while reading the ethernet packet.
     pub fn read_ethernet_packet(
         &mut self,
         buffer: Option<&mut [u8]>,
@@ -86,7 +91,11 @@ impl<X: Xfer> WincClient<'_, X> {
         Err(nb::Error::WouldBlock)
     }
 
-    /// Sends an Ethernet packet from the module.
+    /// Sends an Ethernet packet to the module.
+    ///
+    /// # Note
+    ///
+    /// The user application is responsible for constructing the Ethernet packet.
     ///
     /// # Arguments
     ///
@@ -94,8 +103,8 @@ impl<X: Xfer> WincClient<'_, X> {
     ///
     /// # Returns
     ///
-    /// * `Ok(())` - If packet is successfully sent from the module.
-    /// * `Err(StackError)` - If an error occurred while sending data from the module.
+    /// * `Ok(())` - If packet is successfully sent to the module.
+    /// * `Err(StackError)` - If an error occurred while sending the ethernet packet.
     pub fn send_ethernet_packet(&mut self, net_pkt: &[u8]) -> Result<(), StackError> {
         Ok(self.manager.send_ethernet_packet(net_pkt)?)
     }

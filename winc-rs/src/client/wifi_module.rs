@@ -69,7 +69,7 @@ impl<X: Xfer> WincClient<'_, X> {
         }
     }
 
-    /// Initializes the Wifi module in normal mode — boots the firmware and
+    /// Initializes the Wifi module in normal mode - boots the firmware and
     /// completes the remaining initialization.
     ///
     /// # Returns

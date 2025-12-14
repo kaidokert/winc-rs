@@ -559,7 +559,7 @@ pub(crate) fn write_ssl_ecc_resp(
     Ok(req)
 }
 
-/// Prepares a request packet for sending a network frame.
+/// Prepares a request packet for sending a network information.
 ///
 /// # Arguments
 ///

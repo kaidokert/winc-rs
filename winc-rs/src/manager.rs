@@ -1750,10 +1750,6 @@ impl<X: Xfer> Manager<X> {
 
     /// Sends an Ethernet packet to the module.
     ///
-    /// # Note
-    ///
-    /// The user application is responsible for constructing the Ethernet packet.
-    ///
     /// # Arguments
     ///
     /// * `net_pkt` - The Ethernet packet to send.
@@ -1788,10 +1784,6 @@ impl<X: Xfer> Manager<X> {
     }
 
     /// Receives an Ethernet packet from the module.
-    ///
-    /// # Note
-    ///
-    /// The user application is responsible for parsing the Ethernet packet.
     ///
     /// # Arguments
     ///
