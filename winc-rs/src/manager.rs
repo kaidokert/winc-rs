@@ -458,17 +458,20 @@ impl<X: Xfer> Manager<X> {
                 self.chip
                     .single_reg_write(Regs::NmiState.into(), driver_rev)?;
                 self.chip_id()?;
-                // write conf
+                // Write Boot Mode configuration.
                 let conf = u32::from(state.mode) | DEFAULT_CHIP_CFG;
                 self.chip.single_reg_write(Regs::NmiGp1.into(), conf)?;
                 let verify = self.chip.single_reg_read(Regs::NmiGp1.into())?;
-                assert_eq!(verify, conf); // todo: loop
-                                          // start firmware
-                const START_FIRMWARE: u32 = 0xef522f61;
-                self.chip
-                    .single_reg_write(Regs::BootRom.into(), START_FIRMWARE)?;
-                state.stage = BootStage::StageStartFirmware;
-                state.loop_value = 0;
+                // Verify the configuration
+                if verify == conf {
+                    const START_FIRMWARE: u32 = 0xef522f61;
+                    self.chip
+                        .single_reg_write(Regs::BootRom.into(), START_FIRMWARE)?;
+                    state.stage = BootStage::StageStartFirmware;
+                    state.loop_value = 0;
+                } else if state.loop_value >= MAX_LOOPS {
+                    return Err(Error::FirmwareStart);
+                }
             }
             BootStage::StageStartFirmware => {
                 if state.loop_value >= MAX_LOOPS {
@@ -1760,7 +1763,7 @@ impl<X: Xfer> Manager<X> {
     /// * `Err(Error)` - if an error occurred while sending the packet.
     #[cfg(feature = "ethernet")]
     pub(crate) fn send_ethernet_packet(&mut self, net_pkt: &[u8]) -> Result<(), Error> {
-        if net_pkt.is_empty() {
+        if net_pkt.is_empty() || (net_pkt.len() > u16::MAX as usize) {
             return Err(Error::BufferError);
         }
         let req = write_send_net_pkt_req(net_pkt.len() as u16, ETHERNET_HEADER_LENGTH as u16)?;
@@ -1787,23 +1790,26 @@ impl<X: Xfer> Manager<X> {
     ///
     /// # Arguments
     ///
+    /// * `address` - The starting HIF address from which the Ethernet packet will be read.
     /// * `buffer` - A mutable buffer where the received Ethernet packet will be stored.
+    /// * `rx_done` - Indicates whether the RX_DONE flag should be written after the packet is read.
     ///
     /// # Returns
     ///
-    /// * `Ok(())` - If the packet is successully read from the module.
-    /// * `Err(Error)` - Returned if an error occurred while receiving the packet.
+    /// * `Ok(())` - If the packet is successfully read from the module.
+    /// * `Err(Error)` - If an error occurs while receiving the packet.
     #[cfg(feature = "ethernet")]
     pub(crate) fn recv_ethernet_packet(
         &mut self,
         address: u32,
-        data: &mut [u8],
+        buffer: &mut [u8],
         rx_done: bool,
     ) -> Result<(), Error> {
-        self.chip.dma_block_read(address, data)?;
+        self.chip.dma_block_read(address, buffer)?;
         // clear RX if no more data is available to read.
         if rx_done {
             let reg = self.chip.single_reg_read(Regs::WifiHostRcvCtrl0.into())?;
+            // Todo: Clean-up the magic number of register bit.
             self.chip
                 .single_reg_write(Regs::WifiHostRcvCtrl0.into(), reg | 2)?;
         }
