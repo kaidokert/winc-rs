@@ -15,11 +15,11 @@
 use super::{StackError, WincClient, Xfer};
 use embedded_nal::nb;
 
-/// 1 second timeout to read etherent packet.
+/// 1 second timeout to read an ethernet packet.
 const ETHERNET_RX_TIMEOUT_MSEC: u32 = 1000;
 
 impl<X: Xfer> WincClient<'_, X> {
-    /// Tries to read an Ethernet packet fromt he module within a specified timeout.
+    /// Tries to read an Ethernet packet from the module within a specified timeout.
     ///
     /// # Note
     ///
@@ -45,11 +45,9 @@ impl<X: Xfer> WincClient<'_, X> {
         match &mut self.callbacks.eth_rx_info {
             None => {
                 self.callbacks.eth_rx_info = Some(None);
-                if let Some(timeout) = timeout {
-                    self.operation_countdown = timeout;
-                } else {
-                    self.operation_countdown = ETHERNET_RX_TIMEOUT_MSEC;
-                }
+                let timeout_ms = timeout.unwrap_or(ETHERNET_RX_TIMEOUT_MSEC);
+                // todo clean-up
+                self.operation_countdown = (timeout_ms * 1000) / self.poll_loop_delay_us;
             }
             Some(info) => {
                 if let Some(info) = info {
@@ -74,7 +72,7 @@ impl<X: Xfer> WincClient<'_, X> {
                     } else {
                         info.data_offset += len_to_read as u16;
                         info.packet_size -= len_to_read as u16;
-                    };
+                    }
 
                     return Ok(len_to_read);
                 } else {
@@ -181,5 +179,17 @@ mod tests {
 
         assert!(result.is_ok());
         assert!(client.callbacks.recv_buffer.iter().all(|&b| b == 0));
+    }
+
+    #[test]
+    fn test_read_ethernet_over_range() {
+        let mut client = make_test_client();
+        let packet = [0u8; 65534];
+        let result = client.send_ethernet_packet(&packet);
+
+        assert_eq!(
+            result,
+            Err(StackError::WincWifiFail(CommError::BufferError))
+        );
     }
 }
