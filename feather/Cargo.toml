@@ -68,6 +68,7 @@ defmt = ["dep:defmt", "dep:defmt-rtt", "dep:panic-probe", "panic-probe/print-def
 serial-usb = ["usb"] # USB Serial interface (mutually exclusive with log)
 flash-rw = ["serial-usb", "wincwifi/flash-rw"]
 ssl = ["wincwifi/ssl"]
+bootloader-enabled = ["irq"]
 
 # cargo build/run
 [profile.dev]

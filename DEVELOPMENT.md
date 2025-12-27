@@ -13,27 +13,50 @@
   - The same demo modules are used in `feather` demos that use `embedded-nal`
 
 ## Feather Wifi Demos and Tests
-- Located in `feather/` directory
+- Located in the `feather/` directory
   - Board notes:
-    - Adafruit board has factory programmed [SAMD bootloader](https://learn.adafruit.com/how-to-program-samd-bootloaders/overview)
-    - Demos are currently not compatible with it, SAMD bootloader support is on TODO list #20
-    - Use a JTAG programmer to work with the board instead (J-link or other)
-    - JTAG connection directions are in [bootloader updating instructions](https://learn.adafruit.com/how-to-program-samd-bootloaders?view=all#feather-m0-m4-wiring)
-    - After/before erasing the default bootloader, make sure the NVM control fuse for the bootloader (BOOTPROT) is also set to '0x00'; otherwise, the board's flash will stay locked. See instructions on the [Adafruit blog](https://learn.adafruit.com/how-to-program-samd-bootloaders/programming-the-bootloader-with-atmel-studio#un-set-bootloader-protection-fuse-3017004).
+    - The Adafruit board has a factory-programmed [SAMD bootloader](https://learn.adafruit.com/how-to-program-samd-bootloaders/overview).
+    - Erasing the bootloader is not required, as demos can be flashed either through the bootloader using `bossa/bossac` or via a JTAG programmer (J-Link or equivalent).
+    - JTAG connection instructions are in the [bootloader updating guide](https://learn.adafruit.com/how-to-program-samd-bootloaders?view=all#feather-m0-m4-wiring).
+    - In case you want to erase the default bootloader, before or after erasing it, make sure the NVM control fuse for the bootloader (BOOTPROT) is set to `0x00`; otherwise, the board’s flash will remain locked. See the instructions on the [Adafruit blog](https://learn.adafruit.com/how-to-program-samd-bootloaders/programming-the-bootloader-with-atmel-studio#un-set-bootloader-protection-fuse-3017004).
   - Development setup:
-    - Install thumb target: `rustup target add thumbv6m-none-eabi`
+    - Install the thumb target: `rustup target add thumbv6m-none-eabi`
     - Install [`probe-rs`](https://probe.rs/)
-    - Verify JTAG connection with `probe-rs list`
-    - Run examples with `cargo run --example blinky`
-      - To run release version ( faster download, smaller binary ):
-         - `cargo run --release --example blinky`
+    - Install [`cargo-binutils`](https://github.com/rust-embedded/cargo-binutils)
+    - Install [`BOSSA v1.9`](https://github.com/shumatech/BOSSA) to flash the binary via the [SAMD bootloader](https://learn.adafruit.com/how-to-program-samd-bootloaders/overview).
+    - **With JTAG/SWD**
+      - Verify the JTAG connection with `probe-rs list`.
+      - **Bootloader Erased:** Run examples with:
+        - `cargo run --example blinky`
+        - To run the release version (faster download, smaller binary):
+          - `cargo run --release --example blinky`
+      - **Bootloader Not Erased:** Run examples with the `bootloader-enabled` feature:
+        - `cargo run --example blinky --features="bootloader-enabled"`
+        - To run the release version:
+          - `cargo run --release --example blinky --features="bootloader-enabled"`
+      - The `cargo run` command uses the configuration in `.cargo/config.toml`.
+      - There is a hardcoded `probe-rs run --speed 1100` in the config.
+      - That speed may need tweaking, depending on your JTAG speed.
+      - It can also be set with the `PROBE_RS_SPEED` environment variable.
+    - **With Bossa/Bossac**
+      - Build the example with the `bootloader-enabled` feature flag and generate its binary file. Both steps can be done using the `cargo objcopy` command:
+        - Debug version:
+          `cargo objcopy --example blinky --features="bootloader-enabled" --no-default-features -- -O binary blinky.bin`
+        - Release version:
+          `cargo objcopy --release --example blinky --features="bootloader-enabled" --no-default-features -- -O binary blinky.bin`
+      - Flashing:
+        - Enter [bootloader mode](https://learn.adafruit.com/adafruit-feather-m4-express-atsamd51/uf2-bootloader-details#entering-bootloader-mode-2929745).
+        - Use Bossac/Bossa to flash the binary:
+          `bossac --port={port} -e -w -v -R --offset=0x2000 blinky.bin`
+          - Replace `{port}` with the serial port your device is connected to. For example:
+            - Linux: `/dev/ttyACM0`
+            - Mac: `/dev/cu.usbmodem14301`
+            - Windows: `COM32`
+        - For flashing the binary using `bossa` versions `v1.7` or `v1.8`, see the instructions on the [Adafruit blog](https://learn.adafruit.com/adafruit-feather-m4-express-atsamd51/uf2-bootloader-details#running-bossac-on-the-command-line-2929769).
+      - For logging, see [USB Serial Logging](#USB-Serial-Logging-(Alternative-to-JTAG)).
     - Configure defmt logging with DEFMT_LOG environment variable
       - Bash: `export DEFMT_LOG=debug`
       - Powershell: `$env:DEFMT_LOG="debug"`
-    - `cargo run` command uses config in `.cargo/config.toml`
-      - There's a hardcoded `probe-rs run --speed 1100` in there
-      - That speed may need tweaking, depending on your JTAG speed.
-      - Can also be set with `PROBE_RS_SPEED` env var
   - Most examples use environment variables to set up test parameters. Set them
     before building and running, these get compiled into the binary
       - To connect the module to access point:
