@@ -6,11 +6,11 @@ use std::path::PathBuf;
 /* This overrides memory.x provided by feather_m0 crate */
 fn main() {
     let out = &PathBuf::from(env::var_os("OUT_DIR").unwrap());
-    let (flash_origin, flash_ram): (&str, &str) = match env::var("CARGO_FEATURE_BOOTLOADER_ENABLED")
-    {
-        Ok(_) => ("0x00002000", "248K"),
-        Err(_) => ("0x00000000", "256K"),
-    };
+    let (flash_origin, flash_length): (&str, &str) =
+        match env::var("CARGO_FEATURE_BOOTLOADER_ENABLED") {
+            Ok(_) => ("0x00002000", "248K"),
+            Err(_) => ("0x00000000", "256K"),
+        };
     let memory = format!(
         r#"MEMORY
     {{
@@ -18,7 +18,7 @@ fn main() {
       RAM (xrw)  : ORIGIN = 0x20000000, LENGTH = 32K
     }}
     _stack_start = ORIGIN(RAM) + LENGTH(RAM);"#,
-        flash_origin, flash_ram
+        flash_origin, flash_length
     );
     File::create(out.join("memory.x"))
         .unwrap()
