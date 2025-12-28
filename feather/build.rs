@@ -25,7 +25,6 @@ fn main() {
         .write_all(&memory.as_bytes())
         .unwrap();
     println!("cargo:rustc-link-search={}", out.display());
-    println!("cargo:rerun-if-changed=memory.x");
     println!("cargo:rerun-if-changed=build.rs");
 
     println!("cargo:rustc-link-arg=--nmagic");

@@ -53,10 +53,10 @@
             - Mac: `/dev/cu.usbmodem14301`
             - Windows: `COM32`
         - For flashing the binary using `bossa` versions `v1.7` or `v1.8`, see the instructions on the [Adafruit blog](https://learn.adafruit.com/adafruit-feather-m4-express-atsamd51/uf2-bootloader-details#running-bossac-on-the-command-line-2929769).
-      - For logging, see [USB Serial Logging](#USB-Serial-Logging-(Alternative-to-JTAG)).
+      - For logging, see [USB Serial Logging](#usb-serial-logging-alternative-to-jtag).
     - Configure defmt logging with DEFMT_LOG environment variable
       - Bash: `export DEFMT_LOG=debug`
-      - Powershell: `$env:DEFMT_LOG="debug"`
+      - PowerShell: `$env:DEFMT_LOG="debug"`
   - Most examples use environment variables to set up test parameters. Set them
     before building and running, these get compiled into the binary
       - To connect the module to access point:
