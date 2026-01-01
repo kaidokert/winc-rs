@@ -32,6 +32,8 @@ use core::net::Ipv4Addr;
 const DEFAULT_AP_IP: u32 = 0xC0A80101;
 #[cfg(feature = "experimental-ecc")]
 const ECC_POINT_MAX_SIZE: usize = 32;
+/// Maximum number of octets in Mac Address
+const MAX_OCTETS_IN_MAC_ADDRESS: usize = 6;
 
 /// Device Domain name.
 pub type HostName = ArrayString<MAX_HOST_NAME_LEN>;
@@ -234,6 +236,11 @@ pub(crate) struct EthernetRxInfo {
     pub(crate) packet_size: u16,
     pub(crate) data_offset: u16,
     pub(crate) hif_address: u32,
+}
+
+/// MAC Address
+pub struct MacAddress {
+    mac: [u8; MAX_OCTETS_IN_MAC_ADDRESS],
 }
 
 /// Implementation to convert the Credentials to Authentication Type
@@ -688,6 +695,82 @@ impl<'a> AccessPoint<'a> {
     }
 }
 
+impl MacAddress {
+    /// Creates a new `MacAddress` from six individual octets.
+    pub fn new(a: u8, b: u8, c: u8, d: u8, e: u8, f: u8) -> MacAddress {
+        Self {
+            mac: [a, b, c, d, e, f],
+        }
+    }
+
+    /// Creates a MAC address from a byte slice.
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, StackError> {
+        if bytes.len() != MAX_OCTETS_IN_MAC_ADDRESS {
+            return Err(StackError::InvalidParameters);
+        }
+
+        let mut mac = [0u8; MAX_OCTETS_IN_MAC_ADDRESS];
+        mac.copy_from_slice(bytes);
+
+        Ok(Self { mac })
+    }
+
+    /// Creates an empty MAC address with all octets set to zero.
+    pub fn empty() -> Self {
+        Self {
+            mac: [0u8; MAX_OCTETS_IN_MAC_ADDRESS],
+        }
+    }
+
+    /// Returns the MAC address as a fixed-size array of octets.
+    pub fn octets(&self) -> [u8; MAX_OCTETS_IN_MAC_ADDRESS] {
+        self.mac
+    }
+
+    /// Returns a mutable slice of the MAC address bytes.
+    #[inline]
+    pub fn as_mut_slice(&mut self) -> &mut [u8] {
+        &mut self.mac
+    }
+
+    /// Returns a immutable slice of the MAC address bytes.
+    #[inline]
+    pub fn as_slice(&self) -> &[u8] {
+        &self.mac
+    }
+}
+
+/// Implements the `core::fmt::Display` trait to display the MAC address in
+/// hexadecimal format, with octets separated by colons.
+/// For example: `AA:BB:CC:DD:EE:FF`.
+#[cfg(feature = "log")]
+impl core::fmt::Display for MacAddress {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        for (i, byte) in self.mac.iter().enumerate() {
+            if i != 0 {
+                write!(f, ":")?;
+            }
+            write!(f, "{:02X}", byte)?;
+        }
+        Ok(())
+    }
+}
+
+/// Implements the `defmt::Format` trait to display the MAC address in
+/// hexadecimal format, with octets separated by colons.
+/// For example: `AA:BB:CC:DD:EE:FF`.
+#[cfg(feature = "defmt")]
+impl defmt::Format for MacAddress {
+    fn format(&self, f: defmt::Formatter) {
+        for (i, byte) in self.mac.iter().enumerate() {
+            if i != 0 {
+                defmt::write!(f, ":");
+            }
+            defmt::write!(f, "{:02X}", byte);
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use core::str::FromStr;
@@ -1092,5 +1175,60 @@ mod tests {
         let res = sock_opt.get_sni_value();
 
         assert_eq!(res, Err(StackError::InvalidParameters));
+    }
+
+    #[test]
+    fn test_create_new_mac_address() {
+        let mac = MacAddress::new(0xA1, 0xB2, 0xC3, 0xD4, 0xE5, 0xF6);
+        assert_eq!(mac.octets(), [0xA1, 0xB2, 0xC3, 0xD4, 0xE5, 0xF6]);
+
+        let mac = MacAddress::empty();
+        assert_eq!(mac.octets(), [0u8; MAX_OCTETS_IN_MAC_ADDRESS]);
+    }
+
+    #[test]
+    fn test_create_mac_address_from_array_success() {
+        let bytes = [0xA1, 0xB2, 0xC3, 0xD4, 0xE5, 0xF6];
+        let mac = MacAddress::from_bytes(&bytes);
+
+        assert!(mac.is_ok());
+        assert_eq!(mac.unwrap().as_slice(), bytes);
+    }
+
+    #[test]
+    fn test_create_mac_address_from_array_failure() {
+        let bytes = [0xA1, 0xB2, 0xC3, 0xD4, 0xE5, 0xF6, 0xAA];
+        let mac = MacAddress::from_bytes(&bytes);
+
+        assert_eq!(mac.err(), Some(StackError::InvalidParameters));
+    }
+
+    #[test]
+    fn test_create_mac_address_mut_array() {
+        let bytes = [0xA1, 0xB2, 0xC3, 0xD4, 0xE5, 0xF6];
+
+        let mut mac = MacAddress::from_bytes(&bytes).unwrap();
+
+        #[cfg(feature = "log")]
+        log::info!("Mac Address: {}", mac);
+
+        let mod_mac = mac.as_mut_slice();
+
+        for (index, byte) in mod_mac.iter_mut().enumerate() {
+            *byte = (index * 2) as u8;
+        }
+
+        assert_ne!(mod_mac, &bytes);
+    }
+
+    #[cfg(feature = "log")]
+    #[test]
+    fn test_format_mac_address() {
+        use std::format;
+
+        let bytes = [0xA1, 0xB2, 0xC3, 0xD4, 0xE5, 0xF6];
+        let mac = MacAddress::from_bytes(&bytes);
+
+        assert_eq!(format!("{}", mac.unwrap()), "A1:B2:C3:D4:E5:F6");
     }
 }

@@ -4,8 +4,8 @@ use embedded_nal::nb;
 
 use crate::manager::{
     AccessPoint, AuthType, BootMode, BootState, Credentials, FirmwareInfo, HostName, IPConf,
-    ProvisioningInfo, ScanResult, SocketOptions, Ssid, TcpSockOpts, UdpSockOpts, WifiChannel,
-    WifiConnError,
+    MacAddress, ProvisioningInfo, ScanResult, SocketOptions, Ssid, TcpSockOpts, UdpSockOpts,
+    WifiChannel, WifiConnError,
 };
 #[cfg(feature = "ssl")]
 use crate::manager::{SslSockConfig, SslSockOpts};
@@ -593,6 +593,22 @@ impl<X: Xfer> WincClient<'_, X> {
         }
 
         Ok(())
+    }
+
+    /// Retrieves the MAC address from the WINC network interface.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(MacAddress)` - The current MAC address of the WINC module on success.
+    /// * `Err(StackError)` - If the MAC address could not be retrieved.
+    pub fn get_winc_mac_address(
+        &mut self,
+        #[cfg(test)] test_hook: bool,
+    ) -> Result<MacAddress, StackError> {
+        Ok(self.manager.read_opt_mac_address(
+            #[cfg(test)]
+            test_hook,
+        )?)
     }
 }
 
@@ -1273,6 +1289,29 @@ mod tests {
         assert_eq!(
             sock.get_ssl_cfg(),
             u8::from(SslSockConfig::EnableSniValidation)
+        );
+    }
+
+    #[test]
+    fn test_get_winc_mac_address_sucess() {
+        let mut client = make_test_client();
+
+        let mac = client.get_winc_mac_address(true);
+
+        assert!(mac.is_ok());
+
+        assert_eq!(mac.unwrap().octets(), [0u8; 6]);
+    }
+
+    #[test]
+    fn test_get_winc_mac_address_failure() {
+        let mut client = make_test_client();
+
+        let mac = client.get_winc_mac_address(false);
+
+        assert_eq!(
+            mac.err(),
+            Some(StackError::WincWifiFail(Error::BufferReadError))
         );
     }
 }
