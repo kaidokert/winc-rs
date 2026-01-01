@@ -739,13 +739,11 @@ impl MacAddress {
 #[cfg(feature = "log")]
 impl core::fmt::Display for MacAddress {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        for (i, byte) in self.mac.iter().enumerate() {
-            if i != 0 {
-                write!(f, ":")?;
-            }
-            write!(f, "{:02X}", byte)?;
-        }
-        Ok(())
+        write!(
+            f,
+            "{:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X}",
+            self.mac[0], self.mac[1], self.mac[2], self.mac[3], self.mac[4], self.mac[5]
+        )
     }
 }
 
@@ -755,12 +753,16 @@ impl core::fmt::Display for MacAddress {
 #[cfg(feature = "defmt")]
 impl defmt::Format for MacAddress {
     fn format(&self, f: defmt::Formatter) {
-        for (i, byte) in self.mac.iter().enumerate() {
-            if i != 0 {
-                defmt::write!(f, ":");
-            }
-            defmt::write!(f, "{:02X}", byte);
-        }
+        defmt::write!(
+            f,
+            "{:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X}",
+            self.mac[0],
+            self.mac[1],
+            self.mac[2],
+            self.mac[3],
+            self.mac[4],
+            self.mac[5]
+        )
     }
 }
 
@@ -1209,7 +1211,7 @@ mod tests {
         assert_ne!(mod_mac, &bytes);
     }
 
-    #[cfg(feature = "log")]
+    #[cfg(all(feature = "log", feature = "std"))]
     #[test]
     fn test_format_mac_address() {
         use std::format;

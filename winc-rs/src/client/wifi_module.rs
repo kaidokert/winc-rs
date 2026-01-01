@@ -581,7 +581,7 @@ impl<X: Xfer> WincClient<'_, X> {
         &mut self,
         #[cfg(test)] test_hook: bool,
     ) -> Result<MacAddress, StackError> {
-        Ok(self.manager.read_opt_mac_address(
+        Ok(self.manager.read_otp_mac_address(
             #[cfg(test)]
             test_hook,
         )?)

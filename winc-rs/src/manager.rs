@@ -164,6 +164,7 @@ const HIF_SEND_RETRIES: usize = 1000;
 const FLASH_REG_READ_RETRIES: usize = 10;
 #[cfg(feature = "flash-rw")]
 const FLASH_DUMMY_VALUE: u32 = 0x1084;
+const OTP_REG_ADDR_BITS: u32 = 0x3_0000;
 
 // todo this needs to be used
 #[allow(dead_code)]
@@ -529,7 +530,7 @@ impl<X: Xfer> Manager<X> {
     pub fn get_firmware_ver_full(&mut self) -> Result<FirmwareInfo, Error> {
         let (_, address) = self.read_regs_from_otp_efuse()?;
         debug!("Got address {:#x}", address);
-        let mod_address = (address & 0x0000ffff) | 0x30000;
+        let mod_address = (address & 0x0000ffff) | OTP_REG_ADDR_BITS;
         let mut data = [0u8; 40];
         debug!("Calculated address: {:#x}", mod_address);
         self.chip.dma_block_read(mod_address, data.as_mut_slice())?;
@@ -557,7 +558,7 @@ impl<X: Xfer> Manager<X> {
     /// * `Err(Error)` - If reading the eFuse memory fails.
     fn read_regs_from_otp_efuse(&mut self) -> Result<(u32, u32), Error> {
         let read_addr = self.chip.single_reg_read(Regs::NmiGp2.into())?;
-        let mod_read_add = read_addr | 0x30000;
+        let mod_read_add = read_addr | OTP_REG_ADDR_BITS;
         let mut data = [0u8; 8];
         self.chip
             .dma_block_read(mod_read_add, data.as_mut_slice())?;
@@ -1757,18 +1758,31 @@ impl<X: Xfer> Manager<X> {
     ///
     /// * `Ok(MacAddress)` - The MAC address successfully read from the eFuse.
     /// * `Err(Error)` - If reading the mac address from eFuse fails.
-    pub(crate) fn read_opt_mac_address(
+    pub(crate) fn read_otp_mac_address(
         &mut self,
         #[cfg(test)] test_hook: bool,
     ) -> Result<MacAddress, Error> {
-        let (_mac, _) = self.read_regs_from_otp_efuse()?;
+        const HIGH_WORD_MASK: u32 = 0xFFFF_0000;
 
-        #[cfg(test)]
-        let _mac: u32 = if test_hook { 0xFFFF_0000 } else { 0x0000_0000 };
+        let mac: u32 = {
+            #[cfg(not(test))]
+            {
+                self.read_regs_from_otp_efuse()?.0
+            }
 
-        let reg = match _mac & 0xFFFF_0000 {
+            #[cfg(test)]
+            {
+                if test_hook {
+                    HIGH_WORD_MASK
+                } else {
+                    0x0000_0000
+                }
+            }
+        };
+
+        let reg = match mac & HIGH_WORD_MASK {
             0 => return Err(Error::BufferReadError),
-            r => (r >> 16) | 0x3_0000,
+            r => (r >> 16) | OTP_REG_ADDR_BITS,
         };
 
         let mut mac_address = MacAddress::empty();
