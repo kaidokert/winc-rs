@@ -67,8 +67,8 @@ pub use self::{
 pub(crate) use net_types::EccRequest;
 
 pub use net_types::{
-    AccessPoint, Credentials, HostName, ProvisioningInfo, S8Password, S8Username, SocketOptions,
-    Ssid, TcpSockOpts, UdpSockOpts, WpaKey,
+    AccessPoint, Credentials, HostName, MacAddress, ProvisioningInfo, S8Password, S8Username,
+    SocketOptions, Ssid, TcpSockOpts, UdpSockOpts, WpaKey,
 };
 
 #[cfg(feature = "wep")]
@@ -527,7 +527,7 @@ impl<X: Xfer> Manager<X> {
     }
 
     pub fn get_firmware_ver_full(&mut self) -> Result<FirmwareInfo, Error> {
-        let (_, address) = self.get_gp_regs()?;
+        let (_, address) = self.read_regs_from_otp_efuse()?;
         debug!("Got address {:#x}", address);
         let mod_address = (address & 0x0000ffff) | 0x30000;
         let mut data = [0u8; 40];
@@ -545,7 +545,17 @@ impl<X: Xfer> Manager<X> {
         self.chip
             .single_reg_write(Regs::WifiHostRcvCtrl0.into(), setval)
     }
-    fn get_gp_regs(&mut self) -> Result<(u32, u32), Error> {
+
+    /// Reads the MAC address and firmware OTA version register addresses
+    /// from the OTP (One-Time Programmable) eFuse memory.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok((u32, u32))`:
+    ///     - `u32`: MAC address register address.
+    ///     - `u32`: Firmware OTA register address.
+    /// * `Err(Error)` - If reading the eFuse memory fails.
+    fn read_regs_from_otp_efuse(&mut self) -> Result<(u32, u32), Error> {
         let read_addr = self.chip.single_reg_read(Regs::NmiGp2.into())?;
         let mod_read_add = read_addr | 0x30000;
         let mut data = [0u8; 8];
@@ -1739,6 +1749,32 @@ impl<X: Xfer> Manager<X> {
             .dma_block_write(self.not_a_reg_ctrl_4_dma + HIF_HEADER_OFFSET as u32, &req)?;
 
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
+    }
+
+    /// Reads the MAC address from the OTP (One-Time Programmable) eFuse memory.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(MacAddress)` - The MAC address successfully read from the eFuse.
+    /// * `Err(Error)` - If reading the mac address from eFuse fails.
+    pub(crate) fn read_opt_mac_address(
+        &mut self,
+        #[cfg(test)] test_hook: bool,
+    ) -> Result<MacAddress, Error> {
+        let (_mac, _) = self.read_regs_from_otp_efuse()?;
+
+        #[cfg(test)]
+        let _mac: u32 = if test_hook { 0xFFFF_0000 } else { 0x0000_0000 };
+
+        let reg = match _mac & 0xFFFF_0000 {
+            0 => return Err(Error::BufferReadError),
+            r => (r >> 16) | 0x3_0000,
+        };
+
+        let mut mac_address = MacAddress::empty();
+        self.chip.dma_block_read(reg, mac_address.as_mut_slice())?;
+
+        Ok(mac_address)
     }
 
     // #endregion write
