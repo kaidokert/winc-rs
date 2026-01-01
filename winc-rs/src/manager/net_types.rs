@@ -1200,10 +1200,6 @@ mod tests {
     fn test_create_mac_address_mut_array() {
         let bytes = [0xA1, 0xB2, 0xC3, 0xD4, 0xE5, 0xF6];
         let mut mac = MacAddress::from_bytes(&bytes).unwrap();
-
-        #[cfg(feature = "log")]
-        log::info!("Mac Address: {}", mac);
-
         let mod_mac = mac.as_mut_slice();
 
         for (index, byte) in mod_mac.iter_mut().enumerate() {
