@@ -11,6 +11,7 @@ use smoltcp::{
     wire::{EthernetAddress, Icmpv4Packet, Icmpv4Repr, IpAddress, IpCidr},
 };
 
+// Macro to Sednd PING request.
 macro_rules! send_icmp_ping {
     ( $repr_type:ident, $packet_type:ident, $ident:expr, $seq_no:expr,
       $echo_payload:expr, $socket:expr, $remote_addr:expr ) => {{
@@ -27,6 +28,7 @@ macro_rules! send_icmp_ping {
     }};
 }
 
+// Clock for timekeeping.
 pub struct Clock<'a, CM: CountsMillis> {
     counter: &'a mut MillisCountDown<'a, CM>,
 }
@@ -39,11 +41,13 @@ pub struct IcmpStorage {
     tx_buf: [u8; 256],
 }
 
+// Network Stack Configuration
 pub struct Stack<'a, D: Device, CM: CountsMillis> {
-    pub device: &'a mut D,
-    pub clock: Clock<'a, CM>,
-    pub iface: Interface,
-    pub sockets: SocketSet<'a>,
+    device: &'a mut D,
+    clock: Clock<'a, CM>,
+    iface: Interface,
+    sockets: SocketSet<'a>,
+    icmp_storage: IcmpStorage,
 }
 
 impl<'a, CM: CountsMillis> Clock<'a, CM> {
@@ -84,18 +88,6 @@ impl IcmpStorage {
 
 impl<'a, D: Device, CM: CountsMillis> Stack<'a, D, CM> {
     /// Initializes the storage and network interface of the `smoltcp` stack.
-    ///
-    /// # Arguments
-    ///
-    /// * `device` - Network device implementing the `smoltcp::phy::Device` trait.
-    /// * `random_seed` - Random seed used by the stack.
-    /// * `sock_storage` - Storage for all sockets used by the stack.
-    /// * `mac` - MAC address assigned to the network interface.
-    /// * `counter` - Millisecond countdown timer used for timekeeping.
-    ///
-    /// # Returns
-    ///
-    /// * `Stack` - An initialized instance of the `smoltcp` network stack.
     pub fn new<const SOCK: usize>(
         device: &'a mut D,
         random_seed: u64,
@@ -115,6 +107,7 @@ impl<'a, D: Device, CM: CountsMillis> Stack<'a, D, CM> {
             sockets: SocketSet::new(&mut sock_storage[..]),
             iface: iface,
             clock: clock,
+            icmp_storage: IcmpStorage::new(),
         }
     }
 
@@ -193,25 +186,24 @@ impl<'a, D: Device, CM: CountsMillis> Stack<'a, D, CM> {
         }
     }
 
-    ///
-    pub fn send_ping(
-        &mut self,
-        icmp_storage: &'a mut IcmpStorage,
-        remote_ip: Ipv4Addr,
-        count: u16,
-    ) {
+    /// Send ping to server
+    pub fn send_ping(&'a mut self, remote_ip: Ipv4Addr, count: u16) {
         const ECHO_IDENTIFER: u16 = 0x22;
-        const IDLE_MAX_TIMEOUT_MS: i64 = 50_000;
+        const IDLE_MAX_TIMEOUT_MS: i64 = 500;
 
         let mut received: u16 = 0;
         let mut seq_no: u16 = 0;
         let mut echo_payload = [0xffu8; 40];
         let remote_addr: IpAddress = IpAddress::Ipv4(remote_ip);
 
-        let icmp_rx_buffer =
-            icmp::PacketBuffer::new(&mut icmp_storage.rx_meta[..], &mut icmp_storage.rx_buf[..]);
-        let icmp_tx_buffer =
-            icmp::PacketBuffer::new(&mut icmp_storage.tx_meta[..], &mut icmp_storage.tx_buf[..]);
+        let icmp_rx_buffer = icmp::PacketBuffer::new(
+            &mut self.icmp_storage.rx_meta[..],
+            &mut self.icmp_storage.rx_buf[..],
+        );
+        let icmp_tx_buffer = icmp::PacketBuffer::new(
+            &mut self.icmp_storage.tx_meta[..],
+            &mut self.icmp_storage.tx_buf[..],
+        );
         let icmp_socket = icmp::Socket::new(icmp_rx_buffer, icmp_tx_buffer);
         let icmp_handle = self.sockets.add(icmp_socket);
         let device_caps = self.device.capabilities();
@@ -306,7 +298,7 @@ impl<'a, D: Device, CM: CountsMillis> Stack<'a, D, CM> {
                 }
             }
 
-            let idle_ms = timestamp.total_millis() - last_seen.total_millis();
+            let idle_ms = timestamp.millis() - last_seen.millis();
 
             if (seq_no >= count && received >= count) || idle_ms > IDLE_MAX_TIMEOUT_MS {
                 break;

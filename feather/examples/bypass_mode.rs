@@ -17,7 +17,7 @@ use feather::{debug, error, info};
 use rand_core::RngCore;
 use smoltcp::iface::SocketStorage;
 
-use ext_tcp_stack::{IcmpStorage, Stack};
+use ext_tcp_stack::Stack;
 use wincwifi::{Credentials, Ssid, StackError, WifiChannel, WincClient};
 
 const DEFAULT_TEST_SSID: &str = "network";
@@ -91,8 +91,7 @@ fn program() -> Result<(), StackError> {
         stack.config_v4();
 
         // ping server
-        let mut icmp_storage = IcmpStorage::new();
-        stack.send_ping(&mut icmp_storage, test_ip, test_count);
+        stack.send_ping(test_ip, test_count);
 
         loop {
             delay_ms(200);
