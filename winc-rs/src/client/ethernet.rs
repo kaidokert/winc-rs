@@ -108,6 +108,113 @@ impl<X: Xfer> WincClient<'_, X> {
     }
 }
 
+#[cfg(feature = "smoltcp")]
+mod smoltcp_impl {
+    use super::{WincClient, Xfer};
+    use crate::error;
+    use crate::manager::{Manager, SOCKET_BUFFER_MAX_LENGTH};
+    use embedded_nal::nb;
+    use smoltcp::{
+        phy::{self, DeviceCapabilities, Medium},
+        time::Instant,
+    };
+    // 100 milliseconds timeout to wait for ethernet packet to arrive.
+    const ETH_RECV_TIMEOUT_MSEC: u32 = 100;
+
+    /// Container for sending a single network packet.
+    pub struct WincTxToken<'a, X: Xfer> {
+        client: Option<&'a mut Manager<X>>,
+    }
+
+    /// Container for receiving a single network packet.
+    pub struct WincRxToken<'a> {
+        buffer: &'a mut [u8],
+        read_length: usize,
+    }
+
+    /// Implementation of an interface for sending and receiving raw network frames.
+    impl<X: Xfer> phy::Device for WincClient<'_, X> {
+        type RxToken<'a>
+            = WincRxToken<'a>
+        where
+            Self: 'a;
+
+        type TxToken<'a>
+            = WincTxToken<'a, X>
+        where
+            Self: 'a;
+
+        /// Construct a token pair consisting of one receive token and one transmit token.
+        fn receive(
+            &mut self,
+            _timestamp: Instant,
+        ) -> Option<(Self::RxToken<'_>, Self::TxToken<'_>)> {
+            let result = nb::block!(self.read_ethernet_packet(None, Some(ETH_RECV_TIMEOUT_MSEC)));
+
+            let Ok(read_length) = result else {
+                return None;
+            };
+
+            let rx_token = WincRxToken {
+                buffer: &mut self.callbacks.recv_buffer,
+                read_length,
+            };
+
+            let tx_token = WincTxToken {
+                client: Some(&mut self.manager),
+            };
+            Some((rx_token, tx_token))
+        }
+
+        /// Construct a transmit token.
+        fn transmit(&mut self, _timestamp: Instant) -> Option<Self::TxToken<'_>> {
+            let tx_token = WincTxToken {
+                client: Some(&mut self.manager),
+            };
+            Some(tx_token)
+        }
+
+        /// Get a description of device capabilities.
+        fn capabilities(&self) -> DeviceCapabilities {
+            let mut caps = DeviceCapabilities::default();
+            caps.max_transmission_unit = SOCKET_BUFFER_MAX_LENGTH;
+            caps.max_burst_size = Some(1);
+            caps.medium = Medium::Ethernet;
+            caps
+        }
+    }
+
+    impl<'a> phy::RxToken for WincRxToken<'a> {
+        /// Consumes the token to receive a single network packet.
+        fn consume<R, F>(self, f: F) -> R
+        where
+            F: FnOnce(&[u8]) -> R,
+        {
+            let length = self.read_length;
+            f(&self.buffer[..length])
+        }
+    }
+
+    impl<'a, X: Xfer> phy::TxToken for WincTxToken<'a, X> {
+        /// Consumes the token to send a single network packet.
+        fn consume<R, F>(self, len: usize, f: F) -> R
+        where
+            F: FnOnce(&mut [u8]) -> R,
+        {
+            let mut tx_buffer = [0u8; SOCKET_BUFFER_MAX_LENGTH];
+            let result = f(&mut tx_buffer[..len]);
+
+            if let Some(manager) = self.client {
+                let _ = manager.send_ethernet_packet(&tx_buffer[..len]);
+            } else {
+                error!("No client available to send the packet.");
+            }
+
+            result
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

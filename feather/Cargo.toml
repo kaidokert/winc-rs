@@ -31,7 +31,24 @@ usbd-serial = { version = "0.2", optional = true }
 log = { version = "0.4.27", optional = true }
 
 ehal_02 = { package= "embedded-hal", version = "0.2.4", optional = true }
+rand_core = { version = "0.9", default-features = false, optional = true }
+byteorder = { version = "1.0", default-features = false, optional = true }
 
+# Smoltcp
+[dependencies.smoltcp]
+version = "0.12.0"
+default-features = false
+features = [
+    "proto-ipv4",
+    "medium-ethernet",
+    "socket-raw",
+    "socket-tcp",
+    "socket-udp",
+    "socket-icmp",
+    "socket-dhcpv4",
+    "socket-dns",
+]
+optional = true
 
 [[example]]
 name = "iperf3_client"
@@ -53,9 +70,13 @@ required-features = ["flash-rw"]
 name = "ssl"
 required-features = ["ssl"]
 
+#[[example]]
+#name = "bypass_mode"
+#required-features = ["external-tcp-stack"]
+
 [features]
 # Do most of development and testing with IRQ enabled
-default = ["irq", "defmt"] # Use defmt by default, or switch to "log" for USB logging
+default = ["irq", "defmt", "external-tcp-stack"] # Use defmt by default, or switch to "log" for USB logging
 iperf3 = ["demos/iperf3"]
 oled = ["dep:ssd1306"]
 telnet = ["demos/telnet"]
@@ -69,6 +90,7 @@ serial-usb = ["usb"] # USB Serial interface (mutually exclusive with log)
 flash-rw = ["serial-usb", "wincwifi/flash-rw"]
 ssl = ["wincwifi/ssl"]
 bootloader-enabled = []
+external-tcp-stack = ["wincwifi/smoltcp", "dep:smoltcp", "dep:rand_core", "wincwifi/rng", "dep:byteorder"]
 
 # cargo build/run
 [profile.dev]

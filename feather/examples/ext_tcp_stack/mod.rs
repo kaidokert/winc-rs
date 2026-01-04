@@ -1,0 +1,343 @@
+use crate::{error, info};
+use byteorder::{ByteOrder, NetworkEndian};
+use core::net::Ipv4Addr;
+use cortex_m_systick_countdown::{CountsMillis, MillisCountDown};
+use feather::init::get_uptime;
+use smoltcp::{
+    iface::{Config, Interface, SocketSet, SocketStorage},
+    phy::Device,
+    socket::{dhcpv4, icmp},
+    time::{Duration, Instant},
+    wire::{EthernetAddress, Icmpv4Packet, Icmpv4Repr, IpAddress, IpCidr},
+};
+
+macro_rules! send_icmp_ping {
+    ( $repr_type:ident, $packet_type:ident, $ident:expr, $seq_no:expr,
+      $echo_payload:expr, $socket:expr, $remote_addr:expr ) => {{
+        let icmp_repr = $repr_type::EchoRequest {
+            ident: $ident,
+            seq_no: $seq_no as u16,
+            data: &$echo_payload,
+        };
+
+        let icmp_payload = $socket.send(icmp_repr.buffer_len(), $remote_addr).unwrap();
+
+        let icmp_packet = $packet_type::new_unchecked(icmp_payload);
+        (icmp_repr, icmp_packet)
+    }};
+}
+
+pub struct Clock<'a, CM: CountsMillis> {
+    counter: &'a mut MillisCountDown<'a, CM>,
+}
+
+// Container to store ICMP packet data.
+pub struct IcmpStorage {
+    rx_meta: [icmp::PacketMetadata; 1],
+    tx_meta: [icmp::PacketMetadata; 1],
+    rx_buf: [u8; 256],
+    tx_buf: [u8; 256],
+}
+
+pub struct Stack<'a, D: Device, CM: CountsMillis> {
+    pub device: &'a mut D,
+    pub clock: Clock<'a, CM>,
+    pub iface: Interface,
+    pub sockets: SocketSet<'a>,
+}
+
+impl<'a, CM: CountsMillis> Clock<'a, CM> {
+    pub fn new(counter: &'a mut MillisCountDown<'a, CM>) -> Clock<'a, CM> {
+        Self { counter }
+    }
+
+    pub fn now(&self) -> Instant {
+        let count = get_uptime();
+        if let Some(count) = count {
+            Instant::from_millis(count as i64)
+        } else {
+            panic!("Clock not working.")
+        }
+    }
+
+    pub fn delay_millis(&mut self, delay: u32) {
+        self.counter.start_ms(delay);
+        nb::block!(self.counter.wait_ms()).unwrap();
+    }
+
+    pub fn delay_duration(&mut self, duration: Duration) {
+        let delay = duration.total_millis() as u32;
+        self.delay_millis(delay);
+    }
+}
+
+impl IcmpStorage {
+    pub fn new() -> Self {
+        IcmpStorage {
+            rx_meta: [icmp::PacketMetadata::EMPTY],
+            tx_meta: [icmp::PacketMetadata::EMPTY],
+            rx_buf: [0; 256],
+            tx_buf: [0; 256],
+        }
+    }
+}
+
+impl<'a, D: Device, CM: CountsMillis> Stack<'a, D, CM> {
+    /// Initializes the storage and network interface of the `smoltcp` stack.
+    ///
+    /// # Arguments
+    ///
+    /// * `device` - Network device implementing the `smoltcp::phy::Device` trait.
+    /// * `random_seed` - Random seed used by the stack.
+    /// * `sock_storage` - Storage for all sockets used by the stack.
+    /// * `mac` - MAC address assigned to the network interface.
+    /// * `counter` - Millisecond countdown timer used for timekeeping.
+    ///
+    /// # Returns
+    ///
+    /// * `Stack` - An initialized instance of the `smoltcp` network stack.
+    pub fn new<const SOCK: usize>(
+        device: &'a mut D,
+        random_seed: u64,
+        sock_storage: &'a mut [SocketStorage<'a>; SOCK],
+        mac: [u8; 6],
+        counter: &'a mut MillisCountDown<'a, CM>,
+    ) -> Self {
+        let mut config =
+            Config::new(EthernetAddress([mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]]).into());
+        config.random_seed = random_seed;
+
+        let clock = Clock::new(counter);
+        let iface = Interface::new(config, device, clock.now());
+
+        Self {
+            device: device,
+            sockets: SocketSet::new(&mut sock_storage[..]),
+            iface: iface,
+            clock: clock,
+        }
+    }
+
+    /// Configures the IPv4 settings using DHCP.
+    pub fn config_v4(&mut self) {
+        let mut dhcp_socket = dhcpv4::Socket::new();
+        dhcp_socket.set_max_lease_duration(Some(Duration::from_secs(10)));
+        let dhcp_handle = self.sockets.add(dhcp_socket);
+        let mut first_attempt = true;
+
+        info!("Waiting for DHCP to assign an IP address.");
+        loop {
+            let timestamp = self.clock.now();
+            self.iface.poll(timestamp, self.device, &mut self.sockets);
+            let event = {
+                let dhcp_socket = self.sockets.get_mut::<dhcpv4::Socket>(dhcp_handle);
+                dhcp_socket.poll()
+            };
+            match event {
+                None => {}
+                Some(dhcpv4::Event::Configured(config)) => {
+                    info!("DHCP config acquired!");
+                    let ip_octects = config.address.address().octets();
+                    info!(
+                        "IP address: {}.{}.{}.{}",
+                        ip_octects[0], ip_octects[1], ip_octects[2], ip_octects[3]
+                    );
+
+                    self.iface.update_ip_addrs(|addrs| {
+                        addrs.clear();
+                        addrs.push(IpCidr::Ipv4(config.address)).unwrap();
+                    });
+
+                    if let Some(router) = config.router {
+                        let router_octets = router.octets();
+                        info!(
+                            "Default gateway: {}.{}.{}.{}",
+                            router_octets[0], router_octets[1], router_octets[2], router_octets[3]
+                        );
+                        self.iface
+                            .routes_mut()
+                            .add_default_ipv4_route(router)
+                            .unwrap();
+                    } else {
+                        info!("Default gateway: None");
+                        self.iface.routes_mut().remove_default_ipv4_route();
+                    }
+
+                    for (i, s) in config.dns_servers.iter().enumerate() {
+                        let addr_octect = s.octets();
+                        info!(
+                            "DNS server {}:    {}.{}.{}.{}",
+                            i, addr_octect[0], addr_octect[1], addr_octect[2], addr_octect[3]
+                        );
+                    }
+
+                    break;
+                }
+                Some(dhcpv4::Event::Deconfigured) => {
+                    if first_attempt == false {
+                        info!("Lost DHCP configuration! Retrying…");
+                    }
+                    first_attempt = false;
+                    self.iface.update_ip_addrs(|addrs| addrs.clear());
+                    self.iface.routes_mut().remove_default_ipv4_route();
+                }
+            }
+
+            let duration = self.iface.poll_delay(timestamp, &self.sockets);
+
+            if let Some(dur) = duration {
+                self.clock.delay_duration(dur);
+            } else {
+                self.clock.delay_millis(10000);
+            }
+        }
+    }
+
+    ///
+    pub fn send_ping(
+        &mut self,
+        icmp_storage: &'a mut IcmpStorage,
+        remote_ip: Ipv4Addr,
+        count: u16,
+    ) {
+        const ECHO_IDENTIFER: u16 = 0x22;
+        const IDLE_MAX_TIMEOUT_MS: i64 = 50_000;
+
+        let mut received: u16 = 0;
+        let mut seq_no: u16 = 0;
+        let mut echo_payload = [0xffu8; 40];
+        let remote_addr: IpAddress = IpAddress::Ipv4(remote_ip);
+
+        let icmp_rx_buffer =
+            icmp::PacketBuffer::new(&mut icmp_storage.rx_meta[..], &mut icmp_storage.rx_buf[..]);
+        let icmp_tx_buffer =
+            icmp::PacketBuffer::new(&mut icmp_storage.tx_meta[..], &mut icmp_storage.tx_buf[..]);
+        let icmp_socket = icmp::Socket::new(icmp_rx_buffer, icmp_tx_buffer);
+        let icmp_handle = self.sockets.add(icmp_socket);
+        let device_caps = self.device.capabilities();
+
+        let ip = remote_ip.octets();
+
+        let mut last_seen = self.clock.now();
+
+        info!(
+            "PING {}.{}.{}.{} with {} bytes of data:",
+            ip[0],
+            ip[1],
+            ip[2],
+            ip[3],
+            echo_payload.len()
+        );
+
+        loop {
+            self.iface
+                .poll(self.clock.now(), self.device, &mut self.sockets);
+
+            let mut timestamp = self.clock.now(); // reacquire
+
+            let icmp_socket = self.sockets.get_mut::<icmp::Socket>(icmp_handle);
+            if !icmp_socket.is_open() {
+                icmp_socket
+                    .bind(icmp::Endpoint::Ident(ECHO_IDENTIFER))
+                    .unwrap();
+            }
+
+            if icmp_socket.can_send() && seq_no < count {
+                NetworkEndian::write_i64(&mut echo_payload, timestamp.total_millis());
+
+                let (icmp_repr, mut icmp_packet) = send_icmp_ping!(
+                    Icmpv4Repr,
+                    Icmpv4Packet,
+                    ECHO_IDENTIFER,
+                    seq_no,
+                    echo_payload,
+                    icmp_socket,
+                    remote_addr
+                );
+                icmp_repr.emit(&mut icmp_packet, &device_caps.checksum);
+                seq_no += 1;
+                last_seen = timestamp;
+            }
+
+            if icmp_socket.can_recv() && seq_no > received {
+                let (payload, _) = icmp_socket.recv().unwrap();
+                let icmp_packet = Icmpv4Packet::new_checked(&payload).unwrap();
+                let icmp_repr = Icmpv4Repr::parse(&icmp_packet, &device_caps.checksum).unwrap();
+
+                match icmp_repr {
+                    Icmpv4Repr::EchoReply {
+                        seq_no: rx_seq,
+                        data,
+                        ..
+                    } => {
+                        let sent_ms = NetworkEndian::read_i64(data);
+                        let rtt = timestamp.total_millis() - sent_ms;
+
+                        info!(
+                            "Reply from {} bytes from {}.{}.{}.{}: icmp_seq={}, time={}ms",
+                            data.len(),
+                            ip[0],
+                            ip[1],
+                            ip[2],
+                            ip[3],
+                            rx_seq,
+                            rtt
+                        );
+
+                        last_seen = timestamp;
+                        received += 1;
+                    }
+
+                    Icmpv4Repr::EchoRequest { .. } => {
+                        error!("Invalid Echo Request received.");
+                        return;
+                    }
+
+                    Icmpv4Repr::DstUnreachable { header, .. } => {
+                        let ip = header.src_addr.octets();
+                        info!(
+                            "Reply from {}.{}.{}.{}: Destination host unreachable.",
+                            ip[0], ip[1], ip[2], ip[3],
+                        );
+                    }
+                    _ => {
+                        info!("Request Timeout");
+                    }
+                }
+            }
+
+            let idle_ms = timestamp.total_millis() - last_seen.total_millis();
+
+            if (seq_no >= count && received >= count) || idle_ms > IDLE_MAX_TIMEOUT_MS {
+                break;
+            }
+
+            // Wait for new packet
+            timestamp = self.clock.now();
+            let duration = self.iface.poll_delay(timestamp, &self.sockets);
+
+            if let Some(dur) = duration {
+                self.clock.delay_duration(dur);
+            } else {
+                self.clock.delay_millis(10000);
+            }
+        }
+
+        let remote = remote_ip.octets();
+        info!(
+            "--- {}.{}.{}.{} ping statistics ---",
+            remote[0], remote[1], remote[2], remote[3]
+        );
+
+        let loss = if seq_no == 0 {
+            0.0
+        } else {
+            100.0 * (seq_no - received) as f64 / seq_no as f64
+        };
+
+        info!(
+            "{} packets transmitted, {} received, {}% packet loss",
+            seq_no, received, loss
+        );
+    }
+}

@@ -28,6 +28,8 @@ use hal::ehal::i2c::I2c;
 use super::shared::SpiBus;
 
 use cortex_m_systick_countdown::{PollingSysTick, SysTickCalibration};
+#[cfg(feature = "external-tcp-stack")]
+use hal::rtc::{Count32Mode, Rtc};
 
 #[cfg(feature = "usb")]
 mod usb_logging;
@@ -54,6 +56,8 @@ const WIFI_RESET_DELAY_WAIT: u32 = 50;
 
 #[cfg(feature = "irq")]
 static EIC_IRQ_RCVD: Mutex<RefCell<bool>> = Mutex::new(RefCell::new(false));
+#[cfg(feature = "external-tcp-stack")]
+static RTC: Mutex<RefCell<Option<Rtc<Count32Mode>>>> = Mutex::new(RefCell::new(None));
 
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[derive(Debug)]
@@ -120,6 +124,16 @@ pub fn init() -> Result<
 
     // Power Manager
     let mut pm = peripherals.pm;
+    #[cfg(feature = "external-tcp-stack")]
+    {
+        // init clock for rtc
+        let timer_clk = clocks.gclk1();
+        let rtc_clk = clocks.rtc(&timer_clk).ok_or(FailureSource::Clock)?;
+        // init RTC
+        let rtc = Rtc::count32_mode(peripherals.rtc, rtc_clk.freq(), &mut pm);
+        let rtc = rtc.into_count32_mode();
+        cortex_m::interrupt::free(|cs| RTC.borrow(cs).replace(Some(rtc)));
+    }
 
     let i2c = bsp::i2c_master(
         &mut clocks,
@@ -208,6 +222,18 @@ pub fn set_eic_irq_pending(state: bool) {
 #[cfg(feature = "irq")]
 pub fn is_eic_irq_pending() -> bool {
     return cortex_m::interrupt::free(|cs| *EIC_IRQ_RCVD.borrow(cs).borrow());
+}
+
+#[cfg(feature = "external-tcp-stack")]
+pub fn get_uptime() -> Option<u32> {
+    return cortex_m::interrupt::free(|cs| {
+        let rtc_opt = RTC.borrow(cs).borrow();
+        if let Some(rtc) = rtc_opt.as_ref() {
+            Some(rtc.count32())
+        } else {
+            None
+        }
+    });
 }
 
 #[cfg(feature = "irq")]
