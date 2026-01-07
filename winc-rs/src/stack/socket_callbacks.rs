@@ -830,12 +830,10 @@ impl EventListener for SocketCallbacks {
     /// * `hif_address` - The HIF memory address where the Ethernet frame is stored.
     #[cfg(feature = "ethernet")]
     fn on_eth(&mut self, packet_size: u16, data_offset: u16, hif_address: u32) {
-        if let Some(None) = self.eth_rx_info {
-            self.eth_rx_info = Some(Some(EthernetRxInfo {
-                packet_size,
-                data_offset,
-                hif_address,
-            }));
-        }
+        self.eth_rx_info = Some(Some(EthernetRxInfo {
+            packet_size,
+            data_offset,
+            hif_address,
+        }));
     }
 }
