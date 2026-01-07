@@ -18,7 +18,7 @@ use rand_core::RngCore;
 use smoltcp::iface::SocketStorage;
 
 use ext_tcp_stack::Stack;
-use wincwifi::{Credentials, Ssid, StackError, WifiChannel, WincClient};
+use wincwifi::{CommError, Credentials, Ssid, StackError, WifiChannel, WincClient};
 
 const DEFAULT_TEST_SSID: &str = "network";
 const DEFAULT_TEST_PASSWORD: &str = "password";
@@ -66,7 +66,7 @@ fn program() -> Result<(), StackError> {
         }
 
         for _ in 0..20 {
-            device.heartbeat().unwrap();
+            device.heartbeat()?;
             delay_ms(200);
         }
 
@@ -85,20 +85,30 @@ fn program() -> Result<(), StackError> {
             &mut sock_storage,
             mac.octets(),
             &mut cnt.1,
-        );
+        )
+        .map_err(|e| {
+            error!("TCP stack initialization failed: {:?}", e);
+            StackError::WincWifiFail(CommError::Failed)
+        })?;
 
         // Acquire IP from DHCP.
-        stack.config_v4();
+        stack.config_v4().map_err(|e| {
+            error!("Failed to acquire IP from DHCP: {:?}", e);
+            StackError::WincWifiFail(CommError::Failed)
+        })?;
 
         // ping server
-        stack.send_ping(test_ip, test_count);
+        stack.send_ping(test_ip, test_count).map_err(|e| {
+            error!("Failed to ping server: {:?}", e);
+            StackError::WincWifiFail(CommError::Failed)
+        })?;
 
         loop {
             delay_ms(200);
             red_led.set_high().unwrap();
             delay_ms(200);
             red_led.set_low().unwrap();
-            device.heartbeat().unwrap();
+            device.heartbeat()?;
         }
     }
     Ok(())

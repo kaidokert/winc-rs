@@ -11,7 +11,10 @@ use smoltcp::{
     wire::{EthernetAddress, Icmpv4Packet, Icmpv4Repr, IpAddress, IpCidr},
 };
 
-// Macro to Sednd PING request.
+// Default timeout for polling the interface
+const POLL_INTERFACE_TIMEOUT_MSEC: u32 = 10000;
+
+// Macro to send PING request.
 macro_rules! send_icmp_ping {
     ( $repr_type:ident, $packet_type:ident, $ident:expr, $seq_no:expr,
       $echo_payload:expr, $socket:expr, $remote_addr:expr ) => {{
@@ -21,11 +24,25 @@ macro_rules! send_icmp_ping {
             data: &$echo_payload,
         };
 
-        let icmp_payload = $socket.send(icmp_repr.buffer_len(), $remote_addr).unwrap();
+        let icmp_payload = $socket
+            .send(icmp_repr.buffer_len(), $remote_addr)
+            .map_err(|_| TcpStackError::ReadWriteError)?;
 
         let icmp_packet = $packet_type::new_unchecked(icmp_payload);
         (icmp_repr, icmp_packet)
     }};
+}
+
+// Error types for external TCP stack.
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[derive(Debug)]
+pub enum TcpStackError {
+    ClockError,
+    ReadWriteError,
+    SocketError,
+    IpAddressError,
+    IcmpPacketError,
+    InvalidResponse,
 }
 
 // Clock for timekeeping.
@@ -55,23 +72,24 @@ impl<'a, CM: CountsMillis> Clock<'a, CM> {
         Self { counter }
     }
 
-    pub fn now(&self) -> Instant {
+    pub fn now(&self) -> Result<Instant, TcpStackError> {
         let count = get_uptime();
         if let Some(count) = count {
-            Instant::from_millis(count as i64)
+            Ok(Instant::from_millis(count as i64))
         } else {
-            panic!("Clock not working.")
+            error!("Clock not working.");
+            Err(TcpStackError::ClockError)
         }
     }
 
-    pub fn delay_millis(&mut self, delay: u32) {
+    pub fn delay_millis(&mut self, delay: u32) -> Result<(), TcpStackError> {
         self.counter.start_ms(delay);
-        nb::block!(self.counter.wait_ms()).unwrap();
+        nb::block!(self.counter.wait_ms()).map_err(|_| TcpStackError::ClockError)
     }
 
-    pub fn delay_duration(&mut self, duration: Duration) {
+    pub fn delay_duration(&mut self, duration: Duration) -> Result<(), TcpStackError> {
         let delay = duration.total_millis() as u32;
-        self.delay_millis(delay);
+        self.delay_millis(delay)
     }
 }
 
@@ -94,25 +112,25 @@ impl<'a, D: Device, CM: CountsMillis> Stack<'a, D, CM> {
         sock_storage: &'a mut [SocketStorage<'a>; SOCK],
         mac: [u8; 6],
         counter: &'a mut MillisCountDown<'a, CM>,
-    ) -> Self {
+    ) -> Result<Self, TcpStackError> {
         let mut config =
             Config::new(EthernetAddress([mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]]).into());
         config.random_seed = random_seed;
 
         let clock = Clock::new(counter);
-        let iface = Interface::new(config, device, clock.now());
+        let iface = Interface::new(config, device, clock.now()?);
 
-        Self {
+        Ok(Self {
             device: device,
             sockets: SocketSet::new(&mut sock_storage[..]),
             iface: iface,
             clock: clock,
             icmp_storage: IcmpStorage::new(),
-        }
+        })
     }
 
     /// Configures the IPv4 settings using DHCP.
-    pub fn config_v4(&mut self) {
+    pub fn config_v4(&mut self) -> Result<(), TcpStackError> {
         let mut dhcp_socket = dhcpv4::Socket::new();
         dhcp_socket.set_max_lease_duration(Some(Duration::from_secs(10)));
         let dhcp_handle = self.sockets.add(dhcp_socket);
@@ -120,7 +138,7 @@ impl<'a, D: Device, CM: CountsMillis> Stack<'a, D, CM> {
 
         info!("Waiting for DHCP to assign an IP address.");
         loop {
-            let timestamp = self.clock.now();
+            let timestamp = self.clock.now()?;
             self.iface.poll(timestamp, self.device, &mut self.sockets);
             let event = {
                 let dhcp_socket = self.sockets.get_mut::<dhcpv4::Socket>(dhcp_handle);
@@ -138,7 +156,9 @@ impl<'a, D: Device, CM: CountsMillis> Stack<'a, D, CM> {
 
                     self.iface.update_ip_addrs(|addrs| {
                         addrs.clear();
-                        addrs.push(IpCidr::Ipv4(config.address)).unwrap();
+                        if addrs.push(IpCidr::Ipv4(config.address)).is_err() {
+                            error!("Failed to set IP address");
+                        }
                     });
 
                     if let Some(router) = config.router {
@@ -150,7 +170,7 @@ impl<'a, D: Device, CM: CountsMillis> Stack<'a, D, CM> {
                         self.iface
                             .routes_mut()
                             .add_default_ipv4_route(router)
-                            .unwrap();
+                            .map_err(|_| TcpStackError::IpAddressError)?;
                     } else {
                         info!("Default gateway: None");
                         self.iface.routes_mut().remove_default_ipv4_route();
@@ -179,17 +199,19 @@ impl<'a, D: Device, CM: CountsMillis> Stack<'a, D, CM> {
             let duration = self.iface.poll_delay(timestamp, &self.sockets);
 
             if let Some(dur) = duration {
-                self.clock.delay_duration(dur);
+                self.clock.delay_duration(dur)?;
             } else {
-                self.clock.delay_millis(10000);
+                self.clock.delay_millis(POLL_INTERFACE_TIMEOUT_MSEC)?;
             }
         }
+
+        Ok(())
     }
 
     /// Send ping to server
-    pub fn send_ping(&'a mut self, remote_ip: Ipv4Addr, count: u16) {
+    pub fn send_ping(&'a mut self, remote_ip: Ipv4Addr, count: u16) -> Result<(), TcpStackError> {
         const ECHO_IDENTIFER: u16 = 0x22;
-        const IDLE_MAX_TIMEOUT_MS: i64 = 500;
+        const IDLE_MAX_TIMEOUT_MS: i64 = 2000;
 
         let mut received: u16 = 0;
         let mut seq_no: u16 = 0;
@@ -210,7 +232,7 @@ impl<'a, D: Device, CM: CountsMillis> Stack<'a, D, CM> {
 
         let ip = remote_ip.octets();
 
-        let mut last_seen = self.clock.now();
+        let mut last_seen = self.clock.now()?;
 
         info!(
             "PING {}.{}.{}.{} with {} bytes of data:",
@@ -223,15 +245,15 @@ impl<'a, D: Device, CM: CountsMillis> Stack<'a, D, CM> {
 
         loop {
             self.iface
-                .poll(self.clock.now(), self.device, &mut self.sockets);
+                .poll(self.clock.now()?, self.device, &mut self.sockets);
 
-            let mut timestamp = self.clock.now(); // reacquire
+            let mut timestamp = self.clock.now()?; // reacquire
 
             let icmp_socket = self.sockets.get_mut::<icmp::Socket>(icmp_handle);
             if !icmp_socket.is_open() {
                 icmp_socket
                     .bind(icmp::Endpoint::Ident(ECHO_IDENTIFER))
-                    .unwrap();
+                    .map_err(|_| TcpStackError::SocketError)?;
             }
 
             if icmp_socket.can_send() && seq_no < count {
@@ -252,9 +274,13 @@ impl<'a, D: Device, CM: CountsMillis> Stack<'a, D, CM> {
             }
 
             if icmp_socket.can_recv() && seq_no > received {
-                let (payload, _) = icmp_socket.recv().unwrap();
-                let icmp_packet = Icmpv4Packet::new_checked(&payload).unwrap();
-                let icmp_repr = Icmpv4Repr::parse(&icmp_packet, &device_caps.checksum).unwrap();
+                let (payload, _) = icmp_socket
+                    .recv()
+                    .map_err(|_| TcpStackError::ReadWriteError)?;
+                let icmp_packet = Icmpv4Packet::new_checked(&payload)
+                    .map_err(|_| TcpStackError::IcmpPacketError)?;
+                let icmp_repr = Icmpv4Repr::parse(&icmp_packet, &device_caps.checksum)
+                    .map_err(|_| TcpStackError::IcmpPacketError)?;
 
                 match icmp_repr {
                     Icmpv4Repr::EchoReply {
@@ -282,7 +308,7 @@ impl<'a, D: Device, CM: CountsMillis> Stack<'a, D, CM> {
 
                     Icmpv4Repr::EchoRequest { .. } => {
                         error!("Invalid Echo Request received.");
-                        return;
+                        return Err(TcpStackError::InvalidResponse);
                     }
 
                     Icmpv4Repr::DstUnreachable { header, .. } => {
@@ -305,13 +331,13 @@ impl<'a, D: Device, CM: CountsMillis> Stack<'a, D, CM> {
             }
 
             // Wait for new packet
-            timestamp = self.clock.now();
+            timestamp = self.clock.now()?;
             let duration = self.iface.poll_delay(timestamp, &self.sockets);
 
             if let Some(dur) = duration {
-                self.clock.delay_duration(dur);
+                self.clock.delay_duration(dur)?;
             } else {
-                self.clock.delay_millis(10000);
+                self.clock.delay_millis(POLL_INTERFACE_TIMEOUT_MSEC)?;
             }
         }
 
@@ -331,5 +357,7 @@ impl<'a, D: Device, CM: CountsMillis> Stack<'a, D, CM> {
             "{} packets transmitted, {} received, {}% packet loss",
             seq_no, received, loss
         );
+
+        Ok(())
     }
 }

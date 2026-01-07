@@ -29,7 +29,10 @@ use super::shared::SpiBus;
 
 use cortex_m_systick_countdown::{PollingSysTick, SysTickCalibration};
 #[cfg(feature = "external-tcp-stack")]
-use hal::rtc::{Count32Mode, Rtc};
+use hal::{
+    clock::{ClockGenId, ClockSource},
+    rtc::{Count32Mode, Rtc},
+};
 
 #[cfg(feature = "usb")]
 mod usb_logging;
@@ -127,7 +130,10 @@ pub fn init() -> Result<
     #[cfg(feature = "external-tcp-stack")]
     {
         // init clock for rtc
-        let timer_clk = clocks.gclk1();
+        let timer_clk = clocks
+            .configure_gclk_divider_and_source(ClockGenId::Gclk3, 32, ClockSource::Osc32k, true)
+            .ok_or(FailureSource::Clock)?;
+        //let timer_clk = clocks.gclk1();
         let rtc_clk = clocks.rtc(&timer_clk).ok_or(FailureSource::Clock)?;
         // init RTC
         let rtc = Rtc::count32_mode(peripherals.rtc, rtc_clk.freq(), &mut pm);

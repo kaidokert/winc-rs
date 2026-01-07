@@ -70,9 +70,9 @@ required-features = ["flash-rw"]
 name = "ssl"
 required-features = ["ssl"]
 
-#[[example]]
-#name = "bypass_mode"
-#required-features = ["external-tcp-stack"]
+[[example]]
+name = "bypass_mode"
+required-features = ["external-tcp-stack"]
 
 [features]
 # Do most of development and testing with IRQ enabled

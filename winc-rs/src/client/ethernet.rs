@@ -205,7 +205,9 @@ mod smoltcp_impl {
             let result = f(&mut tx_buffer[..len]);
 
             if let Some(manager) = self.client {
-                let _ = manager.send_ethernet_packet(&tx_buffer[..len]);
+                if let Err(e) = manager.send_ethernet_packet(&tx_buffer[..len]) {
+                    error!("Failed to send ethernet packet: {:?}", e);
+                }
             } else {
                 error!("No client available to send the packet.");
             }
