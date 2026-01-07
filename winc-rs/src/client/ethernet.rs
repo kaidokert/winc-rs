@@ -112,7 +112,7 @@ impl<X: Xfer> WincClient<'_, X> {
 mod tests {
     use super::*;
     use crate::client::{test_shared::*, SocketCallbacks};
-    use crate::manager::EventListener;
+    use crate::manager::{EventListener, MAX_TX_ETHERNET_PACKET_SIZE};
     use crate::CommError;
 
     #[test]
@@ -184,7 +184,7 @@ mod tests {
     #[test]
     fn test_read_ethernet_over_range() {
         let mut client = make_test_client();
-        let packet = [0u8; 65534];
+        let packet = [0u8; MAX_TX_ETHERNET_PACKET_SIZE + 1];
         let result = client.send_ethernet_packet(&packet);
 
         assert_eq!(

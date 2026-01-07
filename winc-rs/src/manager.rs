@@ -77,6 +77,9 @@ pub use net_types::WepKey;
 #[cfg(feature = "ethernet")]
 pub(crate) use net_types::EthernetRxInfo;
 
+#[cfg(feature = "ethernet")]
+pub use constants::MAX_TX_ETHERNET_PACKET_SIZE;
+
 use requests::*;
 use responses::*;
 pub use responses::{ConnectionInfo, FirmwareInfo, IPConf, ScanResult};
@@ -1801,7 +1804,8 @@ impl<X: Xfer> Manager<X> {
         Ok(mac_address)
     }
 
-    /// Sends an Ethernet packet to the module.
+    /// Sends an Ethernet packet with a maximum size of
+    /// `MAX_TX_ETHERNET_PACKET_SIZE` (65,501) to the module.
     ///
     /// # Arguments
     ///
@@ -1809,11 +1813,11 @@ impl<X: Xfer> Manager<X> {
     ///
     /// # Returns
     ///
-    /// * `Ok(())` - if the packet was successfully sent.
-    /// * `Err(Error)` - if an error occurred while sending the packet.
+    /// * `Ok(())` - If the packet was successfully sent.
+    /// * `Err(Error)` - If an error occurred while sending the packet.
     #[cfg(feature = "ethernet")]
     pub(crate) fn send_ethernet_packet(&mut self, net_pkt: &[u8]) -> Result<(), Error> {
-        if net_pkt.is_empty() || (net_pkt.len() > u16::MAX as usize) {
+        if net_pkt.is_empty() || (net_pkt.len() > MAX_TX_ETHERNET_PACKET_SIZE) {
             return Err(Error::BufferError);
         }
         let req = write_send_net_pkt_req(net_pkt.len() as u16, ETHERNET_HEADER_LENGTH as u16)?;

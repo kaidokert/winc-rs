@@ -61,7 +61,12 @@ pub(crate) const SSL_ECC_REQ_PACKET_SIZE: usize = 112;
 #[cfg(feature = "ssl")]
 pub(crate) const SSL_CS_MAX_PACKET_SIZE: usize = 4;
 #[cfg(feature = "ethernet")]
+/// Size of Ethernet/Wi-Fi packet transfer requests and responses.
 pub(crate) const NET_XFER_PACKET_SIZE: usize = 4;
+/// Maximum size of an Ethernet packet that can be sent.
+// u16::MAX (65535) - ETHERNET_HEADER_OFFSET (34)
+#[cfg(feature = "ethernet")]
+pub const MAX_TX_ETHERNET_PACKET_SIZE: usize = 65501;
 
 #[repr(u32)]
 pub enum Regs {
