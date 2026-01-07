@@ -726,7 +726,7 @@ impl MacAddress {
         &mut self.mac
     }
 
-    /// Returns a immutable slice of the MAC address bytes.
+    /// Returns an immutable slice of the MAC address bytes.
     #[inline]
     pub fn as_slice(&self) -> &[u8] {
         &self.mac
