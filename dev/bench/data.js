@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1762487423769,
+  "lastUpdate": 1768183519494,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -4747,6 +4747,40 @@ window.BENCHMARK_DATA = {
           {
             "name": "iperf3_client",
             "value": 52160,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "142439476+umarbinzahid@users.noreply.github.com",
+            "name": "Umar Bin Zahid",
+            "username": "umarbinzahid"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "1bd39b7acc65b1a8ddeb50a7a2ae6b55ea814e3b",
+          "message": "Add support for reading WINC MAC address from OTP eFuse memory (#126)\n\n* Added support for reading the WINC MAC address from OTP eFuse memory.",
+          "timestamp": "2026-01-11T18:04:21-08:00",
+          "tree_id": "9b7d38e613e331f983fab724874c2fcfeb6eee45",
+          "url": "https://github.com/kaidokert/winc-rs/commit/1bd39b7acc65b1a8ddeb50a7a2ae6b55ea814e3b"
+        },
+        "date": 1768183518594,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 37672,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 51952,
             "unit": "byte"
           }
         ]
