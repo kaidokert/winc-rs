@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1768183519494,
+  "lastUpdate": 1768183853848,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -4771,6 +4771,40 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/kaidokert/winc-rs/commit/1bd39b7acc65b1a8ddeb50a7a2ae6b55ea814e3b"
         },
         "date": 1768183518594,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 37672,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 51952,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "142439476+umarbinzahid@users.noreply.github.com",
+            "name": "Umar Bin Zahid",
+            "username": "umarbinzahid"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "4a0406090a71a47a6dbc441df7c00147fa560749",
+          "message": "Support for the SAMD bootloader (#124)\n\n* Add support for the SAMD bootloader.",
+          "timestamp": "2026-01-11T18:10:00-08:00",
+          "tree_id": "f4ff00794117064cc9c35088491afca870998b27",
+          "url": "https://github.com/kaidokert/winc-rs/commit/4a0406090a71a47a6dbc441df7c00147fa560749"
+        },
+        "date": 1768183853301,
         "tool": "customSmallerIsBetter",
         "benches": [
           {
