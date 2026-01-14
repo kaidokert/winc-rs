@@ -59,7 +59,7 @@ const WIFI_RESET_DELAY_WAIT: u32 = 50;
 
 #[cfg(feature = "irq")]
 static EIC_IRQ_RCVD: Mutex<RefCell<bool>> = Mutex::new(RefCell::new(false));
-#[cfg(feature = "external-tcp-stack")]
+#[cfg(all(feature = "external-tcp-stack", feature = "irq"))]
 static RTC: Mutex<RefCell<Option<Rtc<Count32Mode>>>> = Mutex::new(RefCell::new(None));
 
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
