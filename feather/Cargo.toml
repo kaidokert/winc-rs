@@ -42,7 +42,6 @@ features = [
     "proto-ipv4",
     "medium-ethernet",
     "socket-raw",
-    "socket-tcp",
     "socket-udp",
     "socket-icmp",
     "socket-dhcpv4",
@@ -76,7 +75,7 @@ required-features = ["external-tcp-stack"]
 
 [features]
 # Do most of development and testing with IRQ enabled
-default = ["irq", "defmt", "external-tcp-stack"] # Use defmt by default, or switch to "log" for USB logging
+default = ["irq", "defmt"] # Use defmt by default, or switch to "log" for USB logging
 iperf3 = ["demos/iperf3"]
 oled = ["dep:ssd1306"]
 telnet = ["demos/telnet"]
