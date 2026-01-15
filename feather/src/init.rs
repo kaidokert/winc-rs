@@ -9,14 +9,23 @@ use pac::{CorePeripherals, Peripherals};
 use bsp::periph_alias;
 use bsp::pin_alias;
 use core::convert::Infallible;
+
 #[cfg(feature = "irq")]
-use cortex_m::{interrupt::Mutex, peripheral::NVIC};
+use cortex_m::peripheral::NVIC;
+
 use hal::clock::GenericClockController;
+
 #[cfg(feature = "irq")]
 use hal::{eic::Eic, eic::*, pac::interrupt};
 
 #[cfg(feature = "irq")]
-use core::{cell::RefCell, ops::DerefMut};
+use core::ops::DerefMut;
+
+#[cfg(any(feature = "irq", feature = "external-tcp-stack"))]
+use core::cell::RefCell;
+
+#[cfg(any(feature = "irq", feature = "external-tcp-stack"))]
+use cortex_m::interrupt::Mutex;
 
 use hal::time::{Hertz, MegaHertz};
 
@@ -28,6 +37,7 @@ use hal::ehal::i2c::I2c;
 use super::shared::SpiBus;
 
 use cortex_m_systick_countdown::{PollingSysTick, SysTickCalibration};
+
 #[cfg(feature = "external-tcp-stack")]
 use hal::{
     clock::{ClockGenId, ClockSource},
@@ -59,7 +69,7 @@ const WIFI_RESET_DELAY_WAIT: u32 = 50;
 
 #[cfg(feature = "irq")]
 static EIC_IRQ_RCVD: Mutex<RefCell<bool>> = Mutex::new(RefCell::new(false));
-#[cfg(all(feature = "external-tcp-stack", feature = "irq"))]
+#[cfg(feature = "external-tcp-stack")]
 static RTC: Mutex<RefCell<Option<Rtc<Count32Mode>>>> = Mutex::new(RefCell::new(None));
 
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
