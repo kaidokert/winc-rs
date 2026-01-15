@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1768183853848,
+  "lastUpdate": 1768451708344,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -4815,6 +4815,40 @@ window.BENCHMARK_DATA = {
           {
             "name": "iperf3_client",
             "value": 51952,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "142439476+umarbinzahid@users.noreply.github.com",
+            "name": "Umar Bin Zahid",
+            "username": "umarbinzahid"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "adf74cafed23069935e96d624c07176316021759",
+          "message": "Support for Sending/Receivng Ethernet Packets.  (#123)\n\n* Added support for booting in Ethernet mode and sending and receiving\nEthernet packets.\n\n* Update Ethernet read function to return the number of bytes read from\nthe module.\n\n* Updated Docs.\n\n* Updated APIs docs.",
+          "timestamp": "2026-01-14T20:34:17-08:00",
+          "tree_id": "6464709c5c5c66633c0f2293aa9a3eca9281e9e5",
+          "url": "https://github.com/kaidokert/winc-rs/commit/adf74cafed23069935e96d624c07176316021759"
+        },
+        "date": 1768451707915,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 37596,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 51764,
             "unit": "byte"
           }
         ]
