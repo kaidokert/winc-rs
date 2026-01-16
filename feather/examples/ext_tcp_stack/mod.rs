@@ -157,10 +157,10 @@ impl<'a, D: Device, CM: CountsMillis> Stack<'a, D, CM> {
                 None => {}
                 Some(dhcpv4::Event::Configured(config)) => {
                     info!("DHCP config acquired!");
-                    let ip_octects = config.address.address().octets();
+                    let ip_octets = config.address.address().octets();
                     info!(
                         "IP address: {}.{}.{}.{}",
-                        ip_octects[0], ip_octects[1], ip_octects[2], ip_octects[3]
+                        ip_octets[0], ip_octets[1], ip_octets[2], ip_octets[3]
                     );
 
                     self.iface.update_ip_addrs(|addrs| {
@@ -186,10 +186,10 @@ impl<'a, D: Device, CM: CountsMillis> Stack<'a, D, CM> {
                     }
 
                     for (i, s) in config.dns_servers.iter().enumerate() {
-                        let addr_octect = s.octets();
+                        let addr_octets = s.octets();
                         info!(
                             "DNS server {}:    {}.{}.{}.{}",
-                            i, addr_octect[0], addr_octect[1], addr_octect[2], addr_octect[3]
+                            i, addr_octets[0], addr_octets[1], addr_octets[2], addr_octets[3]
                         );
                     }
 
