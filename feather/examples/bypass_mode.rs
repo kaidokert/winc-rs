@@ -17,13 +17,13 @@ use feather::{debug, error, info};
 use rand_core::RngCore;
 use smoltcp::iface::SocketStorage;
 
-use ext_tcp_stack::Stack;
+use ext_tcp_stack::{Stack, TcpStackError};
 use wincwifi::{CommError, Credentials, Ssid, StackError, WifiChannel, WincClient};
 
 const DEFAULT_TEST_SSID: &str = "network";
 const DEFAULT_TEST_PASSWORD: &str = "password";
 const DEFAULT_TEST_IP: &str = "8.8.8.8";
-const DEFAULT_TEST_COUNT: u16 = 4;
+const DEFAULT_TEST_COUNT: &str = "4";
 
 fn program() -> Result<(), StackError> {
     if let Ok(mut ini) = init() {
@@ -37,8 +37,8 @@ fn program() -> Result<(), StackError> {
         let test_ip = option_env!("TEST_IP").unwrap_or(DEFAULT_TEST_IP);
         let test_ip: Ipv4Addr =
             Ipv4Addr::from_str(test_ip).map_err(|_| StackError::InvalidParameters)?;
-        let test_count = option_env!("TEST_COUNT").unwrap_or("");
-        let test_count = u16::from_str(test_count).unwrap_or(DEFAULT_TEST_COUNT);
+        let test_count = option_env!("TEST_COUNT").unwrap_or(DEFAULT_TEST_COUNT);
+        let test_count = u16::from_str(test_count).unwrap();
 
         let ssid = Ssid::from(option_env!("TEST_SSID").unwrap_or(DEFAULT_TEST_SSID)).unwrap();
         let password = option_env!("TEST_PASSWORD").unwrap_or(DEFAULT_TEST_PASSWORD);
@@ -94,13 +94,23 @@ fn program() -> Result<(), StackError> {
         // Acquire IP from DHCP.
         stack.config_v4().map_err(|e| {
             error!("Failed to acquire IP from DHCP: {:?}", e);
-            StackError::WincWifiFail(CommError::Failed)
+
+            if e == TcpStackError::Timeout {
+                StackError::GeneralTimeout
+            } else {
+                StackError::WincWifiFail(CommError::Failed)
+            }
         })?;
 
         // ping server
         stack.send_ping(test_ip, test_count).map_err(|e| {
             error!("Failed to ping server: {:?}", e);
-            StackError::WincWifiFail(CommError::Failed)
+
+            if e == TcpStackError::Timeout {
+                StackError::GeneralTimeout
+            } else {
+                StackError::WincWifiFail(CommError::Failed)
+            }
         })?;
 
         loop {

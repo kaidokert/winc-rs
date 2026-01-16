@@ -13,6 +13,10 @@ use smoltcp::{
 
 // Default timeout for polling the interface
 const POLL_INTERFACE_TIMEOUT_MSEC: u32 = 10000;
+// Max storage size for ICMP storage.
+const MAX_ICMP_STORAGE_SIZE: usize = 256;
+// Max entries for ICMP metadata.
+const MAX_ICMP_META_DATA_ENTRIES: usize = 1;
 
 // Macro to send PING request.
 macro_rules! send_icmp_ping {
@@ -35,13 +39,14 @@ macro_rules! send_icmp_ping {
 
 // Error types for external TCP stack.
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum TcpStackError {
     ClockError,
     ReadWriteError,
     SocketError,
     IpAddressError,
     IcmpPacketError,
+    Timeout,
     InvalidResponse,
 }
 
@@ -52,10 +57,10 @@ pub struct Clock<'a, CM: CountsMillis> {
 
 // Container to store ICMP packet data.
 pub struct IcmpStorage {
-    rx_meta: [icmp::PacketMetadata; 1],
-    tx_meta: [icmp::PacketMetadata; 1],
-    rx_buf: [u8; 256],
-    tx_buf: [u8; 256],
+    rx_meta: [icmp::PacketMetadata; MAX_ICMP_META_DATA_ENTRIES],
+    tx_meta: [icmp::PacketMetadata; MAX_ICMP_META_DATA_ENTRIES],
+    rx_buf: [u8; MAX_ICMP_STORAGE_SIZE],
+    tx_buf: [u8; MAX_ICMP_STORAGE_SIZE],
 }
 
 // Network Stack Configuration
@@ -98,8 +103,8 @@ impl IcmpStorage {
         IcmpStorage {
             rx_meta: [icmp::PacketMetadata::EMPTY],
             tx_meta: [icmp::PacketMetadata::EMPTY],
-            rx_buf: [0; 256],
-            tx_buf: [0; 256],
+            rx_buf: [0; MAX_ICMP_STORAGE_SIZE],
+            tx_buf: [0; MAX_ICMP_STORAGE_SIZE],
         }
     }
 }
@@ -131,10 +136,14 @@ impl<'a, D: Device, CM: CountsMillis> Stack<'a, D, CM> {
 
     /// Configures the IPv4 settings using DHCP.
     pub fn config_v4(&mut self) -> Result<(), TcpStackError> {
+        const DHCP_TIMEOUT_MSEC: i64 = 60_000;
+
         let mut dhcp_socket = dhcpv4::Socket::new();
         dhcp_socket.set_max_lease_duration(Some(Duration::from_secs(10)));
+
         let dhcp_handle = self.sockets.add(dhcp_socket);
         let mut first_attempt = true;
+        let max_timeout_msec = self.clock.now()?.total_millis() + DHCP_TIMEOUT_MSEC;
 
         info!("Waiting for DHCP to assign an IP address.");
         loop {
@@ -194,6 +203,11 @@ impl<'a, D: Device, CM: CountsMillis> Stack<'a, D, CM> {
                     self.iface.update_ip_addrs(|addrs| addrs.clear());
                     self.iface.routes_mut().remove_default_ipv4_route();
                 }
+            }
+
+            if timestamp.total_millis() > max_timeout_msec {
+                error!("DHCP Timeout");
+                return Err(TcpStackError::Timeout);
             }
 
             let duration = self.iface.poll_delay(timestamp, &self.sockets);
@@ -301,9 +315,6 @@ impl<'a, D: Device, CM: CountsMillis> Stack<'a, D, CM> {
                             rx_seq,
                             rtt
                         );
-
-                        last_seen = timestamp;
-                        received += 1;
                     }
 
                     Icmpv4Repr::EchoRequest { .. } => {
@@ -322,11 +333,19 @@ impl<'a, D: Device, CM: CountsMillis> Stack<'a, D, CM> {
                         info!("Request Timeout");
                     }
                 }
+
+                last_seen = timestamp;
+                received += 1;
             }
 
-            let idle_ms = timestamp.millis() - last_seen.millis();
+            let idle_ms = timestamp.total_millis() - last_seen.total_millis();
 
             if (seq_no >= count && received >= count) || idle_ms > IDLE_MAX_TIMEOUT_MS {
+                if idle_ms > IDLE_MAX_TIMEOUT_MS {
+                    error!("Ping Timeout");
+                    return Err(TcpStackError::Timeout);
+                }
+
                 break;
             }
 
