@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1768451708344,
+  "lastUpdate": 1768710786492,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -4839,6 +4839,40 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/kaidokert/winc-rs/commit/adf74cafed23069935e96d624c07176316021759"
         },
         "date": 1768451707915,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 37596,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 51764,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "142439476+umarbinzahid@users.noreply.github.com",
+            "name": "Umar Bin Zahid",
+            "username": "umarbinzahid"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "ce78da1f43d3859db14a95335f3ecc882b99ec6d",
+          "message": "Add minimal support for Smoltcp (#127)\n\n* Adds minimal support for smoltcp - ICMP ping works.",
+          "timestamp": "2026-01-17T20:32:13-08:00",
+          "tree_id": "4e4b34a7d67b1cb92ecf81761af88f9abccdddcd",
+          "url": "https://github.com/kaidokert/winc-rs/commit/ce78da1f43d3859db14a95335f3ecc882b99ec6d"
+        },
+        "date": 1768710785657,
         "tool": "customSmallerIsBetter",
         "benches": [
           {
