@@ -17,15 +17,12 @@ use crate::readwrite::{BufferOverflow, Write};
 use crate::socket::Socket;
 use core::net::{Ipv4Addr, SocketAddrV4};
 
-use super::constants::{
-    AuthType, WifiChannel, CONNECT_AP_PACKET_SIZE, ENABLE_AP_PACKET_SIZE,
-    SET_SOCK_OPTS_PACKET_SIZE, START_PROVISION_PACKET_SIZE,
-};
+use super::constants::{AuthType, WifiChannel, AF_INET, PRNG_PACKET_SIZE};
 
 use super::net_types::{AccessPoint, Credentials, HostName, Ssid, WepKey, WpaKey};
 
 #[cfg(feature = "ssl")]
-use super::{constants::SET_SSL_SOCK_OPTS_PACKET_SIZE, net_types::SslSockOpts};
+use super::net_types::SslSockOpts;
 
 #[cfg(feature = "experimental-ecc")]
 use super::{
@@ -35,6 +32,32 @@ use super::{
 
 #[cfg(feature = "ethernet")]
 use super::constants::NET_XFER_PACKET_SIZE;
+
+/// Packet size for the Start Provisioning Mode request.
+const START_PROV_REQ_PACKET_SIZE: usize = 204;
+/// Packet size for the Connect AP request.
+const CONNECT_AP_REQ_PACKET_SIZE: usize = 108;
+/// Packet size for the Set Socket Options request.
+const SET_SOCK_OPTS_REQ_PACKET_SIZE: usize = 8;
+/// Packet size for a Ping request.
+const PING_REQ_PACKET_SIZE: usize = 12;
+/// Packet size for the Bind Socket request.
+const SOCK_BIND_REQ_PACKET_SIZE: usize = 12;
+/// Packet size for the Connect Socket request.
+const SOCK_CONNECT_REQ_PACKET_SIZE: usize = 12;
+/// Packet size for the UDP Send request.
+const SOCK_UDP_SEND_REQ_PACKET_SIZE: usize = 16;
+/// Packet size for the TCP Listen request.
+const SOCK_TCP_LISTEN_REQ_PACKET_SIZE: usize = 4;
+/// Packet size for the TCP Receive request.
+const SOCK_TCP_RECV_REQ_PACKET_SIZE: usize = 8;
+/// Packet size for the Close Socket request.
+const SOCK_CLOSE_REQ_PACKET_SIZE: usize = 4;
+/// Packet size for the Set SSL Socket Options request.
+#[cfg(feature = "ssl")]
+const SET_SSL_SOCK_OPTS_REQ_PACKET_SIZE: usize = 72;
+/// Packet size for the Enable Access Point request.
+pub(super) const ENABLE_AP_REQ_PACKET_SIZE: usize = 136;
 
 /// Prepares the packet to connect to access point.
 ///
@@ -47,15 +70,15 @@ use super::constants::NET_XFER_PACKET_SIZE;
 ///
 /// # Returns
 ///
-/// * `[u8; CONNECT_AP_PACKET_SIZE])` - The connect request packet as a fixed-size byte array.
+/// * `[u8; CONNECT_AP_REQ_PACKET_SIZE])` - The connect request packet as a fixed-size byte array.
 /// * `BufferOverflow` - If the input data exceeds allowed size or the buffer limit.
 pub fn write_connect_request(
     ssid: &Ssid,
     credentials: &Credentials,
     channel: WifiChannel,
     dont_save_creds: bool,
-) -> Result<[u8; CONNECT_AP_PACKET_SIZE], BufferOverflow> {
-    let mut result = [0u8; CONNECT_AP_PACKET_SIZE];
+) -> Result<[u8; CONNECT_AP_REQ_PACKET_SIZE], BufferOverflow> {
+    let mut result = [0u8; CONNECT_AP_REQ_PACKET_SIZE];
     let mut slice = result.as_mut_slice();
 
     match credentials {
@@ -115,7 +138,8 @@ pub fn write_connect_request(
 
 // tstrM2MScan
 pub fn write_scan_req(channel: u8, scantime: u16) -> Result<[u8; 4], BufferOverflow> {
-    let mut result = [0u8; 4];
+    const SCAN_REQ_PACKET_SIZE: usize = 4;
+    let mut result = [0u8; SCAN_REQ_PACKET_SIZE];
     let mut slice = result.as_mut_slice();
     slice.write(&channel.to_le_bytes())?;
     slice.write(&[0u8])?; // reserved
@@ -143,8 +167,8 @@ pub fn write_ping_req(
     ttl: u8,
     count: u16,
     marker: u8,
-) -> Result<[u8; 12], BufferOverflow> {
-    let mut result = [0x0u8; 12];
+) -> Result<[u8; PING_REQ_PACKET_SIZE], BufferOverflow> {
+    let mut result = [0x0u8; PING_REQ_PACKET_SIZE];
     let mut slice = result.as_mut_slice();
     let ip: u32 = dest_ip.into();
     slice.write(&(ip).to_be_bytes())?;
@@ -163,12 +187,13 @@ pub fn write_ping_req(
 ///
 /// # Returns
 ///
-/// * `[u8; 12]` – Bind request as fixed size array..
+/// * `[u8; SOCK_BIND_REQ_PACKET_SIZE]` – Bind request as fixed size array..
 /// * `BufferOverflow` – If the data exceeds the buffer capacity.
-pub fn write_bind_req(socket: Socket, address: SocketAddrV4) -> Result<[u8; 12], BufferOverflow> {
-    const AF_INET: u16 = 2; // Address family for IPV4.
-
-    let mut result = [0x0u8; 12];
+pub fn write_bind_req(
+    socket: Socket,
+    address: SocketAddrV4,
+) -> Result<[u8; SOCK_BIND_REQ_PACKET_SIZE], BufferOverflow> {
+    let mut result = [0x0u8; SOCK_BIND_REQ_PACKET_SIZE];
     let mut slice = result.as_mut_slice();
     let ip: u32 = (*address.ip()).into();
 
@@ -186,8 +211,8 @@ pub fn write_connect_req(
     address_family: u16,
     address: SocketAddrV4,
     ssl_flags: u8,
-) -> Result<[u8; 12], BufferOverflow> {
-    let mut result = [0x0u8; 12];
+) -> Result<[u8; SOCK_CONNECT_REQ_PACKET_SIZE], BufferOverflow> {
+    let mut result = [0x0u8; SOCK_CONNECT_REQ_PACKET_SIZE];
     let mut slice = result.as_mut_slice();
     let ip: u32 = (*address.ip()).into();
     slice.write(&address_family.to_le_bytes())?;
@@ -204,8 +229,8 @@ pub fn write_sendto_req(
     address_family: u16,
     address: SocketAddrV4,
     len: usize,
-) -> Result<[u8; 16], BufferOverflow> {
-    let mut result = [0x0u8; 16];
+) -> Result<[u8; SOCK_UDP_SEND_REQ_PACKET_SIZE], BufferOverflow> {
+    let mut result = [0x0u8; SOCK_UDP_SEND_REQ_PACKET_SIZE];
     let mut slice = result.as_mut_slice();
     let ip: u32 = (*address.ip()).into();
     slice.write(&[socket.v, 0])?;
@@ -219,8 +244,11 @@ pub fn write_sendto_req(
 }
 
 // tstrListenCmd
-pub fn write_listen_req(socket: Socket, backlog: u8) -> Result<[u8; 4], BufferOverflow> {
-    let mut result = [0x0u8; 4];
+pub fn write_listen_req(
+    socket: Socket,
+    backlog: u8,
+) -> Result<[u8; SOCK_TCP_LISTEN_REQ_PACKET_SIZE], BufferOverflow> {
+    let mut result = [0x0u8; SOCK_TCP_LISTEN_REQ_PACKET_SIZE];
     let mut slice = result.as_mut_slice();
     slice.write(&[socket.v, backlog])?;
     slice.write(&socket.s.to_le_bytes())?;
@@ -228,8 +256,11 @@ pub fn write_listen_req(socket: Socket, backlog: u8) -> Result<[u8; 4], BufferOv
 }
 
 //tstrRecvCmd
-pub fn write_recv_req(socket: Socket, timeout: u32) -> Result<[u8; 8], BufferOverflow> {
-    let mut result = [0x0u8; 8];
+pub fn write_recv_req(
+    socket: Socket,
+    timeout: u32,
+) -> Result<[u8; SOCK_TCP_RECV_REQ_PACKET_SIZE], BufferOverflow> {
+    let mut result = [0x0u8; SOCK_TCP_RECV_REQ_PACKET_SIZE];
     let mut slice = result.as_mut_slice();
     slice.write(&timeout.to_le_bytes())?;
     slice.write(&[socket.v, 0])?;
@@ -238,8 +269,8 @@ pub fn write_recv_req(socket: Socket, timeout: u32) -> Result<[u8; 8], BufferOve
 }
 
 // tstrCloseCmd
-pub fn write_close_req(socket: Socket) -> Result<[u8; 4], BufferOverflow> {
-    let mut result = [0x0u8; 4];
+pub fn write_close_req(socket: Socket) -> Result<[u8; SOCK_CLOSE_REQ_PACKET_SIZE], BufferOverflow> {
+    let mut result = [0x0u8; SOCK_CLOSE_REQ_PACKET_SIZE];
     let mut slice = result.as_mut_slice();
     slice.write(&[socket.v, 0])?;
     slice.write(&socket.s.to_le_bytes())?;
@@ -256,14 +287,14 @@ pub fn write_close_req(socket: Socket) -> Result<[u8; 4], BufferOverflow> {
 ///
 /// # Returns
 ///
-/// * `[u8; SET_SOCK_OPTS_PACKET_SIZE]` – Set socket option request packet as fixed-array.
+/// * `[u8; SET_SOCK_OPTS_REQ_PACKET_SIZE]` – Set socket option request packet as fixed-array.
 /// * `BufferOverflow` – If the buffer overflows while preparing the packet.
 pub fn write_setsockopt_req(
     socket: Socket,
     option: u8,
     value: u32,
-) -> Result<[u8; SET_SOCK_OPTS_PACKET_SIZE], BufferOverflow> {
-    let mut result = [0x0u8; SET_SOCK_OPTS_PACKET_SIZE];
+) -> Result<[u8; SET_SOCK_OPTS_REQ_PACKET_SIZE], BufferOverflow> {
+    let mut result = [0x0u8; SET_SOCK_OPTS_REQ_PACKET_SIZE];
     let mut slice = result.as_mut_slice();
     // Socket Option Value (4 bytes)
     slice.write(&value.to_le_bytes())?;
@@ -283,14 +314,14 @@ pub fn write_setsockopt_req(
 ///
 /// # Returns
 ///
-/// * `[u8; SET_SSL_SOCK_OPTS_PACKET_SIZE]` – Set SSL socket option request packet as fixed-array.
+/// * `[u8; SET_SSL_SOCK_OPTS_REQ_PACKET_SIZE]` – Set SSL socket option request packet as fixed-array.
 /// * `BufferOverflow` – If the buffer overflows while preparing the packet.
 #[cfg(feature = "ssl")]
 pub fn write_ssl_setsockopt_req(
     socket: Socket,
     option: &SslSockOpts,
-) -> Result<[u8; SET_SSL_SOCK_OPTS_PACKET_SIZE], BufferOverflow> {
-    let mut result = [0x0u8; SET_SSL_SOCK_OPTS_PACKET_SIZE];
+) -> Result<[u8; SET_SSL_SOCK_OPTS_REQ_PACKET_SIZE], BufferOverflow> {
+    let mut result = [0x0u8; SET_SSL_SOCK_OPTS_REQ_PACKET_SIZE];
     let mut slice = result.as_mut_slice();
 
     // Get value
@@ -325,8 +356,8 @@ pub fn write_ssl_setsockopt_req(
 ///
 /// * `[u8]` - An array of 8 bytes representing the request packet for PRNG.
 /// * `BufferOverflow` - If the data exceeds the buffer limit during packet preparation.
-pub fn write_prng_req(addr: u32, len: u16) -> Result<[u8; 8], BufferOverflow> {
-    let mut req = [0x00u8; 8];
+pub fn write_prng_req(addr: u32, len: u16) -> Result<[u8; PRNG_PACKET_SIZE], BufferOverflow> {
+    let mut req = [0x00u8; PRNG_PACKET_SIZE];
     let mut slice = req.as_mut_slice();
     slice.write(&addr.to_le_bytes())?;
     slice.write(&len.to_le_bytes())?;
@@ -356,14 +387,14 @@ pub fn write_prng_req(addr: u32, len: u16) -> Result<[u8; 8], BufferOverflow> {
 ///
 /// # Returns
 ///
-/// * `[u8; START_PROVISION_PACKET_SIZE])` - The provisioning request packet as a fixed-size byte array.
+/// * `[u8; START_PROV_REQ_PACKET_SIZE])` - The provisioning request packet as a fixed-size byte array.
 /// * `BufferOverflow` - If the input data exceeds allowed size or the buffer limit.
 pub fn write_start_provisioning_req(
     ap: &AccessPoint,
     hostname: &HostName,
     http_redirect: bool,
-) -> Result<[u8; START_PROVISION_PACKET_SIZE], BufferOverflow> {
-    let mut req = [0u8; START_PROVISION_PACKET_SIZE];
+) -> Result<[u8; START_PROV_REQ_PACKET_SIZE], BufferOverflow> {
+    let mut req = [0u8; START_PROV_REQ_PACKET_SIZE];
     let mut slice = req.as_mut_slice();
 
     // Set parameters for WEP
@@ -447,10 +478,12 @@ pub fn write_start_provisioning_req(
 ///
 /// # Returns
 ///
-/// * `[u8; ENABLE_AP_PACKET_SIZE])` - The access point mode request packet as a fixed-size byte array.
+/// * `[u8; ENABLE_AP_REQ_PACKET_SIZE])` - The access point mode request packet as a fixed-size byte array.
 /// * `BufferOverflow` - If the input data exceeds allowed size or the buffer limit.
-pub fn write_en_ap_req(ap: &AccessPoint) -> Result<[u8; ENABLE_AP_PACKET_SIZE], BufferOverflow> {
-    let mut req = [0u8; ENABLE_AP_PACKET_SIZE];
+pub fn write_en_ap_req(
+    ap: &AccessPoint,
+) -> Result<[u8; ENABLE_AP_REQ_PACKET_SIZE], BufferOverflow> {
+    let mut req = [0u8; ENABLE_AP_REQ_PACKET_SIZE];
     let mut slice = req.as_mut_slice();
 
     // Set parameters for WEP
@@ -830,7 +863,7 @@ mod tests {
 
     #[test]
     fn test_start_provisioning_request() {
-        let valid_req: [u8; START_PROVISION_PACKET_SIZE] = [
+        let valid_req: [u8; START_PROV_REQ_PACKET_SIZE] = [
             /* Ssid */ 116, 101, 115, 116, 95, 115, 115, 105, 100, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, /* Wifi Channel */ 1,
             /* Wep key Index */ 0, /* Wep/Wpa Key Size */ 13, /* Wep key */ 0, 0, 0,
@@ -856,7 +889,7 @@ mod tests {
 
     #[test]
     fn test_write_en_ap_req() {
-        let valid_req: [u8; ENABLE_AP_PACKET_SIZE] = [
+        let valid_req: [u8; ENABLE_AP_REQ_PACKET_SIZE] = [
             /* Ssid */ 116, 101, 115, 116, 95, 115, 115, 105, 100, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, /* Wifi Channel */ 1,
             /* Wep key Index */ 0, /* Wep/Wpa Key Size */ 13, /* Wep key */ 0, 0, 0,
@@ -879,7 +912,7 @@ mod tests {
     #[cfg(feature = "ssl")]
     #[test]
     fn test_write_ssl_setsockopt_req() {
-        let valid_req: [u8; SET_SSL_SOCK_OPTS_PACKET_SIZE] = [
+        let valid_req: [u8; SET_SSL_SOCK_OPTS_REQ_PACKET_SIZE] = [
             /* Socket Identifier */ 0x01, /* Socket Option */ 0x02,
             /* Session Id */ 0x16, 0x00, /* Option length */ 0x08, 0x00, 0x00, 0x00,
             /* Option Value */ 0x68, 0x6F, 0x73, 0x74, 0x6E, 0x61, 0x6D, 0x65, 0x00, 0x00,
@@ -899,7 +932,7 @@ mod tests {
 
     #[test]
     fn test_write_setsockopt_req() {
-        let valid_req: [u8; SET_SOCK_OPTS_PACKET_SIZE] = [
+        let valid_req: [u8; SET_SOCK_OPTS_REQ_PACKET_SIZE] = [
             /* Option Value */ 0x0c0, 0xa8, 0x01, 0x01, /* Socket Identifier */ 0x02,
             /* Socket Option */ 0x01, /* Session Id */ 0x02, 0x00,
         ];

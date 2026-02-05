@@ -619,10 +619,8 @@ mod tests {
 
     use super::*;
     use crate::client::{test_shared::*, SocketCallbacks};
-    //use crate::manager::Error::BootRomStart;
     use crate::errors::CommError as Error;
-    use crate::manager::Ssid;
-    use crate::manager::{EventListener, PingError, WifiConnError, WifiConnState};
+    use crate::manager::{Bssid, EventListener, PingError, Ssid, WifiConnError, WifiConnState};
     use crate::{ConnectionInfo, Credentials, S8Password, S8Username, WifiChannel, WpaKey};
     #[cfg(feature = "wep")]
     use crate::{WepKey, WepKeyIndex};
@@ -721,7 +719,7 @@ mod tests {
                 rssi: 0,
                 auth: AuthType::Open,
                 channel: 0,
-                bssid: [0; 6],
+                bssid: Bssid::from("test").unwrap(),
                 ssid: Ssid::from("test").unwrap(),
             });
         };
@@ -751,7 +749,7 @@ mod tests {
                 ssid: Ssid::from("test").unwrap(),
                 auth: AuthType::Open,
                 ip: Ipv4Addr::new(192, 168, 1, 1),
-                mac: [0; 6],
+                mac: MacAddress::empty(),
                 rssi: 0,
             });
         };

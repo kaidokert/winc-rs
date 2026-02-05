@@ -23,6 +23,7 @@ mod chip_access;
 pub(crate) mod constants;
 mod event_listener;
 mod net_types;
+mod registers;
 mod requests;
 mod responses;
 use crate::{debug, error, trace};
@@ -35,10 +36,13 @@ pub use constants::OtaUpdateError;
 pub use constants::WepKeyIndex;
 
 pub use constants::{AuthType, PingError, SocketError, WifiChannel, WifiConnError, WifiConnState};
-use constants::{IpCode, Regs, WifiRequest, WifiResponse};
+use constants::{IpCode, WifiRequest, WifiResponse, AF_INET};
 
 #[cfg(feature = "flash-rw")]
 pub(crate) use constants::FLASH_PAGE_SIZE;
+
+#[cfg(feature = "flash-rw")]
+pub(crate) use registers::{FLASH_READ_STATUS_BIT, FLASH_SIZE_INFO_BIT, LOW_12_BIT_MASK};
 
 #[cfg(feature = "experimental-ota")]
 pub(crate) use constants::{OtaRequest, OtaResponse, OtaUpdateStatus};
@@ -71,6 +75,9 @@ pub use net_types::{
     SocketOptions, Ssid, TcpSockOpts, UdpSockOpts, WpaKey,
 };
 
+#[cfg(test)]
+pub(crate) use net_types::Bssid;
+
 #[cfg(feature = "wep")]
 pub use net_types::WepKey;
 
@@ -80,6 +87,7 @@ pub(crate) use net_types::EthernetRxInfo;
 #[cfg(feature = "ethernet")]
 pub use constants::MAX_TX_ETHERNET_PACKET_SIZE;
 
+use registers::*;
 use requests::*;
 use responses::*;
 pub use responses::{ConnectionInfo, FirmwareInfo, IPConf, ScanResult};
@@ -155,7 +163,7 @@ impl From<HifGroup> for u8 {
     }
 }
 
-fn hif_header_parse(hdr: [u8; 4]) -> Result<(HifGroup, u16), Error> {
+fn hif_header_parse(hdr: [u8; HIF_HEADER_PACKET_SIZE]) -> Result<(HifGroup, u16), Error> {
     let code: [u8; 2] = hdr[..2].try_into().unwrap();
     let len = u16::from_le_bytes(hdr[2..].try_into().unwrap());
     Ok((code.into(), len))
@@ -170,16 +178,8 @@ const HIF_SEND_RETRIES: usize = 1000;
 const FLASH_REG_READ_RETRIES: usize = 10;
 #[cfg(feature = "flash-rw")]
 const FLASH_DUMMY_VALUE: u32 = 0x1084;
-const OTP_REG_ADDR_BITS: u32 = 0x3_0000;
-const DEFAULT_CHIP_CFG: u32 = 0x102; // Reserved (0x100) + ENABLE_PMU bit (0x02)
-
-// todo this needs to be used
-#[allow(dead_code)]
-const TCP_SOCK_MAX: usize = 7;
-#[allow(dead_code)]
-const UDP_SOCK_MAX: usize = 4;
-#[allow(dead_code)]
-const MAX_SOCKET: usize = TCP_SOCK_MAX + UDP_SOCK_MAX;
+/// Packet size for both HIF header requests and responses.
+const HIF_HEADER_PACKET_SIZE: usize = 4;
 
 pub trait EventListener {
     fn on_rssi(&mut self, level: i8);
@@ -274,7 +274,7 @@ impl BootState {
 impl<X: Xfer> Manager<X> {
     pub fn from_xfer(xfer: X) -> Self {
         Self {
-            not_a_reg_ctrl_4_dma: 0xbf0000,
+            not_a_reg_ctrl_4_dma: 0x00,
             chip: ChipAccess::new(xfer),
             #[cfg(feature = "async")]
             wakers: core::array::from_fn(|_| None),
@@ -337,18 +337,21 @@ impl<X: Xfer> Manager<X> {
 
     #[allow(dead_code)] // todo
     pub fn get_firmware_ver_short(&mut self) -> Result<(Revision, Revision), Error> {
+        const FW_PATCH_SHIFT: u8 = 0x0F;
+        const FW_MINOR_SHIFT: u8 = 0x04;
+
         let res = self.chip.single_reg_read(Regs::NmiRev.into())?;
         let unpack = res.to_le_bytes();
         Ok((
             Revision {
                 major: unpack[1],
-                minor: unpack[0] >> 4,
-                patch: unpack[0] & 0xf,
+                minor: unpack[0] >> FW_MINOR_SHIFT,
+                patch: unpack[0] & FW_PATCH_SHIFT,
             },
             Revision {
                 major: unpack[3],
-                minor: unpack[2] >> 4,
-                patch: unpack[2] & 0xf,
+                minor: unpack[2] >> FW_MINOR_SHIFT,
+                patch: unpack[2] & FW_PATCH_SHIFT,
             },
         ))
     }
@@ -360,9 +363,11 @@ impl<X: Xfer> Manager<X> {
     /// * `()` - If the chip was successfully reset.
     /// * `Error` - If an error occurs while resetting the chip.
     pub(crate) fn chip_reset(&mut self) -> Result<(), Error> {
+        const BACKOFF_DELAY_USEC: u32 = 50_000; // 50 msec delay
+
         self.chip.single_reg_write(Regs::ChipReset.into(), 0)?;
         // back-off delay
-        self.chip.delay_us(50_000); // 50 msec delay
+        self.chip.delay_us(BACKOFF_DELAY_USEC);
 
         Ok(())
     }
@@ -374,9 +379,6 @@ impl<X: Xfer> Manager<X> {
     /// * `()` - If the chip was successfully halted.
     /// * `Error` - If an error occurs while halting the chip.
     pub(crate) fn chip_halt(&mut self) -> Result<(), Error> {
-        const HALT_BIT: u32 = 1 << 0; // 0x01
-        const RESET_BIT: u32 = 1 << 10; // 0x400
-
         let mut reg = self.chip.single_reg_read(Regs::ChipHalt.into())?;
 
         self.chip
@@ -411,10 +413,8 @@ impl<X: Xfer> Manager<X> {
     /// * `()` - If the chip is successfully woken up.
     /// * `Error` - If any error occurs while waking up the chip.
     pub(crate) fn chip_wake(&mut self) -> Result<(), Error> {
-        const WAKEUP_BIT: u32 = 1 << 0; // 0x01
-        const WAKEUP_CLK_BIT: u32 = 1 << 1; // 0x02
-        const CLK_EN_BIT: u32 = 1 << 2; // 0x04
         const WAKEUP_DELAY_USEC: u32 = 2000; // 2 msec delay
+        const WAKEUP_OP_RETRIES: u8 = 4;
 
         let mut reg = self.chip.single_reg_read(Regs::HostToCortusComm.into())?;
 
@@ -431,7 +431,7 @@ impl<X: Xfer> Manager<X> {
                 .single_reg_write(Regs::WakeClock.into(), reg | WAKEUP_CLK_BIT)?;
         }
 
-        let mut retries = 4u8;
+        let mut retries = WAKEUP_OP_RETRIES;
         loop {
             if retries == 0 {
                 error!("Reading enable clock register timed out.");
@@ -466,6 +466,7 @@ impl<X: Xfer> Manager<X> {
     pub(crate) fn boot_the_chip(&mut self, state: &mut BootState) -> Result<bool, Error> {
         const MAX_LOOPS: u32 = 10;
         const FINISH_BOOT_ROM: u32 = 0x10add09e;
+
         debug!("Waiting for chip start .. stage: {:?}", state.stage);
         match state.stage {
             BootStage::Start => {
@@ -478,13 +479,15 @@ impl<X: Xfer> Manager<X> {
                 if state.loop_value >= MAX_LOOPS {
                     return Err(Error::BootRomStart);
                 }
-                let efuse = self.chip.single_reg_read(Regs::EFuseRead.into())? & 0x80000000;
+                let efuse =
+                    self.chip.single_reg_read(Regs::EFuseRead.into())? & EFUSE_LOAD_DONE_BIT;
                 if efuse != 0 {
                     state.stage = BootStage::Stage2;
                 }
             }
             BootStage::Stage2 => {
-                let host_wait = self.chip.single_reg_read(Regs::WaitForHost.into())? & 0x1;
+                let host_wait =
+                    self.chip.single_reg_read(Regs::WaitForHost.into())? & WAIT_FOR_HOST_BIT;
                 if host_wait != 0 {
                     state.stage = BootStage::Stage4;
                 } else {
@@ -502,17 +505,18 @@ impl<X: Xfer> Manager<X> {
                 }
             }
             BootStage::Stage4 => {
+                const START_FIRMWARE: u32 = 0xef522f61;
+
                 let driver_rev = 0x13521352; // todo
                 self.chip
                     .single_reg_write(Regs::NmiState.into(), driver_rev)?;
                 self.chip_id()?;
                 // Write Boot Mode configuration.
-                let conf = u32::from(state.mode) | DEFAULT_CHIP_CFG;
+                let conf = u32::from(state.mode) | NMI_GP1_PMU_EN_BIT;
                 self.chip.single_reg_write(Regs::NmiGp1.into(), conf)?;
                 let verify = self.chip.single_reg_read(Regs::NmiGp1.into())?;
                 // Verify the configuration
                 if verify == conf {
-                    const START_FIRMWARE: u32 = 0xef522f61;
                     self.chip
                         .single_reg_write(Regs::BootRom.into(), START_FIRMWARE)?;
                     state.stage = BootStage::StageStartFirmware;
@@ -522,11 +526,14 @@ impl<X: Xfer> Manager<X> {
                 }
             }
             BootStage::StageStartFirmware => {
+                const FINISH_INIT: u32 = 0x02532636;
+                const BACKOFF_DELAY_USEC: u32 = 2000; // 2 msec
+
                 if state.loop_value >= MAX_LOOPS {
                     return Err(Error::FirmwareStart);
                 }
-                const FINISH_INIT: u32 = 0x02532636;
-                self.delay_us(2 * 1000); // 2 msec
+
+                self.delay_us(BACKOFF_DELAY_USEC);
                 let reg = self.chip.single_reg_read(Regs::NmiState.into())?;
                 if reg == FINISH_INIT {
                     state.stage = BootStage::FinishFirmwareBoot;
@@ -545,9 +552,12 @@ impl<X: Xfer> Manager<X> {
     }
 
     pub fn configure_spi_packetsize(&mut self) -> Result<(), Error> {
+        const CLEAR_SPI_CONFIG: u32 = 0xFFFF_FF0F;
+        const PACKET_SIZE_8K: u32 = 0x0000_0050;
+
         let mut conf = self.chip.single_reg_read(Regs::SpiConfig.into())?;
-        conf &= 0xFFFFFF0F; // clear
-        conf |= 0x00000050; // set to 8k packet size
+        conf &= CLEAR_SPI_CONFIG; // clear
+        conf |= PACKET_SIZE_8K; // set to 8k packet size
         self.chip.single_reg_write(Regs::SpiConfig.into(), conf)?;
         trace!("Set spiconfig to {:x}", conf);
         Ok(())
@@ -561,13 +571,13 @@ impl<X: Xfer> Manager<X> {
     /// * `Error` - If an error occurs while enabling the interrupts.
     pub fn enable_interrupt_pins(&mut self) -> Result<(), Error> {
         let mut pinmux = self.chip.single_reg_read(Regs::NmiPinMux0.into())?;
-        pinmux |= 1u32 << 8;
+        pinmux |= NMI_PIN_MUX0_EN_BIT;
         self.chip
             .single_reg_write(Regs::NmiPinMux0.into(), pinmux)?;
         trace!("Set pinmux to {:x}", pinmux);
 
         let mut int_enable = self.chip.single_reg_read(Regs::NmiIntrEnable.into())?;
-        int_enable |= 1u32 << 16;
+        int_enable |= NMI_IRQ_EN_BIT;
         self.chip
             .single_reg_write(Regs::NmiIntrEnable.into(), int_enable)?;
         trace!("Set int enable to {:x}", int_enable);
@@ -585,10 +595,13 @@ impl<X: Xfer> Manager<X> {
     }
 
     pub fn get_firmware_ver_full(&mut self) -> Result<FirmwareInfo, Error> {
+        const LOW_WORD_MASK: u32 = 0x0000_FFFF;
+        const FW_VER_PACKET_SIZE: usize = 40;
+
         let (_, address) = self.read_regs_from_otp_efuse()?;
         debug!("Got address {:#x}", address);
-        let mod_address = (address & 0x0000ffff) | OTP_REG_ADDR_BITS;
-        let mut data = [0u8; 40];
+        let mod_address = (address & LOW_WORD_MASK) | EFUSE_OTP_MAC_OTA_BIT;
+        let mut data = [0u8; FW_VER_PACKET_SIZE];
         debug!("Calculated address: {:#x}", mod_address);
         self.chip.dma_block_read(mod_address, data.as_mut_slice())?;
         Ok(data.into())
@@ -596,10 +609,10 @@ impl<X: Xfer> Manager<X> {
 
     fn is_interrupt_pending(&mut self) -> Result<(bool, u32), Error> {
         let val = self.chip.single_reg_read(Regs::WifiHostRcvCtrl0.into())?;
-        Ok((val & 0x1 == 0x1, val))
+        Ok((val & RCV_CTRL0_IRQ_BIT == RCV_CTRL0_IRQ_BIT, val))
     }
     fn clear_interrupt_pending(&mut self, ctrlreg: u32) -> Result<(), Error> {
-        let setval = ctrlreg & !1;
+        let setval = ctrlreg & !RCV_CTRL0_IRQ_BIT;
         self.chip
             .single_reg_write(Regs::WifiHostRcvCtrl0.into(), setval)
     }
@@ -614,15 +627,24 @@ impl<X: Xfer> Manager<X> {
     ///     - `u32`: Firmware OTA register address.
     /// * `Err(Error)` - If reading the eFuse memory fails.
     fn read_regs_from_otp_efuse(&mut self) -> Result<(u32, u32), Error> {
+        // 4 bytes (u32) MAC + 4 bytes (u32) OTA FW.
+        const OTP_EFUSE_PACKET_SIZE: usize = 8;
+        /// Packet size of MAC/over-the-air (OTA) request
+        const MAC_OTA_PACKET_SIZE: usize = 4;
+
         let read_addr = self.chip.single_reg_read(Regs::NmiGp2.into())?;
-        let mod_read_add = read_addr | OTP_REG_ADDR_BITS;
-        let mut data = [0u8; 8];
+        let mod_read_add = read_addr | EFUSE_OTP_MAC_OTA_BIT;
+        let mut data = [0u8; OTP_EFUSE_PACKET_SIZE];
+
         self.chip
             .dma_block_read(mod_read_add, data.as_mut_slice())?;
-        let mut mac_efuse_mib = [0u8; 4];
-        mac_efuse_mib.copy_from_slice(&data[..4]);
-        let mut firmware_ota_rev = [0u8; 4];
-        firmware_ota_rev.copy_from_slice(&data[4..]);
+
+        let mut mac_efuse_mib = [0u8; MAC_OTA_PACKET_SIZE];
+        mac_efuse_mib.copy_from_slice(&data[..MAC_OTA_PACKET_SIZE]);
+
+        let mut firmware_ota_rev = [0u8; MAC_OTA_PACKET_SIZE];
+        firmware_ota_rev.copy_from_slice(&data[MAC_OTA_PACKET_SIZE..]);
+
         Ok((
             u32::from_le_bytes(mac_efuse_mib),
             u32::from_le_bytes(firmware_ota_rev),
@@ -632,9 +654,9 @@ impl<X: Xfer> Manager<X> {
     // #region read
 
     fn read_hif_header(&mut self, ctrlreg0: u32) -> Result<(HifGroup, u16, u32), Error> {
-        let _size = (ctrlreg0 >> 2) & 0xfff;
+        let _size = (ctrlreg0 >> RCV_CTRL0_CLEAR_RX_BIT) & LOW_12_BIT_MASK;
         let address = self.chip.single_reg_read(Regs::WifiHostRcvCtrl1.into())?;
-        let mut hif_header = [0u8; 4];
+        let mut hif_header = [0u8; HIF_HEADER_PACKET_SIZE];
         let slicebuffer = hif_header.as_mut_slice();
         self.chip.dma_block_read(address, slicebuffer)?;
         let hifhdr = hif_header_parse(hif_header)?;
@@ -647,7 +669,7 @@ impl<X: Xfer> Manager<X> {
         // clear rx // set rx_done
         let reg = self.chip.single_reg_read(Regs::WifiHostRcvCtrl0.into())?;
         self.chip
-            .single_reg_write(Regs::WifiHostRcvCtrl0.into(), reg | 2)
+            .single_reg_write(Regs::WifiHostRcvCtrl0.into(), reg | RCV_CTRL0_CLEAR_RX_BIT)
     }
     // tstrRecvReply
     fn get_recv_reply<'b, const N: usize>(
@@ -655,15 +677,19 @@ impl<X: Xfer> Manager<X> {
         address: u32,
         max_block: &'b mut [u8; N],
     ) -> Result<(Socket, SocketAddrV4, &'b [u8], SocketError), Error> {
-        let mut result = [0xff; 16];
+        const TCP_RECV_REPLY_PACKET_SIZE: usize = 16;
+        let mut result = [0xff; TCP_RECV_REPLY_PACKET_SIZE];
+
         self.read_block(address, &mut result)?;
         let (socket, addr, status, offset) = read_recv_reply(&result)?;
         debug!("Recv reply: session: {} status:{}", socket.s, status);
+
         let readslice = if status > 0 {
             &mut max_block[0..(status as usize)]
         } else {
             &mut max_block[0..0]
         };
+
         let mut err = status as u8;
         if status > 0 {
             err = 0;
@@ -698,26 +724,28 @@ impl<X: Xfer> Manager<X> {
         len: u16,
         req_data: bool,
     ) -> Result<(), Error> {
+        const NMI_STATE_REQ_DATA: u8 = 0x80;
+
         // Write NMI state
         let mut state: u32 = 0;
         state |= gid as u32;
         state |= if req_data {
-            ((op | 0x80) as u32) << 8
+            ((op | NMI_STATE_REQ_DATA) as u32) << NMI_STATE_OP_BIT
         } else {
-            (op as u32) << 8
+            (op as u32) << NMI_STATE_OP_BIT
         };
-        state |= (len as u32) << 16;
+        state |= (len as u32) << NMI_STATE_LEN_BIT;
         self.chip.single_reg_write(Regs::NmiState.into(), state)?;
         // Set RCV_CTRL_2 bit 1
         self.chip
-            .single_reg_write(Regs::WifiHostRcvCtrl2.into(), 2)?;
+            .single_reg_write(Regs::WifiHostRcvCtrl2.into(), RCV_CTRL2_BIT_1)?;
 
         // Wait for bit 1 in RCV_CTRL_2 to clear, with timeout
         let mut retries = HIF_SEND_RETRIES;
         let mut res;
         loop {
             res = self.chip.single_reg_read(Regs::WifiHostRcvCtrl2.into())?;
-            res &= 2;
+            res &= RCV_CTRL2_BIT_1;
             if res == 0 || retries == 0 {
                 break;
             }
@@ -814,7 +842,7 @@ impl<X: Xfer> Manager<X> {
     }
 
     fn write_ctrl3(&mut self, addr: u32) -> Result<(), Error> {
-        let val = (addr << 2) | 2;
+        let val = (addr << RCV_CTRL3_ADDR_BIT) | RCV_CTRL3_ADDR_BIT;
         self.chip.single_reg_write(
             Regs::WifiHostRcvCtrl3.into(),
             // dma_addr come from ctrl4
@@ -930,8 +958,11 @@ impl<X: Xfer> Manager<X> {
     }
 
     pub fn send_gethostbyname(&mut self, host: &str) -> Result<(), Error> {
-        let mut buffer = [0x0u8; 64];
+        const GET_HOSTNAME_PACKET_SIZE: usize = 64;
+
+        let mut buffer = [0x0u8; GET_HOSTNAME_PACKET_SIZE];
         let req = write_gethostbyname_req(host, &mut buffer)?;
+
         self.write_hif_header(HifRequest::Ip(IpCode::DnsResolve), req, false)?;
         self.chip
             .dma_block_write(self.not_a_reg_ctrl_4_dma + HIF_HEADER_OFFSET as u32, req)?;
@@ -982,7 +1013,7 @@ impl<X: Xfer> Manager<X> {
         socket: Socket,
         address: SocketAddrV4,
     ) -> Result<(), Error> {
-        let req = write_connect_req(socket, 2, address, socket.get_ssl_cfg())?;
+        let req = write_connect_req(socket, AF_INET, address, socket.get_ssl_cfg())?;
         let cmd = self.get_ssl_ip_code(&socket, IpCode::Connect);
 
         self.write_hif_header(HifRequest::Ip(cmd), &req, false)?;
@@ -999,7 +1030,7 @@ impl<X: Xfer> Manager<X> {
     ) -> Result<(), Error> {
         const UDP_IP_HEADER_LENGTH: usize = 28;
         const UDP_TX_PACKET_OFFSET: usize = IP_PACKET_OFFSET + UDP_IP_HEADER_LENGTH;
-        let req = write_sendto_req(socket, 2, address, data.len())?;
+        let req = write_sendto_req(socket, AF_INET, address, data.len())?;
         self.write_hif_header(HifRequest::Ip(IpCode::SendTo), &req, true)?;
         self.chip
             .dma_block_write(self.not_a_reg_ctrl_4_dma + HIF_HEADER_OFFSET as u32, &req)?;
@@ -1028,7 +1059,7 @@ impl<X: Xfer> Manager<X> {
         // todo: offset depends on UDP or TCP
         let req = write_sendto_req(
             socket,
-            2,
+            AF_INET,
             SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), 0),
             data.len(),
         )?;
@@ -1351,26 +1382,34 @@ impl<X: Xfer> Manager<X> {
     /// * `()` - The data was successfully written to flash.
     /// * `Error` - If an error occurs while writing the data from Cortus memory to flash.
     fn send_flash_write_page(&mut self, flash_addr: u32, data_size: usize) -> Result<(), Error> {
+        const LOW_20_BIT_MASK: u32 = 0x000F_FFFF;
+        const DATA_SIZE_OFFSET: u32 = 0x08;
+        // 0x04 CMD length, 4 bits are high.
+        const CMD_SIZE_IN_BITS: u32 = 0x0F;
+
         if data_size > FLASH_PAGE_SIZE {
             return Err(Error::ExceedsFlashPageSize);
         }
 
         let cmd = {
             let b = flash_addr.to_be_bytes();
-            [0x02, b[1], b[2], b[3]]
+            [FlashOpCode::PageProgram.into(), b[1], b[2], b[3]]
         };
+
+        // Flash CMD length: 0x04 + MASK: 0x80
+        let cmd_count: u32 = cmd.len() as u32 + FLASH_CMD_CNT_MASK;
 
         self.chip
             .single_reg_write(Regs::FlashDataCount.into(), 0x00)?;
         self.chip
             .single_reg_write(Regs::FlashBuffer1.into(), u32::from_le_bytes(cmd))?;
         self.chip
-            .single_reg_write(Regs::FlashBufferDirectory.into(), 0x0F)?;
+            .single_reg_write(Regs::FlashBufferDirectory.into(), CMD_SIZE_IN_BITS)?;
         self.chip
             .single_reg_write(Regs::FlashDmaAddress.into(), Regs::FlashSharedMemory.into())?;
 
         // Mask data_size to 20 bits, shift to high bytes, and set 0x84 as the low byte
-        let size = 0x84 | ((data_size & 0xfffff) << 8);
+        let size = cmd_count | ((data_size as u32 & LOW_20_BIT_MASK) << DATA_SIZE_OFFSET);
 
         self.chip
             .single_reg_write(Regs::FlashCommandCount.into(), size as u32)?;
@@ -1387,22 +1426,31 @@ impl<X: Xfer> Manager<X> {
     /// * `u8` – The value of the status register.
     /// * `Error` – If an error occurs while reading the status register.
     pub(crate) fn send_flash_read_status_register(&mut self) -> Result<u8, Error> {
+        // 0x01 CMD length, 1 bits are high.
+        const CMD_SIZE_IN_BITS: u32 = 0x01;
+        // Size of data requested from flash.
+        const DATA_SIZE_REQ: u32 = 0x04;
+        // Flash CMD bytes: 0x01 + MASK: 0x80
+        const CMD_COUNT_MASK: u32 = 1 | FLASH_CMD_CNT_MASK;
+
         self.chip
-            .single_reg_write(Regs::FlashDataCount.into(), 0x04)?;
+            .single_reg_write(Regs::FlashDataCount.into(), DATA_SIZE_REQ)?;
+        self.chip.single_reg_write(
+            Regs::FlashBuffer1.into(),
+            FlashOpCode::ReadStatusRegister as u32,
+        )?;
         self.chip
-            .single_reg_write(Regs::FlashBuffer1.into(), 0x05)?;
-        self.chip
-            .single_reg_write(Regs::FlashBufferDirectory.into(), 0x01)?;
+            .single_reg_write(Regs::FlashBufferDirectory.into(), CMD_SIZE_IN_BITS)?;
         self.chip
             .single_reg_write(Regs::FlashDmaAddress.into(), FLASH_DUMMY_VALUE)?;
         self.chip
-            .single_reg_write(Regs::FlashCommandCount.into(), 0x81)?;
+            .single_reg_write(Regs::FlashCommandCount.into(), CMD_COUNT_MASK)?;
 
         // read transfer complete register.
         self.check_flash_tx_complete()?;
 
         let res = self.chip.single_reg_read(FLASH_DUMMY_VALUE)?;
-        Ok((res & 0xff) as u8)
+        Ok(res as u8)
     }
 
     #[cfg(feature = "flash-rw")]
@@ -1422,23 +1470,31 @@ impl<X: Xfer> Manager<X> {
         flash_addr: u32,
         data_size: usize,
     ) -> Result<(), Error> {
+        // 0x05 CMD length, 5 bits are high.
+        const CMD_SIZE_IN_BITS: u32 = 0x1F;
+        // Last byte of command
+        const CMD_LAST_BYTE: u32 = 0xA5;
+
         let cmd = {
             let b = flash_addr.to_be_bytes();
-            [0x0b, b[1], b[2], b[3]]
+            [FlashOpCode::FastRead.into(), b[1], b[2], b[3]]
         };
+
+        // Flash CMD bytes: 0x05 + MASK: 0x80
+        let cmd_count: u32 = (cmd.len() as u32 + 1) | FLASH_CMD_CNT_MASK;
 
         self.chip
             .single_reg_write(Regs::FlashDataCount.into(), data_size as u32)?;
         self.chip
             .single_reg_write(Regs::FlashBuffer1.into(), u32::from_le_bytes(cmd))?;
         self.chip
-            .single_reg_write(Regs::FlashBuffer2.into(), 0xA5)?;
+            .single_reg_write(Regs::FlashBuffer2.into(), CMD_LAST_BYTE)?;
         self.chip
-            .single_reg_write(Regs::FlashBufferDirectory.into(), 0x1F)?;
+            .single_reg_write(Regs::FlashBufferDirectory.into(), CMD_SIZE_IN_BITS)?;
         self.chip
             .single_reg_write(Regs::FlashDmaAddress.into(), Regs::FlashSharedMemory.into())?;
         self.chip
-            .single_reg_write(Regs::FlashCommandCount.into(), 0x85)?;
+            .single_reg_write(Regs::FlashCommandCount.into(), cmd_count)?;
         // read transfer complete register.
         self.check_flash_tx_complete()
     }
@@ -1455,21 +1511,27 @@ impl<X: Xfer> Manager<X> {
     /// * `()` - The flash sector was successfully erased.
     /// * `Error` - If an error occurs while erasing the flash sector.
     pub(crate) fn send_flash_erase_sector(&mut self, flash_addr: u32) -> Result<(), Error> {
+        // 0x04 CMD length, 4 bits are high.
+        const CMD_SIZE_IN_BITS: u32 = 0x0F;
+
         let cmd = {
             let b = flash_addr.to_be_bytes();
-            [0x20, b[1], b[2], b[3]]
+            [FlashOpCode::SectorErase.into(), b[1], b[2], b[3]]
         };
+
+        // Flash CMD bytes: 0x04 + MASK: 0x80
+        let cmd_count: u32 = (cmd.len() as u32) | FLASH_CMD_CNT_MASK;
 
         self.chip
             .single_reg_write(Regs::FlashDataCount.into(), 0x00)?;
         self.chip
             .single_reg_write(Regs::FlashBuffer1.into(), u32::from_le_bytes(cmd))?;
         self.chip
-            .single_reg_write(Regs::FlashBufferDirectory.into(), 0x0F)?;
+            .single_reg_write(Regs::FlashBufferDirectory.into(), CMD_SIZE_IN_BITS)?;
         self.chip
             .single_reg_write(Regs::FlashDmaAddress.into(), 0)?;
         self.chip
-            .single_reg_write(Regs::FlashCommandCount.into(), 0x84)?;
+            .single_reg_write(Regs::FlashCommandCount.into(), cmd_count)?;
 
         // read transfer complete register.
         self.check_flash_tx_complete()
@@ -1487,16 +1549,26 @@ impl<X: Xfer> Manager<X> {
     /// * `()` – Write access to the flash was successfully enabled or disabled.
     /// * `Error` – If an error occurs while sending the command to change write access.
     pub(crate) fn send_flash_write_access(&mut self, enable: bool) -> Result<(), Error> {
-        let val = if enable { 0x06 } else { 0x04 };
+        // 0x01 CMD length, 1 bits are high.
+        const CMD_SIZE_IN_BITS: u32 = 0x01;
+        // Flash CMD bytes: 0x01 + MASK: 0x80
+        const CMD_COUNT_MASK: u32 = 1 | FLASH_CMD_CNT_MASK;
+
+        let cmd = if enable {
+            FlashOpCode::WriteEnable as u32
+        } else {
+            FlashOpCode::WriteDisable as u32
+        };
+
         self.chip
             .single_reg_write(Regs::FlashDataCount.into(), 0x00)?;
-        self.chip.single_reg_write(Regs::FlashBuffer1.into(), val)?;
+        self.chip.single_reg_write(Regs::FlashBuffer1.into(), cmd)?;
         self.chip
-            .single_reg_write(Regs::FlashBufferDirectory.into(), 0x01)?;
+            .single_reg_write(Regs::FlashBufferDirectory.into(), CMD_SIZE_IN_BITS)?;
         self.chip
             .single_reg_write(Regs::FlashDmaAddress.into(), 0x00)?;
         self.chip
-            .single_reg_write(Regs::FlashCommandCount.into(), 0x81)?;
+            .single_reg_write(Regs::FlashCommandCount.into(), CMD_COUNT_MASK)?;
         // read transfer complete register.
         self.check_flash_tx_complete()
     }
@@ -1533,7 +1605,7 @@ impl<X: Xfer> Manager<X> {
         let mut retries = FLASH_REG_READ_RETRIES;
         let mut res = self.send_flash_read_status_register()?;
 
-        while (res & 0x01) != 0 {
+        while (res & FLASH_READ_STATUS_BIT) != 0 {
             if retries == 0 {
                 return Err(Error::OperationRetriesExceeded);
             }
@@ -1555,16 +1627,25 @@ impl<X: Xfer> Manager<X> {
     /// * `u32` - The flash ID.
     /// * `Error` - If an error occurs while reading the flash ID.
     pub(crate) fn send_flash_read_id(&mut self) -> Result<u32, Error> {
+        // 0x01 CMD length, 1 bits are high.
+        const CMD_SIZE_IN_BITS: u32 = 0x01;
+        // Flash CMD bytes: 0x01 + MASK: 0x80
+        const CMD_COUNT_MASK: u32 = 1 | FLASH_CMD_CNT_MASK;
+        // Size of data requested from flash.
+        const DATA_SIZE_REQ: u32 = 0x04;
+
         self.chip
-            .single_reg_write(Regs::FlashDataCount.into(), 0x04)?;
+            .single_reg_write(Regs::FlashDataCount.into(), DATA_SIZE_REQ)?;
+        self.chip.single_reg_write(
+            Regs::FlashBuffer1.into(),
+            FlashOpCode::ReadIdentification as u32,
+        )?;
         self.chip
-            .single_reg_write(Regs::FlashBuffer1.into(), 0x9F)?;
-        self.chip
-            .single_reg_write(Regs::FlashBufferDirectory.into(), 0x01)?;
+            .single_reg_write(Regs::FlashBufferDirectory.into(), CMD_SIZE_IN_BITS)?;
         self.chip
             .single_reg_write(Regs::FlashDmaAddress.into(), FLASH_DUMMY_VALUE)?;
         self.chip
-            .single_reg_write(Regs::FlashCommandCount.into(), 0x81)?;
+            .single_reg_write(Regs::FlashCommandCount.into(), CMD_COUNT_MASK)?;
         // read transfer complete register.
         self.check_flash_tx_complete()?;
 
@@ -1585,16 +1666,26 @@ impl<X: Xfer> Manager<X> {
     /// * `()` – The flash successfully entered or exited low power mode.
     /// * `Error` – If an error occurs while attempting to change the flash power mode.
     pub(crate) fn send_flash_low_power_mode(&mut self, enable: bool) -> Result<(), Error> {
-        let val: u32 = if enable { 0xB9 } else { 0xAB };
+        // 0x01 CMD length, so 1 bits are high.
+        const CMD_SIZE_IN_BITS: u32 = 0x01;
+        // Flash CMD bytes: 0x01 + MASK: 0x80
+        const CMD_COUNT_MASK: u32 = 1 | FLASH_CMD_CNT_MASK;
+
+        let cmd: u32 = if enable {
+            FlashOpCode::EnterPowerSleep as u32
+        } else {
+            FlashOpCode::ExitPowerSleep as u32
+        };
+
         self.chip
             .single_reg_write(Regs::FlashDataCount.into(), 0x00)?;
-        self.chip.single_reg_write(Regs::FlashBuffer1.into(), val)?;
+        self.chip.single_reg_write(Regs::FlashBuffer1.into(), cmd)?;
         self.chip
-            .single_reg_write(Regs::FlashBufferDirectory.into(), 0x01)?;
+            .single_reg_write(Regs::FlashBufferDirectory.into(), CMD_SIZE_IN_BITS)?;
         self.chip
             .single_reg_write(Regs::FlashDmaAddress.into(), 0)?;
         self.chip
-            .single_reg_write(Regs::FlashCommandCount.into(), 0x81)?;
+            .single_reg_write(Regs::FlashCommandCount.into(), CMD_COUNT_MASK)?;
         // read transfer complete register.
         self.check_flash_tx_complete()
     }
@@ -1611,18 +1702,14 @@ impl<X: Xfer> Manager<X> {
     /// * `()` – Pinmux was successfully enabled or disabled on the flash.
     /// * `Error` – If an error occurs while enabling or disabling the flash pinmux.
     pub(crate) fn send_flash_pin_mux(&mut self, enable: bool) -> Result<(), Error> {
-        const GPIO_PINS_MASK: u32 = 0x7777; // GPIO15/16/17/18
-        const FLASH_PINMUX_ENABLE: u32 = 0x1111;
-        const FLASH_PINMUX_DISABLE: u32 = 0x0010;
-
         let mut val = self.chip.single_reg_read(Regs::FlashPinMux.into())?;
 
-        val &= !((GPIO_PINS_MASK) << 12);
+        val &= !((FlashPinMux::GpioPins as u32) << FlashPinMux::Offset as u32);
 
         val |= if enable {
-            (FLASH_PINMUX_ENABLE) << 12
+            (FlashPinMux::Enable as u32) << FlashPinMux::Offset as u32
         } else {
-            (FLASH_PINMUX_DISABLE) << 12
+            (FlashPinMux::Disable as u32) << FlashPinMux::Offset as u32
         };
 
         self.chip.single_reg_write(Regs::FlashPinMux.into(), val)
@@ -1667,7 +1754,7 @@ impl<X: Xfer> Manager<X> {
     /// * `Err(Error)` - If an error occurred while preparing or sending the request.
     #[cfg(feature = "ssl")]
     pub(crate) fn send_ssl_sock_create(&mut self, socket: Socket) -> Result<(), Error> {
-        let req: [u8; 4] = [socket.v, 0, 0, 0];
+        let req = [socket.v, 0, 0, 0];
 
         self.write_hif_header(HifRequest::Ip(IpCode::SslCreate), &req, false)?;
 
@@ -1766,7 +1853,7 @@ impl<X: Xfer> Manager<X> {
             error!("Sending request to stop reading from the module.");
             let reg = self.chip.single_reg_read(Regs::WifiHostRcvCtrl0.into())?;
             self.chip
-                .single_reg_write(Regs::WifiHostRcvCtrl0.into(), reg | 2)?;
+                .single_reg_write(Regs::WifiHostRcvCtrl0.into(), reg | RCV_CTRL0_CLEAR_RX_BIT)?;
 
             return Err(Error::ReadError);
         }
@@ -1784,7 +1871,7 @@ impl<X: Xfer> Manager<X> {
     pub(crate) fn send_ecc_read_complete(&mut self) -> Result<(), Error> {
         let reg = self.chip.single_reg_read(Regs::WifiHostRcvCtrl0.into())?;
         self.chip
-            .single_reg_write(Regs::WifiHostRcvCtrl0.into(), reg | 2)
+            .single_reg_write(Regs::WifiHostRcvCtrl0.into(), reg | RCV_CTRL0_CLEAR_RX_BIT)
     }
 
     /// Sends a request to set the desired SSL cipher suites.
@@ -1819,6 +1906,7 @@ impl<X: Xfer> Manager<X> {
         &mut self,
         #[cfg(test)] test_hook: bool,
     ) -> Result<MacAddress, Error> {
+        const MAC_ADDR_OFFSET: u32 = 16;
         const HIGH_WORD_MASK: u32 = 0xFFFF_0000;
 
         let mac: u32 = {
@@ -1839,7 +1927,7 @@ impl<X: Xfer> Manager<X> {
 
         let reg = match mac & HIGH_WORD_MASK {
             0 => return Err(Error::BufferReadError),
-            r => (r >> 16) | OTP_REG_ADDR_BITS,
+            r => (r >> MAC_ADDR_OFFSET) | EFUSE_OTP_MAC_OTA_BIT,
         };
 
         let mut mac_address = MacAddress::empty();
@@ -1907,9 +1995,8 @@ impl<X: Xfer> Manager<X> {
         // clear RX if no more data is available to read.
         if rx_done {
             let reg = self.chip.single_reg_read(Regs::WifiHostRcvCtrl0.into())?;
-            // Todo: Clean-up the magic number of register bit.
             self.chip
-                .single_reg_write(Regs::WifiHostRcvCtrl0.into(), reg | 2)?;
+                .single_reg_write(Regs::WifiHostRcvCtrl0.into(), reg | RCV_CTRL0_CLEAR_RX_BIT)?;
         }
 
         Ok(())
@@ -1921,7 +2008,7 @@ impl<X: Xfer> Manager<X> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use constants::{ENABLE_AP_PACKET_SIZE, PRNG_PACKET_SIZE};
+    use constants::PRNG_PACKET_SIZE;
 
     #[test]
     fn test_hif_header() {
@@ -2184,7 +2271,7 @@ mod tests {
 
         assert_eq!(buff[CMD_OFFSET], WifiRequest::EnableAp.into());
 
-        let slice = &buff[DATA_OFFSET..DATA_OFFSET + ENABLE_AP_PACKET_SIZE];
+        let slice = &buff[DATA_OFFSET..DATA_OFFSET + ENABLE_AP_REQ_PACKET_SIZE];
 
         assert_eq!(
             slice,

@@ -149,6 +149,8 @@ impl<X: Xfer> WincClient<'_, X> {
                 return Err(StackError::InvalidState);
             }
             Some(ecc_req) => {
+                const SSL_CERT_OPTS_PACKET_SIZE: usize = 8;
+
                 // Check if the ECC request type is valid.
                 if ecc_req.ecc_info.req != EccRequestType::VerifySignature {
                     error!(
@@ -167,7 +169,7 @@ impl<X: Xfer> WincClient<'_, X> {
                     .map(|ecc_req| ecc_req.hif_reg)
                     .ok_or(StackError::InvalidState)?;
 
-                let mut opts = [0u8; 8]; // read the ssl options.
+                let mut opts = [0u8; SSL_CERT_OPTS_PACKET_SIZE]; // read the ssl options.
 
                 // Read the Curve Type, Key, Hash and Signature size.
                 self.manager.read_ecc_info(hif_addr, &mut opts)?;

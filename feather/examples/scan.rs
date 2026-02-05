@@ -51,7 +51,7 @@ fn program() -> Result<(), StackError> {
                 result.rssi,
                 result.channel,
                 result.auth,
-                result.bssid
+                result.bssid.as_bytes()
             );
             #[cfg(feature = "log")]
             info!(
@@ -61,7 +61,7 @@ fn program() -> Result<(), StackError> {
                 result.rssi,
                 result.channel,
                 result.auth,
-                result.bssid
+                result.bssid.as_bytes()
             );
         }
 

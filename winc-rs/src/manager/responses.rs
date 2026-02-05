@@ -19,11 +19,12 @@ use core::{
 };
 
 use super::constants::{
-    AuthType, PingError, SocketError, MAX_HOST_NAME_LEN, MAX_PSK_KEY_LEN, MAX_SSID_LEN,
+    AuthType, PingError, SocketError, AF_INET, CONN_INFO_RESP_PACKET_SIZE, MAX_HOST_NAME_LEN,
+    MAX_PSK_KEY_LEN, MAX_SSID_LEN, SCAN_RESULT_RESP_PACKET_SIZE,
 };
 use crate::errors::CommError as Error;
 
-use super::net_types::{HostName, Ssid, WpaKey};
+use super::net_types::{Bssid, HostName, MacAddress, Ssid, WpaKey};
 #[cfg(feature = "experimental-ecc")]
 use super::{
     constants::EccRequestType,
@@ -36,8 +37,16 @@ use crate::{error, socket::Socket, HexWrap};
 #[cfg(feature = "defmt")]
 use crate::Ipv4AddrFormatWrapper;
 
+/// Length of the firmware version.
+const FW_INFO_VER_LEN: usize = 6;
+/// Length of the firmware build date.
+const FW_INFO_BUILD_DATE_LEN: usize = 12;
+/// Length of the firmware build time.
+const FW_INFO_BUILD_TIME_LEN: usize = 9;
+/// Total size of the firmware info response packet, in bytes.
+const FW_INFO_RESP_PACKET_SIZE: usize = 40;
+/// Error type returned when an reading from a byte slice fails.
 type ErrType<'a> = ReadExactError<<&'a [u8] as Read>::ReadError>;
-const AF_INET: u16 = 2;
 
 fn read32be<'a>(v: &mut &[u8]) -> Result<u32, ErrType<'a>> {
     let mut arr = [0u8; 4];
@@ -103,19 +112,19 @@ pub struct FirmwareInfo {
     pub chip_id: u32,
     pub firmware_revision: Revision,
     pub driver_revision: Revision,
-    pub build_date: ArrayString<12>,
-    pub build_time: ArrayString<9>,
+    pub build_date: ArrayString<FW_INFO_BUILD_DATE_LEN>,
+    pub build_time: ArrayString<FW_INFO_BUILD_TIME_LEN>,
     pub svn_rev: u16,
 }
 
-impl From<[u8; 40]> for FirmwareInfo {
-    fn from(data: [u8; 40]) -> Self {
+impl From<[u8; FW_INFO_RESP_PACKET_SIZE]> for FirmwareInfo {
+    fn from(data: [u8; FW_INFO_RESP_PACKET_SIZE]) -> Self {
         let mut data_slice = data.as_slice();
         let reader = &mut data_slice;
 
-        let mut ver = [0u8; 6];
-        let mut build_date = [0u8; 12];
-        let mut build_time = [0u8; 9];
+        let mut ver = [0u8; FW_INFO_VER_LEN];
+        let mut build_date = [0u8; FW_INFO_BUILD_DATE_LEN];
+        let mut build_time = [0u8; FW_INFO_BUILD_TIME_LEN];
 
         // todo: get rid of unwraps
         let chip_id = read32le(reader).unwrap();
@@ -175,7 +184,7 @@ pub struct ConnectionInfo {
     pub ssid: Ssid,
     pub auth: AuthType,
     pub ip: Ipv4Addr,
-    pub mac: [u8; 6], // todo: mac addr repr
+    pub mac: MacAddress,
     pub rssi: i8,
 }
 
@@ -188,40 +197,33 @@ impl defmt::Format for ConnectionInfo {
              ssid: {}\n\
              authtype: {:?}\n\
              ip: {}\n\
-             mac: {:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}\n\
+             mac: {:?}\n\
              rssi: {}",
             self.ssid.as_str(),
             self.auth,
             Ipv4AddrFormatWrapper::new(&self.ip),
-            self.mac[0],
-            self.mac[1],
-            self.mac[2],
-            self.mac[3],
-            self.mac[4],
-            self.mac[5],
+            self.mac,
             self.rssi
         );
     }
 }
 
-impl From<[u8; 48]> for ConnectionInfo {
-    fn from(v: [u8; 48]) -> Self {
+impl From<[u8; CONN_INFO_RESP_PACKET_SIZE]> for ConnectionInfo {
+    fn from(v: [u8; CONN_INFO_RESP_PACKET_SIZE]) -> Self {
         let mut ipslice = &v[34..38];
-        let mut res = Self {
+        let res = Self {
             auth: v[33].into(),
             rssi: v[44] as i8,
             ip: read32be(&mut ipslice).unwrap().into(),
             ssid: from_c_byte_slice(&v[..MAX_SSID_LEN]).unwrap(),
-            mac: [0; 6],
+            mac: MacAddress::from_bytes(&v[38..44]).unwrap(),
         };
-        res.mac.clone_from_slice(&v[38..44]);
         res
     }
 }
 
 impl core::fmt::Display for ConnectionInfo {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        // todo fix this up for ssid,ip+mac
         write!(
             f,
             "ssid:{} authtype:{:?} ip:{} mac:{:?} rssi:{}",
@@ -241,14 +243,14 @@ pub struct ScanResult {
     pub rssi: i8,
     pub auth: AuthType,
     pub channel: u8,
-    pub bssid: [u8; 6], // todo: special bssid type?
+    pub bssid: Bssid,
     /// SSID of the access point
     pub ssid: Ssid,
 }
 
 // todo: Scanresult parsing is ugly
-impl From<[u8; 44]> for ScanResult {
-    fn from(v: [u8; 44]) -> Self {
+impl From<[u8; SCAN_RESULT_RESP_PACKET_SIZE]> for ScanResult {
+    fn from(v: [u8; SCAN_RESULT_RESP_PACKET_SIZE]) -> Self {
         let mut res = Self {
             index: v[0],
             rssi: v[1] as i8,
@@ -256,7 +258,7 @@ impl From<[u8; 44]> for ScanResult {
             channel: v[3],
             ..Default::default()
         };
-        res.bssid.copy_from_slice(&v[4..10]);
+        res.bssid = from_c_byte_slice(&v[4..9]).unwrap();
         res.ssid = from_c_byte_slice(&v[10..42]).unwrap();
         res
     }
@@ -287,7 +289,7 @@ impl defmt::Format for ScanResult {
             self.rssi,
             self.auth,
             self.channel,
-            self.bssid,
+            self.bssid.as_str(),
             self.ssid.as_str()
         );
     }
@@ -644,7 +646,7 @@ mod tests {
         assert_eq!(res.index, 1);
         assert_eq!(res.rssi, 2);
         assert_eq!(res.auth, AuthType::WEP);
-        assert_eq!(res.bssid, [61, 61, 61, 61, 61, 0]);
+        assert_eq!(res.bssid.as_bytes(), [61, 61, 61, 61, 61]);
         assert_eq!(res.ssid.as_str(), "AB>>>>>>>>>>>>>>>>>>>>>>>>>>>>>C");
     }
 
@@ -692,7 +694,7 @@ mod tests {
         assert_eq!(res.ssid.as_str(), "AB>>>>>>>>>>>>>x>>>>>>>>>>>>>>>C");
         assert_eq!(res.auth, AuthType::S802_1X);
         assert_eq!(res.ip, Ipv4Addr::new(1, 2, 3, 4));
-        assert_eq!(res.mac, [0xA1, 0xB2, 0xC3, 0xD4, 0xE5, 0xF6]);
+        assert_eq!(res.mac.octets(), [0xA1, 0xB2, 0xC3, 0xD4, 0xE5, 0xF6]);
         assert_eq!(res.rssi, -85);
     }
 
