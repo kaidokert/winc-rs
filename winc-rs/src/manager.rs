@@ -842,7 +842,7 @@ impl<X: Xfer> Manager<X> {
     }
 
     fn write_ctrl3(&mut self, addr: u32) -> Result<(), Error> {
-        let val = (addr << RCV_CTRL3_ADDR_BIT) | RCV_CTRL3_ADDR_BIT;
+        let val = (addr << RCV_CTRL3_ADDR_MASK) | RCV_CTRL3_ADDR_MASK;
         self.chip.single_reg_write(
             Regs::WifiHostRcvCtrl3.into(),
             // dma_addr come from ctrl4

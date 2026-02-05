@@ -19,7 +19,7 @@ pub(super) const EFUSE_OTP_MAC_OTA_BIT: u32 = 0x30000;
 /// Halt the Cortus processor.
 pub(super) const HALT_BIT: u32 = 0x01;
 /// Reset the Cortus processor.
-pub(super) const RESET_BIT: u32 = 0x10000;
+pub(super) const RESET_BIT: u32 = 0x400;
 /// Wake up the Cortus processor.
 pub(super) const WAKEUP_BIT: u32 = 0x01;
 /// Check the Cortus clock when waking from power-off or sleep.
@@ -36,7 +36,7 @@ pub(super) const NMI_GP1_PMU_EN_BIT: u32 = 0x102;
 /// Enable pin muxing for NMI.
 pub(super) const NMI_PIN_MUX0_EN_BIT: u32 = 0x100;
 /// Enable IRQ for NMI.
-pub(super) const NMI_IRQ_EN_BIT: u32 = 0x40_0000;
+pub(super) const NMI_IRQ_EN_BIT: u32 = 0x10000;
 /// Check whether an IRQ has been received.
 pub(super) const RCV_CTRL0_IRQ_BIT: u32 = 0x01;
 /// Write the data/control packet length to the NMI state register.
@@ -45,14 +45,14 @@ pub(super) const NMI_STATE_LEN_BIT: u32 = 0x10;
 pub(super) const NMI_STATE_OP_BIT: u32 = 0x08;
 /// Wait for NMI to be ready to receive a new HIF packet from the host.
 pub(super) const RCV_CTRL2_BIT_1: u32 = 0x02;
-/// Host has finished sending the HIF packet to NMI.
-pub(super) const RCV_CTRL3_ADDR_BIT: u32 = 0x02;
 /// Host has finished reading data from NMI.
 pub(super) const RCV_CTRL0_CLEAR_RX_BIT: u32 = 0x02;
 /// Last cortus register that can be written.
 pub(super) const CORTUS_WRITE_MAX_REG: u32 = 0x30;
 /// Last Cortus register that can be read.
 pub(super) const CORTUS_READ_MAX_REG: u32 = 0xFF;
+/// Host has finished sending the HIF packet to NMI.
+pub(super) const RCV_CTRL3_ADDR_MASK: u32 = 0x02;
 /// Mask for sending the command count to access flash memory.
 #[cfg(feature = "flash-rw")]
 pub(super) const FLASH_CMD_CNT_MASK: u32 = 0x80;
@@ -63,7 +63,7 @@ pub(crate) const LOW_12_BIT_MASK: u32 = 0x0000_0FFF;
 pub(crate) const FLASH_READ_STATUS_BIT: u8 = 0x01;
 /// Flash memory read size info bit.
 #[cfg(feature = "flash-rw")]
-pub(crate) const FLASH_SIZE_INFO_BIT: u32 = 16;
+pub(crate) const FLASH_SIZE_INFO_BIT: u32 = 0x10;
 
 /// WINC(NMI) and Cortus Register
 #[repr(u32)]

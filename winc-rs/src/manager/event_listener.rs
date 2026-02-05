@@ -293,18 +293,18 @@ impl<X: Xfer> Manager<X> {
                 listener.on_send(rep.0, rep.1)
             }
             IpCode::Recv => {
-                let mut buffer = [0u8; SOCKET_BUFFER_MAX_LENGTH];
+                let mut buffer = [0; SOCKET_BUFFER_MAX_LENGTH];
                 let rep = self.get_recv_reply(address, &mut buffer)?;
                 listener.on_recv(rep.0, rep.1, rep.2, rep.3)
             }
             IpCode::RecvFrom => {
-                let mut buffer = [0u8; SOCKET_BUFFER_MAX_LENGTH];
+                let mut buffer = [0; SOCKET_BUFFER_MAX_LENGTH];
                 let rep = self.get_recv_reply(address, &mut buffer)?;
                 listener.on_recvfrom(rep.0, rep.1, rep.2, rep.3)
             }
             #[cfg(feature = "ssl")]
             IpCode::SslRecv => {
-                let mut buffer = [0u8; SOCKET_BUFFER_MAX_LENGTH];
+                let mut buffer = [0; SOCKET_BUFFER_MAX_LENGTH];
                 let rep = self.get_recv_reply(address, &mut buffer)?;
                 listener.on_recv(rep.0, rep.1, rep.2, rep.3)
             }

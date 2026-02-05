@@ -53,6 +53,8 @@ const SOCK_TCP_LISTEN_REQ_PACKET_SIZE: usize = 4;
 const SOCK_TCP_RECV_REQ_PACKET_SIZE: usize = 8;
 /// Packet size for the Close Socket request.
 const SOCK_CLOSE_REQ_PACKET_SIZE: usize = 4;
+/// Packet size for the Wifi Scan request.
+const SCAN_REQ_PACKET_SIZE: usize = 4;
 /// Packet size for the Set SSL Socket Options request.
 #[cfg(feature = "ssl")]
 const SET_SSL_SOCK_OPTS_REQ_PACKET_SIZE: usize = 72;
@@ -137,8 +139,10 @@ pub fn write_connect_request(
 }
 
 // tstrM2MScan
-pub fn write_scan_req(channel: u8, scantime: u16) -> Result<[u8; 4], BufferOverflow> {
-    const SCAN_REQ_PACKET_SIZE: usize = 4;
+pub fn write_scan_req(
+    channel: u8,
+    scantime: u16,
+) -> Result<[u8; SCAN_REQ_PACKET_SIZE], BufferOverflow> {
     let mut result = [0u8; SCAN_REQ_PACKET_SIZE];
     let mut slice = result.as_mut_slice();
     slice.write(&channel.to_le_bytes())?;

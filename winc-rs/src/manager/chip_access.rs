@@ -22,11 +22,16 @@ use super::registers::{Regs, CORTUS_READ_MAX_REG, CORTUS_WRITE_MAX_REG, INTR_REG
 use crate::HexWrap;
 use crate::{trace, warn};
 
+/// ACK for a read register or data response.
 // Lower bits are start=1/mid=2/end=3, usually 3
-const DATA_RESP_HEADER_BYTE: u8 = 0xF0;
+const DATA_RESP_ACK: u8 = 0xF0;
+/// Number of bytes in the CRC field.
 const NUM_CRC_BYTES: usize = 2;
+/// CRC-7 digest value.
 const CRC7_DIGEST: u8 = 0x43;
+/// High byte of the CRC-16 digest.
 const CRC16_DIGEST_HIGH_BYTE: u8 = 0x99;
+/// Low byte of the CRC-16 digest.
 const CRC16_DIGEST_LOW_BYTE: u8 = 0xc0;
 
 fn find_first_neq_index<T: PartialEq>(a1: &[T], a2: &[T]) -> Option<usize> {
@@ -169,8 +174,8 @@ impl<X: Xfer> ChipAccess<X> {
         self.xfer.recv(&mut rdbuf)?;
         trace!("Data ack Bytes: {:x}", HexWrap { v: &rdbuf });
         // todo: should check for low bits
-        rdbuf[0] &= DATA_RESP_HEADER_BYTE;
-        self.protocol_verify("single_reg_read:ack", &rdbuf, &[DATA_RESP_HEADER_BYTE])?;
+        rdbuf[0] &= DATA_RESP_ACK;
+        self.protocol_verify("single_reg_read:ack", &rdbuf, &[DATA_RESP_ACK])?;
 
         let mut data_buf = [0x00; CRC_START_BYTE];
         self.xfer.recv(&mut data_buf)?;
@@ -303,8 +308,8 @@ impl<X: Xfer> ChipAccess<X> {
         rdbuf[0] = 0;
         self.xfer.recv(&mut rdbuf)?;
         trace!("Ack Bytes: {:x}", HexWrap { v: &rdbuf });
-        rdbuf[0] &= DATA_RESP_HEADER_BYTE;
-        self.protocol_verify("dma_block_read:ack", &rdbuf, &[DATA_RESP_HEADER_BYTE])?;
+        rdbuf[0] &= DATA_RESP_ACK;
+        self.protocol_verify("dma_block_read:ack", &rdbuf, &[DATA_RESP_ACK])?;
 
         self.xfer.recv(data)?;
         trace!("Data Bytes: {:x}", HexWrap { v: data });
