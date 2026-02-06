@@ -44,7 +44,8 @@ async fn program() -> Result<(), StackError> {
         let server_ip_str = option_env!("TEST_SERVER_IP").unwrap_or(DEFAULT_TEST_SERVER_IP);
         let server_port_str = option_env!("TEST_SERVER_PORT").unwrap_or(DEFAULT_TEST_SERVER_PORT);
 
-        let server_ip = parse_ipv4(server_ip_str).ok_or(StackError::InvalidParameters)?;
+        let server_ip =
+            Ipv4Addr::from_str(server_ip_str).map_err(|_| StackError::InvalidParameters)?;
         let server_port = u16::from_str(server_port_str).unwrap_or(12345);
 
         defmt::info!(
@@ -93,42 +94,6 @@ async fn program() -> Result<(), StackError> {
         }
     }
     Ok(())
-}
-
-/// Parse IPv4 address from string (no_std compatible)
-fn parse_ipv4(s: &str) -> Option<Ipv4Addr> {
-    let mut octets = [0u8; 4];
-    let mut octet_idx = 0;
-    let mut current_num = 0u16;
-    let mut has_digit = false;
-
-    for c in s.chars() {
-        if c == '.' {
-            if !has_digit || current_num > 255 || octet_idx >= 3 {
-                return None;
-            }
-            octets[octet_idx] = current_num as u8;
-            octet_idx += 1;
-            current_num = 0;
-            has_digit = false;
-        } else if c.is_ascii_digit() {
-            current_num = current_num * 10 + (c as u16 - '0' as u16);
-            if current_num > 255 {
-                return None;
-            }
-            has_digit = true;
-        } else {
-            return None;
-        }
-    }
-
-    // Handle last octet
-    if !has_digit || current_num > 255 || octet_idx != 3 {
-        return None;
-    }
-    octets[octet_idx] = current_num as u8;
-
-    Some(Ipv4Addr::new(octets[0], octets[1], octets[2], octets[3]))
 }
 
 #[embassy_executor::main]

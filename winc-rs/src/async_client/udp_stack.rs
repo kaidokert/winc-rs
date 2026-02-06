@@ -40,12 +40,16 @@ impl<X: Xfer> AsyncClient<'_, X> {
         let mut socket_opt = self.udp_socket.borrow_mut();
 
         if let Some(handle) = socket_opt.take() {
-            let mut manager = self.manager.borrow_mut();
-            let mut callbacks = self.callbacks.borrow_mut();
-
-            if let Some((sock, _op)) = callbacks.udp_sockets.get(handle) {
-                let _ = manager.send_close(*sock);
-                callbacks.udp_sockets.remove(handle);
+            // Use try_borrow_mut to avoid panicking in Drop if already borrowed
+            // If borrows fail, we can't clean up, but that's acceptable - Drop must not panic
+            if let (Ok(mut manager), Ok(mut callbacks)) = (
+                self.manager.try_borrow_mut(),
+                self.callbacks.try_borrow_mut(),
+            ) {
+                if let Some((sock, _op)) = callbacks.udp_sockets.get(handle) {
+                    let _ = manager.send_close(*sock);
+                    callbacks.udp_sockets.remove(handle);
+                }
             }
         }
     }

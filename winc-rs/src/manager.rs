@@ -230,7 +230,7 @@ pub trait EventListener {
     fn on_eth(&mut self, packet_size: u16, data_offset: u16, hif_address: u32);
 }
 
-// TODO: MAX_WAKERS should be a paameter on Manager<  , MAX_WAKERS: usize = 4>
+// TODO: MAX_WAKERS should be a parameter on Manager<  , MAX_WAKERS: usize = 4>
 #[cfg(feature = "async")]
 const MAX_WAKERS: usize = 4; // Reasonable limit for concurrent async operations
 
