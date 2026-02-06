@@ -147,7 +147,7 @@ def start_combined_server(base_port, port_range, additional_ports=None,
 
 if __name__ == "__main__":
     base_port = 22346
-    port_range = 10  # Will listen on ports 12345 to 12354
-    additional_ports = [80]  # Include port 80 if desired
+    port_range = 10  # Will listen on ports 22346 to 22355
+    additional_ports = [80]  # Include port 80 if desired (in addition to the range above)
     start_combined_server(base_port, port_range, additional_ports,
                           on_tcp_data=on_tcp_data, on_udp_data=on_udp_data)
