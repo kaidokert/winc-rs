@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1770368678138,
+  "lastUpdate": 1770370236618,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -5145,6 +5145,40 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/kaidokert/winc-rs/commit/24ecd106f98a6943fdc5139a5d01782d56da510a"
         },
         "date": 1770368677107,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 37580,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 51744,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "kaidokert@gmail.com",
+            "name": "kaidokert",
+            "username": "kaidokert"
+          },
+          "committer": {
+            "email": "kaidokert@gmail.com",
+            "name": "kaidokert",
+            "username": "kaidokert"
+          },
+          "distinct": true,
+          "id": "e192ac8b51537e6538c727d3e93474ffe015ca61",
+          "message": "Fix stale port range comment in Python test server\n\nUpdate comment to reflect actual port range 22346-22355 instead of\nthe old 12345-12354. Also clarify that additional_ports (like 80)\nare in addition to the base range.",
+          "timestamp": "2026-02-06T01:29:40-08:00",
+          "tree_id": "eb117edc429c265e429ddb77f20694d8fa6d4587",
+          "url": "https://github.com/kaidokert/winc-rs/commit/e192ac8b51537e6538c727d3e93474ffe015ca61"
+        },
+        "date": 1770370236110,
         "tool": "customSmallerIsBetter",
         "benches": [
           {
