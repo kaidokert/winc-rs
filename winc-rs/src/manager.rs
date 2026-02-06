@@ -230,6 +230,7 @@ pub trait EventListener {
     fn on_eth(&mut self, packet_size: u16, data_offset: u16, hif_address: u32);
 }
 
+// TODO: MAX_WAKERS should be a paameter on Manager<  , MAX_WAKERS: usize = 4>
 #[cfg(feature = "async")]
 const MAX_WAKERS: usize = 4; // Reasonable limit for concurrent async operations
 
@@ -285,17 +286,17 @@ impl<X: Xfer> Manager<X> {
     }
 
     /// Register a waker to be called when hardware events are processed
-    /// Returns true if successfully registered, false if no slots available
+    /// Returns error if waker array is full (too many concurrent operations)
     #[cfg(feature = "async")]
-    pub fn register_waker(&mut self, waker: core::task::Waker) -> bool {
+    pub fn register_waker(&mut self, waker: core::task::Waker) -> Result<(), crate::StackError> {
         // Find the first empty slot
         for slot in &mut self.wakers {
             if slot.is_none() {
                 *slot = Some(waker);
-                return true;
+                return Ok(());
             }
         }
-        false // No available slots
+        Err(crate::StackError::TooManyWakers)
     }
 
     /// Unregister a waker (called when operation completes)

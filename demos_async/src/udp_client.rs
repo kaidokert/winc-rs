@@ -7,6 +7,31 @@ use defmt::info;
 #[cfg(feature = "log")]
 use log::info;
 
+/// UDP client error type that can represent both stack errors and IPv6 not supported
+#[derive(Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub enum UdpClientError<E> {
+    /// Error from the network stack
+    StackError(E),
+    /// IPv6 addresses are not supported
+    Ipv6NotSupported,
+}
+
+impl<E> From<E> for UdpClientError<E> {
+    fn from(e: E) -> Self {
+        UdpClientError::StackError(e)
+    }
+}
+
+impl<E: core::fmt::Display> core::fmt::Display for UdpClientError<E> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            UdpClientError::StackError(e) => write!(f, "Stack error: {}", e),
+            UdpClientError::Ipv6NotSupported => write!(f, "IPv6 addresses are not supported"),
+        }
+    }
+}
+
 /// Run async UDP client that sends data and receives response
 pub async fn run_udp_client<T: UnconnectedUdp>(
     stack: &mut T,
@@ -15,11 +40,11 @@ pub async fn run_udp_client<T: UnconnectedUdp>(
     server_port: u16,
     data: &[u8],
     recv_buffer: &mut [u8],
-) -> Result<usize, T::Error> {
+) -> Result<usize, UdpClientError<T::Error>> {
     // Extract IP and port for defmt compatibility (SocketAddr doesn't implement Format)
     let local_ip = match local_addr {
         SocketAddr::V4(addr) => addr.ip().octets(),
-        SocketAddr::V6(_) => panic!("IPv6 not supported"),
+        SocketAddr::V6(_) => return Err(UdpClientError::Ipv6NotSupported),
     };
     let local_port = local_addr.port();
     let server_octets = server_ip.octets();
@@ -60,15 +85,17 @@ pub async fn run_udp_client<T: UnconnectedUdp>(
     let (recv_len, local_received, remote_received) = stack.receive_into(recv_buffer).await?;
 
     // Extract received addresses for defmt compatibility
+    // Note: Stack should never return IPv6 since WINC doesn't support it,
+    // but handle defensively anyway
     let local_recv_ip = match local_received {
         SocketAddr::V4(addr) => addr.ip().octets(),
-        SocketAddr::V6(_) => panic!("IPv6 not supported"),
+        SocketAddr::V6(_) => return Err(UdpClientError::Ipv6NotSupported),
     };
     let local_recv_port = local_received.port();
 
     let remote_recv_ip = match remote_received {
         SocketAddr::V4(addr) => addr.ip().octets(),
-        SocketAddr::V6(_) => panic!("IPv6 not supported"),
+        SocketAddr::V6(_) => return Err(UdpClientError::Ipv6NotSupported),
     };
     let remote_recv_port = remote_received.port();
 

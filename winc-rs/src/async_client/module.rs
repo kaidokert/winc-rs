@@ -46,7 +46,13 @@ impl<X: Xfer> AsyncClient<'_, X> {
             match read_state {
                 WifiModuleState::ConnectionFailed => {
                     let mut callbacks = self.callbacks.borrow_mut();
-                    let res = callbacks.connection_state.conn_error.take().unwrap();
+                    // conn_error should always be Some in ConnectionFailed state,
+                    // but use defensive fallback just in case
+                    let res = callbacks
+                        .connection_state
+                        .conn_error
+                        .take()
+                        .unwrap_or(crate::manager::WifiConnError::Unhandled);
                     return Err(StackError::ApJoinFailed(res));
                 }
                 WifiModuleState::ConnectedToAp => {

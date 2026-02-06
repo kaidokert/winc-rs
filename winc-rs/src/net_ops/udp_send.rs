@@ -170,10 +170,14 @@ impl<X: Xfer> OpImpl<X> for UdpSendOp<'_> {
                 );
 
                 // Now call send_sendto - if it fails, revert to previous state
+                let ip_octets = self.addr.ip().octets();
                 crate::debug!(
-                    "UdpSendOp: Calling manager.send_sendto - socket: {:?}, addr: {}:{}, len: {}",
+                    "UdpSendOp: Calling manager.send_sendto - socket: {:?}, addr: {}.{}.{}.{}:{}, len: {}",
                     socket,
-                    self.addr.ip(),
+                    ip_octets[0],
+                    ip_octets[1],
+                    ip_octets[2],
+                    ip_octets[3],
                     self.addr.port(),
                     to_send
                 );

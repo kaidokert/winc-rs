@@ -122,13 +122,13 @@ where
 
             // Register new waker with manager
             let new_waker_cloned = new_waker.clone();
-            let waker_registered = this
+            if let Err(e) = this
                 .manager
                 .borrow_mut()
-                .register_waker(new_waker_cloned.clone());
-            if !waker_registered {
-                // If we can't register waker, still proceed but warn
-                // This shouldn't happen in normal operation with our fixed-size array
+                .register_waker(new_waker_cloned.clone())
+            {
+                // Waker array is full - too many concurrent async operations
+                return core::task::Poll::Ready(Err(e.into()));
             }
 
             // Store waker for later unregistration

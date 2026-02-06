@@ -53,6 +53,9 @@ pub enum StackError {
     #[cfg(feature = "experimental-ota")]
     /// Ota Error
     OtaFail(OtaUpdateError),
+    #[cfg(feature = "async")]
+    /// Too many concurrent async operations (waker array full)
+    TooManyWakers,
 }
 
 impl From<core::convert::Infallible> for StackError {
@@ -136,6 +139,8 @@ impl core::fmt::Display for StackError {
             Self::InvalidResponse => write!(f, "Invalid response"),
             #[cfg(feature = "experimental-ota")]
             Self::OtaFail(err) => write!(f, "Ota failure: {:?}", err),
+            #[cfg(feature = "async")]
+            Self::TooManyWakers => write!(f, "Too many concurrent async operations"),
         }
     }
 }

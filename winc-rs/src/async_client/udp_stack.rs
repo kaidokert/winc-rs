@@ -68,15 +68,26 @@ impl<X: Xfer> UnconnectedUdp for AsyncClient<'_, X> {
         );
 
         // Convert to IPv4 addresses (IPv6 not supported)
-        let _local_v4 = match local {
+        let local_v4 = match local {
             core::net::SocketAddr::V4(addr) => addr,
             core::net::SocketAddr::V6(_) => return Err(StackError::InvalidParameters),
         };
+
+        // WINC1500 hardware does not support binding to specific source ports
+        // for unconnected UDP sends. Fail fast if caller requests a specific port.
+        if local_v4.port() != 0 {
+            return Err(StackError::InvalidParameters);
+        }
 
         let remote_v4 = match remote {
             core::net::SocketAddr::V4(addr) => addr,
             core::net::SocketAddr::V6(_) => return Err(StackError::InvalidParameters),
         };
+
+        // Port 0 is not a valid destination port
+        if remote_v4.port() == 0 {
+            return Err(StackError::InvalidParameters);
+        }
 
         // Get or create UDP socket (reused across send/receive)
         let handle = self.get_or_create_udp_socket()?;
@@ -121,7 +132,9 @@ impl<X: Xfer> UnconnectedUdp for AsyncClient<'_, X> {
         match result {
             Ok((len, remote_addr)) => {
                 // For UnconnectedUdp, we need to return (len, local, remote)
-                // We could track the actual local address used, but for now return UNSPECIFIED
+                // Note: WINC1500 hardware does not report the actual local port assigned
+                // to UDP sockets. The bind response only contains an error code, no address.
+                // Return UNSPECIFIED as a placeholder.
                 let local_addr = core::net::SocketAddr::V4(core::net::SocketAddrV4::new(
                     core::net::Ipv4Addr::UNSPECIFIED,
                     0,
