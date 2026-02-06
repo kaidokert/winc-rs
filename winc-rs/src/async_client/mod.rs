@@ -68,6 +68,12 @@ impl<X: Xfer> AsyncClient<'_, X> {
 
     /// Yield control back to the async runtime, allowing other tasks to run.
     /// This should be called in polling loops to avoid busy-waiting.
+    ///
+    /// Note: This implementation uses wake_by_ref() which may cause the task to be
+    /// re-polled quickly, but avoids adding external dependencies like `futures`.
+    /// In practice, Embassy and other executors handle this scheduling reasonably well.
+    /// For stricter yielding behavior, consider using runtime-specific APIs like
+    /// `embassy_time::Timer::after_ticks(0)` or adding the `futures` crate dependency.
     async fn yield_once(&self) {
         use core::cell::Cell;
 
