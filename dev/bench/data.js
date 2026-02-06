@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1770368105386,
+  "lastUpdate": 1770368678138,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -5111,6 +5111,40 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/kaidokert/winc-rs/commit/74ecafac9ccf33b4138d7417d0641e3bbf852e4a"
         },
         "date": 1770368104226,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 37580,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 51744,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "kaidokert@gmail.com",
+            "name": "kaidokert",
+            "username": "kaidokert"
+          },
+          "committer": {
+            "email": "kaidokert@gmail.com",
+            "name": "kaidokert",
+            "username": "kaidokert"
+          },
+          "distinct": true,
+          "id": "24ecd106f98a6943fdc5139a5d01782d56da510a",
+          "message": "Add comment explaining yield_once design decision\n\nDocument that wake_by_ref() may cause quick re-polling but avoids\nadding external dependencies. Note alternatives for stricter yielding\nbehavior if needed.\n\nAddresses review comment about potential busy-looping.",
+          "timestamp": "2026-02-06T01:03:36-08:00",
+          "tree_id": "cad27baccdbe363c2d19298c2833f4909f2b05a1",
+          "url": "https://github.com/kaidokert/winc-rs/commit/24ecd106f98a6943fdc5139a5d01782d56da510a"
+        },
+        "date": 1770368677107,
         "tool": "customSmallerIsBetter",
         "benches": [
           {
