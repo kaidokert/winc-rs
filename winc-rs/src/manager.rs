@@ -230,10 +230,16 @@ pub trait EventListener {
     fn on_eth(&mut self, packet_size: u16, data_offset: u16, hif_address: u32);
 }
 
+// TODO: MAX_WAKERS should be a parameter on Manager<  , MAX_WAKERS: usize = 4>
+#[cfg(feature = "async")]
+const MAX_WAKERS: usize = 4; // Reasonable limit for concurrent async operations
+
 pub struct Manager<X: Xfer> {
     // cached addresses
     not_a_reg_ctrl_4_dma: u32, // todo: make this dynamic/proper
     chip: ChipAccess<X>,
+    #[cfg(feature = "async")]
+    wakers: [Option<core::task::Waker>; MAX_WAKERS],
 }
 
 /// The stages of the boot process
@@ -270,11 +276,49 @@ impl<X: Xfer> Manager<X> {
         Self {
             not_a_reg_ctrl_4_dma: 0xbf0000,
             chip: ChipAccess::new(xfer),
+            #[cfg(feature = "async")]
+            wakers: core::array::from_fn(|_| None),
         }
     }
     #[cfg(test)]
     pub fn set_unit_test_mode(&mut self) {
         self.chip.set_unit_test_mode();
+    }
+
+    /// Register a waker to be called when hardware events are processed
+    /// Returns error if waker array is full (too many concurrent operations)
+    #[cfg(feature = "async")]
+    pub fn register_waker(&mut self, waker: core::task::Waker) -> Result<(), crate::StackError> {
+        // Find the first empty slot
+        for slot in &mut self.wakers {
+            if slot.is_none() {
+                *slot = Some(waker);
+                return Ok(());
+            }
+        }
+        Err(crate::StackError::TooManyWakers)
+    }
+
+    /// Unregister a waker (called when operation completes)
+    /// This removes any waker that matches the given waker
+    #[cfg(feature = "async")]
+    pub fn unregister_waker(&mut self, waker: &core::task::Waker) {
+        for slot in &mut self.wakers {
+            if let Some(ref stored_waker) = slot {
+                if stored_waker.will_wake(waker) {
+                    *slot = None;
+                    break;
+                }
+            }
+        }
+    }
+
+    /// Wake all registered wakers (called after dispatching events)
+    #[cfg(feature = "async")]
+    fn wake_all_wakers(&mut self) {
+        for waker in self.wakers.iter_mut().flatten() {
+            waker.wake_by_ref();
+        }
     }
     // Todo: remove this
     pub fn delay_us(&mut self, delay: u32) {

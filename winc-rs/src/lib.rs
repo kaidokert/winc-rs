@@ -62,16 +62,14 @@
 extern crate std;
 
 // Compile-time checks for logging features
-#[cfg(all(feature = "defmt", feature = "log"))]
-compile_error!("Features 'defmt' and 'log' are mutually exclusive. Enable only one for logging.");
-
+// Note: If both defmt and log are enabled, defmt takes priority
 #[cfg(not(any(feature = "defmt", feature = "log")))]
 compile_error!("Must enable either 'defmt' or 'log' feature for logging support.");
 
 #[cfg(feature = "defmt")]
 pub(crate) use defmt::{debug, error, info, trace, warn};
 
-#[cfg(feature = "log")]
+#[cfg(all(feature = "log", not(feature = "defmt")))]
 pub(crate) use log::{debug, error, info, trace, warn};
 
 mod client;

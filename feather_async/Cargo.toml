@@ -8,22 +8,23 @@ version = "0.1.0"
 harness = false
 
 [dependencies]
-cortex-m = { version = "0.7", features = ["critical-section-single-core"] }
-cortex-m-rt = "0.7"
+cortex-m = { version = "0.7.3", features = ["critical-section-single-core"] }
+cortex-m-rt = "0.7.0"
 defmt = "0.3"
 defmt-rtt = "0.4"
 panic-probe = { version = "0.3", features = ["print-defmt"] }
 
-feather_m0 = { version = "0.17" , features=["winc"]}
+feather_m0 = { version = "0.18" , features=["winc"]}
 embedded-hal = { version= "1", features = ["defmt-03"]}
 
 wincwifi = { path = "../winc-rs", default-features = false, features=["defmt", "async"] }
 
 embassy-executor = { version = "0.7" , features= ["arch-cortex-m", "executor-thread", "defmt"] }
-systick-timer = { version = "0.1",  features=["cortex-m","embassy-time-driver"] }
+systick-timer = { version = "0.2.2",  features=["cortex-m","embassy-time-driver"] }
 embassy-time-driver = { version ="0.2" }
 embassy-time = { version = "0.4" }
-embedded-nal-async = { version = "0.8" }
+embedded-nal-async = { version = "0.9" }
+demos_async = { path = "../demos_async", default-features = false, features = ["defmt"] }
 
 # cargo build/run
 [profile.dev]

@@ -47,6 +47,7 @@ def start_combined_server(base_port, port_range, additional_ports=None,
         # Create TCP socket
         tcp_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         tcp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        print(f"Binding TCP socket to 0.0.0.0:{port}")
         tcp_sock.bind(('0.0.0.0', port))
         tcp_sock.listen()
         tcp_sock.setblocking(False)  # Set to non-blocking mode
@@ -145,8 +146,8 @@ def start_combined_server(base_port, port_range, additional_ports=None,
             s.close()
 
 if __name__ == "__main__":
-    base_port = 12345
-    port_range = 10  # Will listen on ports 12345 to 12354
-    additional_ports = [80]  # Include port 80 if desired
+    base_port = 22346
+    port_range = 10  # Will listen on ports 22346 to 22355
+    additional_ports = [80]  # Include port 80 if desired (in addition to the range above)
     start_combined_server(base_port, port_range, additional_ports,
                           on_tcp_data=on_tcp_data, on_udp_data=on_udp_data)

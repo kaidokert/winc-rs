@@ -8,26 +8,42 @@ use core::ops::DerefMut;
 
 mod dns;
 mod module;
+mod udp_stack;
 
 pub struct AsyncClient<'a, X: Xfer> {
     manager: RefCell<Manager<X>>,
     callbacks: RefCell<SocketCallbacks>,
+    next_session_id: RefCell<u16>,
+    // Socket for UnconnectedUdp operations - kept alive across send/receive
+    udp_socket: RefCell<Option<crate::Handle>>,
     _phantom: PhantomData<&'a ()>,
     #[cfg(test)]
     debug_callback: RefCell<Option<&'a mut dyn FnMut(&mut SocketCallbacks)>>,
 }
 
 impl<X: Xfer> AsyncClient<'_, X> {
+    #[cfg(test)]
+    const DNS_TIMEOUT: u32 = 50; // Shorter timeout for tests
+    #[cfg(not(test))]
     const DNS_TIMEOUT: u32 = 1000;
 
     pub fn new(transfer: X) -> Self {
         Self {
             manager: RefCell::new(Manager::from_xfer(transfer)),
             callbacks: RefCell::new(SocketCallbacks::new()),
+            next_session_id: RefCell::new(0),
+            udp_socket: RefCell::new(None),
             _phantom: Default::default(),
             #[cfg(test)]
             debug_callback: RefCell::new(None),
         }
+    }
+
+    fn get_next_session_id(&self) -> u16 {
+        let mut session_id = self.next_session_id.borrow_mut();
+        let ret = *session_id;
+        *session_id = session_id.wrapping_add(1);
+        ret
     }
 
     fn dispatch_events(&self) -> Result<(), StackError> {
@@ -50,8 +66,31 @@ impl<X: Xfer> AsyncClient<'_, X> {
         Ok(())
     }
 
+    /// Yield control back to the async runtime, allowing other tasks to run.
+    /// This should be called in polling loops to avoid busy-waiting.
+    ///
+    /// Note: This implementation uses wake_by_ref() which may cause the task to be
+    /// re-polled quickly, but avoids adding external dependencies like `futures`.
+    /// In practice, Embassy and other executors handle this scheduling reasonably well.
+    /// For stricter yielding behavior, consider using runtime-specific APIs like
+    /// `embassy_time::Timer::after_ticks(0)` or adding the `futures` crate dependency.
     async fn yield_once(&self) {
-        // Runtime-specific yield here
+        use core::cell::Cell;
+
+        // Stateful future that yields once: returns Pending on first poll, Ready on second
+        let polled = Cell::new(false);
+        core::future::poll_fn(|cx| {
+            if polled.get() {
+                // Second poll - return Ready to complete
+                core::task::Poll::Ready(())
+            } else {
+                // First poll - mark as polled, wake ourselves, and return Pending
+                polled.set(true);
+                cx.waker().wake_by_ref();
+                core::task::Poll::Pending
+            }
+        })
+        .await
     }
 
     #[cfg(test)]

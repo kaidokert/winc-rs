@@ -33,6 +33,12 @@ impl<X: Xfer> OpImpl<X> for UdpSendOp<'_> {
         manager: &mut crate::manager::Manager<X>,
         callbacks: &mut SocketCallbacks,
     ) -> Result<Option<Self::Output>, Self::Error> {
+        crate::debug!(
+            "UdpSendOp::poll_impl called - handle: {:?}, data_len: {}",
+            self.handle,
+            self.data.len()
+        );
+
         // Handle empty payload early - nothing to send
         if self.data.is_empty() {
             let (_, op) = callbacks
@@ -48,6 +54,8 @@ impl<X: Xfer> OpImpl<X> for UdpSendOp<'_> {
             .get(self.handle)
             .ok_or(StackError::SocketNotFound)?;
         let socket = *sock;
+
+        crate::debug!("UdpSendOp: socket={:?}, current op state={:?}", socket, op);
 
         match op {
             ClientSocketOp::AsyncOp(AsyncOp::SendTo(req, Some(len)), AsyncState::Done) => {
@@ -139,6 +147,7 @@ impl<X: Xfer> OpImpl<X> for UdpSendOp<'_> {
             }
             _ => {
                 // Not started or in an unexpected state, so initialize
+                crate::debug!("UdpSendOp: Initializing new send operation");
                 let to_send = self.data.len().min(MAX_SEND_LENGTH);
 
                 // Ensure to_send fits in i16
@@ -161,9 +170,24 @@ impl<X: Xfer> OpImpl<X> for UdpSendOp<'_> {
                 );
 
                 // Now call send_sendto - if it fails, revert to previous state
+                let ip_octets = self.addr.ip().octets();
+                crate::debug!(
+                    "UdpSendOp: Calling manager.send_sendto - socket: {:?}, addr: {}.{}.{}.{}:{}, len: {}",
+                    socket,
+                    ip_octets[0],
+                    ip_octets[1],
+                    ip_octets[2],
+                    ip_octets[3],
+                    self.addr.port(),
+                    to_send
+                );
                 match manager.send_sendto(socket, self.addr, &self.data[..to_send]) {
-                    Ok(()) => Ok(None), // Still in progress
+                    Ok(()) => {
+                        crate::debug!("UdpSendOp: send_sendto succeeded, returning WouldBlock");
+                        Ok(None) // Still in progress
+                    }
                     Err(e) => {
+                        crate::debug!("UdpSendOp: send_sendto failed with error: {:?}", e);
                         // Revert to previous state on failure
                         *op = prev_op;
                         Err(StackError::SendSendFailed(e))

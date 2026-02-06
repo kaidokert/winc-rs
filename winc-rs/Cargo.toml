@@ -2,6 +2,7 @@
 name = "wincwifi"
 version = "0.3.0"
 edition = "2021"
+rust-version = "1.82"
 license = "Apache-2.0"
 authors = ["kaidokert <kaidokert@gmail.com>"]
 documentation = "https://docs.rs/wincwifi"
@@ -43,7 +44,9 @@ heapless = { version = "0.8.0", default-features = false }
 void = { version =  "1", default-features = false }
 
 defmt = { version = "0.3.2", default-features = false, optional=true }
-embedded-nal-async = { version = "0.8.0", optional = true }
+embedded-nal-async = { version = "0.9.0", optional = true }
+
+embedded-io-async = { version = "0.7.0", optional = true }
 
 # For PRNG
 rand_core = { version = "0.9", default-features = false, optional = true }
@@ -52,7 +55,8 @@ rand_core = { version = "0.9", default-features = false, optional = true }
 smoltcp = { version = "0.12.0", default-features = false, features = [ "proto-ipv4", "medium-ethernet", "socket-raw" ], optional = true }
 
 [dev-dependencies]
-async-std = { version= "1.13", features= ["attributes"] }
+macro_rules_attribute = "0.2"
+smol-macros = "0.1"
 test-log = "0.2.11"
 
 [features]
@@ -61,7 +65,7 @@ std = ["log"]
 defmt = ["dep:defmt"]
 default = ["std","async"]
 embedded-nal-async = ["dep:embedded-nal-async"]
-async = ["dep:embedded-nal-async"]
+async = ["dep:embedded-nal-async", "dep:embedded-io-async"]
 rng = ["dep:rand_core"]
 large_rng = [] # This will allocate a 1.6KB buffer for the PRNG upon initialization.
 wep = [] # This will enable weak WEP network security.

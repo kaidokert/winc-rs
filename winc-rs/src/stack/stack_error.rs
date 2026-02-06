@@ -6,6 +6,9 @@ use crate::manager::SocketError;
 
 use embedded_nal::nb;
 
+#[cfg(feature = "async")]
+use embedded_io_async;
+
 /// Stack errors
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[derive(Debug, PartialEq)]
@@ -50,6 +53,9 @@ pub enum StackError {
     #[cfg(feature = "experimental-ota")]
     /// Ota Error
     OtaFail(OtaUpdateError),
+    #[cfg(feature = "async")]
+    /// Too many concurrent async operations (waker array full)
+    TooManyWakers,
 }
 
 impl From<core::convert::Infallible> for StackError {
@@ -133,6 +139,18 @@ impl core::fmt::Display for StackError {
             Self::InvalidResponse => write!(f, "Invalid response"),
             #[cfg(feature = "experimental-ota")]
             Self::OtaFail(err) => write!(f, "Ota failure: {:?}", err),
+            #[cfg(feature = "async")]
+            Self::TooManyWakers => write!(f, "Too many concurrent async operations"),
         }
     }
 }
+
+#[cfg(feature = "async")]
+impl embedded_io_async::Error for StackError {
+    fn kind(&self) -> embedded_io_async::ErrorKind {
+        embedded_io_async::ErrorKind::Other
+    }
+}
+
+#[cfg(feature = "async")]
+impl core::error::Error for StackError {}
