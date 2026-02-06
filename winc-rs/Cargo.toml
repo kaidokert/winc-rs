@@ -1,6 +1,6 @@
 [package]
 name = "wincwifi"
-version = "0.2.2"
+version = "0.3.0"
 edition = "2021"
 license = "Apache-2.0"
 authors = ["kaidokert <kaidokert@gmail.com>"]
@@ -50,6 +50,9 @@ embedded-io-async = { version = "0.7.0", optional = true }
 # For PRNG
 rand_core = { version = "0.9", default-features = false, optional = true }
 
+# smoltcp
+smoltcp = { version = "0.12.0", default-features = false, features = [ "proto-ipv4", "medium-ethernet", "socket-raw" ], optional = true }
+
 [dev-dependencies]
 macro_rules_attribute = "0.2"
 smol-macros = "0.1"
@@ -68,6 +71,10 @@ wep = [] # This will enable weak WEP network security.
 irq = [] # Use the IRQ pin on the module.
 experimental-ota = [] # To enable OTA.
 flash-rw = [] # Enable SPI Flash Read/Write access.
+ssl = [] # Enable SSL.
+experimental-ecc = ["ssl"] # Enables the ECDSA/ECDH functions. Depends on "ssl".
+ethernet = [] # Support for ethernet mode.
+smoltcp = ["ethernet", "dep:smoltcp"]
 
 # Todo: add feature flags to save binary space
 # - TCP

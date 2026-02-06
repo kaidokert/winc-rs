@@ -1,26 +1,29 @@
 use core::net::Ipv4Addr;
 
-#[cfg(feature = "wep")]
-use crate::manager::WepKey;
-#[cfg(feature = "wep")]
-use crate::manager::WepKeyIndex;
 use crate::manager::{
-    Credentials, EventListener, ProvisioningInfo, SocketError, Ssid, WifiConnError, WifiConnState,
-    WpaKey,
+    AuthType, ConnectionInfo, Credentials, EventListener, PingError, ProvisioningInfo, ScanResult,
+    SocketError, Ssid, WifiConnError, WifiConnState, WpaKey, PRNG_DATA_LENGTH,
+    SOCKET_BUFFER_MAX_LENGTH,
 };
+
 #[cfg(feature = "experimental-ota")]
 use crate::manager::{OtaUpdateError, OtaUpdateStatus};
+
+#[cfg(feature = "wep")]
+use crate::manager::{WepKey, WepKeyIndex};
+
+#[cfg(feature = "ssl")]
+use crate::manager::{SslCallbackInfo, SslResponse};
+
+#[cfg(feature = "experimental-ecc")]
+use crate::manager::EccRequest;
+
+#[cfg(feature = "ethernet")]
+use crate::manager::EthernetRxInfo;
+
+use super::sock_holder::{SockHolder, SocketStore};
 use crate::{debug, error, info};
-use crate::{AuthType, ConnectionInfo};
-
-use crate::socket::Socket;
-
-use crate::Ipv4AddrFormatWrapper;
-
-use super::SockHolder;
-use crate::manager::{PingError, ScanResult, PRNG_DATA_LENGTH, SOCKET_BUFFER_MAX_LENGTH};
-
-use crate::stack::sock_holder::SocketStore;
+use crate::{socket::Socket, Ipv4AddrFormatWrapper};
 
 /// Opaque handle to a socket. Returned by socket APIs
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -148,6 +151,10 @@ pub(crate) struct SocketCallbacks {
     pub provisioning_info: Option<Option<ProvisioningInfo>>,
     #[cfg(feature = "experimental-ota")]
     pub ota_state: OtaUpdateState,
+    #[cfg(feature = "ssl")]
+    pub ssl_cb_info: SslCallbackInfo,
+    #[cfg(feature = "ethernet")]
+    pub eth_rx_info: Option<Option<EthernetRxInfo>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -262,6 +269,10 @@ impl SocketCallbacks {
             provisioning_info: None,
             #[cfg(feature = "experimental-ota")]
             ota_state: OtaUpdateState::NotStarted,
+            #[cfg(feature = "ssl")]
+            ssl_cb_info: SslCallbackInfo::default(),
+            #[cfg(feature = "ethernet")]
+            eth_rx_info: None,
         }
     }
     pub fn resolve(&mut self, socket: Socket) -> Option<&mut (Socket, ClientSocketOp)> {
@@ -403,12 +414,15 @@ impl EventListener for SocketCallbacks {
         debug!("on_connect: socket {:?}", socket);
         match self.resolve(socket) {
             Some((
-                _,
+                _sock,
                 ClientSocketOp::AsyncOp(
                     AsyncOp::Connect(option),
                     asyncstate @ AsyncState::Pending(_),
                 ),
             )) => {
+                #[cfg(feature = "ssl")]
+                // update the data offset for ssl operations.
+                _sock.set_ssl_data_offset(socket.get_ssl_data_offset());
                 option.replace(ConnectResult { error: err });
                 *asyncstate = AsyncState::Done;
             }
@@ -434,7 +448,7 @@ impl EventListener for SocketCallbacks {
             )) => {
                 req.total_sent += len;
                 req.remaining -= len;
-                if req.remaining <= 0 {
+                if (req.remaining <= 0) || (len < 0) {
                     debug!("FIN: on_send_to: socket:{:?} length:{:?}", s, len);
                     option.replace(len);
                     *asyncstate = AsyncState::Done;
@@ -464,7 +478,7 @@ impl EventListener for SocketCallbacks {
             )) => {
                 req.total_sent += len;
                 req.remaining -= len;
-                if req.remaining <= 0 {
+                if (req.remaining <= 0) || (len < 0) {
                     debug!("FIN: on_send: socket:{:?} length:{:?}", s, len);
                     option.replace(len);
                     *asyncstate = AsyncState::Done;
@@ -774,8 +788,52 @@ impl EventListener for SocketCallbacks {
             }
             _ => {
                 error!("OTA status does not match the required state.");
-                self.ota_state // retain the value if conditions dosen't match
+                self.ota_state // retain the value if conditions doesn't match
             }
         };
+    }
+
+    /// Callback function for SSL events triggered by the module.
+    ///
+    /// # Arguments
+    ///
+    /// * `ssl_res` - Type of SSL response received from the module.
+    /// * `cipher_suite` - Optional 4-byte cipher suite bitmap.
+    /// * `ecc_req` - Optional ECC request data.
+    #[cfg(feature = "ssl")]
+    fn on_ssl(
+        &mut self,
+        ssl_res: SslResponse,
+        cipher_suite: Option<u32>,
+        #[cfg(feature = "experimental-ecc")] ecc_req: Option<EccRequest>,
+    ) {
+        match ssl_res {
+            SslResponse::CipherSuiteUpdate => {
+                self.ssl_cb_info.cipher_suite_bitmap = Some(cipher_suite);
+            }
+            #[cfg(feature = "experimental-ecc")]
+            SslResponse::EccReqUpdate => {
+                self.ssl_cb_info.ecc_req = ecc_req;
+            }
+            _ => {
+                error!("Invalid SSL event received.");
+            }
+        }
+    }
+
+    /// Callback function for Ethernet RX events triggered by the module.
+    ///
+    /// # Arguments
+    ///
+    /// * `packet_size` - The size of the data available to read.
+    /// * `data_offset` - The register address offset from which data can be read.
+    /// * `hif_address` - The HIF memory address where the Ethernet frame is stored.
+    #[cfg(feature = "ethernet")]
+    fn on_eth(&mut self, packet_size: u16, data_offset: u16, hif_address: u32) {
+        self.eth_rx_info = Some(Some(EthernetRxInfo {
+            packet_size,
+            data_offset,
+            hif_address,
+        }));
     }
 }

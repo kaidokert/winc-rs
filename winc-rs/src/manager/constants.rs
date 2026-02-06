@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/// Maxmimum length of SSID.
+/// Maximum length of SSID.
 pub const MAX_SSID_LEN: usize = 32;
-/// Length for 104 bit string passpharase.
+/// Length for 104 bit string passphrase.
 pub(crate) const MAX_WEP_KEY_LEN: usize = 26;
 #[cfg(feature = "wep")]
-/// Length for 40 bit string passpharase.
+/// Length for 40 bit string passphrase.
 pub(crate) const MIN_WEP_KEY_LEN: usize = 10;
 /// Maximum length for the WPA PSK Key.
 pub const MAX_PSK_KEY_LEN: usize = 63;
@@ -40,6 +40,7 @@ pub(crate) const ENABLE_AP_PACKET_SIZE: usize = 136;
 /// Packet size to set socket option request.
 pub(crate) const SET_SOCK_OPTS_PACKET_SIZE: usize = 8;
 /// Packet size to set SSL socket option request.
+#[cfg(feature = "ssl")]
 pub(crate) const SET_SSL_SOCK_OPTS_PACKET_SIZE: usize = 72;
 /// Maximum buffer size for the TCP stack. Must be able to handle the full MTU from the chip (1440+ bytes observed).
 pub(crate) const SOCKET_BUFFER_MAX_LENGTH: usize = 1500;
@@ -53,6 +54,19 @@ pub(crate) const PRNG_DATA_LENGTH: usize = 32;
 #[cfg(feature = "flash-rw")]
 /// Page size of Flash memory.
 pub(crate) const FLASH_PAGE_SIZE: usize = 256;
+/// Packet Size of SSL ECC request/response.
+#[cfg(feature = "experimental-ecc")]
+pub(crate) const SSL_ECC_REQ_PACKET_SIZE: usize = 112;
+/// Packet size of cipher suite bitmap (u32).
+#[cfg(feature = "ssl")]
+pub(crate) const SSL_CS_MAX_PACKET_SIZE: usize = 4;
+#[cfg(feature = "ethernet")]
+/// Size of Ethernet/Wi-Fi packet transfer requests and responses.
+pub(crate) const NET_XFER_PACKET_SIZE: usize = 4;
+/// Maximum size of an Ethernet packet that can be sent.
+// u16::MAX (65535) - ETHERNET_HEADER_OFFSET (34)
+#[cfg(feature = "ethernet")]
+pub const MAX_TX_ETHERNET_PACKET_SIZE: usize = 65501;
 
 #[repr(u32)]
 pub enum Regs {
@@ -278,16 +292,12 @@ pub enum WifiResponse {
     WifiRxPacket,     // M2M_WIFI_RESP_WIFI_RX_PACKET + tstrM2MWifiRxPacketInfo + data
     // MemoryRecover,   // M2M_WIFI_RESP_MEMORY_RECOVER + 4-byte buffer (commented out in code)
     // IpConfigured,    // M2M_WIFI_RESP_IP_CONFIGURED + no specific data (internal use)
-/* No Crypto and SSL for now
+/* No Crypto for now
     CryptoSha256Init,   // M2M_CRYPTO_RESP_SHA256_INIT + tstrCyptoResp (crypto mode)
     CryptoSha256Update, // M2M_CRYPTO_RESP_SHA256_UPDATE + tstrCyptoResp (crypto mode)
     CryptoSha256Finish, // M2M_CRYPTO_RESP_SHA256_FINSIH + tstrCyptoResp (crypto mode, typo in original)
     CryptoRsaSignGen,   // M2M_CRYPTO_RESP_RSA_SIGN_GEN + tstrCyptoResp (crypto mode)
     CryptoRsaSignVerify,// M2M_CRYPTO_RESP_RSA_SIGN_VERIFY + tstrCyptoResp (crypto mode)
-    SslEcc,             // M2M_SSL_RESP_ECC + no specific data (SSL mode)
-    SslCrl,             // M2M_SSL_IND_CRL + tstrTlsCrlInfo (SSL mode)
-    SslCertsEcc,        // M2M_SSL_IND_CERTS_ECC + no specific data (SSL mode)
-    SslSetCsList,       // M2M_SSL_RESP_SET_CS_LIST + tstrSslSetActiveCsList (SSL mode)
 */
 }
 
@@ -312,16 +322,12 @@ impl From<u8> for WifiResponse {
             0x37 => Self::WifiRxPacket,     // M2M_WIFI_RESP_WIFI_RX_PACKET
             // 0x0E => Self::MemoryRecover,   // M2M_WIFI_RESP_MEMORY_RECOVER (commented out)
             // 0x33 => Self::IpConfigured,       // M2M_WIFI_RESP_IP_CONFIGURED
-/* No Crypto and SSL for now
+/* No Crypto for now
             0x02 => Self::CryptoSha256Init,   // M2M_CRYPTO_RESP_SHA256_INIT
             //0x04 =>Self::CryptoSha256Update,// M2M_CRYPTO_RESP_SHA256_UPDATE ( overlaps with CurrentRssi)
             //0x06 =>Self::CryptoSha256Finish,// M2M_CRYPTO_RESP_SHA256_FINSIH ( overlaps with ConnInfo)
             0x08 => Self::CryptoRsaSignGen,   // M2M_CRYPTO_RESP_RSA_SIGN_GEN
             0x0A => Self::CryptoRsaSignVerify,// M2M_CRYPTO_RESP_RSA_SIGN_VERIFY
-            //0x02 => Self::SslEcc,           // M2M_SSL_RESP_ECC (overlaps with CryptoSha256Init)
-            //0x04 => Self::SslCrl,           // M2M_SSL_IND_CRL (overlaps with CryptoSha256Update)
-            0x05 => Self::SslCertsEcc,        // M2M_SSL_IND_CERTS_ECC
-            0x07 => Self::SslSetCsList,       // M2M_SSL_RESP_SET_CS_LIST
 */
             _ => Self::Unhandled,
         }
@@ -344,20 +350,27 @@ pub enum IpCode {
     Close = 0x49,      // SOCKET_CMD_CLOSE + tstrCloseCmd (exists, works)
     DnsResolve = 0x4A, // SOCKET_CMD_DNS_RESOLVE + hostname string (works)
     Ping = 0x52,       // SOCKET_CMD_PING + tstrPingCmd (exists, works)
-    // TODO: SSL comms
-    SslConnect = 0x4B,      // SOCKET_CMD_SSL_CONNECT + tstrConnectCmd
-    SslSend = 0x4C,         // SOCKET_CMD_SSL_SEND + tstrSendCmd + data
-    SslRecv = 0x4D,         // SOCKET_CMD_SSL_RECV + tstrRecvCmd
-    SslClose = 0x4E,        // SOCKET_CMD_SSL_CLOSE + tstrCloseCmd
+    #[cfg(feature = "ssl")]
+    SslConnect = 0x4B, // SOCKET_CMD_SSL_CONNECT + tstrConnectCmd
+    #[cfg(feature = "ssl")]
+    SslSend = 0x4C, // SOCKET_CMD_SSL_SEND + tstrSendCmd + data
+    #[cfg(feature = "ssl")]
+    SslRecv = 0x4D, // SOCKET_CMD_SSL_RECV + tstrRecvCmd
+    #[cfg(feature = "ssl")]
+    SslClose = 0x4E, // SOCKET_CMD_SSL_CLOSE + tstrCloseCmd
     SetSocketOption = 0x4F, // SOCKET_CMD_SET_SOCKET_OPTION + tstrSetSocketOptCmd
-    SslCreate = 0x50,       // SOCKET_CMD_SSL_CREATE + tstrSSLSocketCreateCmd
-    SslSetSockOpt = 0x51,   // SOCKET_CMD_SSL_SET_SOCK_OPT + tstrSSLSetSockOptCmd
-    SslBind = 0x54,         // SOCKET_CMD_SSL_BIND + tstrBindCmd
-    SslExpCheck = 0x55,     // SOCKET_CMD_SSL_EXP_CHECK + tstrSslCertExpSettings
+    #[cfg(feature = "ssl")]
+    SslCreate = 0x50, // SOCKET_CMD_SSL_CREATE + tstrSSLSocketCreateCmd
+    #[cfg(feature = "ssl")]
+    SslSetSockOpt = 0x51, // SOCKET_CMD_SSL_SET_SOCK_OPT + tstrSSLSetSockOptCmd
+    #[cfg(feature = "ssl")]
+    SslBind = 0x54, // SOCKET_CMD_SSL_BIND + tstrBindCmd
+    #[cfg(feature = "ssl")]
+    SslExpCheck = 0x55, // SOCKET_CMD_SSL_EXP_CHECK + tstrSslCertExpSettings
 
-                            // Unimplemented Socket Commands (defined but not used)
-                            // Socket = 0x40,      // SOCKET_CMD_SOCKET + no params (not sent, implicit in host logic)
-                            // SslSetCsList = 0x53, // SOCKET_CMD_SSL_SET_CS_LIST + no specific data
+                       // Unimplemented Socket Commands (defined but not used)
+                       // Socket = 0x40,      // SOCKET_CMD_SOCKET + no params (not sent, implicit in host logic)
+                       // SslSetCsList = 0x53, // SOCKET_CMD_SSL_SET_CS_LIST + no specific data
 }
 
 /// Implementation to convert `IpCode` to `u8` value.
@@ -380,15 +393,23 @@ impl From<u8> for IpCode {
             0x48 => Self::RecvFrom,
             0x49 => Self::Close,
             0x4A => Self::DnsResolve,
+            #[cfg(feature = "ssl")]
             0x4B => Self::SslConnect,
+            #[cfg(feature = "ssl")]
             0x4C => Self::SslSend,
+            #[cfg(feature = "ssl")]
             0x4D => Self::SslRecv,
+            #[cfg(feature = "ssl")]
             0x4E => Self::SslClose,
             0x4F => Self::SetSocketOption,
+            #[cfg(feature = "ssl")]
             0x50 => Self::SslCreate,
+            #[cfg(feature = "ssl")]
             0x51 => Self::SslSetSockOpt,
             0x52 => Self::Ping,
+            #[cfg(feature = "ssl")]
             0x54 => Self::SslBind,
+            #[cfg(feature = "ssl")]
             0x55 => Self::SslExpCheck,
             _ => Self::Unhandled,
         }
@@ -511,6 +532,71 @@ impl From<u8> for OtaUpdateStatus {
     }
 }
 
+/// SSL requests
+#[cfg(feature = "ssl")]
+#[repr(u8)]
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub(crate) enum SslRequest {
+    Unhandled = 0xff,       // Invalid Request
+    SendEccResponse = 0x02, // Send ECC Response
+    NotifyCrl = 0x03,       // Update Certificate Revocation List
+    SendCertificate = 0x04, // Send SSL Certificates
+    SetCipherSuites = 0x05, // Set the custom cipher suites list
+}
+
+/// SSL responses
+#[cfg(feature = "ssl")]
+#[repr(u8)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub(crate) enum SslResponse {
+    EccReqUpdate = 0x01,      // Response of ECC command.
+    CipherSuiteUpdate = 0x06, // Response of requested changes in Cipher Suites.
+    Unhandled = 0xff,         // Invalid response received.
+}
+
+/// Convert `SslRequest` to `u8` value.
+#[cfg(feature = "ssl")]
+impl From<SslRequest> for u8 {
+    fn from(val: SslRequest) -> Self {
+        val as u8
+    }
+}
+
+/// Convert `SslResponse` to `u8` value.
+#[cfg(feature = "ssl")]
+impl From<SslResponse> for u8 {
+    fn from(val: SslResponse) -> Self {
+        val as u8
+    }
+}
+
+/// Convert `u8` to `SslResponse` value.
+#[cfg(feature = "ssl")]
+impl From<u8> for SslResponse {
+    fn from(val: u8) -> Self {
+        match val {
+            0x01 => SslResponse::EccReqUpdate,
+            0x06 => SslResponse::CipherSuiteUpdate,
+            _ => SslResponse::Unhandled,
+        }
+    }
+}
+
+/// Convert `SslRequest` to `u8` value.
+#[cfg(feature = "ssl")]
+impl From<u8> for SslRequest {
+    fn from(val: u8) -> Self {
+        match val {
+            0x02 => SslRequest::SendEccResponse,
+            0x03 => SslRequest::NotifyCrl,
+            0x04 => SslRequest::SendCertificate,
+            0x05 => SslRequest::SetCipherSuites,
+            _ => SslRequest::Unhandled,
+        }
+    }
+}
+
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[derive(Debug, PartialEq, Default, Clone, Copy)]
 pub enum PingError {
@@ -532,7 +618,6 @@ impl From<u8> for PingError {
     }
 }
 
-#[allow(dead_code)] // Todo: once complete maybe can remove
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[derive(Debug, PartialEq, Default, Clone, Copy)]
 pub enum SocketError {
@@ -552,6 +637,7 @@ pub enum SocketError {
     BufferFull = -14,      // 242
 }
 
+/// Convert the `u8` value to `SocketError`.
 impl From<u8> for SocketError {
     fn from(v: u8) -> Self {
         match v {
@@ -569,6 +655,14 @@ impl From<u8> for SocketError {
             242 => Self::BufferFull,
             _ => Self::Unhandled,
         }
+    }
+}
+
+/// Convert the `i16` value to `SocketError`.
+impl From<i16> for SocketError {
+    fn from(v: i16) -> Self {
+        let u8_val = v as u8;
+        u8_val.into()
     }
 }
 
@@ -673,5 +767,181 @@ impl From<u8> for WepKeyIndex {
             4 => WepKeyIndex::Key4,
             _ => WepKeyIndex::NoKey, // Default Value
         }
+    }
+}
+
+/// Options to configure SSL Certificate Expiry.
+#[cfg(feature = "ssl")]
+#[repr(u32)]
+pub enum SslCertExpiryOpt {
+    /// Ignore certificate expiration date validation.
+    Disabled = 0x00,
+    /// Validate certificate expiration date.
+    /// If expired or system time is not configured, the SSL connection fails.
+    Enabled = 0x01,
+    /// Validate the certificate expiration date only if there is a configured system time.
+    /// If there is no configured system time, the certificate expiration is bypassed and the
+    /// SSL connection succeeds.
+    EnabledIfSysTime = 0x02,
+}
+
+/// Converts the `SslCertExpiryOpt` value to `u32` value.
+#[cfg(feature = "ssl")]
+impl From<SslCertExpiryOpt> for u32 {
+    fn from(opt: SslCertExpiryOpt) -> Self {
+        opt as Self
+    }
+}
+
+/// ECC request type.
+#[cfg(feature = "experimental-ecc")]
+#[repr(u16)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum EccRequestType {
+    #[default]
+    None = 0,
+    ClientEcdh = 1,
+    ServerEcdh = 2,
+    GenerateKey = 3,
+    GenerateSignature = 4,
+    VerifySignature = 5,
+    Unknown,
+}
+
+/// Convert the `EccRequestType` to `u16` value.
+#[cfg(feature = "experimental-ecc")]
+impl From<EccRequestType> for u16 {
+    fn from(val: EccRequestType) -> Self {
+        val as u16
+    }
+}
+
+/// Convert the `u16` value to `EccRequestType`.
+#[cfg(feature = "experimental-ecc")]
+impl From<u16> for EccRequestType {
+    fn from(val: u16) -> Self {
+        match val {
+            0 => Self::None,
+            1 => Self::ClientEcdh,
+            2 => Self::ServerEcdh,
+            3 => Self::GenerateKey,
+            4 => Self::GenerateSignature,
+            5 => Self::VerifySignature,
+            _ => Self::Unknown,
+        }
+    }
+}
+
+/// ECC Curve type
+#[cfg(feature = "experimental-ecc")]
+#[repr(u16)]
+#[derive(Debug, PartialEq, Default)]
+pub enum EccCurveType {
+    /// NIST-P192
+    Secp192r1 = 19,
+    /// NIST-P256
+    Secp256r1 = 23,
+    /// NIST-P384
+    Secp384r1 = 24,
+    /// NIST-P521
+    Secp521r1 = 25,
+    /// Unknown
+    #[default]
+    Unknown,
+}
+
+/// Convert `EccCurveType` to `u16` value.
+#[cfg(feature = "experimental-ecc")]
+impl From<EccCurveType> for u16 {
+    fn from(val: EccCurveType) -> Self {
+        val as u16
+    }
+}
+
+/// Convert `u16` to `EccCurveType` value.
+#[cfg(feature = "experimental-ecc")]
+impl From<u16> for EccCurveType {
+    fn from(val: u16) -> Self {
+        match val {
+            19 => Self::Secp192r1,
+            23 => Self::Secp256r1,
+            24 => Self::Secp384r1,
+            25 => Self::Secp521r1,
+            _ => Self::Unknown,
+        }
+    }
+}
+
+/// SSL Cipher Suites
+/// By default, the WINC1500 hardware accelerator only supports AES-128.
+/// To use AES-256 cipher suites, call the `ssl_set_cipher_suite` function.
+#[repr(u32)]
+pub enum SslCipherSuite {
+    // Individual Ciphers
+    RsaWithAes128CbcSha = 0x01,
+    RsaWithAes128CbcSha256 = 0x02,
+    DheRsaWithAes128CbcSha = 0x04,
+    DheRsaWithAes128CbcSha256 = 0x08,
+    RsaWithAes128GcmSha256 = 0x10,
+    DheRsaWithAes128GcmSha256 = 0x20,
+    RsaWithAes256CbcSha = 0x40,
+    RsaWithAes256CbcSha256 = 0x80,
+    DheRsaWithAes256CbcSha = 0x100,
+    DheRsaWithAes256CbcSha256 = 0x200,
+    #[cfg(feature = "experimental-ecc")]
+    EcdheRsaWithAes128CbcSha = 0x400,
+    #[cfg(feature = "experimental-ecc")]
+    EcdheRsaWithAes256CbcSha = 0x800,
+    #[cfg(feature = "experimental-ecc")]
+    EcdheRsaWithAes128CbcSha256 = 0x1000,
+    #[cfg(feature = "experimental-ecc")]
+    EcdheEcdsaWithAes128CbcSha256 = 0x2000,
+    #[cfg(feature = "experimental-ecc")]
+    EcdheRsaWithAes128GcmSha256 = 0x4000,
+    #[cfg(feature = "experimental-ecc")]
+    EcdheEcdsaWithAes128GcmSha256 = 0x8000,
+    // Grouped Ciphers
+    /// ECC ciphers using ECC authentication with AES 128 encryption only.
+    /// By default, this group is disabled on startup.
+    #[cfg(feature = "experimental-ecc")]
+    EccOnlyAes128 = 0xA000,
+    /// ECC ciphers using any authentication with AES-128 encryption.
+    /// By default, this group is disabled on startup.
+    #[cfg(feature = "experimental-ecc")]
+    EccAllAes128 = 0xF400,
+    /// All none ECC ciphers using AES-128 encryption.
+    /// By default, this group is active on startup.
+    NoEccAes128 = 0x3F,
+    /// All none ECC ciphers using AES-256 encryption.
+    NoEccAes256 = 0x3C0,
+    /// RSA key exchange cipher suites with AES (128/256), using CBC and GCM modes.
+    /// Excludes DHE/ECDHE.
+    AllRsaAesNoDheEcc = 0xD3,
+    /// All supported ciphers.
+    /// By default, this group is disabled on startup.
+    AllCiphers = 0xFFFF,
+}
+
+/// Implementation to convert `SslCipherSuite` to `u32`.
+impl From<SslCipherSuite> for u32 {
+    fn from(val: SslCipherSuite) -> Self {
+        val as u32
+    }
+}
+
+/// Wifi Boot Mode
+#[repr(u32)]
+#[derive(Clone, Copy)]
+pub enum BootMode {
+    Normal = 0x00,
+    #[cfg(feature = "ethernet")]
+    Ethernet = 0x80,
+}
+
+/// Implementation to convert `BootMode` to `u32`.
+impl From<BootMode> for u32 {
+    fn from(val: BootMode) -> u32 {
+        val as u32
     }
 }

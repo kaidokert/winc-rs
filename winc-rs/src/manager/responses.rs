@@ -13,27 +13,31 @@
 // limitations under the License.
 
 use crate::readwrite::{Read, ReadExactError};
-use core::net::{Ipv4Addr, SocketAddrV4};
+use core::{
+    net::{Ipv4Addr, SocketAddrV4},
+    str::FromStr,
+};
 
-use super::constants::MAX_HOST_NAME_LEN;
-use super::constants::{AuthType, PingError, SocketError, MAX_PSK_KEY_LEN, MAX_SSID_LEN};
-use super::WpaKey;
+use super::constants::{
+    AuthType, PingError, SocketError, MAX_HOST_NAME_LEN, MAX_PSK_KEY_LEN, MAX_SSID_LEN,
+};
 use crate::errors::CommError as Error;
-type ErrType<'a> = ReadExactError<<&'a [u8] as Read>::ReadError>;
 
-use super::net_types::{HostName, Ssid};
+use super::net_types::{HostName, Ssid, WpaKey};
+#[cfg(feature = "experimental-ecc")]
+use super::{
+    constants::EccRequestType,
+    net_types::{EccRequest, EcdhInfo, EcdsaSignInfo},
+};
 use arrayvec::ArrayString;
 
-use crate::error;
-use crate::HexWrap;
-use core::str::FromStr;
+use crate::{error, socket::Socket, HexWrap};
 
 #[cfg(feature = "defmt")]
 use crate::Ipv4AddrFormatWrapper;
 
+type ErrType<'a> = ReadExactError<<&'a [u8] as Read>::ReadError>;
 const AF_INET: u16 = 2;
-
-use crate::socket::Socket;
 
 fn read32be<'a>(v: &mut &[u8]) -> Result<u32, ErrType<'a>> {
     let mut arr = [0u8; 4];
@@ -415,7 +419,7 @@ pub fn read_recv_reply(mut response: &[u8]) -> Result<(Socket, SocketAddrV4, i16
     ))
 }
 
-// tstrBindReply, tstrListenReply, tstrConnectReply
+// tstrBindReply, tstrListenReply
 pub fn read_common_socket_reply<'a>(
     mut response: &[u8],
 ) -> Result<(Socket, SocketError), ErrType<'a>> {
@@ -424,6 +428,38 @@ pub fn read_common_socket_reply<'a>(
     let err = read8(reader)?;
     let session = read16(reader)?;
     Ok(((socket, session).into(), err.into()))
+}
+
+/// Reads the connect socket command reply.
+///
+/// # Arguments
+///
+/// * `response` - Data received from the chip.
+///
+/// # Returns
+///
+/// - `Ok((socket, socket_error))`:
+///     - `Socket` — The socket information returned by the module.
+///     - `SocketError` — Any error that occurred while connecting to the server.
+/// - `Err(Error)` — If an error occurred while reading the connect socket response.
+pub(crate) fn read_connect_socket_reply(
+    mut response: &[u8],
+) -> Result<(Socket, SocketError), Error> {
+    let reader = &mut response;
+
+    // read socket (1 byte)
+    let sock = read8(reader)?;
+    // read error (1 byte)
+    let err = read8(reader)?;
+    // read data offset (2 byte)
+    let _offset = read16(reader)?;
+
+    let mut _socket = Socket::new(sock, 0);
+
+    #[cfg(feature = "ssl")]
+    _socket.set_ssl_data_offset(_offset);
+
+    Ok((_socket, err.into()))
 }
 
 /// Reads the PRNG data packet from the response received from the chip.
@@ -482,7 +518,7 @@ pub fn read_provisioning_reply(mut response: &[u8]) -> Result<(Ssid, WpaKey, u8,
     read8(reader)?;
     // read the passphrase
     reader.read_exact(&mut key)?;
-    // read the null termiantor (+1 for extra PSK key byte)
+    // read the null terminator (+1 for extra PSK key byte)
     read16(reader)?;
     // read the security type
     let security_type = read8(reader)?;
@@ -496,9 +532,99 @@ pub fn read_provisioning_reply(mut response: &[u8]) -> Result<(Ssid, WpaKey, u8,
     ))
 }
 
+/// Reads the ECC request from the WINC module.
+///
+/// # Arguments
+///
+/// * `response` - Data received from the chip that contains an SSL ECC request.
+///
+/// # Returns
+///
+/// * `EccRequest` ECC request structure.
+/// * `Err(Error)` if the data is invalid or incomplete.
+#[cfg(feature = "experimental-ecc")]
+pub fn read_ssl_ecc_response(mut response: &[u8]) -> Result<EccRequest, Error> {
+    let reader = &mut response;
+    let mut ecc_req = EccRequest::default();
+
+    // ecc request type
+    ecc_req.ecc_info.req = read16(reader)?.into();
+    // status
+    ecc_req.ecc_info.status = read16(reader)?;
+    // user data
+    ecc_req.ecc_info.user_data = read32le(reader)?;
+    // sequence number
+    ecc_req.ecc_info.seq_num = read32le(reader)?;
+
+    match ecc_req.ecc_info.req {
+        EccRequestType::ClientEcdh | EccRequestType::ServerEcdh => {
+            let mut ecdh_info = EcdhInfo::default();
+
+            // x-coordinate
+            reader.read_exact(&mut ecdh_info.ecc_point.x_pos)?;
+            // y-coordinate
+            reader.read_exact(&mut ecdh_info.ecc_point.y_pos)?;
+            // point size
+            ecdh_info.ecc_point.point_size = read16(reader)?;
+            // private key id
+            ecdh_info.ecc_point.private_key_id = read16(reader)?;
+            // secret / private key
+            reader.read_exact(&mut ecdh_info.private_key)?;
+
+            ecc_req.ecdh_info = Some(ecdh_info);
+        }
+        EccRequestType::GenerateSignature => {
+            let ecdsa_sign = EcdsaSignInfo {
+                curve_type: read16(reader)?.into(),
+                hash_size: read16(reader)?,
+            };
+
+            ecc_req.ecdsa_sign_info = Some(ecdsa_sign);
+        }
+        EccRequestType::VerifySignature => {
+            let ecdsa_verify = read32le(reader)?;
+            ecc_req.ecdsa_verify_info = Some(ecdsa_verify);
+        }
+
+        EccRequestType::Unknown => {
+            return Err(Error::InvalidHifResponse("Invalid ECC request received."));
+        }
+        _ => {
+            // do nothing
+        }
+    }
+
+    Ok(ecc_req)
+}
+
+/// Reads the Ethernet RX packet information from a data packet received from the chip.
+///
+/// # Arguments
+///
+/// * `response` - Buffer containing Ethernet RX packet information.
+///
+/// # Returns
+///
+/// * `Ok((size, offset))`:
+///     - `size` (`u16`) - Number of bytes available to read.
+///     - `offset` (`u16`) - Offset within the data where the packet begins.
+/// * `Err(Error)` - if the data is invalid, incomplete, or cannot be parsed.
+#[cfg(feature = "ethernet")]
+pub fn read_eth_rx_reply(mut response: &[u8]) -> Result<(u16, u16), Error> {
+    let reader = &mut response;
+
+    let packet_size = read16(reader)?;
+    let offset = read16(reader)?;
+
+    Ok((packet_size, offset))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(feature = "experimental-ecc")]
+    use crate::manager::constants::EccCurveType;
 
     #[test]
     fn test_socket() {
@@ -734,5 +860,229 @@ mod tests {
         assert_eq!(info.1.as_str(), "test_password");
         assert_eq!(info.2, 2);
         assert_eq!(info.3, true);
+    }
+
+    #[test]
+    fn test_connect_reply() {
+        let buffer = [2, 255, 101, 0];
+
+        let result = read_connect_socket_reply(&buffer);
+
+        assert!(result.is_ok());
+
+        let (sock, err) = result.unwrap();
+
+        assert_eq!(sock.v, 2);
+        assert_eq!(err, SocketError::InvalidAddress);
+    }
+
+    #[cfg(feature = "ssl")]
+    #[test]
+    fn test_connect_ssl_reply() {
+        let buffer = [5, 243, 101, 101];
+
+        let result = read_connect_socket_reply(&buffer);
+
+        assert!(result.is_ok());
+
+        let (sock, err) = result.unwrap();
+
+        assert_eq!(sock.v, 5);
+        assert_eq!(sock.s, 0);
+        assert_eq!(err, SocketError::Timeout);
+        assert_eq!(sock.get_ssl_data_offset(), 25957);
+    }
+
+    #[cfg(feature = "experimental-ecc")]
+    #[test]
+    fn test_ssl_client_ecdh_response() {
+        let buffer = [
+            1, 0, /* ecc request type */
+            52, 52, /* status */
+            20, 40, 20, 40, /* user data */
+            1, 1, 1, 1, /* sequence number */
+            10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10,
+            10, 10, 10, 10, 10, 10, 10, 10, 10, 10, /* x-coordinate */
+            11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11,
+            11, 11, 11, 11, 11, 11, 11, 11, 11, 11, /* y-coordinate */
+            12, 12, /* point size */
+            13, 13, /* private key id */
+            14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14,
+            14, 14, 14, 14, 14, 14, 14, 14, 14, 14, /* private key */
+        ];
+
+        let result = read_ssl_ecc_response(&buffer);
+        assert!(result.is_ok());
+        // ecc request
+        let ecc_req = result.unwrap();
+        // ecc request type
+        assert_eq!(ecc_req.ecc_info.req, EccRequestType::ClientEcdh);
+        // status
+        assert_eq!(ecc_req.ecc_info.status, 13364);
+        // user data
+        assert_eq!(ecc_req.ecc_info.user_data, 672409620);
+        // sequence number
+        assert_eq!(ecc_req.ecc_info.seq_num, 16843009);
+        // ecdh info opt
+        assert!(ecc_req.ecdh_info.is_some());
+        // ecdsa sign info opt
+        assert!(ecc_req.ecdsa_sign_info.is_none());
+        // ecdsa verify info opt
+        assert!(ecc_req.ecdsa_verify_info.is_none());
+        // ecdh info
+        let ecdh_info = ecc_req.ecdh_info.unwrap();
+        // x-coordinate
+        let buffer = [10u8; 32];
+        assert_eq!(ecdh_info.ecc_point.x_pos, buffer);
+        // y-coordinate
+        let buffer = [11u8; 32];
+        assert_eq!(ecdh_info.ecc_point.y_pos, buffer);
+        // point size
+        assert_eq!(ecdh_info.ecc_point.point_size, 3084);
+        // private key id
+        assert_eq!(ecdh_info.ecc_point.private_key_id, 3341);
+        // private key
+        let buffer = [14u8; 32];
+        assert_eq!(ecdh_info.private_key, buffer);
+    }
+
+    #[cfg(feature = "experimental-ecc")]
+    #[test]
+    fn test_ssl_ecdsa_sign_response() {
+        let buffer = [
+            4, 0, /* ecc request type */
+            52, 52, /* status */
+            20, 40, 20, 40, /* user data */
+            1, 2, 3, 4, /* sequence number */
+            19, 0, /* Curve type */
+            15, 16, /* hash size */
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0,
+        ];
+
+        let result = read_ssl_ecc_response(&buffer);
+        assert!(result.is_ok());
+        // ecc request
+        let ecc_req = result.unwrap();
+        // ecc request type
+        assert_eq!(ecc_req.ecc_info.req, EccRequestType::GenerateSignature);
+        // status
+        assert_eq!(ecc_req.ecc_info.status, 13364);
+        // user data
+        assert_eq!(ecc_req.ecc_info.user_data, 672409620);
+        // sequence number
+        assert_eq!(ecc_req.ecc_info.seq_num, 67305985);
+        // ecdh info opt
+        assert!(ecc_req.ecdh_info.is_none());
+        // ecdsa sign info opt
+        assert!(ecc_req.ecdsa_sign_info.is_some());
+        // ecdsa verify info opt
+        assert!(ecc_req.ecdsa_verify_info.is_none());
+        // ecdsa sign info
+        let ecdsa_info = ecc_req.ecdsa_sign_info.unwrap();
+        // curve type
+        assert_eq!(ecdsa_info.curve_type, EccCurveType::Secp192r1);
+        // hash size
+        assert_eq!(ecdsa_info.hash_size, 4111);
+    }
+
+    #[cfg(feature = "experimental-ecc")]
+    #[test]
+    fn test_ssl_ecdsa_verify_response() {
+        let buffer = [
+            5, 0, /* ecc request type */
+            52, 52, /* status */
+            20, 40, 20, 40, /* user data */
+            4, 4, 2, 2, /* sequence number */
+            19, 20, 21, 22, /* ecdsa verify */
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0,
+        ];
+
+        let result = read_ssl_ecc_response(&buffer);
+        assert!(result.is_ok());
+        // ecc request
+        let ecc_req = result.unwrap();
+        // ecc request type
+        assert_eq!(ecc_req.ecc_info.req, EccRequestType::VerifySignature);
+        // status
+        assert_eq!(ecc_req.ecc_info.status, 13364);
+        // user data
+        assert_eq!(ecc_req.ecc_info.user_data, 672409620);
+        // sequence number
+        assert_eq!(ecc_req.ecc_info.seq_num, 33686532);
+        // ecdh info opt
+        assert!(ecc_req.ecdh_info.is_none());
+        // ecdsa sign info opt
+        assert!(ecc_req.ecdsa_sign_info.is_none());
+        // ecdsa verify info opt
+        assert!(ecc_req.ecdsa_verify_info.is_some());
+        // ecdsa verify info
+        assert_eq!(ecc_req.ecdsa_verify_info.unwrap(), 370480147);
+    }
+
+    #[cfg(feature = "experimental-ecc")]
+    #[test]
+    fn test_ssl_ecc_response_unknown() {
+        let buffer = [
+            1, 1, /* ecc request type */
+            52, 52, /* status */
+            20, 40, 20, 40, /* user data */
+            4, 4, 2, 2, /* sequence number */
+            19, 20, 21, 22, /* ecdsa verify */
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0,
+        ];
+
+        let result = read_ssl_ecc_response(&buffer);
+        assert!(result.is_err());
+    }
+
+    #[cfg(feature = "experimental-ecc")]
+    #[test]
+    fn test_ssl_ecc_response_no_request() {
+        let buffer = [
+            0, 0, /* ecc request type */
+            52, 52, /* status */
+            20, 40, 20, 40, /* user data */
+            4, 4, 2, 2, /* sequence number */
+            19, 20, 21, 22, /* ecdsa verify */
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0,
+        ];
+
+        let result = read_ssl_ecc_response(&buffer);
+        assert!(result.is_ok());
+        // ecc request
+        let ecc_req = result.unwrap();
+        // ecc request type
+        assert_eq!(ecc_req.ecc_info.req, EccRequestType::None);
+        // status
+        assert_eq!(ecc_req.ecc_info.status, 13364);
+        // user data
+        assert_eq!(ecc_req.ecc_info.user_data, 672409620);
+        // sequence number
+        assert_eq!(ecc_req.ecc_info.seq_num, 33686532);
+    }
+
+    #[cfg(feature = "ethernet")]
+    #[test]
+    fn test_read_ethernet_reply() {
+        let response = [25, 25, 00, 31];
+
+        let result = read_eth_rx_reply(&response);
+        assert!(result.is_ok());
+
+        let (packet_size, data_offset) = result.unwrap();
+        assert_eq!(packet_size, 6425 as u16);
+        assert_eq!(data_offset, 7936 as u16)
     }
 }

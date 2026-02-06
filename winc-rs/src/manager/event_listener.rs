@@ -12,17 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use super::{EventListener, Manager};
-use super::{HifGroup, IpCode, WifiResponse};
+use super::{EventListener, HifGroup, IpCode, Manager, WifiResponse};
 use crate::errors::CommError as Error;
 use crate::manager::constants::{
     PRNG_DATA_LENGTH, PRNG_PACKET_SIZE, PROVISIONING_INFO_PACKET_SIZE, SOCKET_BUFFER_MAX_LENGTH,
 };
+
+#[cfg(feature = "ssl")]
+use super::constants::{SslResponse, SSL_CS_MAX_PACKET_SIZE};
+
+#[cfg(feature = "experimental-ecc")]
+use super::constants::SSL_ECC_REQ_PACKET_SIZE;
+
 use crate::manager::responses::*;
-use crate::transfer::Xfer;
+use crate::{error, transfer::Xfer};
 
 #[cfg(feature = "experimental-ota")]
-use crate::{error, manager::constants::OtaResponse};
+use crate::manager::constants::OtaResponse;
+
+#[cfg(feature = "ethernet")]
+use crate::manager::{constants::NET_XFER_PACKET_SIZE, HIF_HEADER_OFFSET};
 
 impl<X: Xfer> Manager<X> {
     /// Parses incoming WiFi events from the chip and dispatches them to the provided event listener.
@@ -122,11 +131,28 @@ impl<X: Xfer> Manager<X> {
                 )?;
                 listener.on_prng(&response[0..len as usize]);
             }
-            WifiResponse::Unhandled
-            | WifiResponse::Wps
-            | WifiResponse::EthernetRxPacket
-            | WifiResponse::WifiRxPacket => {
-                panic!("Unhandled Wifi HIF")
+            WifiResponse::EthernetRxPacket => {
+                #[cfg(feature = "ethernet")]
+                {
+                    let mut response = [0u8; NET_XFER_PACKET_SIZE];
+
+                    self.recv_ethernet_packet(
+                        address + HIF_HEADER_OFFSET as u32,
+                        &mut response,
+                        false,
+                    )?;
+                    let reply = read_eth_rx_reply(&response)?;
+                    listener.on_eth(reply.0, reply.1, address + HIF_HEADER_OFFSET as u32);
+                }
+                #[cfg(not(feature = "ethernet"))]
+                {
+                    error!("Ethernet feature not enabled: WiFi HIF: {:?}", wifi_res);
+                    return Err(Error::InvalidHifResponse("WiFi"));
+                }
+            }
+            WifiResponse::Unhandled | WifiResponse::Wps | WifiResponse::WifiRxPacket => {
+                error!("Unhandled Wifi HIF: {:?}", wifi_res);
+                return Err(Error::InvalidHifResponse("WiFi"));
             }
         }
         Ok(())
@@ -206,6 +232,13 @@ impl<X: Xfer> Manager<X> {
                 let rep = read_common_socket_reply(&result)?;
                 listener.on_bind(rep.0, rep.1);
             }
+            #[cfg(feature = "ssl")]
+            IpCode::SslBind => {
+                let mut result = [0; 4];
+                self.read_block(address, &mut result)?;
+                let rep = read_common_socket_reply(&result)?;
+                listener.on_bind(rep.0, rep.1);
+            }
             IpCode::Listen => {
                 let mut result = [0; 4];
                 self.read_block(address, &mut result)?;
@@ -218,10 +251,11 @@ impl<X: Xfer> Manager<X> {
                 let rep = read_accept_reply(&result)?;
                 listener.on_accept(rep.0, rep.1, rep.2, rep.3);
             }
+            // The reply for `IpCode::SslConnect` is the same as for `IpCode::Connect`.
             IpCode::Connect => {
                 let mut result = [0; 4];
                 self.read_block(address, &mut result)?;
-                let rep = read_common_socket_reply(&result)?;
+                let rep = read_connect_socket_reply(&result)?;
                 listener.on_connect(rep.0, rep.1)
             }
             IpCode::SendTo => {
@@ -230,6 +264,7 @@ impl<X: Xfer> Manager<X> {
                 let rep = read_send_reply(&result)?;
                 listener.on_send_to(rep.0, rep.1)
             }
+            // The reply for `IpCode::SslSend` is the same as for `IpCode::Send`.
             IpCode::Send => {
                 let mut result = [0; 8];
                 self.read_block(address, &mut result)?;
@@ -246,24 +281,74 @@ impl<X: Xfer> Manager<X> {
                 let rep = self.get_recv_reply(address, &mut buffer)?;
                 listener.on_recvfrom(rep.0, rep.1, rep.2, rep.3)
             }
+            #[cfg(feature = "ssl")]
+            IpCode::SslRecv => {
+                let mut buffer = [0; SOCKET_BUFFER_MAX_LENGTH];
+                let rep = self.get_recv_reply(address, &mut buffer)?;
+                listener.on_recv(rep.0, rep.1, rep.2, rep.3)
+            }
             IpCode::Close => {
                 unimplemented!("There is no response for close")
             }
             IpCode::SetSocketOption => {
                 unimplemented!("There is no response for setsockoption")
             }
-            IpCode::Unhandled
-            | IpCode::SslConnect
-            | IpCode::SslSend
-            | IpCode::SslRecv
-            | IpCode::SslClose
-            | IpCode::SslCreate
-            | IpCode::SslSetSockOpt
-            | IpCode::SslBind
-            | IpCode::SslExpCheck => {
-                panic!("Received unhandled IP HIF code: {:?}", ip_res)
+            _ => {
+                error!("Received unhandled IP HIF code: {:?}", ip_res);
+                return Err(Error::InvalidHifResponse("IP"));
             }
         }
+        Ok(())
+    }
+
+    /// Parses incoming SSL events from the chip and dispatches them to the provided event listener.
+    ///
+    /// # Arguments
+    ///
+    /// * `listener` - The event callback handler that will be invoked based on the SSL event type.
+    /// * `address` - The register address of the module from which data can be read.
+    /// * `ssl_res` - The SSL response ID indicating the type of event.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - If no error occurred while processing the events.
+    /// * `Err(Error)` - If an error occurred while processing the events.
+    #[cfg(feature = "ssl")]
+    fn ssl_events_listener<T: EventListener>(
+        &mut self,
+        listener: &mut T,
+        address: u32,
+        ssl_res: SslResponse,
+    ) -> Result<(), Error> {
+        match ssl_res {
+            #[cfg(feature = "experimental-ecc")]
+            SslResponse::EccReqUpdate => {
+                let mut response = [0u8; SSL_ECC_REQ_PACKET_SIZE];
+                // read the ecc request
+                self.read_block(address, &mut response)?;
+                // parse the ecc request
+                let mut ecc_req = read_ssl_ecc_response(&response)?;
+                // set the hif register for the ecc.
+                ecc_req.hif_reg = address + SSL_ECC_REQ_PACKET_SIZE as u32;
+                listener.on_ssl(ssl_res, None, Some(ecc_req));
+            }
+            SslResponse::CipherSuiteUpdate => {
+                let mut response = [0u8; SSL_CS_MAX_PACKET_SIZE];
+                self.read_block(address, &mut response)?;
+                let cipher_suite = u32::from_le_bytes(response);
+                listener.on_ssl(
+                    ssl_res,
+                    Some(cipher_suite),
+                    #[cfg(feature = "experimental-ecc")]
+                    None,
+                );
+            }
+            _ => {
+                error!("Received invalid SSL response: {:?}", ssl_res);
+                return Err(Error::InvalidHifResponse("SSL"));
+            }
+        }
+
         Ok(())
     }
 
@@ -309,6 +394,8 @@ impl<X: Xfer> Manager<X> {
             HifGroup::Ip(e) => self.ip_events_listener(listener, address, e),
             #[cfg(feature = "experimental-ota")]
             HifGroup::Ota(e) => self.ota_events_listener(listener, address, e),
+            #[cfg(feature = "ssl")]
+            HifGroup::Ssl(e) => self.ssl_events_listener(listener, address, e),
             _ => panic!("Unexpected hif"),
         };
         // Wake any async tasks waiting for hardware events after processing them

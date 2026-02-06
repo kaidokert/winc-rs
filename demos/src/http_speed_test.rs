@@ -6,7 +6,7 @@
 use super::{debug, error, info};
 use core::net::{IpAddr, Ipv4Addr, SocketAddr};
 use embedded_nal::nb::block;
-use embedded_nal::{TcpClientStack /* , TcpError */};
+use embedded_nal::{TcpClientStack, TcpError};
 
 // Test server configuration
 pub const TEST_SERVER_IP: &str = "18.155.192.71"; // kaidokert.com IP (AWS)
@@ -16,6 +16,11 @@ pub const TEST_SERVER_HOST: &str = "kaidokert.com";
 // Test file options
 pub const TEST_FILE_1MB: &str = "/test-file-1mb.json"; // 0.93 MB
 pub const TEST_FILE_10MB: &str = "/test-file-10mb.json"; // 9.37 MB
+
+// HTTP success code
+const HTTP_SUCCESS_CODE: u16 = 200;
+// HTTP default error code
+const HTTP_ERROR_CODE: u16 = 500;
 
 #[derive(Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
@@ -138,6 +143,8 @@ where
 
     info!("Starting download...");
 
+    let mut last_rsp_code = 0u16;
+
     // Receive loop
     loop {
         match stack.receive(&mut s, &mut buffer) {
@@ -173,8 +180,12 @@ where
                             error!("-----Error parsing response: {:?}-----", WrapError(e));
                         }
                     }
-                    if !matches!(response.code, Some(200)) {
+                    if !matches!(response.code, Some(HTTP_SUCCESS_CODE)) {
                         error!("HTTP response code: {:?}", response.code);
+                    }
+                    last_rsp_code = match response.code {
+                        None => HTTP_ERROR_CODE,
+                        Some(code) => code,
                     }
                 }
 
@@ -196,22 +207,18 @@ where
                 // No data available, continue
                 continue;
             }
-            Err(embedded_nal::nb::Error::Other(_e)) => {
-                // Temporary: see below
-                info!("Receive ended - connection closed by server");
-                break;
-
-                /* This code is correct but doesn't yet work correctly on winc-rs #83
-                // Check if this is a connection close (normal for HTTP)
-                // We expect PipeClosed when server closes the connection after sending data
+            Err(embedded_nal::nb::Error::Other(e)) => {
                 if matches!(e.kind(), embedded_nal::TcpErrorKind::PipeClosed) {
-                    info!("Connection closed by server");
-                    break;
+                    if last_rsp_code == HTTP_SUCCESS_CODE {
+                        info!("Connection closed by server. Download complete!");
+                        break;
+                    } else {
+                        error!("Connection closed by server. Download failed!");
+                    }
                 } else {
                     error!("Receive failed");
-                    return Err(SpeedTestError::NetworkError);
                 }
-                 */
+                return Err(SpeedTestError::NetworkError);
             }
         }
     }

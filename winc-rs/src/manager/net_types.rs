@@ -21,12 +21,19 @@ use super::constants::{
     MAX_S802_USERNAME_LEN, MAX_SSID_LEN, MAX_WEP_KEY_LEN, MIN_PSK_KEY_LEN,
 };
 
+#[cfg(feature = "experimental-ecc")]
+use super::constants::{EccCurveType, EccRequestType};
+
 #[cfg(feature = "wep")]
 use super::constants::{WepKeyIndex, MIN_WEP_KEY_LEN};
 use core::net::Ipv4Addr;
 
 /// Default IP address "192.168.1.1" for access point and provisioning mode.
 const DEFAULT_AP_IP: u32 = 0xC0A80101;
+#[cfg(feature = "experimental-ecc")]
+const ECC_POINT_MAX_SIZE: usize = 32;
+/// Maximum number of octets in Mac Address
+const MAX_OCTETS_IN_MAC_ADDRESS: usize = 6;
 
 /// Device Domain name.
 pub type HostName = ArrayString<MAX_HOST_NAME_LEN>;
@@ -40,13 +47,16 @@ pub type WepKey = ArrayString<MAX_WEP_KEY_LEN>;
 pub type S8Username = ArrayString<MAX_S802_USERNAME_LEN>;
 /// S802_1X Password
 pub type S8Password = ArrayString<MAX_S802_PASSWORD_LEN>;
+/// ECDSA Verify Information.
+#[cfg(feature = "experimental-ecc")]
+pub(crate) type EcdsaVerifyInfo = u32;
 
 /// Wi-Fi Security Credentials.
 #[repr(u8)]
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum Credentials {
     Open = 1,
-    /// WPA-PSK Passpharase: Must be at least 8 bytes (MIN) and no more than 63 bytes long.
+    /// WPA-PSK Passphrase: Must be at least 8 bytes (MIN) and no more than 63 bytes long.
     WpaPSK(WpaKey) = 2,
     /// Wep Passphrase: Should be 10 bytes for 40-bit and 26 bytes for 104-bit.
     /// Wep key Index: Between 1 and 4.
@@ -58,7 +68,7 @@ pub enum Credentials {
 }
 
 /// Socket Options
-#[derive(Debug, PartialEq, Eq)]
+#[derive(PartialEq, Eq)]
 pub enum SocketOptions {
     Tcp(TcpSockOpts),
     Udp(UdpSockOpts),
@@ -66,7 +76,7 @@ pub enum SocketOptions {
 
 /// Socket Options
 #[repr(u8)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 pub enum UdpSockOpts {
     /// Receive Timeout
     ReceiveTimeout(u32) = 0xff,
@@ -80,20 +90,44 @@ pub enum UdpSockOpts {
 
 /// TCP Socket Options
 #[repr(u8)]
-#[derive(Debug, PartialEq, Eq)]
+#[derive(PartialEq, Eq)]
 pub enum TcpSockOpts {
     /// Receive Timeout
     ReceiveTimeout(u32) = 0xff,
     /// SSL Socket Options
+    #[cfg(feature = "ssl")]
     Ssl(SslSockOpts) = 0xfe,
 }
 
 /// TLS Socket Option
+#[cfg(feature = "ssl")]
 #[repr(u8)]
-#[derive(Debug, PartialEq, Eq)]
+#[derive(PartialEq, Eq)]
+// Note: The `Copy` trait is not implemented to avoid
+// copying the `ArrayString` (HostName).
 pub enum SslSockOpts {
-    /// Set Server Name Indication (SNI).
+    /// SSL Configuration Options
+    Config(SslSockConfig, bool),
+    /// Server Name Indication (SNI).
     SetSni(HostName) = 0x02,
+}
+
+/// TLS Socket Configuration
+#[cfg(feature = "ssl")]
+#[repr(u8)]
+#[derive(PartialEq, Eq, Clone, Copy)]
+pub enum SslSockConfig {
+    /// Enable SSL.
+    EnableSSL = 0x21, // 0x01 | 0x20 (SSL_FLAGS_NO_TX_COPY)
+    /// Bypass X.509 certificate verification.
+    /// Not recommended for production environments.
+    BypassX509Verification = 0x02,
+    /// Enable session caching to allow TLS
+    /// session resumption for faster future connections.
+    EnableSessionCache = 0x10,
+    /// Enable SNI validation against the server's
+    /// certificate subject common name.
+    EnableSniValidation = 0x40,
 }
 
 /// Structure for Provisioning Information.
@@ -121,6 +155,92 @@ pub struct AccessPoint<'a> {
     /// for example: 192.168.1.1 to 192.168.1.99.
     /// Invalid Ip: 192.168.1.0 or 192.168.1.100.
     pub ip: Ipv4Addr,
+}
+
+/// Elliptic Curve point representation.
+#[cfg(feature = "experimental-ecc")]
+#[derive(Default)]
+pub struct EccPoint {
+    /// The X-coordinate of the ecc point.
+    pub x_pos: [u8; ECC_POINT_MAX_SIZE],
+    /// The Y-coordinate of the ecc point.
+    pub y_pos: [u8; ECC_POINT_MAX_SIZE],
+    // Point size in bytes (for each of the coordinates).
+    pub point_size: u16,
+    /// ID for the corresponding private key.
+    pub private_key_id: u16,
+}
+
+/// Elliptic Curve Diffie-Hellman (ECDH) information.
+#[cfg(feature = "experimental-ecc")]
+#[derive(Default)]
+pub struct EcdhInfo {
+    /// ECC public key.
+    pub ecc_point: EccPoint,
+    /// Pre master secret generated during operations of
+    /// type `ECC_REQ_CLIENT_ECDH` and `ECC_REQ_SERVER_ECDH`.
+    pub private_key: [u8; ECC_POINT_MAX_SIZE],
+}
+
+/// Elliptic Curve Digital Signature Algorithm (ECDSA) signing information.
+#[cfg(feature = "experimental-ecc")]
+#[derive(Default)]
+pub struct EcdsaSignInfo {
+    /// Key Curve Type (NIST P-256, P-384)
+    pub curve_type: EccCurveType,
+    /// Hash Size (32 bytes for SHA-256 or 48 bytes for SHA-384)
+    pub hash_size: u16,
+}
+
+/// ECC Operations Info.
+#[cfg(feature = "experimental-ecc")]
+#[derive(Default)]
+pub struct EccInfo {
+    /// ECC Request type (ECDH, ECDSA Sign or ECDSA Verify)
+    pub req: EccRequestType,
+    /// Status of ECC operation.
+    /// Value should be used in response and ignored in request.
+    /// zero for success and non-zero for failure.
+    pub status: u16,
+    /// User data
+    /// Value in response should match the value in request from WINC.
+    pub user_data: u32,
+    /// Sequence number
+    /// Value in response to WINC should match the value in request from WINC.
+    pub seq_num: u32,
+}
+
+/// ECC Request Information received from WINC.
+#[cfg(feature = "experimental-ecc")]
+#[derive(Default)]
+pub(crate) struct EccRequest {
+    pub hif_reg: u32,
+    pub ecc_info: EccInfo,
+    pub ecdh_info: Option<EcdhInfo>,
+    pub ecdsa_sign_info: Option<EcdsaSignInfo>,
+    pub ecdsa_verify_info: Option<EcdsaVerifyInfo>,
+}
+
+/// SSL callback info
+#[cfg(feature = "ssl")]
+#[derive(Default)]
+pub(crate) struct SslCallbackInfo {
+    pub(crate) cipher_suite_bitmap: Option<Option<u32>>,
+    #[cfg(feature = "experimental-ecc")]
+    pub(crate) ecc_req: Option<EccRequest>,
+}
+
+/// MAC Address
+pub struct MacAddress {
+    mac: [u8; MAX_OCTETS_IN_MAC_ADDRESS],
+}
+
+/// Ethernet RX information.
+#[cfg(feature = "ethernet")]
+pub(crate) struct EthernetRxInfo {
+    pub(crate) packet_size: u16,
+    pub(crate) data_offset: u16,
+    pub(crate) hif_address: u32,
 }
 
 /// Implementation to convert the Credentials to Authentication Type
@@ -253,6 +373,7 @@ impl UdpSockOpts {
 impl From<TcpSockOpts> for u8 {
     fn from(value: TcpSockOpts) -> Self {
         match value {
+            #[cfg(feature = "ssl")]
             TcpSockOpts::Ssl(_) => 0xfe,
             TcpSockOpts::ReceiveTimeout(_) => 0xff,
         }
@@ -266,34 +387,55 @@ impl TcpSockOpts {
         match self {
             TcpSockOpts::ReceiveTimeout(val) => *val,
             // SSL values don't have 32 bit values.
+            #[cfg(feature = "ssl")]
             TcpSockOpts::Ssl(_) => 0xfe,
         }
     }
 }
 
 /// Implementation to convert `SslSockOpts` to `u8` value.
+#[cfg(feature = "ssl")]
 impl From<SslSockOpts> for u8 {
     fn from(value: SslSockOpts) -> Self {
         match value {
+            SslSockOpts::Config(cfg, _) => cfg.into(),
             SslSockOpts::SetSni(_) => 0x02,
         }
     }
 }
 
-/// Implementation to convert `SslSockOpts` to `u8` value.
+/// Implementation to convert `&SslSockOpts` to `u8` value.
+#[cfg(feature = "ssl")]
 impl From<&SslSockOpts> for u8 {
     fn from(value: &SslSockOpts) -> Self {
         match value {
+            SslSockOpts::Config(cfg, _) => (*cfg).into(),
             SslSockOpts::SetSni(_) => 0x02,
         }
+    }
+}
+
+/// Implementation to convert `SslSockConfig` to `u8` value.
+#[cfg(feature = "ssl")]
+impl From<SslSockConfig> for u8 {
+    fn from(value: SslSockConfig) -> Self {
+        value as Self
     }
 }
 
 /// Implementation to get value stored in SSL socket option.
+#[cfg(feature = "ssl")]
 impl SslSockOpts {
-    pub fn get_value(&self) -> &ArrayString<MAX_HOST_NAME_LEN> {
+    /// Gets the SNI value passed in the `SslSockOpts::SetSni` socket option.
+    ///
+    /// # Returns
+    ///
+    /// * `HostName` – The stored hostname as a string array.
+    /// * `StackError` – If the method is called for any SSL socket option other than `SetSni`.
+    pub(crate) fn get_sni_value(&self) -> Result<&HostName, StackError> {
         match self {
-            SslSockOpts::SetSni(hostname) => hostname,
+            SslSockOpts::SetSni(hostname) => Ok(hostname),
+            _ => Err(StackError::InvalidParameters),
         }
     }
 }
@@ -360,7 +502,7 @@ impl SocketOptions {
     ///
     /// # Returns
     ///
-    /// * `SocketOption::Tcp(TcpSockOpts::ReceiveTimeout` - The configured socket option.
+    /// * `SocketOption::Tcp(TcpSockOpts::ReceiveTimeout)` - The configured socket option.
     pub fn set_tcp_receive_timeout(timeout: u32) -> Self {
         Self::Tcp(TcpSockOpts::ReceiveTimeout(timeout))
     }
@@ -373,11 +515,27 @@ impl SocketOptions {
     ///
     /// # Returns
     ///
-    /// * `SocketOptions::Tcp(TcpSockOpts::SetSni)` – The configured socket option on success.
+    /// * `SocketOptions` – The configured socket option on success.
     /// * `StackError` – If the hostname length is invalid.
+    #[cfg(feature = "ssl")]
     pub fn set_sni(hostname: &str) -> Result<Self, StackError> {
         let host = HostName::from(hostname).map_err(|_| StackError::InvalidParameters)?;
         Ok(Self::Tcp(TcpSockOpts::Ssl(SslSockOpts::SetSni(host))))
+    }
+
+    /// Sets the socket option to configure SSL socket.
+    ///
+    /// # Arguments
+    ///
+    /// * `cfg` – The SSL socket configuration.
+    /// * `enable` – `true` to enable the configuration, or `false` to disable it.
+    ///
+    /// # Returns
+    ///
+    /// * `SocketOptions` – The configured socket option on success.
+    #[cfg(feature = "ssl")]
+    pub fn config_ssl(cfg: SslSockConfig, enable: bool) -> Self {
+        Self::Tcp(TcpSockOpts::Ssl(SslSockOpts::Config(cfg, enable)))
     }
 }
 
@@ -508,7 +666,7 @@ impl<'a> AccessPoint<'a> {
     /// * `StackError` - If the IP address is invalid.
     pub fn set_ip(&mut self, ip: Ipv4Addr) -> Result<(), StackError> {
         let octets = ip.octets();
-        // WINC fimrware limitation; IP address of client is always x.x.x.100
+        // WINC firmware limitation; IP address of client is always x.x.x.100
         if !((1..100).contains(&octets[3])) {
             return Err(StackError::InvalidParameters);
         }
@@ -534,6 +692,85 @@ impl<'a> AccessPoint<'a> {
     /// * `hidden` – `true` to hide the SSID, `false` to make it visible.
     pub fn set_ssid_hidden(&mut self, hidden: bool) {
         self.ssid_hidden = hidden;
+    }
+}
+
+impl MacAddress {
+    /// Creates a new `MacAddress` from six individual octets.
+    pub fn new(a: u8, b: u8, c: u8, d: u8, e: u8, f: u8) -> MacAddress {
+        Self {
+            mac: [a, b, c, d, e, f],
+        }
+    }
+
+    /// Creates a MAC address from a byte slice.
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, StackError> {
+        if bytes.len() != MAX_OCTETS_IN_MAC_ADDRESS {
+            return Err(StackError::InvalidParameters);
+        }
+
+        let mut mac = [0u8; MAX_OCTETS_IN_MAC_ADDRESS];
+        mac.copy_from_slice(bytes);
+
+        Ok(Self { mac })
+    }
+
+    /// Creates an empty MAC address with all octets set to zero.
+    pub fn empty() -> Self {
+        Self {
+            mac: [0u8; MAX_OCTETS_IN_MAC_ADDRESS],
+        }
+    }
+
+    /// Returns the MAC address as a fixed-size array of octets.
+    #[inline]
+    pub fn octets(&self) -> [u8; MAX_OCTETS_IN_MAC_ADDRESS] {
+        self.mac
+    }
+
+    /// Returns a mutable slice of the MAC address bytes.
+    #[inline]
+    pub fn as_mut_slice(&mut self) -> &mut [u8] {
+        &mut self.mac
+    }
+
+    /// Returns an immutable slice of the MAC address bytes.
+    #[inline]
+    pub fn as_slice(&self) -> &[u8] {
+        &self.mac
+    }
+}
+
+/// Implements the `core::fmt::Display` trait to display the MAC address in
+/// hexadecimal format, with octets separated by colons.
+/// For example: `AA:BB:CC:DD:EE:FF`.
+#[cfg(feature = "log")]
+impl core::fmt::Display for MacAddress {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "{:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X}",
+            self.mac[0], self.mac[1], self.mac[2], self.mac[3], self.mac[4], self.mac[5]
+        )
+    }
+}
+
+/// Implements the `defmt::Format` trait to display the MAC address in
+/// hexadecimal format, with octets separated by colons.
+/// For example: `AA:BB:CC:DD:EE:FF`.
+#[cfg(feature = "defmt")]
+impl defmt::Format for MacAddress {
+    fn format(&self, f: defmt::Formatter) {
+        defmt::write!(
+            f,
+            "{:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X}",
+            self.mac[0],
+            self.mac[1],
+            self.mac[2],
+            self.mac[3],
+            self.mac[4],
+            self.mac[5]
+        )
     }
 }
 
@@ -830,6 +1067,7 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "ssl")]
     #[test]
     fn test_sock_opts_get_sni_array_success() {
         let test_value = "hostname".as_bytes();
@@ -837,7 +1075,7 @@ mod tests {
 
         if let SocketOptions::Tcp(opt) = sock_opts {
             if let TcpSockOpts::Ssl(ssl) = opt {
-                assert_eq!(ssl.get_value().as_bytes(), test_value);
+                assert_eq!(ssl.get_sni_value().unwrap().as_bytes(), test_value);
             } else {
                 assert!(false);
             }
@@ -878,6 +1116,7 @@ mod tests {
         assert_eq!(u8::from(sock_opts), 0xffu8);
     }
 
+    #[cfg(feature = "ssl")]
     #[test]
     fn test_sock_opts_tcp_ssl_u8_value() {
         let host = HostName::from("hostname").unwrap();
@@ -885,6 +1124,7 @@ mod tests {
         assert_eq!(u8::from(sock_opts), 0xfeu8);
     }
 
+    #[cfg(feature = "ssl")]
     #[test]
     fn test_sock_opts_get_tcp_ssl_sni_value() {
         let host = HostName::from("hostname").unwrap();
@@ -892,6 +1132,7 @@ mod tests {
         assert_eq!(sock_opts.get_value(), 0xfeu32);
     }
 
+    #[cfg(feature = "ssl")]
     #[test]
     fn test_sock_opts_ssl_sni_u8_value() {
         let host = HostName::from("hostname").unwrap();
@@ -899,11 +1140,93 @@ mod tests {
         assert_eq!(u8::from(sock_opts), 0x02u8);
     }
 
+    #[cfg(feature = "ssl")]
     #[test]
-    fn test_sock_opts_ssl_sni_invalid_paramter() {
+    fn test_sock_opts_ssl_sni_invalid_parameter() {
         let test_string =
             "This is a test string that definitely contains more than sixty-three bytes of data.";
         let sock_opts = SocketOptions::set_sni(test_string);
         assert_eq!(sock_opts.err(), Some(StackError::InvalidParameters));
+    }
+
+    #[cfg(feature = "ssl")]
+    #[test]
+    fn test_ssl_sock_opt_conv() {
+        let sock_opt = SslSockOpts::Config(SslSockConfig::EnableSessionCache, true);
+
+        let u8_value = u8::from(sock_opt);
+
+        assert_eq!(u8_value, u8::from(SslSockConfig::EnableSessionCache));
+    }
+
+    #[cfg(feature = "ssl")]
+    #[test]
+    fn test_ssl_sock_opt_ref_conv() {
+        let sock_opt = SslSockOpts::Config(SslSockConfig::EnableSniValidation, true);
+        let sock_opt_ref = &sock_opt;
+
+        let u8_value = u8::from(sock_opt_ref);
+
+        assert_eq!(u8_value, u8::from(SslSockConfig::EnableSniValidation));
+    }
+
+    #[cfg(feature = "ssl")]
+    #[test]
+    fn test_ssl_sock_opt_invalid_opt() {
+        let sock_opt = SslSockOpts::Config(SslSockConfig::EnableSniValidation, true);
+
+        let res = sock_opt.get_sni_value();
+
+        assert_eq!(res, Err(StackError::InvalidParameters));
+    }
+
+    #[test]
+    fn test_create_new_mac_address() {
+        let mac = MacAddress::new(0xA1, 0xB2, 0xC3, 0xD4, 0xE5, 0xF6);
+        assert_eq!(mac.octets(), [0xA1, 0xB2, 0xC3, 0xD4, 0xE5, 0xF6]);
+
+        let mac = MacAddress::empty();
+        assert_eq!(mac.octets(), [0u8; MAX_OCTETS_IN_MAC_ADDRESS]);
+    }
+
+    #[test]
+    fn test_create_mac_address_from_array_success() {
+        let bytes = [0xA1, 0xB2, 0xC3, 0xD4, 0xE5, 0xF6];
+        let mac = MacAddress::from_bytes(&bytes);
+
+        assert!(mac.is_ok());
+        assert_eq!(mac.unwrap().as_slice(), bytes);
+    }
+
+    #[test]
+    fn test_create_mac_address_from_array_failure() {
+        let bytes = [0xA1, 0xB2, 0xC3, 0xD4, 0xE5, 0xF6, 0xAA];
+        let mac = MacAddress::from_bytes(&bytes);
+
+        assert_eq!(mac.err(), Some(StackError::InvalidParameters));
+    }
+
+    #[test]
+    fn test_create_mac_address_mut_array() {
+        let bytes = [0xA1, 0xB2, 0xC3, 0xD4, 0xE5, 0xF6];
+        let mut mac = MacAddress::from_bytes(&bytes).unwrap();
+        let mod_mac = mac.as_mut_slice();
+
+        for (index, byte) in mod_mac.iter_mut().enumerate() {
+            *byte = (index * 2) as u8;
+        }
+
+        assert_ne!(mod_mac, &bytes);
+    }
+
+    #[cfg(all(feature = "log", feature = "std"))]
+    #[test]
+    fn test_format_mac_address() {
+        use std::format;
+
+        let bytes = [0xA1, 0xB2, 0xC3, 0xD4, 0xE5, 0xF6];
+        let mac = MacAddress::from_bytes(&bytes);
+
+        assert_eq!(format!("{}", mac.unwrap()), "A1:B2:C3:D4:E5:F6");
     }
 }

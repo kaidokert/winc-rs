@@ -669,4 +669,31 @@ mod test {
             spi_chunk_size, receive_buffer_size
         );
     }
+
+    #[test]
+    fn test_udp_send_failed() {
+        let mut client = make_test_client();
+        let mut udp_socket = client.socket().unwrap();
+        let packet = "Hello, World";
+        let error_code: i16 = -9;
+
+        // Connect to address
+        let socket_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 80);
+        let result = client.connect(&mut udp_socket, socket_addr);
+        assert!(result.is_ok());
+
+        // set callback
+        let mut my_debug = |callbacks: &mut SocketCallbacks| {
+            callbacks.on_send_to(Socket::new(7, 0), error_code);
+        };
+        client.debug_callback = Some(&mut my_debug);
+
+        // call send
+        let result = nb::block!(client.send(&mut udp_socket, packet.as_bytes()));
+
+        assert_eq!(
+            result.err(),
+            Some(StackError::OpFailed(SocketError::Invalid))
+        );
+    }
 }

@@ -2,11 +2,15 @@ use crate::manager::Manager;
 use crate::transfer::Xfer;
 
 mod dns;
+#[cfg(feature = "ethernet")]
+mod ethernet;
 #[cfg(feature = "flash-rw")]
 mod flash;
 #[cfg(feature = "experimental-ota")]
 mod ota;
 mod prng;
+#[cfg(feature = "ssl")]
+mod ssl;
 mod tcp_stack;
 mod udp_stack;
 mod wifi_module;

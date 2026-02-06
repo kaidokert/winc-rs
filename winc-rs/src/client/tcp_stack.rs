@@ -701,4 +701,24 @@ mod test {
             spi_chunk_size, receive_buffer_size
         );
     }
+
+    #[test]
+    fn test_tcp_send_failed() {
+        let mut client = make_test_client();
+        let mut tcp_socket = client.socket().unwrap();
+        let packet = "Hello, World";
+
+        let mut my_debug = |callbacks: &mut SocketCallbacks| {
+            callbacks.on_send(Socket::new(0, 0), -7);
+        };
+
+        client.debug_callback = Some(&mut my_debug);
+
+        let result = nb::block!(client.send(&mut tcp_socket, packet.as_bytes()));
+
+        assert_eq!(
+            result.err(),
+            Some(StackError::OpFailed(SocketError::MaxListenSock))
+        );
+    }
 }

@@ -12,20 +12,29 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::manager::net_types::WpaKey;
-use crate::readwrite::BufferOverflow;
-use crate::readwrite::Write;
+use crate::readwrite::{BufferOverflow, Write};
 
 use crate::socket::Socket;
 use core::net::{Ipv4Addr, SocketAddrV4};
 
 use super::constants::{
     AuthType, WifiChannel, CONNECT_AP_PACKET_SIZE, ENABLE_AP_PACKET_SIZE,
-    SET_SOCK_OPTS_PACKET_SIZE, SET_SSL_SOCK_OPTS_PACKET_SIZE, START_PROVISION_PACKET_SIZE,
+    SET_SOCK_OPTS_PACKET_SIZE, START_PROVISION_PACKET_SIZE,
 };
 
-use super::net_types::{Ssid, SslSockOpts, WepKey};
-use super::{AccessPoint, Credentials, HostName};
+use super::net_types::{AccessPoint, Credentials, HostName, Ssid, WepKey, WpaKey};
+
+#[cfg(feature = "ssl")]
+use super::{constants::SET_SSL_SOCK_OPTS_PACKET_SIZE, net_types::SslSockOpts};
+
+#[cfg(feature = "experimental-ecc")]
+use super::{
+    constants::{EccRequestType, SSL_ECC_REQ_PACKET_SIZE},
+    net_types::{EccInfo, EcdhInfo},
+};
+
+#[cfg(feature = "ethernet")]
+use super::constants::NET_XFER_PACKET_SIZE;
 
 /// Prepares the packet to connect to access point.
 ///
@@ -145,16 +154,25 @@ pub fn write_ping_req(
     Ok(result)
 }
 
-// tstrBindCmd
-pub fn write_bind_req(
-    socket: Socket,
-    address_family: u16,
-    address: SocketAddrV4,
-) -> Result<[u8; 12], BufferOverflow> {
+/// Prepares the packet to bind the given socket to an IPv4 address.
+///
+/// # Arguments
+///
+/// * `socket` – The socket to bind.
+/// * `address` – The IPv4 address to bind the socket to.
+///
+/// # Returns
+///
+/// * `[u8; 12]` – Bind request as fixed size array..
+/// * `BufferOverflow` – If the data exceeds the buffer capacity.
+pub fn write_bind_req(socket: Socket, address: SocketAddrV4) -> Result<[u8; 12], BufferOverflow> {
+    const AF_INET: u16 = 2; // Address family for IPV4.
+
     let mut result = [0x0u8; 12];
     let mut slice = result.as_mut_slice();
     let ip: u32 = (*address.ip()).into();
-    slice.write(&address_family.to_le_bytes())?;
+
+    slice.write(&AF_INET.to_le_bytes())?;
     slice.write(&address.port().to_be_bytes())?;
     slice.write(&ip.to_be_bytes())?;
     slice.write(&[socket.v, 0])?;
@@ -267,6 +285,7 @@ pub fn write_setsockopt_req(
 ///
 /// * `[u8; SET_SSL_SOCK_OPTS_PACKET_SIZE]` – Set SSL socket option request packet as fixed-array.
 /// * `BufferOverflow` – If the buffer overflows while preparing the packet.
+#[cfg(feature = "ssl")]
 pub fn write_ssl_setsockopt_req(
     socket: Socket,
     option: &SslSockOpts,
@@ -275,7 +294,7 @@ pub fn write_ssl_setsockopt_req(
     let mut slice = result.as_mut_slice();
 
     // Get value
-    let value = option.get_value();
+    let value = option.get_sni_value().map_err(|_| BufferOverflow)?;
 
     // Socket Identifier (1 byte) and Socket Option (1 byte)
     slice.write(&[socket.v, u8::from(option)])?;
@@ -488,6 +507,84 @@ pub fn write_en_ap_req(ap: &AccessPoint) -> Result<[u8; ENABLE_AP_PACKET_SIZE], 
     Ok(req)
 }
 
+/// Prepares a packet for writing an SSL ECC response.
+///
+/// # Arguments
+///
+/// * `ecc_info` - Reference to the ECC response information.
+/// * `ecdh_info` - An optional reference to the ECDH response information.
+///
+/// # Returns
+///
+/// * `Ok([u8; SSL_ECC_REQ_PACKET_SIZE])` – A fixed-size byte array containing the ECC response packet.
+/// * `Err(BufferOverflow)` – If the input data exceeds the allowed size or buffer limit.
+#[cfg(feature = "experimental-ecc")]
+pub(crate) fn write_ssl_ecc_resp(
+    ecc_info: &EccInfo,
+    ecdh_info: Option<&EcdhInfo>,
+) -> Result<[u8; SSL_ECC_REQ_PACKET_SIZE], BufferOverflow> {
+    let mut req = [0u8; SSL_ECC_REQ_PACKET_SIZE];
+    let mut slice = req.as_mut_slice();
+
+    // ECC request type (2 bytes)
+    let ecc_req_type: u16 = ecc_info.req.into();
+    slice.write(&ecc_req_type.to_le_bytes())?;
+    // Status (2 bytes)
+    slice.write(&ecc_info.status.to_le_bytes())?;
+    // User data (4 bytes)
+    slice.write(&ecc_info.user_data.to_le_bytes())?;
+    // Sequence Number (4 bytes)
+    slice.write(&ecc_info.seq_num.to_le_bytes())?;
+
+    if ecc_info.req == EccRequestType::ClientEcdh || ecc_info.req == EccRequestType::GenerateKey {
+        if let Some(ecdh_info) = ecdh_info.as_ref() {
+            // X-coordinates of ECC points (32 bytes)
+            slice.write(&ecdh_info.ecc_point.x_pos)?;
+            // Y-coordinates of ECC points (32 bytes)
+            slice.write(&ecdh_info.ecc_point.y_pos)?;
+            // Point Size (2 bytes)
+            slice.write(&ecdh_info.ecc_point.point_size.to_le_bytes())?;
+            // Private Key ID (2 bytes)
+            slice.write(&ecdh_info.ecc_point.private_key_id.to_le_bytes())?;
+        }
+    }
+
+    if ecc_info.req == EccRequestType::ClientEcdh || ecc_info.req == EccRequestType::ServerEcdh {
+        if let Some(ecdh_info) = ecdh_info.as_ref() {
+            // Private Key (32 bytes)
+            slice.write(&ecdh_info.private_key)?;
+        }
+    }
+
+    Ok(req)
+}
+
+/// Prepares a request packet for sending a network information.
+///
+/// # Arguments
+///
+/// * `net_pkt_len` - The length of the network packet payload, in bytes.
+/// * `net_header_len` - The length of the network packet header, in bytes.
+///
+/// # Returns
+///
+/// * `Ok([u8; NET_XFER_PACKET_SIZE])` - A fixed-size array containing the network
+///   packet request.
+/// * `Err(BufferOverflow)` - If the packet data exceeds the available buffer size.
+#[cfg(feature = "ethernet")]
+pub(crate) fn write_send_net_pkt_req(
+    net_pkt_len: u16,
+    net_header_len: u16,
+) -> Result<[u8; NET_XFER_PACKET_SIZE], BufferOverflow> {
+    let mut req = [0u8; NET_XFER_PACKET_SIZE];
+    let mut slice = req.as_mut_slice();
+
+    slice.write(&net_pkt_len.to_le_bytes())?;
+    slice.write(&net_header_len.to_le_bytes())?;
+
+    Ok(req)
+}
+
 #[cfg(test)]
 mod tests {
     use core::str::FromStr;
@@ -536,7 +633,6 @@ mod tests {
         assert_eq!(
             write_bind_req(
                 Socket::new(7, 521),
-                2,
                 SocketAddrV4::new(Ipv4Addr::new(1, 2, 3, 4), 32769)
             )
             .unwrap(),
@@ -548,11 +644,10 @@ mod tests {
         assert_eq!(
             write_bind_req(
                 Socket::new(0, 3),
-                257,
                 SocketAddrV4::new(Ipv4Addr::new(255, 2, 3, 4), 1000)
             )
             .unwrap(),
-            [1, 1, 3, 232, 0xFF, 2, 3, 4, 0, 0, 3, 0]
+            [2, 0, 3, 232, 0xFF, 2, 3, 4, 0, 0, 3, 0]
         )
     }
     #[test]
@@ -694,9 +789,9 @@ mod tests {
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         ];
         let test_ssid = Ssid::from("sample_ssid").unwrap();
-        let test_usermane = S8Username::from("username").unwrap();
+        let test_username = S8Username::from("username").unwrap();
         let test_password = S8Password::from("password").unwrap();
-        let test_pass = Credentials::S802_1X(test_usermane, test_password);
+        let test_pass = Credentials::S802_1X(test_username, test_password);
         assert_eq!(
             test_vector,
             write_connect_request(&test_ssid, &test_pass, WifiChannel::ChannelAll, false).unwrap()
@@ -781,6 +876,7 @@ mod tests {
         assert_eq!(result.ok(), Some(valid_req))
     }
 
+    #[cfg(feature = "ssl")]
     #[test]
     fn test_write_ssl_setsockopt_req() {
         let valid_req: [u8; SET_SSL_SOCK_OPTS_PACKET_SIZE] = [
@@ -804,7 +900,7 @@ mod tests {
     #[test]
     fn test_write_setsockopt_req() {
         let valid_req: [u8; SET_SOCK_OPTS_PACKET_SIZE] = [
-            /* Option Value */ 0x0c0, 0xa8, 0x01, 0x01, /* Sockte Identifier */ 0x02,
+            /* Option Value */ 0x0c0, 0xa8, 0x01, 0x01, /* Socket Identifier */ 0x02,
             /* Socket Option */ 0x01, /* Session Id */ 0x02, 0x00,
         ];
         let addr = Ipv4Addr::from_str("192.168.1.1").unwrap();
