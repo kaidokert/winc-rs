@@ -47,7 +47,7 @@ def start_combined_server(base_port, port_range, additional_ports=None,
         # Create TCP socket
         tcp_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         tcp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        print(f"Binding TCP socket to 192.168.5.222:{port}")
+        print(f"Binding TCP socket to 0.0.0.0:{port}")
         tcp_sock.bind(('0.0.0.0', port))
         tcp_sock.listen()
         tcp_sock.setblocking(False)  # Set to non-blocking mode
