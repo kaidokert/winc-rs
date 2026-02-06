@@ -12,9 +12,7 @@ pub mod shared;
 use panic_probe as _;
 
 // Provide defmt timestamp using embassy-time
-defmt::timestamp!("{=u64:us}", {
-    embassy_time::Instant::now().as_micros()
-});
+defmt::timestamp!("{=u64:us}", { embassy_time::Instant::now().as_micros() });
 
 #[defmt::panic_handler]
 fn panic() -> ! {
