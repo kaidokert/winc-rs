@@ -74,7 +74,13 @@ async fn program() -> Result<(), StackError> {
             test_data,
             &mut recv_buffer,
         )
-        .await?;
+        .await
+        .map_err(|e| match e {
+            demos_async::udp_client::UdpClientError::StackError(e) => e,
+            demos_async::udp_client::UdpClientError::Ipv6NotSupported => {
+                StackError::InvalidParameters
+            }
+        })?;
 
         defmt::info!("Received {} bytes", recv_len);
 
