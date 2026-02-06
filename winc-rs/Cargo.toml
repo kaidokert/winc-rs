@@ -2,6 +2,7 @@
 name = "wincwifi"
 version = "0.3.0"
 edition = "2021"
+rust-version = "1.82"
 license = "Apache-2.0"
 authors = ["kaidokert <kaidokert@gmail.com>"]
 documentation = "https://docs.rs/wincwifi"

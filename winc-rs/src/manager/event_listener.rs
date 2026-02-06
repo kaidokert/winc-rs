@@ -396,7 +396,10 @@ impl<X: Xfer> Manager<X> {
             HifGroup::Ota(e) => self.ota_events_listener(listener, address, e),
             #[cfg(feature = "ssl")]
             HifGroup::Ssl(e) => self.ssl_events_listener(listener, address, e),
-            _ => panic!("Unexpected hif"),
+            HifGroup::Unhandled => {
+                crate::warn!("Received unhandled HIF group, skipping");
+                Ok(())
+            }
         };
         // Wake any async tasks waiting for hardware events after processing them
         #[cfg(feature = "async")]

@@ -72,7 +72,7 @@ repos:
       name: Run cargo check for demos_async
       language: system
       entry: python -c 'import os, sys; os.environ["RUSTFLAGS"]="-D warnings"; sys.exit(os.system("cargo check --manifest-path=demos_async/Cargo.toml"))'
-      # entry: cargo check --manifest-path=demos/Cargo.toml
+      # entry: cargo check --manifest-path=demos_async/Cargo.toml
       files: \.(rs|toml)$
       pass_filenames: false
     - id: clippy_winc_rs

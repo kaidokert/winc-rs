@@ -69,25 +69,37 @@ mod tests {
 
     #[apply(test!)]
     async fn async_dns_resolve() {
-        let mut client = make_test_client();
+        // Outer scope: callback lives here
         let mut my_debug = |callbacks: &mut SocketCallbacks| {
             callbacks.on_resolve(Ipv4Addr::new(127, 0, 0, 1), "");
         };
-        client.debug_callback = RefCell::new(Some(&mut my_debug));
-        let result = client.get_host_by_name("example.com", AddrType::IPv4).await;
+
+        // Inner scope: client lives here
+        let result = {
+            let mut client = make_test_client();
+            *client.debug_callback.borrow_mut() = Some(&mut my_debug);
+            client.get_host_by_name("example.com", AddrType::IPv4).await
+        }; // client dropped, borrow ends
+
         assert_eq!(result, Ok(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))));
     }
 
     #[apply(test!)]
     async fn async_dns_resolve_failed() {
-        let mut client = make_test_client();
+        // Outer scope: callback lives here
         let mut my_debug = |callbacks: &mut SocketCallbacks| {
             callbacks.on_resolve(Ipv4Addr::new(0, 0, 0, 0), "");
         };
-        client.debug_callback = RefCell::new(Some(&mut my_debug));
-        let result = client
-            .get_host_by_name("nonexistent.com", AddrType::IPv4)
-            .await;
+
+        // Inner scope: client lives here
+        let result = {
+            let mut client = make_test_client();
+            *client.debug_callback.borrow_mut() = Some(&mut my_debug);
+            client
+                .get_host_by_name("nonexistent.com", AddrType::IPv4)
+                .await
+        }; // client dropped, borrow ends
+
         assert_eq!(result, Err(StackError::DnsFailed));
     }
 }
