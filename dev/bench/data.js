@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1770366945430,
+  "lastUpdate": 1770368105386,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -5077,6 +5077,40 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/kaidokert/winc-rs/commit/1bee257051bfcbce8ed47b44c91fd3c01fe0ec6d"
         },
         "date": 1770366945083,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 37580,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 51744,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "kaidokert@gmail.com",
+            "name": "kaidokert",
+            "username": "kaidokert"
+          },
+          "committer": {
+            "email": "kaidokert@gmail.com",
+            "name": "kaidokert",
+            "username": "kaidokert"
+          },
+          "distinct": true,
+          "id": "74ecafac9ccf33b4138d7417d0641e3bbf852e4a",
+          "message": "Address PR review comments - fixes for Drop panic, IPv4 parsing, and typo\n\n1. Fix Drop panic risk in udp_stack.rs\n   - Use try_borrow_mut() instead of borrow_mut() in close_udp_socket()\n   - Prevents panic if RefCells already borrowed during drop\n   - Follows same defensive pattern as AsyncOp::Drop\n\n2. Replace manual IPv4 parsing with Ipv4Addr::from_str()\n   - Remove custom parse_ipv4() function from udp_client example\n   - Use core::net::Ipv4Addr::from_str() which is available in no_std\n   - Matches pattern used in sync demos crate\n\n3. Fix typo in manager.rs\n   - \"paameter\" → \"parameter\" in TODO comment",
+          "timestamp": "2026-02-06T00:53:36-08:00",
+          "tree_id": "ecc6019dc9d55db8e2871ee850639f57d933a079",
+          "url": "https://github.com/kaidokert/winc-rs/commit/74ecafac9ccf33b4138d7417d0641e3bbf852e4a"
+        },
+        "date": 1770368104226,
         "tool": "customSmallerIsBetter",
         "benches": [
           {
