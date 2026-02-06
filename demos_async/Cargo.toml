@@ -12,7 +12,7 @@ defmt = { version = "0.3", optional = true }
 clap = { version = "4.5", features = ["derive"] }
 env_logger = "0.11"
 smol = "2.0"
-std-embedded-nal-async = { path = "../dep/std-embedded-nal/std-embedded-nal-async" }
+std-embedded-nal-async = "0.4"
 
 [[bin]]
 name = "demo_async"
