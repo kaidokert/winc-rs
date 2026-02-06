@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1770358575530,
+  "lastUpdate": 1770359563737,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -4941,6 +4941,40 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/kaidokert/winc-rs/commit/591c1515e92a20fac1d2a1a4641f2d3b977e10ca"
         },
         "date": 1770358575193,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 37624,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 51812,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "kaidokert@gmail.com",
+            "name": "kaidokert",
+            "username": "kaidokert"
+          },
+          "committer": {
+            "email": "kaidokert@gmail.com",
+            "name": "kaidokert",
+            "username": "kaidokert"
+          },
+          "distinct": true,
+          "id": "97e70a5017ab080f73a9b8b74dd69cd8f6390aba",
+          "message": "Upgrade systick-timer to 0.2.2\n\n- Update systick-timer from 0.1 to 0.2.2",
+          "timestamp": "2026-02-05T22:31:24-08:00",
+          "tree_id": "83a74ef30a84913aa48602cf3388075f4eb9e5a3",
+          "url": "https://github.com/kaidokert/winc-rs/commit/97e70a5017ab080f73a9b8b74dd69cd8f6390aba"
+        },
+        "date": 1770359562775,
         "tool": "customSmallerIsBetter",
         "benches": [
           {
