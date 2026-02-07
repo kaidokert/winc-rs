@@ -14,34 +14,16 @@
 
 /// Maximum length of SSID.
 pub const MAX_SSID_LEN: usize = 32;
-/// Length for 104 bit string passphrase.
-pub(crate) const MAX_WEP_KEY_LEN: usize = 26;
-#[cfg(feature = "wep")]
-/// Length for 40 bit string passphrase.
-pub(crate) const MIN_WEP_KEY_LEN: usize = 10;
 /// Maximum length for the WPA PSK Key.
 pub const MAX_PSK_KEY_LEN: usize = 63;
 /// Minimum length for the WPA PSK Key.
 pub(crate) const MIN_PSK_KEY_LEN: usize = 8;
 /// Maximum length for device domain name / hostname (DNS, provisioning, etc.).
 pub const MAX_HOST_NAME_LEN: usize = 63;
-/// Packet size of the Start Provisioning Mode request.
-pub(crate) const START_PROVISION_PACKET_SIZE: usize = 204;
-/// Packet size of Provisioning Info.
-pub(crate) const PROVISIONING_INFO_PACKET_SIZE: usize = 100;
 /// Maximum password length for the enterprise mode.
 pub const MAX_S802_PASSWORD_LEN: usize = 40;
 /// Maximum username length for the Enterprise mode.
 pub const MAX_S802_USERNAME_LEN: usize = 20;
-/// Packet size of connect request.
-pub(crate) const CONNECT_AP_PACKET_SIZE: usize = 108;
-/// Packet size of enable access point request.
-pub(crate) const ENABLE_AP_PACKET_SIZE: usize = 136;
-/// Packet size to set socket option request.
-pub(crate) const SET_SOCK_OPTS_PACKET_SIZE: usize = 8;
-/// Packet size to set SSL socket option request.
-#[cfg(feature = "ssl")]
-pub(crate) const SET_SSL_SOCK_OPTS_PACKET_SIZE: usize = 72;
 /// Maximum buffer size for the TCP stack. Must be able to handle the full MTU from the chip (1440+ bytes observed).
 pub(crate) const SOCKET_BUFFER_MAX_LENGTH: usize = 1500;
 /// Packet Size of get random bytes request.
@@ -57,9 +39,6 @@ pub(crate) const FLASH_PAGE_SIZE: usize = 256;
 /// Packet Size of SSL ECC request/response.
 #[cfg(feature = "experimental-ecc")]
 pub(crate) const SSL_ECC_REQ_PACKET_SIZE: usize = 112;
-/// Packet size of cipher suite bitmap (u32).
-#[cfg(feature = "ssl")]
-pub(crate) const SSL_CS_MAX_PACKET_SIZE: usize = 4;
 #[cfg(feature = "ethernet")]
 /// Size of Ethernet/Wi-Fi packet transfer requests and responses.
 pub(crate) const NET_XFER_PACKET_SIZE: usize = 4;
@@ -67,61 +46,12 @@ pub(crate) const NET_XFER_PACKET_SIZE: usize = 4;
 // u16::MAX (65535) - ETHERNET_HEADER_OFFSET (34)
 #[cfg(feature = "ethernet")]
 pub const MAX_TX_ETHERNET_PACKET_SIZE: usize = 65501;
-
-#[repr(u32)]
-pub enum Regs {
-    WakeClock = 0x01,
-    HostToCortusComm = 0x0b,
-    EnableClock = 0x0f,
-    ChipReset = 0x1400,
-    ChipHalt = 0x1118,
-    CortusIrq = 0x20300,
-    SpiConfig = 0xE824,
-    ChipId = 0x1000,
-    EFuseRead = 0x1014,
-    NmiState = 0x108c,
-    ChipRev = 0x13f4,
-    NmiPinMux0 = 0x1408,
-    NmiGp1 = 0x14A0,
-    NmiIntrEnable = 0x1a00,
-    NmiRev = 0x207ac,
-    WaitForHost = 0x207bc,
-    NmiGp2 = 0xC0008,
-    BootRom = 0xC000C,
-    WifiHostRcvCtrl0 = 0x1070,
-    WifiHostRcvCtrl1 = 0x1084,
-    WifiHostRcvCtrl2 = 0x1078,
-    WifiHostRcvCtrl3 = 0x106c,
-    WifiHostRcvCtrl4 = 0x150400,
-    #[cfg(feature = "flash-rw")]
-    FlashCommandCount = 0x10204,
-    #[cfg(feature = "flash-rw")]
-    FlashDataCount = 0x10208,
-    #[cfg(feature = "flash-rw")]
-    FlashBuffer1 = 0x1020c,
-    #[cfg(feature = "flash-rw")]
-    FlashBuffer2 = 0x10210,
-    #[cfg(feature = "flash-rw")]
-    FlashBufferDirectory = 0x10214,
-    #[cfg(feature = "flash-rw")]
-    FlashTransferDone = 0x10218,
-    #[cfg(feature = "flash-rw")]
-    FlashDmaAddress = 0x1021c,
-    #[cfg(feature = "flash-rw")]
-    FlashMsbControl = 0x10220,
-    #[cfg(feature = "flash-rw")]
-    FlashTransmitControl = 0x10224,
-    #[cfg(feature = "flash-rw")]
-    FlashSharedMemory = 0xd0000,
-    #[cfg(feature = "flash-rw")]
-    FlashPinMux = 0x1410,
-}
-
-impl From<Regs> for u32 {
-    fn from(val: Regs) -> Self {
-        val as u32
-    }
-}
+/// `IPV4` or Internet IP Protocol.
+pub(super) const AF_INET: u16 = 2;
+/// Packet size of the Connection Info response.
+pub(super) const CONN_INFO_RESP_PACKET_SIZE: usize = 48;
+/// Packet size of the Scan Result response.
+pub(super) const SCAN_RESULT_RESP_PACKET_SIZE: usize = 44;
 
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[derive(Debug, PartialEq)]

@@ -13,7 +13,9 @@
 // limitations under the License.
 
 use super::{StackError, WincClient, Xfer};
-use crate::manager::FLASH_PAGE_SIZE;
+use crate::manager::{
+    FLASH_PAGE_SIZE, FLASH_READ_STATUS_BIT, FLASH_SIZE_INFO_BIT, LOW_12_BIT_MASK,
+};
 use crate::{error, info};
 
 /// Block Size of flash memory.
@@ -34,7 +36,7 @@ impl<X: Xfer> WincClient<'_, X> {
     /// * `StackError` – If an error occurs while enabling or disabling access to the flash.
     pub fn set_flash_access(&mut self, enable: bool) -> Result<(), StackError> {
         let mut chip_id = self.manager.chip_id()?;
-        chip_id &= 0x00000fff;
+        chip_id &= LOW_12_BIT_MASK;
 
         if chip_id >= CHIP_REV_LP {
             if enable {
@@ -168,7 +170,8 @@ impl<X: Xfer> WincClient<'_, X> {
 
             let mut val = self.manager.send_flash_read_status_register()?;
 
-            while (val & 0x01) != 0 {
+            // todo - clean-up no need to check status bit again.
+            while (val & FLASH_READ_STATUS_BIT) != 0 {
                 if retries == 0 {
                     error!(
                         "Erasing flash sector failed due to invalid flash status register value."
@@ -196,15 +199,18 @@ impl<X: Xfer> WincClient<'_, X> {
     /// * `StackError` – If an error occurs while retrieving the size of the flash memory.
     pub fn flash_get_size(&mut self) -> Result<u32, StackError> {
         const FLASH_ID_SIZE_OFFSET: u32 = 0x11;
+        const INVALID_VALUE: u32 = 0xffff_ffff;
+        const LOW_8_BIT_MASK: u32 = 0xFF;
+
         let id = self.manager.send_flash_read_id()?;
 
-        if id == 0xffffffff {
+        if id == INVALID_VALUE {
             error!("Unable to read the flash ID.");
             return Err(StackError::Unexpected);
         }
         info!("The flash ID: {:x}", id);
         // Flash size is third byte in the flash ID.
-        let size_info = (id >> 16) & 0xFF;
+        let size_info = (id >> FLASH_SIZE_INFO_BIT) & LOW_8_BIT_MASK;
         // Check that the value is not smaller than the offset (avoids negative subtraction),
         // and ensure the result does not exceed the 32-bit shift limit.
         if size_info < FLASH_ID_SIZE_OFFSET || size_info - FLASH_ID_SIZE_OFFSET >= 32 {

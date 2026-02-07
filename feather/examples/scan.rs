@@ -45,13 +45,13 @@ fn program() -> Result<(), StackError> {
             let result = nb::block!(stack.get_scan_result(i))?;
             #[cfg(feature = "defmt")]
             info!(
-                "Scan strings: [{}] '{}' rssi:{} ch:{} {} {=[u8]:#x}",
+                "Scan strings: [{}] '{}' rssi:{} ch:{} {} {:?}",
                 i,
                 result.ssid.as_str(),
                 result.rssi,
                 result.channel,
                 result.auth,
-                result.bssid
+                result.bssid.octets()
             );
             #[cfg(feature = "log")]
             info!(
@@ -61,7 +61,7 @@ fn program() -> Result<(), StackError> {
                 result.rssi,
                 result.channel,
                 result.auth,
-                result.bssid
+                result.bssid.octets()
             );
         }
 

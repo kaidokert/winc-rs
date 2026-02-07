@@ -18,27 +18,37 @@ use arrayvec::ArrayString;
 
 use super::constants::{
     AuthType, WifiChannel, MAX_HOST_NAME_LEN, MAX_PSK_KEY_LEN, MAX_S802_PASSWORD_LEN,
-    MAX_S802_USERNAME_LEN, MAX_SSID_LEN, MAX_WEP_KEY_LEN, MIN_PSK_KEY_LEN,
+    MAX_S802_USERNAME_LEN, MAX_SSID_LEN, MIN_PSK_KEY_LEN,
 };
 
 #[cfg(feature = "experimental-ecc")]
 use super::constants::{EccCurveType, EccRequestType};
 
 #[cfg(feature = "wep")]
-use super::constants::{WepKeyIndex, MIN_WEP_KEY_LEN};
+use super::constants::WepKeyIndex;
 use core::net::Ipv4Addr;
 
 /// Default IP address "192.168.1.1" for access point and provisioning mode.
 const DEFAULT_AP_IP: u32 = 0xC0A80101;
+/// Maximum size of a point on an elliptic curve.
 #[cfg(feature = "experimental-ecc")]
 const ECC_POINT_MAX_SIZE: usize = 32;
 /// Maximum number of octets in Mac Address
 const MAX_OCTETS_IN_MAC_ADDRESS: usize = 6;
+/// Length for 104 bit string passphrase.
+const MAX_WEP_KEY_LEN: usize = 26;
+/// Length for 40 bit string passphrase.
+#[cfg(feature = "wep")]
+const MIN_WEP_KEY_LEN: usize = 10;
+/// Last byte of IPV4 address, total bytes: 4 (0-3)
+const LAST_BYTE_OF_IP_ADDRESS: usize = 3;
 
 /// Device Domain name.
 pub type HostName = ArrayString<MAX_HOST_NAME_LEN>;
 /// Wifi SSID
 pub type Ssid = ArrayString<MAX_SSID_LEN>;
+/// Wifi BSSID
+pub type Bssid = MacAddress;
 /// WPA-PSK key
 pub type WpaKey = ArrayString<MAX_PSK_KEY_LEN>;
 /// Wep Key
@@ -231,6 +241,7 @@ pub(crate) struct SslCallbackInfo {
 }
 
 /// MAC Address
+#[derive(Debug, PartialEq, Eq, Default)]
 pub struct MacAddress {
     mac: [u8; MAX_OCTETS_IN_MAC_ADDRESS],
 }
@@ -572,7 +583,7 @@ impl<'a> AccessPoint<'a> {
         let octets = ip.octets();
         let auth = <Credentials as Into<AuthType>>::into(key);
 
-        if !((1..100).contains(&octets[3])) {
+        if !((1..100).contains(&octets[LAST_BYTE_OF_IP_ADDRESS])) {
             return Err(StackError::InvalidParameters);
         }
 
@@ -667,7 +678,7 @@ impl<'a> AccessPoint<'a> {
     pub fn set_ip(&mut self, ip: Ipv4Addr) -> Result<(), StackError> {
         let octets = ip.octets();
         // WINC firmware limitation; IP address of client is always x.x.x.100
-        if !((1..100).contains(&octets[3])) {
+        if !((1..100).contains(&octets[LAST_BYTE_OF_IP_ADDRESS])) {
             return Err(StackError::InvalidParameters);
         }
 
