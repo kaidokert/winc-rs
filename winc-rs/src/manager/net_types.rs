@@ -40,8 +40,6 @@ const MAX_WEP_KEY_LEN: usize = 26;
 /// Length for 40 bit string passphrase.
 #[cfg(feature = "wep")]
 const MIN_WEP_KEY_LEN: usize = 10;
-/// Maximum length of BSSID.
-const MAX_BSSID_LEN: usize = 5;
 /// Last byte of IPV4 address, total bytes: 4 (0-3)
 const LAST_BYTE_OF_IP_ADDRESS: usize = 3;
 
@@ -50,7 +48,7 @@ pub type HostName = ArrayString<MAX_HOST_NAME_LEN>;
 /// Wifi SSID
 pub type Ssid = ArrayString<MAX_SSID_LEN>;
 /// Wifi BSSID
-pub type Bssid = ArrayString<MAX_BSSID_LEN>;
+pub type Bssid = MacAddress;
 /// WPA-PSK key
 pub type WpaKey = ArrayString<MAX_PSK_KEY_LEN>;
 /// Wep Key
@@ -243,7 +241,7 @@ pub(crate) struct SslCallbackInfo {
 }
 
 /// MAC Address
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq, Default)]
 pub struct MacAddress {
     mac: [u8; MAX_OCTETS_IN_MAC_ADDRESS],
 }

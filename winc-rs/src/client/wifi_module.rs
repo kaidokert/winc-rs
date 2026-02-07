@@ -719,7 +719,7 @@ mod tests {
                 rssi: 0,
                 auth: AuthType::Open,
                 channel: 0,
-                bssid: Bssid::from("test").unwrap(),
+                bssid: Bssid::from_bytes("test".as_bytes()).unwrap(),
                 ssid: Ssid::from("test").unwrap(),
             });
         };

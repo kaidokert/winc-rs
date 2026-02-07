@@ -256,9 +256,9 @@ impl From<[u8; SCAN_RESULT_RESP_PACKET_SIZE]> for ScanResult {
             rssi: v[1] as i8,
             auth: v[2].into(),
             channel: v[3],
+            bssid: Bssid::from_bytes(&v[4..10]).unwrap(),
             ..Default::default()
         };
-        res.bssid = from_c_byte_slice(&v[4..9]).unwrap();
         res.ssid = from_c_byte_slice(&v[10..42]).unwrap();
         res
     }
@@ -289,7 +289,7 @@ impl defmt::Format for ScanResult {
             self.rssi,
             self.auth,
             self.channel,
-            self.bssid.as_str(),
+            self.bssid,
             self.ssid.as_str()
         );
     }
@@ -646,7 +646,7 @@ mod tests {
         assert_eq!(res.index, 1);
         assert_eq!(res.rssi, 2);
         assert_eq!(res.auth, AuthType::WEP);
-        assert_eq!(res.bssid.as_bytes(), [61, 61, 61, 61, 61]);
+        assert_eq!(res.bssid.octets(), [61, 61, 61, 61, 61, 0]);
         assert_eq!(res.ssid.as_str(), "AB>>>>>>>>>>>>>>>>>>>>>>>>>>>>>C");
     }
 
