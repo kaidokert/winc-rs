@@ -139,7 +139,9 @@ impl<X: Xfer> AsyncClient<'_, X> {
                 self.callbacks.try_borrow_mut(),
             ) {
                 if let Some((sock, _op)) = callbacks.udp_sockets.get(handle) {
-                    let _ = manager.send_close(*sock);
+                    if let Err(e) = manager.send_close(*sock) {
+                        crate::warn!("Failed to close UDP socket {:?} in drop: {:?}", sock, e);
+                    }
                     callbacks.udp_sockets.remove(handle);
                 }
             }
@@ -155,7 +157,9 @@ impl<X: Xfer> AsyncClient<'_, X> {
             self.callbacks.try_borrow_mut(),
         ) {
             if let Some((sock, _)) = callbacks.udp_sockets.get(handle) {
-                let _ = manager.send_close(*sock);
+                if let Err(e) = manager.send_close(*sock) {
+                    crate::warn!("Failed to close UDP socket {:?} in drop: {:?}", sock, e);
+                }
                 callbacks.udp_sockets.remove(handle);
             }
         }
@@ -451,10 +455,12 @@ impl<X: Xfer> UnconnectedUdp for AsyncUdpUniquelyBound<'_, X> {
         };
 
         // Validate local matches stored address (all builds)
-        if let core::net::SocketAddr::V4(local_v4) = local {
-            if local_v4 != self.local && !local_v4.ip().is_unspecified() {
-                return Err(StackError::InvalidParameters);
-            }
+        let local_v4 = match local {
+            core::net::SocketAddr::V4(a) => a,
+            core::net::SocketAddr::V6(_) => return Err(StackError::InvalidParameters),
+        };
+        if local_v4 != self.local && !local_v4.ip().is_unspecified() {
+            return Err(StackError::InvalidParameters);
         }
 
         // Reuse UdpSendOp
@@ -492,14 +498,20 @@ impl<X: Xfer> UnconnectedUdp for AsyncUdpMultiplyBound<'_, X> {
         remote: core::net::SocketAddr,
         data: &[u8],
     ) -> Result<(), Self::Error> {
-        // Validate IPv4
+        // Validate IPv4 for remote
         let remote_v4 = match remote {
             core::net::SocketAddr::V4(a) => a,
             core::net::SocketAddr::V6(_) => return Err(StackError::InvalidParameters),
         };
 
+        // Validate IPv4 for local
+        let local_v4 = match local {
+            core::net::SocketAddr::V4(a) => a,
+            core::net::SocketAddr::V6(_) => return Err(StackError::InvalidParameters),
+        };
+
         // Validate port matches (only validate port for multiply bound)
-        if local.port() != self.local_port && local.port() != 0 {
+        if local_v4.port() != self.local_port && local_v4.port() != 0 {
             return Err(StackError::InvalidParameters);
         }
 

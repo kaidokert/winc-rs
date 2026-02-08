@@ -9,8 +9,6 @@
 
 use core::str::FromStr;
 use embassy_time::Timer;
-use embedded_nal_async::UnconnectedUdp;
-use feather_async::hal::ehal::digital::OutputPin;
 use feather_async::init::init;
 use feather_async::shared::SpiStream;
 use wincwifi::{AsyncClient, StackError};
@@ -21,7 +19,7 @@ async fn program() -> Result<(), StackError> {
     let ini = init().await.expect("Failed to initialize");
     defmt::info!("Async UDP server");
 
-    let mut red_led = ini.red_led;
+    let mut _red_led = ini.red_led;
     let mut module = AsyncClient::new(SpiStream::new(ini.cs, ini.spi));
 
     defmt::info!("Initializing module");
@@ -43,61 +41,16 @@ async fn program() -> Result<(), StackError> {
     let loop_forever = option_env!("LOOP_FOREVER").unwrap_or("false");
     let loop_forever = bool::from_str(loop_forever).unwrap_or(false);
 
-    // Bind to UDP port (mirroring sync version's stack.bind())
+    // Bind to UDP port - this is AsyncClient-specific setup
     defmt::info!("-----Binding to UDP port {}-----", port);
     module.bind_udp(port).await?;
     defmt::info!("-----Bound to UDP port {}-----", port);
 
-    // Main server loop
-    loop {
-        // Buffer size matches sync version (1500 bytes)
-        let mut buf = [0u8; 1500];
+    // Buffer size matches sync version (1500 bytes)
+    let mut buf = [0u8; 1500];
 
-        // Receive packet (mirroring sync version's stack.receive())
-        match module.receive_into(&mut buf).await {
-            Ok((n, local, remote)) => {
-                let remote_port = remote.port();
-                defmt::info!("-----Received {} bytes from port {}-----", n, remote_port);
-
-                // Extract last alphabetic character as nonce (same logic as sync)
-                let nonce = buf[..n]
-                    .iter()
-                    .rev()
-                    .find(|&&c| c.is_ascii_alphabetic())
-                    .copied()
-                    .unwrap_or(b'x');
-
-                // Build response with nonce: "Hello, client_X!" (same as sync)
-                let mut response = *b"Hello, client_x!";
-                response[14] = nonce;
-
-                // Send response (mirroring sync version's stack.send_to())
-                match module.send(local, remote, &response).await {
-                    Ok(()) => {
-                        defmt::info!("-----Sent response to port {}-----", remote_port);
-                        // Blink LED on success
-                        let _ = red_led.set_high();
-                        Timer::after_millis(50).await;
-                        let _ = red_led.set_low();
-                    }
-                    Err(e) => {
-                        defmt::error!("Failed to send response: {:?}", e);
-                    }
-                }
-
-                // Handle loop_forever flag (same as sync)
-                if !loop_forever {
-                    defmt::info!("Quitting the loop");
-                    break;
-                }
-                defmt::info!("Looping again");
-            }
-            Err(e) => {
-                defmt::error!("Receive error: {:?}", e);
-                Timer::after_millis(100).await;
-            }
-        }
-    }
+    // Call generic UDP server with UnconnectedUdp trait
+    demos_async::udp_server::run_udp_server(&mut module, port, loop_forever, &mut buf).await?;
 
     Ok(())
 }
