@@ -101,12 +101,11 @@ impl<X: Xfer> Manager<X> {
             // or chrono::
             WifiResponse::GetSysTime => {
                 const SYS_TIME_RESP_PACKET_SIZE: usize = 8;
-                const HIGH_BYTE_SHIFT: u16 = 256;
 
                 let mut result = [0xff; SYS_TIME_RESP_PACKET_SIZE];
                 self.read_block(address, &mut result)?;
                 listener.on_system_time(
-                    (result[1] as u16 * HIGH_BYTE_SHIFT) + result[0] as u16,
+                    u16::from_le_bytes([result[0], result[1]]),
                     result[2],
                     result[3],
                     result[4],

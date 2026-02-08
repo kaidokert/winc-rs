@@ -173,7 +173,7 @@ impl<X: Xfer> WincClient<'_, X> {
 
                 // Read the Curve Type, Key, Hash and Signature size.
                 self.manager.read_ecc_info(hif_addr, &mut opts)?;
-                hif_addr += 8;
+                hif_addr += SSL_CERT_OPTS_PACKET_SIZE as u32;
 
                 // Parse the values from the buffer
                 ecdsa_info.curve_type = u16::from_be_bytes([opts[0], opts[1]]).into();

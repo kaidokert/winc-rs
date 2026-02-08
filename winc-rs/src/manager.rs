@@ -42,7 +42,7 @@ use constants::{IpCode, WifiRequest, WifiResponse, AF_INET};
 pub(crate) use constants::FLASH_PAGE_SIZE;
 
 #[cfg(feature = "flash-rw")]
-pub(crate) use registers::{FLASH_READ_STATUS_BIT, FLASH_SIZE_INFO_BIT, LOW_12_BIT_MASK};
+pub(crate) use registers::{FLASH_READ_STATUS_BIT, FLASH_SIZE_INFO_SHIFT, LOW_12_BIT_MASK};
 
 #[cfg(feature = "experimental-ota")]
 pub(crate) use constants::{OtaRequest, OtaResponse, OtaUpdateStatus};
@@ -337,7 +337,7 @@ impl<X: Xfer> Manager<X> {
 
     #[allow(dead_code)] // todo
     pub fn get_firmware_ver_short(&mut self) -> Result<(Revision, Revision), Error> {
-        const FW_PATCH_SHIFT: u8 = 0x0F;
+        const FW_PATCH_MASK: u8 = 0x0F;
         const FW_MINOR_SHIFT: u8 = 0x04;
 
         let res = self.chip.single_reg_read(Regs::NmiRev.into())?;
@@ -346,12 +346,12 @@ impl<X: Xfer> Manager<X> {
             Revision {
                 major: unpack[1],
                 minor: unpack[0] >> FW_MINOR_SHIFT,
-                patch: unpack[0] & FW_PATCH_SHIFT,
+                patch: unpack[0] & FW_PATCH_MASK,
             },
             Revision {
                 major: unpack[3],
                 minor: unpack[2] >> FW_MINOR_SHIFT,
-                patch: unpack[2] & FW_PATCH_SHIFT,
+                patch: unpack[2] & FW_PATCH_MASK,
             },
         ))
     }
@@ -842,7 +842,7 @@ impl<X: Xfer> Manager<X> {
     }
 
     fn write_ctrl3(&mut self, addr: u32) -> Result<(), Error> {
-        let val = (addr << RCV_CTRL3_ADDR_MASK) | RCV_CTRL3_ADDR_MASK;
+        let val = (addr << RCV_CTRL3_ADDR_SHIFT) | RCV_CTRL3_DONE_BIT;
         self.chip.single_reg_write(
             Regs::WifiHostRcvCtrl3.into(),
             // dma_addr come from ctrl4

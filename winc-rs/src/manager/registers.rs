@@ -51,8 +51,10 @@ pub(super) const RCV_CTRL0_CLEAR_RX_BIT: u32 = 0x02;
 pub(super) const CORTUS_WRITE_MAX_REG: u32 = 0x30;
 /// Last Cortus register that can be read.
 pub(super) const CORTUS_READ_MAX_REG: u32 = 0xFF;
+/// Bit position of the address field in the RCV_CTRL3 register.
+pub(super) const RCV_CTRL3_ADDR_SHIFT: u32 = 2;
 /// Host has finished sending the HIF packet to NMI.
-pub(super) const RCV_CTRL3_ADDR_MASK: u32 = 0x02;
+pub(super) const RCV_CTRL3_DONE_BIT: u32 = 0x02;
 /// Mask for sending the command count to access flash memory.
 #[cfg(feature = "flash-rw")]
 pub(super) const FLASH_CMD_CNT_MASK: u32 = 0x80;
@@ -63,7 +65,7 @@ pub(crate) const LOW_12_BIT_MASK: u32 = 0x0000_0FFF;
 pub(crate) const FLASH_READ_STATUS_BIT: u8 = 0x01;
 /// Flash memory read size info bit.
 #[cfg(feature = "flash-rw")]
-pub(crate) const FLASH_SIZE_INFO_BIT: u32 = 0x10;
+pub(crate) const FLASH_SIZE_INFO_SHIFT: u32 = 0x10;
 
 /// WINC(NMI) and Cortus Register
 #[repr(u32)]

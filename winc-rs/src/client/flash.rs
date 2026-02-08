@@ -14,7 +14,7 @@
 
 use super::{StackError, WincClient, Xfer};
 use crate::manager::{
-    FLASH_PAGE_SIZE, FLASH_READ_STATUS_BIT, FLASH_SIZE_INFO_BIT, LOW_12_BIT_MASK,
+    FLASH_PAGE_SIZE, FLASH_READ_STATUS_BIT, FLASH_SIZE_INFO_SHIFT, LOW_12_BIT_MASK,
 };
 use crate::{error, info};
 
@@ -210,7 +210,7 @@ impl<X: Xfer> WincClient<'_, X> {
         }
         info!("The flash ID: {:x}", id);
         // Flash size is third byte in the flash ID.
-        let size_info = (id >> FLASH_SIZE_INFO_BIT) & LOW_8_BIT_MASK;
+        let size_info = (id >> FLASH_SIZE_INFO_SHIFT) & LOW_8_BIT_MASK;
         // Check that the value is not smaller than the offset (avoids negative subtraction),
         // and ensure the result does not exceed the 32-bit shift limit.
         if size_info < FLASH_ID_SIZE_OFFSET || size_info - FLASH_ID_SIZE_OFFSET >= 32 {
