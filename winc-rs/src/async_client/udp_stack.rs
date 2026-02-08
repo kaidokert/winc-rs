@@ -59,46 +59,19 @@ pub struct AsyncUdpMultiplyBound<'a, X: Xfer> {
 
 impl<X: Xfer> Drop for AsyncUdpConnected<'_, X> {
     fn drop(&mut self) {
-        // Safe borrow - we hold a valid reference
-        if let (Ok(mut manager), Ok(mut callbacks)) = (
-            self.client.manager.try_borrow_mut(),
-            self.client.callbacks.try_borrow_mut(),
-        ) {
-            if let Some((sock, _)) = callbacks.udp_sockets.get(self.socket) {
-                let _ = manager.send_close(*sock);
-                callbacks.udp_sockets.remove(self.socket);
-            }
-        }
+        self.client.close_udp_handle(self.socket);
     }
 }
 
 impl<X: Xfer> Drop for AsyncUdpUniquelyBound<'_, X> {
     fn drop(&mut self) {
-        // Safe borrow - we hold a valid reference
-        if let (Ok(mut manager), Ok(mut callbacks)) = (
-            self.client.manager.try_borrow_mut(),
-            self.client.callbacks.try_borrow_mut(),
-        ) {
-            if let Some((sock, _)) = callbacks.udp_sockets.get(self.socket) {
-                let _ = manager.send_close(*sock);
-                callbacks.udp_sockets.remove(self.socket);
-            }
-        }
+        self.client.close_udp_handle(self.socket);
     }
 }
 
 impl<X: Xfer> Drop for AsyncUdpMultiplyBound<'_, X> {
     fn drop(&mut self) {
-        // Safe borrow - we hold a valid reference
-        if let (Ok(mut manager), Ok(mut callbacks)) = (
-            self.client.manager.try_borrow_mut(),
-            self.client.callbacks.try_borrow_mut(),
-        ) {
-            if let Some((sock, _)) = callbacks.udp_sockets.get(self.socket) {
-                let _ = manager.send_close(*sock);
-                callbacks.udp_sockets.remove(self.socket);
-            }
-        }
+        self.client.close_udp_handle(self.socket);
     }
 }
 
@@ -128,6 +101,32 @@ impl<X: Xfer> AsyncClient<'_, X> {
         }
     }
 
+    /// Generic polling loop for UDP operations.
+    /// Polls an operation until it completes, handling dispatch and yielding.
+    async fn poll_until_ready<R, F>(&self, mut poll_fn: F) -> Result<R, StackError>
+    where
+        F: FnMut(
+            &mut crate::manager::Manager<X>,
+            &mut crate::stack::socket_callbacks::SocketCallbacks,
+        ) -> Result<Option<R>, StackError>,
+    {
+        loop {
+            self.dispatch_events()?;
+
+            let result = {
+                let mut manager = self.manager.borrow_mut();
+                let mut callbacks = self.callbacks.borrow_mut();
+                poll_fn(&mut manager, &mut callbacks)?
+            };
+
+            if let Some(value) = result {
+                return Ok(value);
+            }
+
+            self.yield_once().await;
+        }
+    }
+
     /// Close the UDP socket if it exists
     fn close_udp_socket(&self) {
         let mut socket_opt = self.udp_socket.borrow_mut();
@@ -143,6 +142,21 @@ impl<X: Xfer> AsyncClient<'_, X> {
                     let _ = manager.send_close(*sock);
                     callbacks.udp_sockets.remove(handle);
                 }
+            }
+        }
+    }
+
+    /// Close and remove a UDP socket handle from the callback store.
+    /// Used by Drop implementations to ensure consistent cleanup.
+    pub(crate) fn close_udp_handle(&self, handle: Handle) {
+        // Use try_borrow_mut to avoid panicking in Drop if already borrowed
+        if let (Ok(mut manager), Ok(mut callbacks)) = (
+            self.manager.try_borrow_mut(),
+            self.callbacks.try_borrow_mut(),
+        ) {
+            if let Some((sock, _)) = callbacks.udp_sockets.get(handle) {
+                let _ = manager.send_close(*sock);
+                callbacks.udp_sockets.remove(handle);
             }
         }
     }
@@ -170,6 +184,14 @@ impl<X: Xfer> AsyncClient<'_, X> {
 
         // Use new helper method
         self.bind_socket_to_port(handle, local_port).await?;
+
+        // Store bind address in the per-socket array (reusing udp_socket_connect_addr)
+        let bind_addr = self.get_actual_local_ip(local_port)?;
+        let mut callbacks = self.callbacks.borrow_mut();
+        if let Some((sock, _)) = callbacks.udp_sockets.get(handle) {
+            let socket_index = sock.v as usize - crate::stack::socket_callbacks::NUM_TCP_SOCKETS;
+            callbacks.udp_socket_connect_addr[socket_index] = Some(bind_addr);
+        }
 
         crate::info!("Successfully bound to port {}", local_port);
         Ok(())
@@ -248,6 +270,11 @@ impl<'a, X: Xfer> UdpStack for ClientStack<'a, X> {
             core::net::SocketAddr::V6(_) => return Err(StackError::InvalidParameters),
         };
 
+        // Reject port 0 - hardware binding requires explicit port
+        if local_v4.port() == 0 {
+            return Err(StackError::InvalidParameters);
+        }
+
         self.0.close_existing_udp_socket()?;
         let handle = self.0.allocate_udp_socket()?;
         self.0.bind_socket_to_port(handle, local_v4.port()).await?;
@@ -277,6 +304,11 @@ impl<'a, X: Xfer> UdpStack for ClientStack<'a, X> {
             core::net::SocketAddr::V6(_) => return Err(StackError::InvalidParameters),
         };
 
+        // Reject port 0 - hardware binding requires explicit port
+        if local_v4.port() == 0 {
+            return Err(StackError::InvalidParameters);
+        }
+
         self.0.close_existing_udp_socket()?;
         let handle = self.0.allocate_udp_socket()?;
         self.0.bind_socket_to_port(handle, local_v4.port()).await?;
@@ -296,45 +328,21 @@ impl<X: Xfer> ConnectedUdp for AsyncUdpConnected<'_, X> {
         // Reuse existing UdpSendOp with stored remote address
         let mut udp_send_op = UdpSendOp::new(self.socket, self.remote, data);
 
-        // Active polling loop (same pattern as current async UDP)
-        loop {
-            self.client.dispatch_events()?;
-
-            let result = {
-                let mut manager = self.client.manager.borrow_mut();
-                let mut callbacks = self.client.callbacks.borrow_mut();
-                udp_send_op.poll_impl(&mut *manager, &mut callbacks)?
-            };
-
-            if result.is_some() {
-                return Ok(());
-            }
-
-            self.client.yield_once().await;
-        }
+        // Use generic polling helper
+        self.client
+            .poll_until_ready(|manager, callbacks| udp_send_op.poll_impl(manager, callbacks))
+            .await
     }
 
     async fn receive_into(&mut self, buffer: &mut [u8]) -> Result<usize, Self::Error> {
         // Reuse existing UdpReceiveOp
         let mut udp_receive_op = UdpReceiveOp::new(self.socket, buffer);
 
-        // Active polling loop
-        loop {
-            self.client.dispatch_events()?;
-
-            let result = {
-                let mut manager = self.client.manager.borrow_mut();
-                let mut callbacks = self.client.callbacks.borrow_mut();
-                udp_receive_op.poll_impl(&mut *manager, &mut callbacks)?
-            };
-
-            if let Some((len, _remote_addr)) = result {
-                // Return only size (remote address not needed for connected socket)
-                return Ok(len);
-            }
-
-            self.client.yield_once().await;
-        }
+        // Use generic polling helper, extract only len from result
+        self.client
+            .poll_until_ready(|manager, callbacks| udp_receive_op.poll_impl(manager, callbacks))
+            .await
+            .map(|(len, _remote_addr)| len)
     }
 }
 
@@ -377,26 +385,11 @@ impl<X: Xfer> UnconnectedUdp for AsyncClient<'_, X> {
         // Create UDP send operation
         let mut udp_send_op = UdpSendOp::new(handle, remote_v4, data);
 
-        // Active polling loop (avoid waker deadlock)
-        loop {
-            // Dispatch events to process hardware responses
-            self.dispatch_events()?;
+        // Poll until send completes
+        self.poll_until_ready(|manager, callbacks| udp_send_op.poll_impl(manager, callbacks))
+            .await?;
 
-            // Poll the send operation
-            let result = {
-                let mut manager = self.manager.borrow_mut();
-                let mut callbacks = self.callbacks.borrow_mut();
-                udp_send_op.poll_impl(&mut *manager, &mut callbacks)?
-            };
-
-            if result.is_some() {
-                // Send complete!
-                return Ok(());
-            }
-
-            // Yield to executor
-            self.yield_once().await;
-        }
+        Ok(())
     }
 
     async fn receive_into(
@@ -409,30 +402,36 @@ impl<X: Xfer> UnconnectedUdp for AsyncClient<'_, X> {
         // Create receive operation
         let mut udp_receive_op = UdpReceiveOp::new(handle, buffer);
 
-        // Active polling loop (avoid waker deadlock)
-        loop {
-            // Dispatch events to process incoming packets
-            self.dispatch_events()?;
+        // Poll until data received
+        let (len, remote_addr) = self
+            .poll_until_ready(|manager, callbacks| udp_receive_op.poll_impl(manager, callbacks))
+            .await?;
 
-            // Poll the receive operation
-            let result = {
-                let mut manager = self.manager.borrow_mut();
-                let mut callbacks = self.callbacks.borrow_mut();
-                udp_receive_op.poll_impl(&mut *manager, &mut callbacks)?
-            };
-
-            if let Some((len, remote_addr)) = result {
-                // Data received!
-                let local_addr = core::net::SocketAddr::V4(core::net::SocketAddrV4::new(
+        // Look up local address from per-socket array
+        let local_addr = {
+            let mut callbacks = self.callbacks.borrow_mut();
+            if let Some((sock, _)) = callbacks.udp_sockets.get(handle) {
+                let socket_index =
+                    sock.v as usize - crate::stack::socket_callbacks::NUM_TCP_SOCKETS;
+                callbacks.udp_socket_connect_addr[socket_index]
+                    .map(core::net::SocketAddr::V4)
+                    .unwrap_or_else(|| {
+                        // Unbound - return 0.0.0.0:0 (ephemeral port)
+                        core::net::SocketAddr::V4(core::net::SocketAddrV4::new(
+                            core::net::Ipv4Addr::UNSPECIFIED,
+                            0,
+                        ))
+                    })
+            } else {
+                // Socket not found - return unspecified
+                core::net::SocketAddr::V4(core::net::SocketAddrV4::new(
                     core::net::Ipv4Addr::UNSPECIFIED,
                     0,
-                ));
-                return Ok((len, local_addr, remote_addr));
+                ))
             }
+        };
 
-            // Yield to executor
-            self.yield_once().await;
-        }
+        Ok((len, local_addr, remote_addr))
     }
 }
 
@@ -451,33 +450,22 @@ impl<X: Xfer> UnconnectedUdp for AsyncUdpUniquelyBound<'_, X> {
             core::net::SocketAddr::V6(_) => return Err(StackError::InvalidParameters),
         };
 
-        // Validate local matches stored address (debug mode)
-        #[cfg(debug_assertions)]
+        // Validate local matches stored address (all builds)
         if let core::net::SocketAddr::V4(local_v4) = local {
             if local_v4 != self.local && !local_v4.ip().is_unspecified() {
-                panic!(
-                    "Local address mismatch: expected {:?}, got {:?}",
-                    self.local, local_v4
-                );
+                return Err(StackError::InvalidParameters);
             }
         }
 
         // Reuse UdpSendOp
         let mut udp_send_op = UdpSendOp::new(self.socket, remote_v4, data);
 
-        // Active polling loop (same as ConnectedUdp)
-        loop {
-            self.client.dispatch_events()?;
-            let result = {
-                let mut manager = self.client.manager.borrow_mut();
-                let mut callbacks = self.client.callbacks.borrow_mut();
-                udp_send_op.poll_impl(&mut *manager, &mut callbacks)?
-            };
-            if result.is_some() {
-                return Ok(());
-            }
-            self.client.yield_once().await;
-        }
+        // Poll until send completes
+        self.client
+            .poll_until_ready(|manager, callbacks| udp_send_op.poll_impl(manager, callbacks))
+            .await?;
+
+        Ok(())
     }
 
     async fn receive_into(
@@ -487,20 +475,11 @@ impl<X: Xfer> UnconnectedUdp for AsyncUdpUniquelyBound<'_, X> {
         // Similar to ConnectedUdp but returns addresses
         let mut udp_receive_op = UdpReceiveOp::new(self.socket, buffer);
 
-        loop {
-            self.client.dispatch_events()?;
-            let result = {
-                let mut manager = self.client.manager.borrow_mut();
-                let mut callbacks = self.client.callbacks.borrow_mut();
-                udp_receive_op.poll_impl(&mut *manager, &mut callbacks)?
-            };
-
-            if let Some((len, remote_addr)) = result {
-                return Ok((len, core::net::SocketAddr::V4(self.local), remote_addr));
-            }
-
-            self.client.yield_once().await;
-        }
+        // Poll until data received
+        self.client
+            .poll_until_ready(|manager, callbacks| udp_receive_op.poll_impl(manager, callbacks))
+            .await
+            .map(|(len, remote_addr)| (len, core::net::SocketAddr::V4(self.local), remote_addr))
     }
 }
 
@@ -520,31 +499,19 @@ impl<X: Xfer> UnconnectedUdp for AsyncUdpMultiplyBound<'_, X> {
         };
 
         // Validate port matches (only validate port for multiply bound)
-        #[cfg(debug_assertions)]
         if local.port() != self.local_port && local.port() != 0 {
-            panic!(
-                "Local port mismatch: expected {}, got {}",
-                self.local_port,
-                local.port()
-            );
+            return Err(StackError::InvalidParameters);
         }
 
         // Reuse UdpSendOp
         let mut udp_send_op = UdpSendOp::new(self.socket, remote_v4, data);
 
-        // Active polling loop
-        loop {
-            self.client.dispatch_events()?;
-            let result = {
-                let mut manager = self.client.manager.borrow_mut();
-                let mut callbacks = self.client.callbacks.borrow_mut();
-                udp_send_op.poll_impl(&mut *manager, &mut callbacks)?
-            };
-            if result.is_some() {
-                return Ok(());
-            }
-            self.client.yield_once().await;
-        }
+        // Poll until send completes
+        self.client
+            .poll_until_ready(|manager, callbacks| udp_send_op.poll_impl(manager, callbacks))
+            .await?;
+
+        Ok(())
     }
 
     async fn receive_into(
@@ -553,30 +520,16 @@ impl<X: Xfer> UnconnectedUdp for AsyncUdpMultiplyBound<'_, X> {
     ) -> Result<(usize, core::net::SocketAddr, core::net::SocketAddr), Self::Error> {
         let mut udp_receive_op = UdpReceiveOp::new(self.socket, buffer);
 
-        loop {
-            self.client.dispatch_events()?;
-            let result = {
-                let mut manager = self.client.manager.borrow_mut();
-                let mut callbacks = self.client.callbacks.borrow_mut();
-                udp_receive_op.poll_impl(&mut *manager, &mut callbacks)?
-            };
+        // Poll until data received
+        let (len, remote_addr) = self
+            .client
+            .poll_until_ready(|manager, callbacks| udp_receive_op.poll_impl(manager, callbacks))
+            .await?;
 
-            if let Some((len, remote_addr)) = result {
-                // Get actual local address for this packet
-                let local_addr = self
-                    .client
-                    .get_actual_local_ip(self.local_port)
-                    .unwrap_or_else(|_| {
-                        core::net::SocketAddrV4::new(
-                            core::net::Ipv4Addr::UNSPECIFIED,
-                            self.local_port,
-                        )
-                    });
-                return Ok((len, core::net::SocketAddr::V4(local_addr), remote_addr));
-            }
-
-            self.client.yield_once().await;
-        }
+        // Get actual local address for this packet
+        // Don't mask errors - propagate InvalidState if IP not configured
+        let local_addr = self.client.get_actual_local_ip(self.local_port)?;
+        Ok((len, core::net::SocketAddr::V4(local_addr), remote_addr))
     }
 }
 

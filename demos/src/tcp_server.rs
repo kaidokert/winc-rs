@@ -66,7 +66,7 @@ where
         );
         stack.close(client_sock)?;
         if !loop_forever {
-            info!("Quiting the loop");
+            info!("Quitting the loop");
             break;
         }
         info!("Looping again");

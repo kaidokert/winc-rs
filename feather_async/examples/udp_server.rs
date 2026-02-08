@@ -87,7 +87,7 @@ async fn program() -> Result<(), StackError> {
 
                 // Handle loop_forever flag (same as sync)
                 if !loop_forever {
-                    defmt::info!("Quiting the loop");
+                    defmt::info!("Quitting the loop");
                     break;
                 }
                 defmt::info!("Looping again");

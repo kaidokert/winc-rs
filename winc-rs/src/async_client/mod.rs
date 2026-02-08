@@ -28,6 +28,11 @@ impl<X: Xfer> AsyncClient<'_, X> {
     #[cfg(not(test))]
     const DNS_TIMEOUT: u32 = 1000;
 
+    /// Maximum polling attempts for bind operations before timeout.
+    /// Each poll yields to the executor, so actual time depends on executor scheduling.
+    /// Hardware typically responds within a few polls under normal conditions.
+    const BIND_MAX_POLLS: u32 = 1000;
+
     pub fn new(transfer: X) -> Self {
         Self {
             manager: RefCell::new(Manager::from_xfer(transfer)),
@@ -98,15 +103,23 @@ impl<X: Xfer> AsyncClient<'_, X> {
     /// Used by UdpStack trait implementations to ensure single-socket behavior.
     pub(crate) fn close_existing_udp_socket(&self) -> Result<(), StackError> {
         let mut socket_opt = self.udp_socket.borrow_mut();
-        if let Some(handle) = socket_opt.take() {
-            // Close and remove socket
+        // Only proceed if there's a socket to close
+        if socket_opt.is_some() {
+            // Try to borrow manager and callbacks BEFORE taking the handle
             if let (Ok(mut manager), Ok(mut callbacks)) = (
                 self.manager.try_borrow_mut(),
                 self.callbacks.try_borrow_mut(),
             ) {
-                if let Some((sock, _)) = callbacks.udp_sockets.get(handle) {
-                    manager.send_close(*sock)?;
-                    callbacks.udp_sockets.remove(handle);
+                // Now safe to take the handle since we have the borrows
+                if let Some(handle) = socket_opt.take() {
+                    if let Some((sock, _)) = callbacks.udp_sockets.get(handle) {
+                        let socket_index =
+                            sock.v as usize - crate::stack::socket_callbacks::NUM_TCP_SOCKETS;
+                        manager.send_close(*sock)?;
+                        callbacks.udp_sockets.remove(handle);
+                        // Clear the address when closing socket
+                        callbacks.udp_socket_connect_addr[socket_index] = None;
+                    }
                 }
             }
         }
@@ -161,8 +174,7 @@ impl<X: Xfer> AsyncClient<'_, X> {
             .send_bind(socket, bind_addr)
             .map_err(StackError::BindFailed)?;
 
-        // Poll with timeout
-        const MAX_POLLS: u32 = 1000; // ~100ms at typical poll rates
+        // Poll with attempt limit
         let mut poll_count = 0;
 
         loop {
@@ -211,7 +223,7 @@ impl<X: Xfer> AsyncClient<'_, X> {
 
             // Check timeout
             poll_count += 1;
-            if poll_count >= MAX_POLLS {
+            if poll_count >= Self::BIND_MAX_POLLS {
                 let mut callbacks = self.callbacks.borrow_mut();
                 if let Some((_, op)) = callbacks.udp_sockets.get(handle) {
                     *op = crate::client::ClientSocketOp::None;

@@ -39,7 +39,7 @@ where
         );
 
         if !loop_forever {
-            info!("Quiting the loop");
+            info!("Quitting the loop");
             break;
         }
         info!("Looping again");

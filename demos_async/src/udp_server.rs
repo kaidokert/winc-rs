@@ -40,7 +40,7 @@ pub async fn run_udp_server<T: UnconnectedUdp>(
         info!("-----Sent response to port {}-----", remote_port);
 
         if !loop_forever {
-            info!("Quiting the loop");
+            info!("Quitting the loop");
             break;
         }
         info!("Looping again");
