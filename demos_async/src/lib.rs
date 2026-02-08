@@ -10,6 +10,7 @@ compile_error!("Features 'defmt' and 'log' are mutually exclusive. Enable only o
 compile_error!("Must enable either 'defmt' or 'log' feature for logging support.");
 
 pub mod udp_client;
+pub mod udp_server;
 
 // Re-export logging macros for convenience
 #[cfg(feature = "defmt")]

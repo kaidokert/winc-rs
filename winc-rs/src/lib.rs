@@ -106,7 +106,7 @@ pub use client::Handle;
 #[cfg(feature = "async")]
 mod async_client;
 #[cfg(feature = "async")]
-pub use async_client::AsyncClient;
+pub use async_client::{AsyncClient, ClientStack};
 
 pub(crate) struct HexWrap<'a> {
     v: &'a [u8],
