@@ -730,11 +730,11 @@ impl<X: Xfer> Manager<X> {
         let mut state: u32 = 0;
         state |= gid as u32;
         state |= if req_data {
-            ((op | NMI_STATE_REQ_DATA) as u32) << NMI_STATE_OP_BIT
+            ((op | NMI_STATE_REQ_DATA) as u32) << NMI_STATE_OP_SHIFT
         } else {
-            (op as u32) << NMI_STATE_OP_BIT
+            (op as u32) << NMI_STATE_OP_SHIFT
         };
-        state |= (len as u32) << NMI_STATE_LEN_BIT;
+        state |= (len as u32) << NMI_STATE_LEN_SHIFT;
         self.chip.single_reg_write(Regs::NmiState.into(), state)?;
         // Set RCV_CTRL_2 bit 1
         self.chip
@@ -1704,12 +1704,12 @@ impl<X: Xfer> Manager<X> {
     pub(crate) fn send_flash_pin_mux(&mut self, enable: bool) -> Result<(), Error> {
         let mut val = self.chip.single_reg_read(Regs::FlashPinMux.into())?;
 
-        val &= !((FlashPinMux::GpioPins as u32) << FlashPinMux::Offset as u32);
+        val &= !((FlashPinMux::GpioPins as u32) << FLASH_PINMUX_OFFSET);
 
         val |= if enable {
-            (FlashPinMux::Enable as u32) << FlashPinMux::Offset as u32
+            (FlashPinMux::Enable as u32) << FLASH_PINMUX_OFFSET
         } else {
-            (FlashPinMux::Disable as u32) << FlashPinMux::Offset as u32
+            (FlashPinMux::Disable as u32) << FLASH_PINMUX_OFFSET
         };
 
         self.chip.single_reg_write(Regs::FlashPinMux.into(), val)

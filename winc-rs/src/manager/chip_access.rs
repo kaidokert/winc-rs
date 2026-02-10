@@ -40,14 +40,14 @@ fn find_first_neq_index<T: PartialEq>(a1: &[T], a2: &[T]) -> Option<usize> {
 
 fn crc7(input: &[u8]) -> u8 {
     let mut crc = CRC::crc7();
-    crc.digest(&[CRC7_DIGEST]); // reset crc to 0x7F
+    crc.digest(&[CRC7_DIGEST]); // reset crc to initial value
     crc.digest(input);
     (crc.get_crc() << 1) as u8
 }
 
 fn crc16(input: &[u8]) -> u16 {
     let mut crc = CRC::crc16aug_ccitt();
-    crc.digest(&[CRC16_DIGEST_HIGH_BYTE, CRC16_DIGEST_LOW_BYTE]); // reset crc to 0xFFFF
+    crc.digest(&[CRC16_DIGEST_HIGH_BYTE, CRC16_DIGEST_LOW_BYTE]); // reset crc to initial value
     crc.digest(input);
     crc.get_crc() as u16
 }
@@ -342,7 +342,7 @@ impl<X: Xfer> ChipAccess<X> {
     /// * `()` - If the data was successfully written.
     /// * `Error` - If an error occurs during the DMA write operation.
     pub fn dma_block_write(&mut self, reg: u32, data: &[u8]) -> Result<(), Error> {
-        const CRC_START_BYTE: usize = 7;
+        const CRC_START_POS: usize = 7;
         const F3_MARKER: u8 = 0xF3;
         const EXPECTED_ACK: u8 = 0xC3;
 
@@ -350,10 +350,10 @@ impl<X: Xfer> ChipAccess<X> {
         let v = (data.len() as u32).to_le_bytes();
         let mut cmd = [Cmd::DmaWrite as u8, r[2], r[1], r[0], v[2], v[1], v[0], 0];
         if self.crc {
-            cmd[CRC_START_BYTE] = crc7(&cmd[..CRC_START_BYTE]);
+            cmd[CRC_START_POS] = crc7(&cmd[..CRC_START_POS]);
             self.xfer.send(&cmd)?;
         } else {
-            self.xfer.send(&cmd[..CRC_START_BYTE])?;
+            self.xfer.send(&cmd[..CRC_START_POS])?;
         }
         let mut rdbuf = [0x0; 1];
         self.xfer.recv(&mut rdbuf)?;

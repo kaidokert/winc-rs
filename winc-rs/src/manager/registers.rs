@@ -39,10 +39,6 @@ pub(super) const NMI_PIN_MUX0_EN_BIT: u32 = 0x100;
 pub(super) const NMI_IRQ_EN_BIT: u32 = 0x10000;
 /// Check whether an IRQ has been received.
 pub(super) const RCV_CTRL0_IRQ_BIT: u32 = 0x01;
-/// Write the data/control packet length to the NMI state register.
-pub(super) const NMI_STATE_LEN_BIT: u32 = 0x10;
-/// Write the operation ID to the NMI state register.
-pub(super) const NMI_STATE_OP_BIT: u32 = 0x08;
 /// Wait for NMI to be ready to receive a new HIF packet from the host.
 pub(super) const RCV_CTRL2_BIT_1: u32 = 0x02;
 /// Host has finished reading data from NMI.
@@ -51,13 +47,20 @@ pub(super) const RCV_CTRL0_CLEAR_RX_BIT: u32 = 0x02;
 pub(super) const CORTUS_WRITE_MAX_REG: u32 = 0x30;
 /// Last Cortus register that can be read.
 pub(super) const CORTUS_READ_MAX_REG: u32 = 0xFF;
-/// Bit position of the address field in the RCV_CTRL3 register.
-pub(super) const RCV_CTRL3_ADDR_SHIFT: u32 = 2;
 /// Host has finished sending the HIF packet to NMI.
 pub(super) const RCV_CTRL3_DONE_BIT: u32 = 0x02;
+/// Bit position of the address field in the RCV_CTRL3 register.
+pub(super) const RCV_CTRL3_ADDR_SHIFT: u32 = 2;
+/// Write the data/control packet length to the NMI state register.
+pub(super) const NMI_STATE_LEN_SHIFT: u32 = 0x10;
+/// Write the operation ID to the NMI state register.
+pub(super) const NMI_STATE_OP_SHIFT: u32 = 0x08;
 /// Mask for sending the command count to access flash memory.
 #[cfg(feature = "flash-rw")]
 pub(super) const FLASH_CMD_CNT_MASK: u32 = 0x80;
+/// Offset for pin mux of flash memory.
+#[cfg(feature = "flash-rw")]
+pub(super) const FLASH_PINMUX_OFFSET: u32 = 0x0C;
 /// Mask for extracting the lower 12 bits.
 pub(crate) const LOW_12_BIT_MASK: u32 = 0x0000_0FFF;
 /// Flash memory read-status bit.
@@ -154,7 +157,6 @@ pub(super) enum FlashPinMux {
     GpioPins = 0x7777, // GPIO15/16/17/18
     Enable = 0x1111,
     Disable = 0x0010,
-    Offset = 0x0C,
 }
 
 /// Implementation to convert `FlashPinMux` to `u32`.
