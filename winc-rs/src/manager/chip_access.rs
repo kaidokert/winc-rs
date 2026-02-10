@@ -136,7 +136,7 @@ impl<X: Xfer> ChipAccess<X> {
     /// * `u32` - The value read from the register.
     /// * `Error` - If an error occurs while reading the register.
     pub fn single_reg_read(&mut self, reg: u32) -> Result<u32, Error> {
-        const CRC_START_BYTE: usize = 4;
+        const CRC_START_POS: usize = 4;
 
         let r = reg.to_le_bytes();
 
@@ -156,10 +156,10 @@ impl<X: Xfer> ChipAccess<X> {
         };
 
         if self.crc {
-            cmd[CRC_START_BYTE] = crc7(&cmd[..CRC_START_BYTE]);
+            cmd[CRC_START_POS] = crc7(&cmd[..CRC_START_POS]);
             self.xfer.send(&cmd)?;
         } else {
-            self.xfer.send(&cmd[..CRC_START_BYTE])?;
+            self.xfer.send(&cmd[..CRC_START_POS])?;
         }
 
         let mut rdbuf = [0xFF; 1];
@@ -177,7 +177,7 @@ impl<X: Xfer> ChipAccess<X> {
         rdbuf[0] &= DATA_RESP_ACK;
         self.protocol_verify("single_reg_read:ack", &rdbuf, &[DATA_RESP_ACK])?;
 
-        let mut data_buf = [0x00; CRC_START_BYTE];
+        let mut data_buf = [0x00; CRC_START_POS];
         self.xfer.recv(&mut data_buf)?;
 
         // Note: Cortus register reads don't require CRC validation on responses
@@ -283,16 +283,16 @@ impl<X: Xfer> ChipAccess<X> {
     /// * `()` - If the data was successfully read into the buffer.
     /// * `Error` - If an error occurs during the DMA read operation.
     pub fn dma_block_read(&mut self, reg: u32, data: &mut [u8]) -> Result<(), Error> {
-        const CRC_START_BYTE: usize = 7;
+        const CRC_START_POS: usize = 7;
 
         let r = reg.to_le_bytes();
         let v = (data.len() as u32).to_le_bytes();
         let mut cmd = [Cmd::DmaRead as u8, r[2], r[1], r[0], v[2], v[1], v[0], 00];
         if self.crc {
-            cmd[CRC_START_BYTE] = crc7(&cmd[..CRC_START_BYTE]);
+            cmd[CRC_START_POS] = crc7(&cmd[..CRC_START_POS]);
             self.xfer.send(&cmd)?;
         } else {
-            self.xfer.send(&cmd[..CRC_START_BYTE])?;
+            self.xfer.send(&cmd[..CRC_START_POS])?;
         }
 
         let mut rdbuf = [0x0; 1];
@@ -395,14 +395,14 @@ impl<X: Xfer> ChipAccess<X> {
     /// * `()` - If the bus was reset successfully.
     /// * `Error` - If an error occurs while resetting the SPI bus.
     pub(crate) fn bus_reset(&mut self) -> Result<(), Error> {
-        const CRC_START_BYTE: usize = 4;
+        const CRC_START_POS: usize = 4;
 
         let mut cmd = [Cmd::BusReset as u8, 0xff, 0xff, 0xff, 0x00];
         if self.crc {
-            cmd[CRC_START_BYTE] = crc7(&cmd[..CRC_START_BYTE]);
+            cmd[CRC_START_POS] = crc7(&cmd[..CRC_START_POS]);
             self.xfer.send(&cmd)?;
         } else {
-            self.xfer.send(&cmd[..CRC_START_BYTE])?;
+            self.xfer.send(&cmd[..CRC_START_POS])?;
         }
 
         let mut rdbuf = [0x0; 1];
