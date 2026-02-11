@@ -15,11 +15,12 @@
 use super::{EventListener, HifGroup, IpCode, Manager, WifiResponse};
 use crate::errors::CommError as Error;
 use crate::manager::constants::{
-    PRNG_DATA_LENGTH, PRNG_PACKET_SIZE, PROVISIONING_INFO_PACKET_SIZE, SOCKET_BUFFER_MAX_LENGTH,
+    CONN_INFO_RESP_PACKET_SIZE, PRNG_DATA_LENGTH, PRNG_PACKET_SIZE, SCAN_RESULT_RESP_PACKET_SIZE,
+    SOCKET_BUFFER_MAX_LENGTH,
 };
 
 #[cfg(feature = "ssl")]
-use super::constants::{SslResponse, SSL_CS_MAX_PACKET_SIZE};
+use super::constants::SslResponse;
 
 #[cfg(feature = "experimental-ecc")]
 use super::constants::SSL_ECC_REQ_PACKET_SIZE;
@@ -54,37 +55,42 @@ impl<X: Xfer> Manager<X> {
     ) -> Result<(), Error> {
         match wifi_res {
             WifiResponse::CurrentRssi => {
-                let mut result = [0xff; 4];
+                const RSSI_RESP_PACKET_SIZE: usize = 4;
+                let mut result = [0xff; RSSI_RESP_PACKET_SIZE];
                 self.read_block(address, &mut result)?;
                 listener.on_rssi(result[0] as i8)
             }
             WifiResponse::DefaultConnect => {
-                let mut def_connect = [0xff; 4];
+                const DEFAULT_CONNECT_RESP_PACKET: usize = 4;
+                let mut def_connect = [0xff; DEFAULT_CONNECT_RESP_PACKET];
                 self.read_block(address, &mut def_connect)?;
                 listener.on_default_connect(def_connect[0].into())
             }
             WifiResponse::DhcpConf => {
-                let mut result = [0xff; 20];
+                const DHCP_CONF_RESP_PACKET_SIZE: usize = 20;
+                let mut result = [0xff; DHCP_CONF_RESP_PACKET_SIZE];
                 self.read_block(address, &mut result)?;
                 listener.on_dhcp(read_dhcp_conf(&result)?)
             }
             WifiResponse::ConStateChanged => {
-                let mut connstate = [0xff; 4];
+                const CONSTATE_RESP_PACKET_SIZE: usize = 4;
+                let mut connstate = [0xff; CONSTATE_RESP_PACKET_SIZE];
                 self.read_block(address, &mut connstate)?;
                 listener.on_connstate_changed(connstate[0].into(), connstate[1].into());
             }
             WifiResponse::ConnInfo => {
-                let mut conninfo = [0xff; 48];
+                let mut conninfo = [0xff; CONN_INFO_RESP_PACKET_SIZE];
                 self.read_block(address, &mut conninfo)?;
                 listener.on_connection_info(conninfo.into())
             }
             WifiResponse::ScanResult => {
-                let mut result = [0xff; 44];
+                let mut result = [0xff; SCAN_RESULT_RESP_PACKET_SIZE];
                 self.read_block(address, &mut result)?;
                 listener.on_scan_result(result.into())
             }
             WifiResponse::ScanDone => {
-                let mut result = [0xff; 0x4];
+                const SCAN_DONE_RESP_PACKET_SIZE: usize = 4;
+                let mut result = [0xff; SCAN_DONE_RESP_PACKET_SIZE];
                 self.read_block(address, &mut result)?;
                 listener.on_scan_done(result[0], result[1].into())
             }
@@ -94,10 +100,12 @@ impl<X: Xfer> Manager<X> {
             // could translate to embedded-time, or core::Duration. No core::Systemtime exists
             // or chrono::
             WifiResponse::GetSysTime => {
-                let mut result = [0xff; 8];
+                const SYS_TIME_RESP_PACKET_SIZE: usize = 8;
+
+                let mut result = [0xff; SYS_TIME_RESP_PACKET_SIZE];
                 self.read_block(address, &mut result)?;
                 listener.on_system_time(
-                    (result[1] as u16 * 256u16) + result[0] as u16,
+                    u16::from_le_bytes([result[0], result[1]]),
                     result[2],
                     result[3],
                     result[4],
@@ -106,20 +114,22 @@ impl<X: Xfer> Manager<X> {
                 );
             }
             WifiResponse::IpConflict => {
+                const IP_CONFLICT_RESP_PACKET_SIZE: usize = 4;
                 // replies with 4 bytes of conflicted IP
-                let mut result = [0xff; 4];
+                let mut result = [0xff; IP_CONFLICT_RESP_PACKET_SIZE];
                 self.read_block(address, &mut result)?;
                 listener.on_ip_conflict(u32::from_be_bytes(result).into());
             }
             WifiResponse::ProvisionInfo => {
-                let mut response = [0u8; PROVISIONING_INFO_PACKET_SIZE];
+                const PROV_INFO_RESP_PACKET_SIZE: usize = 100;
+                let mut response = [0u8; PROV_INFO_RESP_PACKET_SIZE];
                 // read the provisioning info
                 self.read_block(address, &mut response)?;
                 let res = read_provisioning_reply(&response)?;
                 listener.on_provisioning(res.0, res.1, (res.2).into(), res.3);
             }
             WifiResponse::GetPrng => {
-                let mut response = [0; PRNG_DATA_LENGTH];
+                let mut response = [0u8; PRNG_DATA_LENGTH];
                 // read the prng packet
                 self.read_block(address, &mut response[0..PRNG_PACKET_SIZE])?;
 
@@ -182,7 +192,8 @@ impl<X: Xfer> Manager<X> {
                 todo!("OTA Notify is not supported")
             }
             OtaResponse::OtaUpdateStatus => {
-                let mut response = [0u8; 4];
+                const OTA_UPDATE_RESP_PACKET_SIZE: usize = 4;
+                let mut response = [0u8; OTA_UPDATE_RESP_PACKET_SIZE];
                 self.read_block(address, &mut response)?;
                 listener.on_ota(response[0].into(), response[1].into());
             }
@@ -215,58 +226,67 @@ impl<X: Xfer> Manager<X> {
     ) -> Result<(), Error> {
         match ip_res {
             IpCode::DnsResolve => {
-                let mut result = [0; 68];
+                const DNS_RESOLVE_RESP_PACKET_SIZE: usize = 68;
+                let mut result = [0u8; DNS_RESOLVE_RESP_PACKET_SIZE];
                 self.read_block(address, &mut result)?;
                 let rep = read_dns_reply(&result)?;
                 listener.on_resolve(rep.0, &rep.1);
             }
             IpCode::Ping => {
-                let mut result = [0; 20];
+                const PING_RESP_PACKET_SIZE: usize = 20;
+                let mut result = [0u8; PING_RESP_PACKET_SIZE];
                 self.read_block(address, &mut result)?;
                 let rep = read_ping_reply(&result)?;
                 listener.on_ping(rep.0, rep.1, rep.2, rep.3, rep.4, rep.5)
             }
             IpCode::Bind => {
-                let mut result = [0; 4];
+                const SOCK_BIND_RESP_PACKET_SIZE: usize = 4;
+                let mut result = [0u8; SOCK_BIND_RESP_PACKET_SIZE];
                 self.read_block(address, &mut result)?;
                 let rep = read_common_socket_reply(&result)?;
                 listener.on_bind(rep.0, rep.1);
             }
             #[cfg(feature = "ssl")]
             IpCode::SslBind => {
-                let mut result = [0; 4];
+                const SSL_BIND_RESP_PACKET_SIZE: usize = 4;
+                let mut result = [0u8; SSL_BIND_RESP_PACKET_SIZE];
                 self.read_block(address, &mut result)?;
                 let rep = read_common_socket_reply(&result)?;
                 listener.on_bind(rep.0, rep.1);
             }
             IpCode::Listen => {
-                let mut result = [0; 4];
+                const SOCK_TCP_LISTEN_RESP_PACKET_SIZE: usize = 4;
+                let mut result = [0u8; SOCK_TCP_LISTEN_RESP_PACKET_SIZE];
                 self.read_block(address, &mut result)?;
                 let rep = read_common_socket_reply(&result)?;
                 listener.on_listen(rep.0, rep.1);
             }
             IpCode::Accept => {
-                let mut result = [0; 12];
+                const SOCK_TCP_ACCEPT_RESP_PACKET_SIZE: usize = 12;
+                let mut result = [0u8; SOCK_TCP_ACCEPT_RESP_PACKET_SIZE];
                 self.read_block(address, &mut result)?;
                 let rep = read_accept_reply(&result)?;
                 listener.on_accept(rep.0, rep.1, rep.2, rep.3);
             }
             // The reply for `IpCode::SslConnect` is the same as for `IpCode::Connect`.
             IpCode::Connect => {
-                let mut result = [0; 4];
+                const SOCK_CONNECT_RESP_PACKET_SIZE: usize = 4;
+                let mut result = [0u8; SOCK_CONNECT_RESP_PACKET_SIZE];
                 self.read_block(address, &mut result)?;
                 let rep = read_connect_socket_reply(&result)?;
                 listener.on_connect(rep.0, rep.1)
             }
             IpCode::SendTo => {
-                let mut result = [0; 8];
+                const SOCK_UDP_SEND_RESP_PACKET_SIZE: usize = 8;
+                let mut result = [0u8; SOCK_UDP_SEND_RESP_PACKET_SIZE];
                 self.read_block(address, &mut result)?;
                 let rep = read_send_reply(&result)?;
                 listener.on_send_to(rep.0, rep.1)
             }
             // The reply for `IpCode::SslSend` is the same as for `IpCode::Send`.
             IpCode::Send => {
-                let mut result = [0; 8];
+                const SOCK_TCP_SEND_RESP_PACKET_SIZE: usize = 8;
+                let mut result = [0u8; SOCK_TCP_SEND_RESP_PACKET_SIZE];
                 self.read_block(address, &mut result)?;
                 let rep = read_send_reply(&result)?;
                 listener.on_send(rep.0, rep.1)
@@ -333,7 +353,8 @@ impl<X: Xfer> Manager<X> {
                 listener.on_ssl(ssl_res, None, Some(ecc_req));
             }
             SslResponse::CipherSuiteUpdate => {
-                let mut response = [0u8; SSL_CS_MAX_PACKET_SIZE];
+                const SSL_CS_MAX_RESP_PACKET_SIZE: usize = 4;
+                let mut response = [0u8; SSL_CS_MAX_RESP_PACKET_SIZE];
                 self.read_block(address, &mut response)?;
                 let cipher_suite = u32::from_le_bytes(response);
                 listener.on_ssl(

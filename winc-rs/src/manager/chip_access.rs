@@ -18,8 +18,21 @@ use crate::transfer::*;
 
 use crc_any::CRC;
 
+use super::registers::{Regs, CORTUS_READ_MAX_REG, CORTUS_WRITE_MAX_REG, INTR_REG_RW_EN_BIT};
 use crate::HexWrap;
 use crate::{trace, warn};
+
+/// ACK for a read register or data response.
+// Lower bits are start=1/mid=2/end=3, usually 3
+const DATA_RESP_ACK: u8 = 0xF0;
+/// Number of bytes in the CRC field.
+const NUM_CRC_BYTES: usize = 2;
+/// CRC-7 digest value.
+const CRC7_DIGEST: u8 = 0x43;
+/// High byte of the CRC-16 digest.
+const CRC16_DIGEST_HIGH_BYTE: u8 = 0x99;
+/// Low byte of the CRC-16 digest.
+const CRC16_DIGEST_LOW_BYTE: u8 = 0xc0;
 
 fn find_first_neq_index<T: PartialEq>(a1: &[T], a2: &[T]) -> Option<usize> {
     a1.iter().zip(a2.iter()).position(|(a, b)| a != b)
@@ -27,14 +40,14 @@ fn find_first_neq_index<T: PartialEq>(a1: &[T], a2: &[T]) -> Option<usize> {
 
 fn crc7(input: &[u8]) -> u8 {
     let mut crc = CRC::crc7();
-    crc.digest(&[0x43u8]); // reset crc to 0x7F
+    crc.digest(&[CRC7_DIGEST]); // reset crc to initial value
     crc.digest(input);
     (crc.get_crc() << 1) as u8
 }
 
 fn crc16(input: &[u8]) -> u16 {
     let mut crc = CRC::crc16aug_ccitt();
-    crc.digest(&[0x99, 0xc0]); // reset crc to 0xFFFF
+    crc.digest(&[CRC16_DIGEST_HIGH_BYTE, CRC16_DIGEST_LOW_BYTE]); // reset crc to initial value
     crc.digest(input);
     crc.get_crc() as u16
 }
@@ -123,20 +136,30 @@ impl<X: Xfer> ChipAccess<X> {
     /// * `u32` - The value read from the register.
     /// * `Error` - If an error occurs while reading the register.
     pub fn single_reg_read(&mut self, reg: u32) -> Result<u32, Error> {
-        const CORTUS_READ_MAX_REG: u32 = 0xFF;
+        const CRC_START_POS: usize = 4;
+
         let r = reg.to_le_bytes();
 
         let (mut cmd, resp_crc_check) = if reg <= CORTUS_READ_MAX_REG {
-            ([Cmd::IntrRegRead as u8, r[1] | 0x80, r[0], 0, 0], false)
+            (
+                [
+                    Cmd::IntrRegRead as u8,
+                    r[1] | INTR_REG_RW_EN_BIT,
+                    r[0],
+                    0,
+                    0,
+                ],
+                false,
+            )
         } else {
             ([Cmd::RegRead as u8, r[2], r[1], r[0], 0], true)
         };
 
         if self.crc {
-            cmd[4] = crc7(&cmd[..4]);
+            cmd[CRC_START_POS] = crc7(&cmd[..CRC_START_POS]);
             self.xfer.send(&cmd)?;
         } else {
-            self.xfer.send(&cmd[..4])?;
+            self.xfer.send(&cmd[..CRC_START_POS])?;
         }
 
         let mut rdbuf = [0xFF; 1];
@@ -150,17 +173,17 @@ impl<X: Xfer> ChipAccess<X> {
 
         self.xfer.recv(&mut rdbuf)?;
         trace!("Data ack Bytes: {:x}", HexWrap { v: &rdbuf });
-        // todo: chould check for low bits
-        rdbuf[0] &= 0xF0; // DATA_START_CTRL reg value. Lower bits are start/mid/end indicator
-        self.protocol_verify("single_reg_read:ack", &rdbuf, &[0xF0])?;
+        // todo: should check for low bits
+        rdbuf[0] &= DATA_RESP_ACK;
+        self.protocol_verify("single_reg_read:ack", &rdbuf, &[DATA_RESP_ACK])?;
 
-        let mut data_buf = [0x00; 4];
+        let mut data_buf = [0x00; CRC_START_POS];
         self.xfer.recv(&mut data_buf)?;
 
         // Note: Cortus register reads don't require CRC validation on responses
         // while WINC register reads do require it.
         if self.crc && resp_crc_check {
-            let mut crcbuf = [0xFF; 2];
+            let mut crcbuf = [0xFF; NUM_CRC_BYTES];
             self.xfer.recv(&mut crcbuf)?;
             trace!("Crc Bytes: {:x}", HexWrap { v: &crcbuf });
             if self.check_crc {
@@ -188,7 +211,6 @@ impl<X: Xfer> ChipAccess<X> {
     /// * `()` - If the value was successfully written.
     /// * `Error` - If an error occurs while writing the value to the register.
     pub fn single_reg_write(&mut self, reg: u32, val: u32) -> Result<(), Error> {
-        const CORTUS_WRITE_MAX_REG: u32 = 0x30;
         let v = val.to_le_bytes();
         let r = reg.to_le_bytes();
 
@@ -198,7 +220,7 @@ impl<X: Xfer> ChipAccess<X> {
             (
                 [
                     Cmd::IntrRegWrite as u8,
-                    r[1] | 0x80,
+                    r[1] | INTR_REG_RW_EN_BIT,
                     r[0],
                     v[3],
                     v[2],
@@ -237,7 +259,7 @@ impl<X: Xfer> ChipAccess<X> {
         self.xfer.recv(&mut rdbuf)?;
         trace!("Cmd Bytes: {:x}", HexWrap { v: &rdbuf });
         // Skip the protocol verification for chip reset register.
-        if reg != super::constants::Regs::ChipReset.into() {
+        if reg != Regs::ChipReset.into() {
             self.protocol_verify("single_reg_write:cmd echo", &rdbuf, &[cmd[0]])?;
         }
 
@@ -261,14 +283,16 @@ impl<X: Xfer> ChipAccess<X> {
     /// * `()` - If the data was successfully read into the buffer.
     /// * `Error` - If an error occurs during the DMA read operation.
     pub fn dma_block_read(&mut self, reg: u32, data: &mut [u8]) -> Result<(), Error> {
+        const CRC_START_POS: usize = 7;
+
         let r = reg.to_le_bytes();
         let v = (data.len() as u32).to_le_bytes();
         let mut cmd = [Cmd::DmaRead as u8, r[2], r[1], r[0], v[2], v[1], v[0], 00];
         if self.crc {
-            cmd[7] = crc7(&cmd[..7]);
+            cmd[CRC_START_POS] = crc7(&cmd[..CRC_START_POS]);
             self.xfer.send(&cmd)?;
         } else {
-            self.xfer.send(&cmd[..7])?;
+            self.xfer.send(&cmd[..CRC_START_POS])?;
         }
 
         let mut rdbuf = [0x0; 1];
@@ -284,14 +308,14 @@ impl<X: Xfer> ChipAccess<X> {
         rdbuf[0] = 0;
         self.xfer.recv(&mut rdbuf)?;
         trace!("Ack Bytes: {:x}", HexWrap { v: &rdbuf });
-        rdbuf[0] &= 0xF0; // DATA_START_CTRL reg value. Lower bits are start=1/mid=2/end=3, usually 3
-        self.protocol_verify("dma_block_read:ack", &rdbuf, &[0xF0])?;
+        rdbuf[0] &= DATA_RESP_ACK;
+        self.protocol_verify("dma_block_read:ack", &rdbuf, &[DATA_RESP_ACK])?;
 
         self.xfer.recv(data)?;
         trace!("Data Bytes: {:x}", HexWrap { v: data });
 
         if self.crc {
-            let mut crcbuf = [0x0; 2];
+            let mut crcbuf = [0x0; NUM_CRC_BYTES];
             self.xfer.recv(&mut crcbuf)?;
             trace!("Crc Bytes: {:x}", HexWrap { v: &crcbuf });
             if self.check_crc {
@@ -318,14 +342,18 @@ impl<X: Xfer> ChipAccess<X> {
     /// * `()` - If the data was successfully written.
     /// * `Error` - If an error occurs during the DMA write operation.
     pub fn dma_block_write(&mut self, reg: u32, data: &[u8]) -> Result<(), Error> {
+        const CRC_START_POS: usize = 7;
+        const F3_MARKER: u8 = 0xF3;
+        const EXPECTED_ACK: u8 = 0xC3;
+
         let r = reg.to_le_bytes();
         let v = (data.len() as u32).to_le_bytes();
         let mut cmd = [Cmd::DmaWrite as u8, r[2], r[1], r[0], v[2], v[1], v[0], 0];
         if self.crc {
-            cmd[7] = crc7(&cmd[..7]);
+            cmd[CRC_START_POS] = crc7(&cmd[..CRC_START_POS]);
             self.xfer.send(&cmd)?;
         } else {
-            self.xfer.send(&cmd[..7])?;
+            self.xfer.send(&cmd[..CRC_START_POS])?;
         }
         let mut rdbuf = [0x0; 1];
         self.xfer.recv(&mut rdbuf)?;
@@ -338,20 +366,20 @@ impl<X: Xfer> ChipAccess<X> {
         self.protocol_verify("dma_block_write:zero", &rdbuf, &[0])?;
 
         trace!("Sending F3 marker");
-        self.xfer.send(&[0xf3])?; // todo: could be 1/2/3, depending on conditions
+        self.xfer.send(&[F3_MARKER])?; // todo: could be 1/2/3, depending on conditions
 
         trace!("Sending data ...");
         self.xfer.send(data)?;
 
         let mut ack_array = [0x00; 3];
         let mut dmaackbuf = &mut ack_array[..];
-        let mut expected_ack = [0x00, 0xC3, 00].as_slice();
+        let mut expected_ack = [0x00, EXPECTED_ACK, 00].as_slice();
         if self.crc {
             let calc = crc16(data).to_be_bytes();
             let dummy_crc = [calc[0], calc[1]];
             self.xfer.send(&dummy_crc)?;
             dmaackbuf = &mut ack_array[..2];
-            expected_ack = &[0xC3, 00];
+            expected_ack = &[EXPECTED_ACK, 00];
         }
         trace!("Getting {} ack bytes", dmaackbuf.len());
         self.xfer.recv(dmaackbuf)?;
@@ -367,12 +395,14 @@ impl<X: Xfer> ChipAccess<X> {
     /// * `()` - If the bus was reset successfully.
     /// * `Error` - If an error occurs while resetting the SPI bus.
     pub(crate) fn bus_reset(&mut self) -> Result<(), Error> {
+        const CRC_START_POS: usize = 4;
+
         let mut cmd = [Cmd::BusReset as u8, 0xff, 0xff, 0xff, 0x00];
         if self.crc {
-            cmd[4] = crc7(&cmd[..4]);
+            cmd[CRC_START_POS] = crc7(&cmd[..CRC_START_POS]);
             self.xfer.send(&cmd)?;
         } else {
-            self.xfer.send(&cmd[..4])?;
+            self.xfer.send(&cmd[..CRC_START_POS])?;
         }
 
         let mut rdbuf = [0x0; 1];
