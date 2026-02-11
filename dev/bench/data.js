@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1770543456698,
+  "lastUpdate": 1770783817586,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -5393,6 +5393,40 @@ window.BENCHMARK_DATA = {
           {
             "name": "iperf3_client",
             "value": 51744,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "142439476+umarbinzahid@users.noreply.github.com",
+            "name": "Umar Bin Zahid",
+            "username": "umarbinzahid"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "3b05a0d3dd756b2099cb1062fcbb5f017d7fbecb",
+          "message": "Replace magic numbers with constants. (#129)\n\n* Removed magic numbers.",
+          "timestamp": "2026-02-10T20:22:44-08:00",
+          "tree_id": "e782f20c96c174ad26d54017a3619f941a369821",
+          "url": "https://github.com/kaidokert/winc-rs/commit/3b05a0d3dd756b2099cb1062fcbb5f017d7fbecb"
+        },
+        "date": 1770783817113,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 37180,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 51352,
             "unit": "byte"
           }
         ]
