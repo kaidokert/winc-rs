@@ -18,15 +18,14 @@ use crate::manager::constants::{
     CONN_INFO_RESP_PACKET_SIZE, PRNG_DATA_LENGTH, PRNG_PACKET_SIZE, SCAN_RESULT_RESP_PACKET_SIZE,
     SOCKET_BUFFER_MAX_LENGTH,
 };
+use crate::manager::responses::*;
+use crate::{error, transfer::Xfer};
 
 #[cfg(feature = "ssl")]
 use super::constants::SslResponse;
 
 #[cfg(feature = "experimental-ecc")]
 use super::constants::SSL_ECC_REQ_PACKET_SIZE;
-
-use crate::manager::responses::*;
-use crate::{error, transfer::Xfer};
 
 #[cfg(feature = "experimental-ota")]
 use crate::manager::constants::OtaResponse;
@@ -45,8 +44,8 @@ impl<X: Xfer> Manager<X> {
     ///
     /// # Returns
     ///
-    /// * `()` - If no error occurred while processing the events.
-    /// * `Error` - If an error occurred while processing the events.
+    /// * `Ok(())` - If Wifi events were successfully processed.
+    /// * `Err(Error)` - If an error occurred while processing the events.
     fn wifi_events_listener<T: EventListener>(
         &mut self,
         listener: &mut T,
@@ -58,19 +57,19 @@ impl<X: Xfer> Manager<X> {
                 const RSSI_RESP_PACKET_SIZE: usize = 4;
                 let mut result = [0xff; RSSI_RESP_PACKET_SIZE];
                 self.read_block(address, &mut result)?;
-                listener.on_rssi(result[0] as i8)
+                listener.on_rssi(result[0] as i8);
             }
             WifiResponse::DefaultConnect => {
                 const DEFAULT_CONNECT_RESP_PACKET: usize = 4;
                 let mut def_connect = [0xff; DEFAULT_CONNECT_RESP_PACKET];
                 self.read_block(address, &mut def_connect)?;
-                listener.on_default_connect(def_connect[0].into())
+                listener.on_default_connect(def_connect[0].into());
             }
             WifiResponse::DhcpConf => {
                 const DHCP_CONF_RESP_PACKET_SIZE: usize = 20;
                 let mut result = [0xff; DHCP_CONF_RESP_PACKET_SIZE];
                 self.read_block(address, &mut result)?;
-                listener.on_dhcp(read_dhcp_conf(&result)?)
+                listener.on_dhcp(read_dhcp_conf(&result)?);
             }
             WifiResponse::ConStateChanged => {
                 const CONSTATE_RESP_PACKET_SIZE: usize = 4;
@@ -79,20 +78,22 @@ impl<X: Xfer> Manager<X> {
                 listener.on_connstate_changed(connstate[0].into(), connstate[1].into());
             }
             WifiResponse::ConnInfo => {
-                let mut conninfo = [0xff; CONN_INFO_RESP_PACKET_SIZE];
-                self.read_block(address, &mut conninfo)?;
-                listener.on_connection_info(conninfo.into())
+                let mut response = [0xff; CONN_INFO_RESP_PACKET_SIZE];
+                self.read_block(address, &mut response)?;
+                let conn_info = read_connection_info_reply(&response)?;
+                listener.on_connection_info(conn_info);
             }
             WifiResponse::ScanResult => {
                 let mut result = [0xff; SCAN_RESULT_RESP_PACKET_SIZE];
                 self.read_block(address, &mut result)?;
-                listener.on_scan_result(result.into())
+                let scan_results = read_scan_results_reply(&result)?;
+                listener.on_scan_result(scan_results);
             }
             WifiResponse::ScanDone => {
                 const SCAN_DONE_RESP_PACKET_SIZE: usize = 4;
                 let mut result = [0xff; SCAN_DONE_RESP_PACKET_SIZE];
                 self.read_block(address, &mut result)?;
-                listener.on_scan_done(result[0], result[1].into())
+                listener.on_scan_done(result[0], result[1].into());
             }
             WifiResponse::ClientInfo => {
                 unimplemented!("PS mode not yet supported")
@@ -179,8 +180,8 @@ impl<X: Xfer> Manager<X> {
     ///
     /// # Returns
     ///
-    /// * `()` - If no error occurred while processing the events.
-    /// * `Error` - If an error occurred while processing the events.
+    /// * `Ok(())` - If OTA events were successfully processed.
+    /// * `Err(Error)` - If an error occurred while processing the events.
     fn ota_events_listener<T: EventListener>(
         &mut self,
         listener: &mut T,
@@ -216,8 +217,8 @@ impl<X: Xfer> Manager<X> {
     ///
     /// # Returns
     ///
-    /// * `()` - If no error occurred while processing the events.
-    /// * `Error` - If an error occurred while processing the events.
+    /// * `Ok(())` - If IP events were successfully processed.
+    /// * `Err(Error)` - If an error occurred while processing the events.
     fn ip_events_listener<T: EventListener>(
         &mut self,
         listener: &mut T,
@@ -237,7 +238,7 @@ impl<X: Xfer> Manager<X> {
                 let mut result = [0u8; PING_RESP_PACKET_SIZE];
                 self.read_block(address, &mut result)?;
                 let rep = read_ping_reply(&result)?;
-                listener.on_ping(rep.0, rep.1, rep.2, rep.3, rep.4, rep.5)
+                listener.on_ping(rep.0, rep.1, rep.2, rep.3, rep.4, rep.5);
             }
             IpCode::Bind => {
                 const SOCK_BIND_RESP_PACKET_SIZE: usize = 4;
@@ -274,14 +275,14 @@ impl<X: Xfer> Manager<X> {
                 let mut result = [0u8; SOCK_CONNECT_RESP_PACKET_SIZE];
                 self.read_block(address, &mut result)?;
                 let rep = read_connect_socket_reply(&result)?;
-                listener.on_connect(rep.0, rep.1)
+                listener.on_connect(rep.0, rep.1);
             }
             IpCode::SendTo => {
                 const SOCK_UDP_SEND_RESP_PACKET_SIZE: usize = 8;
                 let mut result = [0u8; SOCK_UDP_SEND_RESP_PACKET_SIZE];
                 self.read_block(address, &mut result)?;
                 let rep = read_send_reply(&result)?;
-                listener.on_send_to(rep.0, rep.1)
+                listener.on_send_to(rep.0, rep.1);
             }
             // The reply for `IpCode::SslSend` is the same as for `IpCode::Send`.
             IpCode::Send => {
@@ -289,23 +290,23 @@ impl<X: Xfer> Manager<X> {
                 let mut result = [0u8; SOCK_TCP_SEND_RESP_PACKET_SIZE];
                 self.read_block(address, &mut result)?;
                 let rep = read_send_reply(&result)?;
-                listener.on_send(rep.0, rep.1)
+                listener.on_send(rep.0, rep.1);
             }
             IpCode::Recv => {
                 let mut buffer = [0; SOCKET_BUFFER_MAX_LENGTH];
                 let rep = self.get_recv_reply(address, &mut buffer)?;
-                listener.on_recv(rep.0, rep.1, rep.2, rep.3)
+                listener.on_recv(rep.0, rep.1, rep.2, rep.3);
             }
             IpCode::RecvFrom => {
                 let mut buffer = [0; SOCKET_BUFFER_MAX_LENGTH];
                 let rep = self.get_recv_reply(address, &mut buffer)?;
-                listener.on_recvfrom(rep.0, rep.1, rep.2, rep.3)
+                listener.on_recvfrom(rep.0, rep.1, rep.2, rep.3);
             }
             #[cfg(feature = "ssl")]
             IpCode::SslRecv => {
                 let mut buffer = [0; SOCKET_BUFFER_MAX_LENGTH];
                 let rep = self.get_recv_reply(address, &mut buffer)?;
-                listener.on_recv(rep.0, rep.1, rep.2, rep.3)
+                listener.on_recv(rep.0, rep.1, rep.2, rep.3);
             }
             IpCode::Close => {
                 unimplemented!("There is no response for close")
@@ -331,7 +332,7 @@ impl<X: Xfer> Manager<X> {
     ///
     /// # Returns
     ///
-    /// * `Ok(())` - If no error occurred while processing the events.
+    /// * `Ok(())` - If SSL events were successfully processed.
     /// * `Err(Error)` - If an error occurred while processing the events.
     #[cfg(feature = "ssl")]
     fn ssl_events_listener<T: EventListener>(
@@ -381,8 +382,8 @@ impl<X: Xfer> Manager<X> {
     ///
     /// # Returns
     ///
-    /// * `()` - If no error occurred while waiting for and processing new events.
-    /// * `Error` - If an error occurred while waiting for or processing new events.
+    /// * `Ok(())` - If no error occurred while waiting for and processing new events.
+    /// * `Err(Error)` - If an error occurred while waiting for or processing new events.
     pub fn dispatch_events_may_wait<T: EventListener>(
         &mut self,
         listener: &mut T,
@@ -400,8 +401,8 @@ impl<X: Xfer> Manager<X> {
     ///
     /// # Returns
     ///
-    /// * `()` - If no error occurred while checking or processing new events.
-    /// * `Error` - If an error occurred while checking or processing new events.
+    /// * `Ok(())` - If no error occurred while checking or processing new events.
+    /// * `Err(Error)` - If an error occurred while checking or processing new events.
     pub fn dispatch_events_new<T: EventListener>(&mut self, listener: &mut T) -> Result<(), Error> {
         // clear the interrupt pending register
         let res = self.is_interrupt_pending()?;

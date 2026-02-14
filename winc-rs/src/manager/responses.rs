@@ -12,72 +12,133 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use super::constants::{
+    PingError, SocketError, AF_INET, CONN_INFO_RESP_PACKET_SIZE, FW_INFO_BUILD_DATE_LEN,
+    FW_INFO_BUILD_TIME_LEN, FW_INFO_RESP_PACKET_SIZE, MAX_HOST_NAME_LEN, MAX_PSK_KEY_LEN,
+    MAX_SSID_LEN, SCAN_RESULT_RESP_PACKET_SIZE,
+};
+use super::net_types::{
+    Bssid, FirmwareInfo, HostName, IPConf, MacAddress, Revision, ScanResult, Ssid, WpaKey,
+};
+use crate::errors::CommError as Error;
 use crate::readwrite::{Read, ReadExactError};
+use crate::ConnectionInfo;
+use crate::{error, socket::Socket, HexWrap};
+use arrayvec::ArrayString;
 use core::{
     net::{Ipv4Addr, SocketAddrV4},
     str::FromStr,
 };
 
-use super::constants::{
-    AuthType, PingError, SocketError, AF_INET, CONN_INFO_RESP_PACKET_SIZE, MAX_HOST_NAME_LEN,
-    MAX_PSK_KEY_LEN, MAX_SSID_LEN, SCAN_RESULT_RESP_PACKET_SIZE,
-};
-use crate::errors::CommError as Error;
-
-use super::net_types::{Bssid, HostName, MacAddress, Ssid, WpaKey};
 #[cfg(feature = "experimental-ecc")]
 use super::{
     constants::EccRequestType,
     net_types::{EccRequest, EcdhInfo, EcdsaSignInfo},
 };
-use arrayvec::ArrayString;
 
-use crate::{error, socket::Socket, HexWrap};
-
-#[cfg(feature = "defmt")]
-use crate::Ipv4AddrFormatWrapper;
-
-/// Length of the firmware version.
-const FW_INFO_VER_LEN: usize = 6;
-/// Length of the firmware build date.
-const FW_INFO_BUILD_DATE_LEN: usize = 12;
-/// Length of the firmware build time.
-const FW_INFO_BUILD_TIME_LEN: usize = 9;
-/// Total size of the firmware info response packet, in bytes.
-const FW_INFO_RESP_PACKET_SIZE: usize = 40;
 /// Error type returned when an reading from a byte slice fails.
 type ErrType<'a> = ReadExactError<<&'a [u8] as Read>::ReadError>;
 
+/// Reads a 32-bit unsigned integer from the beginning of the slice and
+/// advances the slice past the consumed bytes.
+///
+/// # Arguments
+///
+/// * `v` - A mutable reference to a byte slice. On success, it is advanced
+///   by 4 bytes.
+///
+/// # Returns
+///
+/// * `Ok(u32)`- 32-bit big-endian value.
+/// * `Err(ErrType<'a>)` - If there are not enough bytes or parsing fails.
 fn read32be<'a>(v: &mut &[u8]) -> Result<u32, ErrType<'a>> {
     let mut arr = [0u8; 4];
     v.read_exact(&mut arr)?;
     Ok(u32::from_be_bytes(arr))
 }
 
+/// Reads a 32-bit unsigned integer from the beginning of the slice and
+/// advances the slice past the consumed bytes.
+///
+/// # Arguments
+///
+/// * `v` - A mutable reference to a byte slice. On success, it is advanced
+///   by 4 bytes.
+///
+/// # Returns
+///
+/// * `Ok(u32)` - 32-bit little-endian value.
+/// * `Err(ErrType<'a>)`- If there are not enough bytes or parsing fails.
 fn read32le<'a>(v: &mut &[u8]) -> Result<u32, ErrType<'a>> {
     let mut arr = [0u8; 4];
     v.read_exact(&mut arr)?;
     Ok(u32::from_le_bytes(arr))
 }
 
+/// Reads a 16-bit unsigned integer from the beginning of the slice
+/// and advances the slice past the consumed bytes.
+///
+/// # Arguments
+///
+/// * `v` - A mutable reference to a byte slice. On success, it is advanced
+///   by 2 bytes.
+///
+/// # Returns
+///
+/// * `Ok(u16)` - 16-bit little-endian value.
+/// * `Err(ErrType<'a>)` - If there are not enough bytes or parsing fails.
 fn read16<'a>(v: &mut &[u8]) -> Result<u16, ErrType<'a>> {
     let mut arr = [0u8; 2];
     v.read_exact(&mut arr)?;
     Ok(u16::from_le_bytes(arr))
 }
 
+/// Reads a 16-bit unsigned integer from the beginning of the slice and
+/// advances the slice past the consumed bytes.
+///
+/// # Arguments
+///
+/// * `v` - A mutable reference to a byte slice. On success, it is advanced
+///   by 2 bytes.
+///
+/// # Returns
+///
+/// * `Ok(u16)` - 16-bit big-endian value.
+/// * `Err(ErrType<'a>)` - If there are not enough bytes or parsing fails.
 fn read16be<'a>(v: &mut &[u8]) -> Result<u16, ErrType<'a>> {
     let mut arr = [0u8; 2];
     v.read_exact(&mut arr)?;
     Ok(u16::from_be_bytes(arr))
 }
 
+/// Reads an 8-bit unsigned integer from the beginning of the slice
+/// and advances the slice past the consumed byte.
+///
+/// # Arguments
+///
+/// * `v` - A mutable reference to a byte slice. On success, it is advanced
+///   by 1 byte.
+///
+/// # Returns
+///
+/// * `Ok(u8)` - 8-bit little-endian value.
+/// * `Err(ErrType<'a>)` - If there are not enough bytes or parsing fails.
 fn read8<'a>(v: &mut &[u8]) -> Result<u8, ErrType<'a>> {
     let mut arr = [0u8; 1];
     v.read_exact(&mut arr)?;
     Ok(arr[0])
 }
 
+/// Creates an `ArrayString<N>` from a fixed-size C-style null-terminated byte string.
+///
+/// # Arguments
+///
+/// * `input` - A fixed-size byte array that may contain a null terminator.
+///
+/// # Returns
+///
+/// * `Ok(ArrayString<N>)` - UTF-8 string with N bytes.
+/// * `Err(core::str::Utf8Error)` - If the relevant bytes are not valid UTF-8.
 fn from_c_byte_str<const N: usize>(input: [u8; N]) -> Result<ArrayString<N>, core::str::Utf8Error> {
     let mut ret = ArrayString::from_byte_string(&input)?;
     if let Some(i) = &ret.find('\0') {
@@ -86,6 +147,16 @@ fn from_c_byte_str<const N: usize>(input: [u8; N]) -> Result<ArrayString<N>, cor
     Ok(ret)
 }
 
+/// Creates an `ArrayString<N>` from a C-style null-terminated byte slice.
+///
+/// # Arguments
+///
+/// * `input` - A byte slice that may contain a null terminator.
+///
+/// # Returns
+///
+/// * `Ok(ArrayString<N>)` - UTF-8 string with N bytes.
+/// * `Err(Error)` - If the relevant bytes are not valid UTF-8.
 fn from_c_byte_slice<const N: usize>(input: &[u8]) -> Result<ArrayString<N>, Error> {
     let slice = match core::str::from_utf8(input) {
         Err(err) => core::str::from_utf8(&input[..err.valid_up_to()])?,
@@ -98,205 +169,116 @@ fn from_c_byte_slice<const N: usize>(input: &[u8]) -> Result<ArrayString<N>, Err
     Ok(ret)
 }
 
-/// A revision number of the firmware
-#[cfg_attr(feature = "defmt", derive(defmt::Format))]
-#[derive(Debug, PartialEq)]
-pub struct Revision {
-    pub major: u8,
-    pub minor: u8,
-    pub patch: u8,
+/// Reads the connection details.
+///
+/// # Arguments
+///
+/// * `resp` - Packet containing the connection information.
+///
+/// # Returns
+///
+/// - `Ok(ConnectionInfo)` - Connection information on success.
+/// - `Err(Error)` - If an error occurred while parsing or validating the response.
+pub(super) fn read_connection_info_reply(
+    resp: &[u8; CONN_INFO_RESP_PACKET_SIZE],
+) -> Result<ConnectionInfo, Error> {
+    let mut ipslice = &resp[34..38];
+    Ok(ConnectionInfo {
+        auth: resp[33].into(),
+        rssi: resp[44] as i8,
+        ip: read32be(&mut ipslice)?.into(),
+        ssid: from_c_byte_slice(&resp[..MAX_SSID_LEN])?,
+        mac: MacAddress::from_bytes(&resp[38..44]).map_err(|_| Error::BufferReadError)?,
+    })
 }
 
-/// Information about the firmware version of the Wifi module
-pub struct FirmwareInfo {
-    pub chip_id: u32,
-    pub firmware_revision: Revision,
-    pub driver_revision: Revision,
-    pub build_date: ArrayString<FW_INFO_BUILD_DATE_LEN>,
-    pub build_time: ArrayString<FW_INFO_BUILD_TIME_LEN>,
-    pub svn_rev: u16,
+/// Reads the scan results.
+///
+/// # Arguments
+///
+/// * `resp` - Packet containing the scan result.
+///
+/// # Returns
+///
+/// - `Ok(ScanResult)` - Scan results on success.
+/// - `Err(Error)` - If an error occurred while parsing or validating the response.
+pub(super) fn read_scan_results_reply(
+    resp: &[u8; SCAN_RESULT_RESP_PACKET_SIZE],
+) -> Result<ScanResult, Error> {
+    Ok(ScanResult {
+        index: resp[0],
+        rssi: resp[1] as i8,
+        auth: resp[2].into(),
+        channel: resp[3],
+        bssid: Bssid::from_bytes(&resp[4..10]).map_err(|_| Error::BufferReadError)?,
+        ssid: from_c_byte_slice(&resp[10..42])?,
+    })
 }
 
-impl From<[u8; FW_INFO_RESP_PACKET_SIZE]> for FirmwareInfo {
-    fn from(data: [u8; FW_INFO_RESP_PACKET_SIZE]) -> Self {
-        let mut data_slice = data.as_slice();
-        let reader = &mut data_slice;
+/// Reads the firmware versioning details.
+///
+/// # Arguments
+///
+/// * `response` - Packet containing the firmware version information.
+///
+/// # Returns
+///
+/// - `Ok(FirmwareInfo)` - Firmware version information on success.
+/// - `Err(Error)` - If an error occurred while parsing or validating the response.
+pub(super) fn read_firmware_info_reply(
+    response: &[u8; FW_INFO_RESP_PACKET_SIZE],
+) -> Result<FirmwareInfo, Error> {
+    /// Length of the firmware version.
+    const FW_INFO_VER_LEN: usize = 6;
 
-        let mut ver = [0u8; FW_INFO_VER_LEN];
-        let mut build_date = [0u8; FW_INFO_BUILD_DATE_LEN];
-        let mut build_time = [0u8; FW_INFO_BUILD_TIME_LEN];
+    let mut data_slice = response.as_slice();
+    let reader = &mut data_slice;
+    let mut ver = [0u8; FW_INFO_VER_LEN];
+    let mut build_date = [0u8; FW_INFO_BUILD_DATE_LEN];
+    let mut build_time = [0u8; FW_INFO_BUILD_TIME_LEN];
 
-        // todo: get rid of unwraps
-        let chip_id = read32le(reader).unwrap();
-        reader.read_exact(&mut ver).unwrap();
-        reader.read_exact(&mut build_date).unwrap();
-        reader.read_exact(&mut build_time).unwrap();
-        let _ = read8(reader).unwrap();
-        let svn_rev = read16(reader).unwrap();
+    let chip_id = read32le(reader)?;
+    reader.read_exact(&mut ver)?;
+    reader.read_exact(&mut build_date)?;
+    reader.read_exact(&mut build_time)?;
+    let _ = read8(reader)?;
+    let svn_rev = read16(reader)?;
 
-        FirmwareInfo {
-            chip_id,
-            firmware_revision: Revision {
-                major: ver[0],
-                minor: ver[1],
-                patch: ver[2],
-            },
-            driver_revision: Revision {
-                major: ver[3],
-                minor: ver[4],
-                patch: ver[5],
-            },
-            build_date: from_c_byte_str(build_date).unwrap(),
-            build_time: from_c_byte_str(build_time).unwrap(),
-            svn_rev,
-        }
-    }
+    Ok(FirmwareInfo {
+        chip_id,
+        firmware_revision: Revision {
+            major: ver[0],
+            minor: ver[1],
+            patch: ver[2],
+        },
+        driver_revision: Revision {
+            major: ver[3],
+            minor: ver[4],
+            patch: ver[5],
+        },
+        build_date: from_c_byte_str(build_date)?,
+        build_time: from_c_byte_str(build_time)?,
+        svn_rev,
+    })
 }
 
-/// Formatter for the firmware version.
-#[cfg(feature = "defmt")]
-impl defmt::Format for FirmwareInfo {
-    fn format(&self, f: defmt::Formatter) {
-        defmt::write!(
-            f,
-            "Firmware rev: {}.{}.{}\n\
-             Driver rev: {}.{}.{}\n\
-             Build Date: {}\n\
-             Build Time: {}\n\
-             SVN rev: {}",
-            self.firmware_revision.major,
-            self.firmware_revision.minor,
-            self.firmware_revision.patch,
-            self.driver_revision.major,
-            self.driver_revision.minor,
-            self.driver_revision.patch,
-            self.build_date.as_str(),
-            self.build_time.as_str(),
-            self.svn_rev
-        );
-    }
-}
-
-/// Connected network information
-//#[cfg_attr(feature = "defmt", derive(defmt::Format))]
-#[derive(Debug, PartialEq)]
-pub struct ConnectionInfo {
-    pub ssid: Ssid,
-    pub auth: AuthType,
-    pub ip: Ipv4Addr,
-    pub mac: MacAddress,
-    pub rssi: i8,
-}
-
-#[cfg(feature = "defmt")]
-impl defmt::Format for ConnectionInfo {
-    fn format(&self, f: defmt::Formatter) {
-        defmt::write!(
-            f,
-            "Connection Info:\n\
-             ssid: {}\n\
-             authtype: {:?}\n\
-             ip: {}\n\
-             mac: {:?}\n\
-             rssi: {}",
-            self.ssid.as_str(),
-            self.auth,
-            Ipv4AddrFormatWrapper::new(&self.ip),
-            self.mac,
-            self.rssi
-        );
-    }
-}
-
-impl From<[u8; CONN_INFO_RESP_PACKET_SIZE]> for ConnectionInfo {
-    fn from(v: [u8; CONN_INFO_RESP_PACKET_SIZE]) -> Self {
-        let mut ipslice = &v[34..38];
-        let res = Self {
-            auth: v[33].into(),
-            rssi: v[44] as i8,
-            ip: read32be(&mut ipslice).unwrap().into(),
-            ssid: from_c_byte_slice(&v[..MAX_SSID_LEN]).unwrap(),
-            mac: MacAddress::from_bytes(&v[38..44]).unwrap(),
-        };
-        res
-    }
-}
-
-impl core::fmt::Display for ConnectionInfo {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "ssid:{} authtype:{:?} ip:{} mac:{:?} rssi:{}",
-            self.ssid.as_str(),
-            self.auth,
-            self.ip,
-            self.mac,
-            self.rssi
-        )
-    }
-}
-
-/// Result of a scan for access points
-#[derive(Debug, PartialEq, Default)]
-pub struct ScanResult {
-    pub index: u8,
-    pub rssi: i8,
-    pub auth: AuthType,
-    pub channel: u8,
-    pub bssid: Bssid,
-    /// SSID of the access point
-    pub ssid: Ssid,
-}
-
-// todo: Scanresult parsing is ugly
-impl From<[u8; SCAN_RESULT_RESP_PACKET_SIZE]> for ScanResult {
-    fn from(v: [u8; SCAN_RESULT_RESP_PACKET_SIZE]) -> Self {
-        let mut res = Self {
-            index: v[0],
-            rssi: v[1] as i8,
-            auth: v[2].into(),
-            channel: v[3],
-            bssid: Bssid::from_bytes(&v[4..10]).unwrap(),
-            ..Default::default()
-        };
-        res.ssid = from_c_byte_slice(&v[10..42]).unwrap();
-        res
-    }
-}
-
-impl core::fmt::Display for ScanResult {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "index:{} rssi:{} authtype:{:?} channel:{} bssid:{:?} ssid:{}",
-            self.index,
-            self.rssi,
-            self.auth,
-            self.channel,
-            self.bssid,
-            self.ssid.as_str()
-        )
-    }
-}
-
-#[cfg(feature = "defmt")]
-impl defmt::Format for ScanResult {
-    fn format(&self, f: defmt::Formatter) {
-        defmt::write!(
-            f,
-            "index:{} rssi:{} authtype:{:?} channel:{} bssid:{:?} ssid:{}",
-            self.index,
-            self.rssi,
-            self.auth,
-            self.channel,
-            self.bssid,
-            self.ssid.as_str()
-        );
-    }
-}
-
-// tstrPingReply
-pub fn read_ping_reply<'a>(
+/// Reads the ping response.
+///
+/// # Arguments
+///
+/// * `response` - Packet containing the ping reply.
+///
+/// # Returns
+///
+/// * `Ok((Ipv4Addr, u32, u32, u16, u16, PingError))`:
+///     - `Ipv4Addr` - The IP address of the destination.
+///     - `u32` - Total number of packets sent.
+///     - `u32` - Round-trip time in milliseconds.
+///     - `u16` - Number of packets received.
+///     - `u16` - Number of packets lost.
+///     - `PingError` - Any error that occurred during the ping operation.
+/// * `Err(ErrType)` - If an error occurred while parsing or validating the response.
+pub(super) fn read_ping_reply<'a>(
     mut response: &[u8],
 ) -> Result<(Ipv4Addr, u32, u32, u16, u16, PingError), ErrType<'a>> {
     let reader = &mut response;
@@ -311,8 +293,21 @@ pub fn read_ping_reply<'a>(
     Ok((ip.into(), privx, rtt, succ, fail, errcode.into()))
 }
 
-// tstrAcceptReply
-pub fn read_accept_reply(
+/// Reads the TCP socket accept reply.
+///
+/// # Arguments
+///
+/// * `response` - Packet containing the TCP socket accept response.
+///
+/// # Returns
+///
+/// * `Ok((SocketAddrV4, Socket, Socket, u16))`:
+///     - `SocketAddrV4` - The remote IPv4 address and port of the accepted connection.
+///     - `Socket` - The listening socket that accepted the connection.
+///     - `Socket` - The newly created socket for the accepted connection.
+///     - `u16` - The data offset for the received payload.
+/// * `Err(Error)` - If an error occurred while parsing or validating the response.
+pub(super) fn read_accept_reply(
     mut response: &[u8],
 ) -> Result<(SocketAddrV4, Socket, Socket, u16), Error> {
     let reader = &mut response;
@@ -330,41 +325,17 @@ pub fn read_accept_reply(
     ))
 }
 
-#[derive(PartialEq, Debug, Clone)]
-pub struct IPConf {
-    pub ip: Ipv4Addr,
-    pub gateway: Ipv4Addr,
-    pub dns: Ipv4Addr,
-    pub subnet: Ipv4Addr,
-    pub lease_time: u32,
-}
-
-impl core::fmt::Display for IPConf {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "ip:{} gateway:{} dns:{} subnet:{} lease:{}",
-            self.ip, self.gateway, self.dns, self.subnet, self.lease_time
-        )
-    }
-}
-
-#[cfg(feature = "defmt")]
-impl defmt::Format for IPConf {
-    fn format(&self, f: defmt::Formatter) {
-        defmt::write!(
-            f,
-            "lease_time:{} ip:{} gateway:{} dns:{} subnet:{}",
-            self.lease_time,
-            Ipv4AddrFormatWrapper::new(&self.ip),
-            Ipv4AddrFormatWrapper::new(&self.gateway),
-            Ipv4AddrFormatWrapper::new(&self.dns),
-            Ipv4AddrFormatWrapper::new(&self.subnet),
-        );
-    }
-}
-
-pub fn read_dhcp_conf<'a>(mut response: &[u8]) -> Result<IPConf, ErrType<'a>> {
+/// Reads the DHCP configuration reply.
+///
+/// # Arguments
+///
+/// * `response` - Packet containing the DHCP configuration data.
+///
+/// # Returns
+///
+/// - `Ok(IPConf)` - The parsed IP configuration assigned by the DHCP server.
+/// - `Err(ErrType)` - If an error occurred while parsing or validating the response.
+pub(super) fn read_dhcp_conf<'a>(mut response: &[u8]) -> Result<IPConf, ErrType<'a>> {
     let reader = &mut response;
     Ok(IPConf {
         ip: read32be(reader)?.into(),
@@ -375,8 +346,19 @@ pub fn read_dhcp_conf<'a>(mut response: &[u8]) -> Result<IPConf, ErrType<'a>> {
     })
 }
 
-// tstrDnsReply: returns hostname, IP
-pub fn read_dns_reply(mut response: &[u8]) -> Result<(Ipv4Addr, HostName), Error> {
+/// Reads the DNS reply.
+///
+/// # Arguments
+///
+/// * `response` - Packet containing the DNS response.
+///
+/// # Returns
+///
+/// * `Ok((Ipv4Addr, HostName))`:
+///     - `Ipv4Addr` - The resolved IP address of the queried host.
+///     - `HostName` - The hostname associated with the resolved IP address.
+/// * `Err(Error)` - If an error occurred while parsing or validating the response.
+pub(super) fn read_dns_reply(mut response: &[u8]) -> Result<(Ipv4Addr, HostName), Error> {
     let reader = &mut response;
     let mut strbuffer = [0u8; MAX_HOST_NAME_LEN];
     // read hostname
@@ -388,8 +370,20 @@ pub fn read_dns_reply(mut response: &[u8]) -> Result<(Ipv4Addr, HostName), Error
     Ok((ip.into(), from_c_byte_str(strbuffer)?))
 }
 
-// tstrSendReply: returns socket, byes sent, session
-pub fn read_send_reply<'a>(mut response: &[u8]) -> Result<(Socket, i16), ErrType<'a>> {
+/// Reads the TCP send reply.
+///
+/// # Arguments
+///
+/// * `response` - Packet containing the TCP send operation response.
+///
+/// # Returns
+///
+/// * `Ok((Socket, i16))`:
+///     - `Socket` - The socket that was used to send the data.
+///     - `i16` - Positive value indicating number of bytes successfully sent,
+///       Negative value indicating failure.
+/// * `Err(ErrType)` - If an error occurred while parsing or validating the response.
+pub(super) fn read_send_reply<'a>(mut response: &[u8]) -> Result<(Socket, i16), ErrType<'a>> {
     let reader = &mut response;
     let sock = read8(reader)?; // sock
     _ = read8(reader)?; // void
@@ -399,8 +393,24 @@ pub fn read_send_reply<'a>(mut response: &[u8]) -> Result<(Socket, i16), ErrType
     Ok(((sock, session).into(), bytes_sent))
 }
 
-// tstrRecvReply
-pub fn read_recv_reply(mut response: &[u8]) -> Result<(Socket, SocketAddrV4, i16, u16), Error> {
+/// Reads the TCP receive reply.
+///
+/// # Arguments
+///
+/// * `response` - Packet containing the receive operation reply.
+///
+/// # Returns
+///
+/// * `Ok((Socket, SocketAddrV4, i16, u16))`:
+///     - `Socket` - The socket that received the data.
+///     - `SocketAddrV4` - The remote IPv4 address and port from which the data was received.
+///     - `i16` - Positive value indicating number of bytes successfully sent,
+///       Negative value indicating failure.
+///     - `u16` - Register offset from where received data can be read.
+/// * `Err(Error)` - If an error occurred while parsing or validating the response.
+pub(super) fn read_recv_reply(
+    mut response: &[u8],
+) -> Result<(Socket, SocketAddrV4, i16, u16), Error> {
     let reader = &mut response;
     if read16(reader)? != AF_INET {
         error!("Error response: {:x}", HexWrap::new(response));
@@ -421,8 +431,19 @@ pub fn read_recv_reply(mut response: &[u8]) -> Result<(Socket, SocketAddrV4, i16
     ))
 }
 
-// tstrBindReply, tstrListenReply
-pub fn read_common_socket_reply<'a>(
+/// Reads a common socket reply (e.g., bind or listen).
+///
+/// # Arguments
+///
+/// * `response` - Packet containing the socket operation reply.
+///
+/// # Returns
+///
+/// * `Ok((Socket, SocketError))`:
+///     - `Socket` - The socket involved in the operation.
+///     - `SocketError` - Any error reported by the module for the socket operation.
+/// * `Err(ErrType)` - If an error occurred while parsing or validating the response.
+pub(super) fn read_common_socket_reply<'a>(
     mut response: &[u8],
 ) -> Result<(Socket, SocketError), ErrType<'a>> {
     let reader = &mut response;
@@ -440,11 +461,11 @@ pub fn read_common_socket_reply<'a>(
 ///
 /// # Returns
 ///
-/// - `Ok((socket, socket_error))`:
-///     - `Socket` — The socket information returned by the module.
-///     - `SocketError` — Any error that occurred while connecting to the server.
-/// - `Err(Error)` — If an error occurred while reading the connect socket response.
-pub(crate) fn read_connect_socket_reply(
+/// * `Ok((socket, socket_error))`:
+///     - `Socket` - The socket identifier returned by the module.
+///     - `SocketError` - Any error that occurred while connecting to the server.
+/// * `Err(Error)` - If an error occurred while reading the connect socket response.
+pub(super) fn read_connect_socket_reply(
     mut response: &[u8],
 ) -> Result<(Socket, SocketError), Error> {
     let reader = &mut response;
@@ -478,10 +499,10 @@ pub(crate) fn read_connect_socket_reply(
 ///
 /// # Returns
 ///
-/// * `u32` - The memory address of the input buffer.
-/// * `u16` - The length of the generated random bytes.
-/// * `Error` - If an error occurred while reading the PRNG response.
-pub fn read_prng_reply(mut response: &[u8]) -> Result<(u32, u16), Error> {
+/// * `Ok(u32)` - The memory address of the input buffer.
+/// * `Ok(u16)` - The length of the generated random bytes.
+/// * `Err(Error)` - If an error occurred while reading the PRNG response.
+pub(super) fn read_prng_reply(mut response: &[u8]) -> Result<(u32, u16), Error> {
     let reader = &mut response;
 
     let addr = read32le(reader)?; // memory address
@@ -504,13 +525,15 @@ pub fn read_prng_reply(mut response: &[u8]) -> Result<(u32, u16), Error> {
 ///
 /// # Returns
 ///
-/// * `(Ssid, Passphrase, u8, bool)` on success, containing:
-///   - `Ssid`: The Wi-Fi SSID in bytes.
-///   - `Passphrase`: The Wi-Fi passphrase in bytes.
-///   - `u8`: The security type
-///   - `bool`: The provisioning status (`true` if provisioned)
-/// * `Err(Error)` if the data is invalid or incomplete.
-pub fn read_provisioning_reply(mut response: &[u8]) -> Result<(Ssid, WpaKey, u8, bool), Error> {
+/// * `Ok(Ssid, Passphrase, u8, bool)` on success, containing:
+///   - `Ssid` - The Wi-Fi SSID in bytes.
+///   - `Passphrase` - The Wi-Fi passphrase in bytes.
+///   - `u8` - The security type.
+///   - `bool` - The provisioning status (`true` if provisioned).
+/// * `Err(Error)` - If the data is invalid or incomplete.
+pub(super) fn read_provisioning_reply(
+    mut response: &[u8],
+) -> Result<(Ssid, WpaKey, u8, bool), Error> {
     let reader = &mut response;
     let mut ssid = [0u8; MAX_SSID_LEN];
     let mut key = [0u8; MAX_PSK_KEY_LEN];
@@ -542,10 +565,10 @@ pub fn read_provisioning_reply(mut response: &[u8]) -> Result<(Ssid, WpaKey, u8,
 ///
 /// # Returns
 ///
-/// * `EccRequest` ECC request structure.
-/// * `Err(Error)` if the data is invalid or incomplete.
+/// * `Ok(EccRequest)` - ECC request structure.
+/// * `Err(Error)` - If the data is invalid or incomplete.
 #[cfg(feature = "experimental-ecc")]
-pub fn read_ssl_ecc_response(mut response: &[u8]) -> Result<EccRequest, Error> {
+pub(super) fn read_ssl_ecc_response(mut response: &[u8]) -> Result<EccRequest, Error> {
     let reader = &mut response;
     let mut ecc_req = EccRequest::default();
 
@@ -612,7 +635,7 @@ pub fn read_ssl_ecc_response(mut response: &[u8]) -> Result<EccRequest, Error> {
 ///     - `offset` (`u16`) - Offset within the data where the packet begins.
 /// * `Err(Error)` - if the data is invalid, incomplete, or cannot be parsed.
 #[cfg(feature = "ethernet")]
-pub fn read_eth_rx_reply(mut response: &[u8]) -> Result<(u16, u16), Error> {
+pub(super) fn read_eth_rx_reply(mut response: &[u8]) -> Result<(u16, u16), Error> {
     let reader = &mut response;
 
     let packet_size = read16(reader)?;
@@ -624,6 +647,7 @@ pub fn read_eth_rx_reply(mut response: &[u8]) -> Result<(u16, u16), Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::manager::constants::AuthType;
 
     #[cfg(feature = "experimental-ecc")]
     use crate::manager::constants::EccCurveType;
@@ -642,7 +666,7 @@ mod tests {
             1, 2, 3, 4, 61, 61, 61, 61, 61, 0, 65, 66, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62,
             62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 67, 0, 0,
         ]; // 1 padding byte at the end
-        let res: ScanResult = result.into();
+        let res: ScanResult = read_scan_results_reply(&result).unwrap();
         assert_eq!(res.index, 1);
         assert_eq!(res.rssi, 2);
         assert_eq!(res.auth, AuthType::WEP);
@@ -657,7 +681,7 @@ mod tests {
             0x5A, 0x5A, 0x5A, 0x5A, 0x5A, 0x5A, 0x47, 0x00, 0x42, 0x5A, 0x5A, 0x5A, 0x5A, 0x5A,
             0x5A, 0x54, 0x00, 0x5A, 0xE9, 0x03, 0x5A, 0x5A, 0x5A, 0x5A, 0x5A, 0x5A,
         ];
-        let res: FirmwareInfo = test_vector.into();
+        let res: FirmwareInfo = read_firmware_info_reply(&test_vector).unwrap();
         assert_eq!(res.chip_id, 0x01010101);
         assert_eq!(
             res.firmware_revision,
@@ -690,7 +714,7 @@ mod tests {
             0xAB, // rssi
             0xCC, 0xCC, 0xCC,
         ];
-        let res: ConnectionInfo = src.into();
+        let res = read_connection_info_reply(&src).unwrap();
         assert_eq!(res.ssid.as_str(), "AB>>>>>>>>>>>>>x>>>>>>>>>>>>>>>C");
         assert_eq!(res.auth, AuthType::S802_1X);
         assert_eq!(res.ip, Ipv4Addr::new(1, 2, 3, 4));
