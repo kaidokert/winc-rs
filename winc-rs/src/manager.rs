@@ -13,12 +13,6 @@
 // limitations under the License.
 
 /// Low-level chip manager
-use crate::errors::CommError as Error;
-use core::fmt::Debug;
-
-use crate::socket::Socket;
-use crate::transfer::Xfer;
-
 mod chip_access;
 pub(crate) mod constants;
 mod event_listener;
@@ -26,33 +20,50 @@ mod net_types;
 mod registers;
 mod requests;
 mod responses;
+
+use crate::errors::CommError as Error;
+use crate::socket::Socket;
+use crate::transfer::Xfer;
 use crate::{debug, error, trace};
-
 use chip_access::ChipAccess;
-#[cfg(feature = "experimental-ota")]
-pub use constants::OtaUpdateError;
-
-#[cfg(feature = "wep")]
-pub use constants::WepKeyIndex;
-
-pub use constants::{AuthType, PingError, SocketError, WifiChannel, WifiConnError, WifiConnState};
-use constants::{IpCode, WifiRequest, WifiResponse, AF_INET};
-
-#[cfg(feature = "flash-rw")]
-pub(crate) use constants::FLASH_PAGE_SIZE;
-
-#[cfg(feature = "flash-rw")]
-pub(crate) use registers::{FLASH_READ_STATUS_BIT, FLASH_SIZE_INFO_SHIFT, LOW_12_BIT_MASK};
-
-#[cfg(feature = "experimental-ota")]
-pub(crate) use constants::{OtaRequest, OtaResponse, OtaUpdateStatus};
-
-pub(crate) use constants::{BootMode, PRNG_DATA_LENGTH, SOCKET_BUFFER_MAX_LENGTH};
+use constants::{IpCode, WifiRequest, WifiResponse, AF_INET, FW_INFO_RESP_PACKET_SIZE};
+use core::fmt::Debug;
+use core::net::{Ipv4Addr, SocketAddrV4};
+use net_types::Revision;
+use registers::*;
+use requests::*;
+use responses::*;
 
 #[cfg(feature = "ssl")]
 pub(crate) use self::{
     constants::{SslRequest, SslResponse},
     net_types::SslCallbackInfo,
+};
+
+#[cfg(feature = "flash-rw")]
+pub(crate) use self::{
+    constants::FLASH_PAGE_SIZE,
+    registers::{FLASH_READ_STATUS_BIT, FLASH_SIZE_INFO_SHIFT, LOW_12_BIT_MASK},
+};
+
+pub(crate) use constants::{BootMode, PRNG_DATA_LENGTH, SOCKET_BUFFER_MAX_LENGTH};
+
+#[cfg(feature = "experimental-ota")]
+pub(crate) use constants::{OtaRequest, OtaResponse, OtaUpdateStatus};
+
+#[cfg(test)]
+pub(crate) use net_types::Bssid;
+
+#[cfg(feature = "experimental-ecc")]
+pub(crate) use net_types::EccRequest;
+
+#[cfg(feature = "ethernet")]
+pub(crate) use net_types::EthernetRxInfo;
+
+#[cfg(feature = "experimental-ecc")]
+pub use self::{
+    constants::EccRequestType,
+    net_types::{EccInfo, EccPoint, EcdhInfo, EcdsaSignInfo},
 };
 
 #[cfg(feature = "ssl")]
@@ -61,52 +72,44 @@ pub use self::{
     net_types::{SslSockConfig, SslSockOpts},
 };
 
-#[cfg(feature = "experimental-ecc")]
-pub use self::{
-    constants::EccRequestType,
-    net_types::{EccInfo, EccPoint, EcdhInfo, EcdsaSignInfo},
-};
-
-#[cfg(feature = "experimental-ecc")]
-pub(crate) use net_types::EccRequest;
-
-pub use net_types::{
-    AccessPoint, Credentials, HostName, MacAddress, ProvisioningInfo, S8Password, S8Username,
-    SocketOptions, Ssid, TcpSockOpts, UdpSockOpts, WpaKey,
-};
-
-#[cfg(test)]
-pub(crate) use net_types::Bssid;
-
-#[cfg(feature = "wep")]
-pub use net_types::WepKey;
-
-#[cfg(feature = "ethernet")]
-pub(crate) use net_types::EthernetRxInfo;
+#[cfg(feature = "experimental-ota")]
+pub use constants::OtaUpdateError;
 
 #[cfg(feature = "ethernet")]
 pub use constants::MAX_TX_ETHERNET_PACKET_SIZE;
 
-use registers::*;
-use requests::*;
-use responses::*;
-pub use responses::{ConnectionInfo, FirmwareInfo, IPConf, ScanResult};
+pub use constants::{AuthType, PingError, SocketError, WifiChannel, WifiConnError, WifiConnState};
 
-use core::net::{Ipv4Addr, SocketAddrV4};
+#[cfg(feature = "wep")]
+pub use self::{constants::WepKeyIndex, net_types::WepKey};
 
-/// HIF Response Group.
-#[cfg_attr(feature = "defmt", derive(defmt::Format))]
-#[derive(Debug, PartialEq, Default)]
-pub(crate) enum HifGroup {
-    #[default]
-    Unhandled,
-    Wifi(WifiResponse),
-    Ip(IpCode),
-    #[cfg(feature = "experimental-ota")]
-    Ota(OtaResponse),
-    #[cfg(feature = "ssl")]
-    Ssl(SslResponse),
-}
+pub use net_types::{
+    AccessPoint, ConnectionInfo, Credentials, FirmwareInfo, HostName, IPConf, MacAddress,
+    ProvisioningInfo, S8Password, S8Username, ScanResult, SocketOptions, Ssid, TcpSockOpts,
+    UdpSockOpts, WpaKey,
+};
+
+/// Header offset for HIF registers.
+const HIF_HEADER_OFFSET: usize = 8;
+/// Length of the Ethernet header.
+const ETHERNET_HEADER_LENGTH: usize = 14;
+/// Ethernet header offset used when writing the Ethernet packet.
+const ETHERNET_HEADER_OFFSET: usize = 34;
+/// IP packet offset in used for TCP/UDP operations.
+const IP_PACKET_OFFSET: usize = ETHERNET_HEADER_LENGTH + ETHERNET_HEADER_OFFSET; // - HIF_HEADER_OFFSET;
+/// Number of retries to wait for WINC to become ready to receive new data.
+const HIF_SEND_RETRIES: usize = 1000;
+/// Number of retries to attempt when reading a flash register.
+#[cfg(feature = "flash-rw")]
+const FLASH_REG_READ_RETRIES: usize = 10;
+/// Dummy value (dummy cycles) used for flash operations.
+#[cfg(feature = "flash-rw")]
+const FLASH_DUMMY_VALUE: u32 = 0x1084;
+/// Packet size for both HIF header requests and responses.
+const HIF_HEADER_PACKET_SIZE: usize = 4;
+// TODO: MAX_WAKERS should be a parameter on Manager<X: Xfer, const MAX_WAKERS: usize = 4>
+#[cfg(feature = "async")]
+const MAX_WAKERS: usize = 4; // Reasonable limit for concurrent async operations
 
 /// HIF Request Group.
 #[derive(Copy, Clone)]
@@ -163,83 +166,18 @@ impl From<HifGroup> for u8 {
     }
 }
 
-fn hif_header_parse(hdr: [u8; HIF_HEADER_PACKET_SIZE]) -> Result<(HifGroup, u16), Error> {
-    let code: [u8; 2] = hdr[..2].try_into().unwrap();
-    let len = u16::from_le_bytes(hdr[2..].try_into().unwrap());
-    Ok((code.into(), len))
-}
-
-const HIF_HEADER_OFFSET: usize = 8;
-const ETHERNET_HEADER_LENGTH: usize = 14;
-const ETHERNET_HEADER_OFFSET: usize = 34;
-const IP_PACKET_OFFSET: usize = ETHERNET_HEADER_LENGTH + ETHERNET_HEADER_OFFSET; // - HIF_HEADER_OFFSET;
-const HIF_SEND_RETRIES: usize = 1000;
-#[cfg(feature = "flash-rw")]
-const FLASH_REG_READ_RETRIES: usize = 10;
-#[cfg(feature = "flash-rw")]
-const FLASH_DUMMY_VALUE: u32 = 0x1084;
-/// Packet size for both HIF header requests and responses.
-const HIF_HEADER_PACKET_SIZE: usize = 4;
-
-pub trait EventListener {
-    fn on_rssi(&mut self, level: i8);
-    fn on_resolve(&mut self, ip: Ipv4Addr, host: &str);
-    fn on_default_connect(&mut self, status: WifiConnError);
-    fn on_dhcp(&mut self, conf: IPConf);
-    fn on_connstate_changed(&mut self, state: WifiConnState, err: WifiConnError);
-    fn on_connection_info(&mut self, info: ConnectionInfo);
-    fn on_scan_result(&mut self, result: ScanResult);
-    fn on_scan_done(&mut self, num_aps: u8, err: WifiConnError);
-    fn on_system_time(&mut self, year: u16, month: u8, day: u8, hour: u8, minute: u8, second: u8);
-    fn on_ip_conflict(&mut self, ip: Ipv4Addr);
-    fn on_ping(
-        &mut self,
-        ip: Ipv4Addr,
-        token: u32,
-        rtt: u32,
-        num_successful: u16,
-        num_failed: u16,
-        error: PingError,
-    );
-    fn on_bind(&mut self, sock: Socket, err: SocketError);
-    fn on_listen(&mut self, sock: Socket, err: SocketError);
-    fn on_accept(
-        &mut self,
-        address: SocketAddrV4,
-        listen_socket: Socket,
-        accepted_socket: Socket,
-        data_offset: u16,
-    );
-    fn on_connect(&mut self, socket: Socket, err: SocketError);
-    fn on_send_to(&mut self, socket: Socket, len: i16);
-    fn on_send(&mut self, socket: Socket, len: i16);
-    fn on_recv(&mut self, socket: Socket, address: SocketAddrV4, data: &[u8], err: SocketError);
-    fn on_recvfrom(&mut self, socket: Socket, address: SocketAddrV4, data: &[u8], err: SocketError);
-    fn on_prng(&mut self, data: &[u8]);
-    fn on_provisioning(&mut self, ssid: Ssid, key: WpaKey, security: AuthType, status: bool);
+/// HIF Response Group.
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[derive(Debug, PartialEq, Default)]
+pub(crate) enum HifGroup {
+    #[default]
+    Unhandled,
+    Wifi(WifiResponse),
+    Ip(IpCode),
     #[cfg(feature = "experimental-ota")]
-    fn on_ota(&mut self, status: OtaUpdateStatus, error: OtaUpdateError);
+    Ota(OtaResponse),
     #[cfg(feature = "ssl")]
-    fn on_ssl(
-        &mut self,
-        ssl_res: SslResponse,
-        cipher_suite: Option<u32>,
-        #[cfg(feature = "experimental-ecc")] ecc_req: Option<EccRequest>,
-    );
-    #[cfg(feature = "ethernet")]
-    fn on_eth(&mut self, packet_size: u16, data_offset: u16, hif_address: u32);
-}
-
-// TODO: MAX_WAKERS should be a parameter on Manager<X: Xfer, const MAX_WAKERS: usize = 4>
-#[cfg(feature = "async")]
-const MAX_WAKERS: usize = 4; // Reasonable limit for concurrent async operations
-
-pub struct Manager<X: Xfer> {
-    // cached addresses
-    not_a_reg_ctrl_4_dma: u32, // todo: make this dynamic/proper
-    chip: ChipAccess<X>,
-    #[cfg(feature = "async")]
-    wakers: [Option<core::task::Waker>; MAX_WAKERS],
+    Ssl(SslResponse),
 }
 
 /// The stages of the boot process
@@ -255,6 +193,80 @@ pub(crate) enum BootStage {
     FinishFirmwareBoot,
 }
 
+/// Interface for implementing callbacks for events received from WINC.
+pub trait EventListener {
+    /// Callback when an updated RSSI (signal strength) event is received.
+    fn on_rssi(&mut self, level: i8);
+    /// Callback for DNS resolution results.
+    fn on_resolve(&mut self, ip: Ipv4Addr, host: &str);
+    /// Callback when WINC automatically connects to an access point.
+    fn on_default_connect(&mut self, status: WifiConnError);
+    /// Callback for DHCP events.
+    fn on_dhcp(&mut self, conf: IPConf);
+    /// Callback when the connection state changes.
+    fn on_connstate_changed(&mut self, state: WifiConnState, err: WifiConnError);
+    /// Callback when Wi-Fi connection information is available.
+    fn on_connection_info(&mut self, info: ConnectionInfo);
+    /// Callback for each Wi-Fi scan result.
+    fn on_scan_result(&mut self, result: ScanResult);
+    /// Callback when a Wi-Fi scan is complete.
+    fn on_scan_done(&mut self, num_aps: u8, err: WifiConnError);
+    /// Callback when system time is provided by WINC.
+    fn on_system_time(&mut self, year: u16, month: u8, day: u8, hour: u8, minute: u8, second: u8);
+    /// Callback when an IP address conflict is detected.
+    fn on_ip_conflict(&mut self, ip: Ipv4Addr);
+    /// Callback when ping results are available.
+    fn on_ping(
+        &mut self,
+        ip: Ipv4Addr,
+        token: u32,
+        rtt: u32,
+        num_successful: u16,
+        num_failed: u16,
+        error: PingError,
+    );
+    /// Callback when TCP socket binding is complete.
+    fn on_bind(&mut self, sock: Socket, err: SocketError);
+    /// Callback when listening on a TCP socket starts.
+    fn on_listen(&mut self, sock: Socket, err: SocketError);
+    /// Callback when a new TCP connection is accepted.
+    fn on_accept(
+        &mut self,
+        address: SocketAddrV4,
+        listen_socket: Socket,
+        accepted_socket: Socket,
+        data_offset: u16,
+    );
+    /// Callback when a socket connection attempt completes.
+    fn on_connect(&mut self, socket: Socket, err: SocketError);
+    /// Callback after sending data to a remote address using a socket.
+    fn on_send_to(&mut self, socket: Socket, len: i16);
+    /// Callback after sending data on a connected socket.
+    fn on_send(&mut self, socket: Socket, len: i16);
+    /// Callback when data is received on a connected TCP socket.
+    fn on_recv(&mut self, socket: Socket, address: SocketAddrV4, data: &[u8], err: SocketError);
+    /// Callback when data is received from a remote host on a UDP socket.
+    fn on_recvfrom(&mut self, socket: Socket, address: SocketAddrV4, data: &[u8], err: SocketError);
+    /// Callback when pseudo-random data is generated by WINC.
+    fn on_prng(&mut self, data: &[u8]);
+    /// Callback during Wi-Fi provisioning events.
+    fn on_provisioning(&mut self, ssid: Ssid, key: WpaKey, security: AuthType, status: bool);
+    /// Callback when an OTA update completes or fails.
+    #[cfg(feature = "experimental-ota")]
+    fn on_ota(&mut self, status: OtaUpdateStatus, error: OtaUpdateError);
+    /// Callback when an SSL operation completes.
+    #[cfg(feature = "ssl")]
+    fn on_ssl(
+        &mut self,
+        ssl_res: SslResponse,
+        cipher_suite: Option<u32>,
+        #[cfg(feature = "experimental-ecc")] ecc_req: Option<EccRequest>,
+    );
+    /// Callback when an Ethernet frame is received.
+    #[cfg(feature = "ethernet")]
+    fn on_eth(&mut self, packet_size: u16, data_offset: u16, hif_address: u32);
+}
+
 /// Stores boot state for the long-running boot
 /// process
 pub(crate) struct BootState {
@@ -262,7 +274,18 @@ pub(crate) struct BootState {
     loop_value: u32,
     mode: BootMode,
 }
+
+/// Implementation for `BootState`.
 impl BootState {
+    /// Creates a new `BootState` instance.
+    ///
+    /// # Arguments
+    ///
+    /// * `mode` - Booting Mode.
+    ///
+    /// # Returns
+    ///
+    /// * `BootState` - A new `BootState` instance on success.
     pub fn new(mode: BootMode) -> Self {
         Self {
             stage: BootStage::Start,
@@ -271,360 +294,78 @@ impl BootState {
         }
     }
 }
+
+/// Structure to manage communication and the interface to the WINC1500 device.
+pub struct Manager<X: Xfer> {
+    // cached addresses
+    not_a_reg_ctrl_4_dma: u32, // todo: make this dynamic/proper
+    /// Low level apis to send and receive data from WINC1500.
+    chip: ChipAccess<X>,
+    /// Wakers for async operations.
+    #[cfg(feature = "async")]
+    wakers: [Option<core::task::Waker>; MAX_WAKERS],
+}
+
+/// Implementation of `Manager` structure.
 impl<X: Xfer> Manager<X> {
-    pub fn from_xfer(xfer: X) -> Self {
-        Self {
-            not_a_reg_ctrl_4_dma: 0x00,
-            chip: ChipAccess::new(xfer),
-            #[cfg(feature = "async")]
-            wakers: core::array::from_fn(|_| None),
-        }
-    }
-    #[cfg(test)]
-    pub fn set_unit_test_mode(&mut self) {
-        self.chip.set_unit_test_mode();
-    }
+    // #region read
 
-    /// Register a waker to be called when hardware events are processed
-    /// Returns error if waker array is full (too many concurrent operations)
-    #[cfg(feature = "async")]
-    pub fn register_waker(&mut self, waker: core::task::Waker) -> Result<(), crate::StackError> {
-        // Find the first empty slot
-        for slot in &mut self.wakers {
-            if slot.is_none() {
-                *slot = Some(waker);
-                return Ok(());
-            }
-        }
-        Err(crate::StackError::TooManyWakers)
-    }
-
-    /// Unregister a waker (called when operation completes)
-    /// This removes any waker that matches the given waker
-    #[cfg(feature = "async")]
-    pub fn unregister_waker(&mut self, waker: &core::task::Waker) {
-        for slot in &mut self.wakers {
-            if let Some(ref stored_waker) = slot {
-                if stored_waker.will_wake(waker) {
-                    *slot = None;
-                    break;
-                }
-            }
-        }
-    }
-
-    /// Wake all registered wakers (called after dispatching events)
-    #[cfg(feature = "async")]
-    fn wake_all_wakers(&mut self) {
-        for waker in self.wakers.iter_mut().flatten() {
-            waker.wake_by_ref();
-        }
-    }
-    // Todo: remove this
-    pub fn delay_us(&mut self, delay: u32) {
-        self.chip.delay_us(delay);
-    }
-
-    pub fn set_crc_state(&mut self, value: bool) {
-        self.chip.crc = value;
-    }
-    pub fn chip_id(&mut self) -> Result<u32, Error> {
-        self.chip.single_reg_read(Regs::ChipId.into())
-    }
-    pub fn chip_rev(&mut self) -> Result<u32, Error> {
-        self.chip.single_reg_read(Regs::ChipRev.into())
-    }
-
-    #[allow(dead_code)] // todo
-    pub fn get_firmware_ver_short(&mut self) -> Result<(Revision, Revision), Error> {
-        const FW_PATCH_MASK: u8 = 0x0F;
-        const FW_MINOR_SHIFT: u8 = 0x04;
-
-        let res = self.chip.single_reg_read(Regs::NmiRev.into())?;
-        let unpack = res.to_le_bytes();
-        Ok((
-            Revision {
-                major: unpack[1],
-                minor: unpack[0] >> FW_MINOR_SHIFT,
-                patch: unpack[0] & FW_PATCH_MASK,
-            },
-            Revision {
-                major: unpack[3],
-                minor: unpack[2] >> FW_MINOR_SHIFT,
-                patch: unpack[2] & FW_PATCH_MASK,
-            },
-        ))
-    }
-
-    /// Resets the chip.
-    ///
-    /// # Returns
-    ///
-    /// * `()` - If the chip was successfully reset.
-    /// * `Error` - If an error occurs while resetting the chip.
-    pub(crate) fn chip_reset(&mut self) -> Result<(), Error> {
-        const BACKOFF_DELAY_USEC: u32 = 50_000; // 50 msec delay
-
-        self.chip.single_reg_write(Regs::ChipReset.into(), 0)?;
-        // back-off delay
-        self.chip.delay_us(BACKOFF_DELAY_USEC);
-
-        Ok(())
-    }
-
-    /// Halt the chip.
-    ///
-    /// # Returns
-    ///
-    /// * `()` - If the chip was successfully halted.
-    /// * `Error` - If an error occurs while halting the chip.
-    pub(crate) fn chip_halt(&mut self) -> Result<(), Error> {
-        let mut reg = self.chip.single_reg_read(Regs::ChipHalt.into())?;
-
-        self.chip
-            .single_reg_write(Regs::ChipHalt.into(), reg | HALT_BIT)?;
-
-        reg = self.chip.single_reg_read(Regs::ChipReset.into())?;
-
-        if (reg & RESET_BIT) == RESET_BIT {
-            reg &= !RESET_BIT;
-
-            self.chip.single_reg_write(Regs::ChipReset.into(), reg)?;
-            _ = self.chip.single_reg_read(Regs::ChipReset.into())?;
-        }
-
-        Ok(())
-    }
-
-    /// Resets the SPI bus
-    ///
-    /// # Returns
-    ///
-    /// * `()` - If the bus was reset successfully.
-    /// * `Error` - If an error occurs while resetting the SPI bus.
-    pub(crate) fn spi_bus_reset(&mut self) -> Result<(), Error> {
-        self.chip.bus_reset()
-    }
-
-    /// Wake up the chip.
-    ///
-    /// # Returns
-    ///
-    /// * `()` - If the chip is successfully woken up.
-    /// * `Error` - If any error occurs while waking up the chip.
-    pub(crate) fn chip_wake(&mut self) -> Result<(), Error> {
-        const WAKEUP_DELAY_USEC: u32 = 2000; // 2 msec delay
-        const WAKEUP_OP_RETRIES: u8 = 4;
-
-        let mut reg = self.chip.single_reg_read(Regs::HostToCortusComm.into())?;
-
-        // bit 0 indicates host wakeup
-        if (reg & WAKEUP_BIT) == 0 {
-            self.chip
-                .single_reg_write(Regs::HostToCortusComm.into(), reg | WAKEUP_BIT)?;
-        }
-
-        reg = self.chip.single_reg_read(Regs::WakeClock.into())?;
-        // Set the WAKEUP_CLK_BIT (bit 1); hardware will assert CLK_EN_BIT when ready.
-        if (reg & WAKEUP_CLK_BIT) == 0 {
-            self.chip
-                .single_reg_write(Regs::WakeClock.into(), reg | WAKEUP_CLK_BIT)?;
-        }
-
-        let mut retries = WAKEUP_OP_RETRIES;
-        loop {
-            if retries == 0 {
-                error!("Reading enable clock register timed out.");
-                return Err(Error::OperationRetriesExceeded);
-            }
-
-            reg = self.chip.single_reg_read(Regs::EnableClock.into())?;
-
-            if (reg & CLK_EN_BIT) > 0 {
-                break;
-            }
-
-            retries -= 1;
-            // backoff delay
-            self.chip.delay_us(WAKEUP_DELAY_USEC);
-        }
-
-        // reset spi bus
-        self.spi_bus_reset()
-    }
-
-    /// Boots the chip into normal mode.
+    /// Parses a HIF header packet and extracts its group and length.
     ///
     /// # Arguments
     ///
-    /// * `state` - Updated boot state.
+    /// * `hdr` - A fixed-size array representing the HIF header packet.
     ///
     /// # Returns
     ///
-    /// * `bool` - Whether the chip completed boot (true) or is still booting (false).
-    /// * `Error` - If an error occurs during the boot process.
-    pub(crate) fn boot_the_chip(&mut self, state: &mut BootState) -> Result<bool, Error> {
-        const MAX_LOOPS: u32 = 10;
-        const FINISH_BOOT_ROM: u32 = 0x10add09e;
-
-        debug!("Waiting for chip start .. stage: {:?}", state.stage);
-        match state.stage {
-            BootStage::Start => {
-                debug!("chip id {:x} rev:{:x}", self.chip_id()?, self.chip_rev()?);
-                self.configure_spi_packetsize()?;
-                state.stage = BootStage::StartBootrom;
-                state.loop_value = 0;
-            }
-            BootStage::StartBootrom => {
-                if state.loop_value >= MAX_LOOPS {
-                    return Err(Error::BootRomStart);
-                }
-                let efuse =
-                    self.chip.single_reg_read(Regs::EFuseRead.into())? & EFUSE_LOAD_DONE_BIT;
-                if efuse != 0 {
-                    state.stage = BootStage::Stage2;
-                }
-            }
-            BootStage::Stage2 => {
-                let host_wait =
-                    self.chip.single_reg_read(Regs::WaitForHost.into())? & WAIT_FOR_HOST_BIT;
-                if host_wait != 0 {
-                    state.stage = BootStage::Stage4;
-                } else {
-                    state.stage = BootStage::Stage3;
-                    state.loop_value = 0;
-                }
-            }
-            BootStage::Stage3 => {
-                if state.loop_value >= MAX_LOOPS {
-                    return Err(Error::BootRomStart);
-                }
-                let host_wait = self.chip.single_reg_read(Regs::BootRom.into())?;
-                if host_wait == FINISH_BOOT_ROM {
-                    state.stage = BootStage::Stage4;
-                }
-            }
-            BootStage::Stage4 => {
-                const START_FIRMWARE: u32 = 0xef522f61;
-
-                let driver_rev = 0x13521352; // todo
-                self.chip
-                    .single_reg_write(Regs::NmiState.into(), driver_rev)?;
-                self.chip_id()?;
-                // Write Boot Mode configuration.
-                let conf = u32::from(state.mode) | NMI_GP1_PMU_EN_BIT;
-                self.chip.single_reg_write(Regs::NmiGp1.into(), conf)?;
-                let verify = self.chip.single_reg_read(Regs::NmiGp1.into())?;
-                // Verify the configuration
-                if verify == conf {
-                    self.chip
-                        .single_reg_write(Regs::BootRom.into(), START_FIRMWARE)?;
-                    state.stage = BootStage::StageStartFirmware;
-                    state.loop_value = 0;
-                } else if state.loop_value >= MAX_LOOPS {
-                    return Err(Error::FirmwareStart);
-                }
-            }
-            BootStage::StageStartFirmware => {
-                const FINISH_INIT: u32 = 0x02532636;
-                const BACKOFF_DELAY_USEC: u32 = 2000; // 2 msec
-
-                if state.loop_value >= MAX_LOOPS {
-                    return Err(Error::FirmwareStart);
-                }
-
-                self.delay_us(BACKOFF_DELAY_USEC);
-                let reg = self.chip.single_reg_read(Regs::NmiState.into())?;
-                if reg == FINISH_INIT {
-                    state.stage = BootStage::FinishFirmwareBoot;
-                }
-            }
-            BootStage::FinishFirmwareBoot => {
-                self.chip.single_reg_write(Regs::NmiState.into(), 0)?;
-                self.enable_interrupt_pins()?;
-                // After chip boot, we can go a lot faster
-                self.chip.switch_to_high_speed();
-                return Ok(true);
-            }
-        }
-        state.loop_value += 1;
-        Ok(false)
+    /// * `Ok((HifGroup, u16))` - The parsed HIF group and the payload length.
+    /// * `Err(Error)` - If the header is invalid or cannot be parsed.
+    fn hif_header_parse(
+        &self,
+        hdr: [u8; HIF_HEADER_PACKET_SIZE],
+    ) -> Result<(HifGroup, u16), Error> {
+        let code: [u8; 2] = hdr[..2].try_into().unwrap();
+        let len = u16::from_le_bytes(hdr[2..].try_into().unwrap());
+        Ok((code.into(), len))
     }
 
-    pub fn configure_spi_packetsize(&mut self) -> Result<(), Error> {
-        const CLEAR_SPI_CONFIG: u32 = 0xFFFF_FF0F;
-        const PACKET_SIZE_8K: u32 = 0x0000_0050;
-
-        let mut conf = self.chip.single_reg_read(Regs::SpiConfig.into())?;
-        conf &= CLEAR_SPI_CONFIG; // clear
-        conf |= PACKET_SIZE_8K; // set to 8k packet size
-        self.chip.single_reg_write(Regs::SpiConfig.into(), conf)?;
-        trace!("Set spiconfig to {:x}", conf);
-        Ok(())
-    }
-
-    /// Enables interrupts on the module's pins.
+    /// Checks whether an interrupt is pending on the WINC1500.
     ///
     /// # Returns
     ///
-    /// * `()` - If the interrupts were successfully enabled.
-    /// * `Error` - If an error occurs while enabling the interrupts.
-    pub fn enable_interrupt_pins(&mut self) -> Result<(), Error> {
-        let mut pinmux = self.chip.single_reg_read(Regs::NmiPinMux0.into())?;
-        pinmux |= NMI_PIN_MUX0_EN_BIT;
-        self.chip
-            .single_reg_write(Regs::NmiPinMux0.into(), pinmux)?;
-        trace!("Set pinmux to {:x}", pinmux);
-
-        let mut int_enable = self.chip.single_reg_read(Regs::NmiIntrEnable.into())?;
-        int_enable |= NMI_IRQ_EN_BIT;
-        self.chip
-            .single_reg_write(Regs::NmiIntrEnable.into(), int_enable)?;
-        trace!("Set int enable to {:x}", int_enable);
-        Ok(())
-    }
-
-    /// Disables all the interrupts in the module.
-    ///
-    /// # Returns
-    ///
-    /// * `()` - If the interrupts were successfully disabled.
-    /// * `Error` - If an error occurs while disabling the interrupts.
-    pub(crate) fn disable_internal_interrupt(&mut self) -> Result<(), Error> {
-        self.chip.single_reg_write(Regs::CortusIrq.into(), 0)
-    }
-
-    pub fn get_firmware_ver_full(&mut self) -> Result<FirmwareInfo, Error> {
-        const LOW_WORD_MASK: u32 = 0x0000_FFFF;
-        const FW_VER_PACKET_SIZE: usize = 40;
-
-        let (_, address) = self.read_regs_from_otp_efuse()?;
-        debug!("Got address {:#x}", address);
-        let mod_address = (address & LOW_WORD_MASK) | EFUSE_OTP_MAC_OTA_BIT;
-        let mut data = [0u8; FW_VER_PACKET_SIZE];
-        debug!("Calculated address: {:#x}", mod_address);
-        self.chip.dma_block_read(mod_address, data.as_mut_slice())?;
-        Ok(data.into())
-    }
-
+    /// * `Ok((bool, u32))`:
+    ///     - `bool` - Indicates whether an interrupt is pending.
+    ///     - `u32` - The value of the interrupt bit in the register.
+    /// * `Err(Error)` - If checking the interrupt status fails.
     fn is_interrupt_pending(&mut self) -> Result<(bool, u32), Error> {
         let val = self.chip.single_reg_read(Regs::WifiHostRcvCtrl0.into())?;
         Ok((val & RCV_CTRL0_IRQ_BIT == RCV_CTRL0_IRQ_BIT, val))
     }
+
+    /// Clears a pending interrupt on the WINC1500.
+    ///
+    /// # Arguments
+    ///
+    /// * `ctrlreg` - The control register value used to clear the interrupt.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - If the interrupt was successfully cleared.
+    /// * `Err(Error)` - If clearing the interrupt fails.
     fn clear_interrupt_pending(&mut self, ctrlreg: u32) -> Result<(), Error> {
         let setval = ctrlreg & !RCV_CTRL0_IRQ_BIT;
         self.chip
             .single_reg_write(Regs::WifiHostRcvCtrl0.into(), setval)
     }
 
-    /// Reads the MAC address and firmware OTA version register addresses
+    /// Reads the MAC address and OTA firmware version register address
     /// from the OTP (One-Time Programmable) eFuse memory.
     ///
     /// # Returns
     ///
     /// * `Ok((u32, u32))`:
-    ///     - `u32`: MAC address register address.
-    ///     - `u32`: Firmware OTA register address.
+    ///     - `u32` - MAC address register address.
+    ///     - `u32` - Firmware OTA register address.
     /// * `Err(Error)` - If reading the eFuse memory fails.
     fn read_regs_from_otp_efuse(&mut self) -> Result<(u32, u32), Error> {
         // 4 bytes (u32) MAC + 4 bytes (u32) OTA FW.
@@ -651,18 +392,40 @@ impl<X: Xfer> Manager<X> {
         ))
     }
 
-    // #region read
-
+    /// Reads and parses the HIF header from the WINC1500.
+    ///
+    /// # Arguments
+    ///
+    /// * `ctrlreg0` - The control register value used to read the HIF header.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok((HifGroup, u16, u32))`:
+    ///     - `HifGroup` - The HIF group identifier.
+    ///     - `u16` - The length of the HIF payload.
+    ///     - `u32` - Additional control or status information from the header.
+    /// * `Err(Error)` - If reading or parsing the HIF header fails.
     fn read_hif_header(&mut self, ctrlreg0: u32) -> Result<(HifGroup, u16, u32), Error> {
         let _size = (ctrlreg0 >> RCV_CTRL0_CLEAR_RX_BIT) & LOW_12_BIT_MASK;
         let address = self.chip.single_reg_read(Regs::WifiHostRcvCtrl1.into())?;
         let mut hif_header = [0u8; HIF_HEADER_PACKET_SIZE];
         let slicebuffer = hif_header.as_mut_slice();
         self.chip.dma_block_read(address, slicebuffer)?;
-        let hifhdr = hif_header_parse(hif_header)?;
+        let hifhdr = self.hif_header_parse(hif_header)?;
         Ok((hifhdr.0, hifhdr.1, address))
     }
 
+    /// Reads a block of data from the specified WINC memory address.
+    ///
+    /// # Arguments
+    ///
+    /// * `address` - The WINC memory address to read from.
+    /// * `data` - The buffer to store the read data.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - If the data block was successfully read.
+    /// * `Err(Error)` - If the read operation fails.
     fn read_block(&mut self, address: u32, data: &mut [u8]) -> Result<(), Error> {
         self.chip
             .dma_block_read(address + HIF_HEADER_OFFSET as u32, data)?;
@@ -671,7 +434,22 @@ impl<X: Xfer> Manager<X> {
         self.chip
             .single_reg_write(Regs::WifiHostRcvCtrl0.into(), reg | RCV_CTRL0_CLEAR_RX_BIT)
     }
-    // tstrRecvReply
+
+    /// Retrieves a TCP/UDP receive reply from the WINC1500.
+    ///
+    /// # Arguments
+    ///
+    /// * `address` - Register address from which the TCP/UDP receive reply is read.
+    /// * `max_block` - A mutable buffer used to store the received data.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok((Socket, SocketAddrV4, &[u8], SocketError))`:
+    ///     - `Socket` - The socket on which the data was received.
+    ///     - `SocketAddrV4` - The source address of the received data.
+    ///     - `&[u8]` - A slice referencing the received payload.
+    ///     - `SocketError` - The status of the receive operation.
+    /// * `Err(Error)` - If reading or parsing the receive reply fails.
     fn get_recv_reply<'b, const N: usize>(
         &mut self,
         address: u32,
@@ -698,13 +476,12 @@ impl<X: Xfer> Manager<X> {
         }
         Ok((socket, addr, readslice, err.into()))
     }
+
     // #endregion read
 
     // #region write
 
-    /// Write region
-    /// Todo: This is messy
-    /// Sends the HIF header.
+    /// Sends the HIF header. (Todo: This is messy)
     ///
     /// # Arguments
     ///
@@ -841,6 +618,16 @@ impl<X: Xfer> Manager<X> {
         self.write_hif_header_impl(req, payload, req_data, None)
     }
 
+    /// Notifies the WINC1500 that no more data will be sent by the host (MCU).
+    ///
+    /// # Arguments
+    ///
+    /// * `addr` - Register address of the request to be marked as complete by the host.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - If the register was successfully written.
+    /// * `Err(Error)` - If writing to the register fails.
     fn write_ctrl3(&mut self, addr: u32) -> Result<(), Error> {
         let val = (addr << RCV_CTRL3_ADDR_SHIFT) | RCV_CTRL3_DONE_BIT;
         self.chip.single_reg_write(
@@ -850,6 +637,8 @@ impl<X: Xfer> Manager<X> {
             val,
         )
     }
+
+    // #endregion write
 
     /// Determines the appropriate SSL `IpCode` variant for the given socket.
     ///
@@ -884,7 +673,517 @@ impl<X: Xfer> Manager<X> {
         base
     }
 
-    pub fn send_default_connect(&mut self) -> Result<(), Error> {
+    /// Wake all registered wakers (called after dispatching events)
+    #[cfg(feature = "async")]
+    fn wake_all_wakers(&mut self) {
+        for waker in self.wakers.iter_mut().flatten() {
+            waker.wake_by_ref();
+        }
+    }
+
+    /// Checks the flash data transfer register.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - If the flash transfer is complete.
+    /// * `Err(Error)` - If an error occurs while reading the register or the process times out.
+    #[cfg(feature = "flash-rw")]
+    fn check_flash_tx_complete(&mut self) -> Result<(), Error> {
+        let mut retries = FLASH_REG_READ_RETRIES;
+        let mut res = self.chip.single_reg_read(Regs::FlashTransferDone.into())?;
+
+        while res != 1 {
+            if retries == 0 {
+                error!("Reading flash transfer complete register timed out.");
+                return Err(Error::OperationRetriesExceeded);
+            }
+
+            retries -= 1;
+
+            res = self.chip.single_reg_read(Regs::FlashTransferDone.into())?;
+        }
+
+        Ok(())
+    }
+
+    /// Sends a command to write data (less than a page size) from Cortus memory to flash.
+    ///
+    /// # Arguments
+    ///
+    /// * `flash_addr` – The flash address where data will be written.
+    /// * `data_size` – The size of the data to write.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - The data was successfully written to flash.
+    /// * `Err(Error)` - If an error occurs while writing the data from Cortus memory to flash.
+    #[cfg(feature = "flash-rw")]
+    fn send_flash_write_page(&mut self, flash_addr: u32, data_size: usize) -> Result<(), Error> {
+        const LOW_20_BIT_MASK: u32 = 0x000F_FFFF;
+        const DATA_SIZE_OFFSET: u32 = 0x08;
+        // 0x04 CMD length, 4 bits are high.
+        const CMD_SIZE_IN_BITS: u32 = 0x0F;
+
+        if data_size > FLASH_PAGE_SIZE {
+            return Err(Error::ExceedsFlashPageSize);
+        }
+
+        let cmd = {
+            let b = flash_addr.to_be_bytes();
+            [FlashOpCode::PageProgram.into(), b[1], b[2], b[3]]
+        };
+
+        // Flash CMD length: 0x04 + MASK: 0x80
+        let cmd_count: u32 = cmd.len() as u32 + FLASH_CMD_CNT_MASK;
+
+        self.chip
+            .single_reg_write(Regs::FlashDataCount.into(), 0x00)?;
+        self.chip
+            .single_reg_write(Regs::FlashBuffer1.into(), u32::from_le_bytes(cmd))?;
+        self.chip
+            .single_reg_write(Regs::FlashBufferDirectory.into(), CMD_SIZE_IN_BITS)?;
+        self.chip
+            .single_reg_write(Regs::FlashDmaAddress.into(), Regs::FlashSharedMemory.into())?;
+
+        // Mask data_size to 20 bits, shift to high bytes, and set 0x84 as the low byte
+        let size = cmd_count | ((data_size as u32 & LOW_20_BIT_MASK) << DATA_SIZE_OFFSET);
+
+        self.chip
+            .single_reg_write(Regs::FlashCommandCount.into(), size as u32)?;
+
+        // read transfer complete register.
+        self.check_flash_tx_complete()
+    }
+
+    /// Sends a command to load data from flash into Cortus processor memory.
+    ///
+    /// # Arguments
+    ///
+    /// * `flash_addr` – The flash address to load data from.
+    /// * `data_size` – The size of the data to load.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - Data is successfully loaded into Cortus processor memory.
+    /// * `Err(Error)` - If an error occurs while loading the flash data into Cortus memory.
+    #[cfg(feature = "flash-rw")]
+    fn send_flash_load_data_to_cortus_memory(
+        &mut self,
+        flash_addr: u32,
+        data_size: usize,
+    ) -> Result<(), Error> {
+        // 0x05 CMD length, 5 bits are high.
+        const CMD_SIZE_IN_BITS: u32 = 0x1F;
+        // Last byte of command
+        const CMD_LAST_BYTE: u32 = 0xA5;
+
+        let cmd = {
+            let b = flash_addr.to_be_bytes();
+            [FlashOpCode::FastRead.into(), b[1], b[2], b[3]]
+        };
+
+        // Flash CMD bytes: 0x05 + MASK: 0x80
+        let cmd_count: u32 = (cmd.len() as u32 + 1) | FLASH_CMD_CNT_MASK;
+
+        self.chip
+            .single_reg_write(Regs::FlashDataCount.into(), data_size as u32)?;
+        self.chip
+            .single_reg_write(Regs::FlashBuffer1.into(), u32::from_le_bytes(cmd))?;
+        self.chip
+            .single_reg_write(Regs::FlashBuffer2.into(), CMD_LAST_BYTE)?;
+        self.chip
+            .single_reg_write(Regs::FlashBufferDirectory.into(), CMD_SIZE_IN_BITS)?;
+        self.chip
+            .single_reg_write(Regs::FlashDmaAddress.into(), Regs::FlashSharedMemory.into())?;
+        self.chip
+            .single_reg_write(Regs::FlashCommandCount.into(), cmd_count)?;
+        // read transfer complete register.
+        self.check_flash_tx_complete()
+    }
+
+    /// Creates a new `Manager` instance from type implementing the `Xfer` trait.
+    pub(crate) fn from_xfer(xfer: X) -> Self {
+        Self {
+            not_a_reg_ctrl_4_dma: 0x00,
+            chip: ChipAccess::new(xfer),
+            #[cfg(feature = "async")]
+            wakers: core::array::from_fn(|_| None),
+        }
+    }
+
+    /// Enables unit test mode for the `Manager`.
+    #[cfg(test)]
+    pub(crate) fn set_unit_test_mode(&mut self) {
+        self.chip.set_unit_test_mode();
+    }
+
+    /// Register a waker to be called when hardware events are processed
+    /// Returns error if waker array is full (too many concurrent operations)
+    #[cfg(feature = "async")]
+    pub(crate) fn register_waker(
+        &mut self,
+        waker: core::task::Waker,
+    ) -> Result<(), crate::StackError> {
+        // Find the first empty slot
+        for slot in &mut self.wakers {
+            if slot.is_none() {
+                *slot = Some(waker);
+                return Ok(());
+            }
+        }
+        Err(crate::StackError::TooManyWakers)
+    }
+
+    /// Unregister a waker (called when operation completes)
+    /// This removes any waker that matches the given waker
+    #[cfg(feature = "async")]
+    pub(crate) fn unregister_waker(&mut self, waker: &core::task::Waker) {
+        for slot in &mut self.wakers {
+            if let Some(ref stored_waker) = slot {
+                if stored_waker.will_wake(waker) {
+                    *slot = None;
+                    break;
+                }
+            }
+        }
+    }
+
+    // Todo: remove this
+    /// Blocks execution for the specified number of microseconds.
+    ///
+    /// # Arguments
+    ///
+    /// * `delay` - The number of microseconds to wait.
+    pub(crate) fn delay_us(&mut self, delay: u32) {
+        self.chip.delay_us(delay);
+    }
+
+    /// Enables or disables CRC checking for data transfers.
+    ///
+    /// # Arguments
+    ///
+    /// * `value` - `true` to enable CRC checking, `false` to disable it.
+    pub(crate) fn set_crc_state(&mut self, value: bool) {
+        self.chip.crc = value;
+    }
+
+    /// Retrieves the unique chip ID of the WINC1500.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(u32)` - The 32-bit chip ID on success.
+    /// * `Err(Error)` - If reading the chip ID fails.
+    pub(crate) fn chip_id(&mut self) -> Result<u32, Error> {
+        self.chip.single_reg_read(Regs::ChipId.into())
+    }
+
+    /// Retrieves the chip revision of the WINC1500.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(u32)` - The 32-bit chip revision on success.
+    /// * `Err(Error)` - If reading the chip revision fails.
+    pub(crate) fn chip_rev(&mut self) -> Result<u32, Error> {
+        self.chip.single_reg_read(Regs::ChipRev.into())
+    }
+
+    /// Retrieves the short firmware version of the WINC1500.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok((Revision, Revision))` - A tuple containing the major and minor firmware revisions.
+    /// * `Err(Error)` - If reading the firmware version fails.
+    #[allow(dead_code)] // todo
+    pub(crate) fn get_firmware_ver_short(&mut self) -> Result<(Revision, Revision), Error> {
+        const FW_PATCH_MASK: u8 = 0x0F;
+        const FW_MINOR_SHIFT: u8 = 0x04;
+
+        let res = self.chip.single_reg_read(Regs::NmiRev.into())?;
+        let unpack = res.to_le_bytes();
+        Ok((
+            Revision {
+                major: unpack[1],
+                minor: unpack[0] >> FW_MINOR_SHIFT,
+                patch: unpack[0] & FW_PATCH_MASK,
+            },
+            Revision {
+                major: unpack[3],
+                minor: unpack[2] >> FW_MINOR_SHIFT,
+                patch: unpack[2] & FW_PATCH_MASK,
+            },
+        ))
+    }
+
+    /// Resets the chip.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - If the chip was successfully reset.
+    /// * `Err(Error)` - If an error occurs while resetting the chip.
+    pub(crate) fn chip_reset(&mut self) -> Result<(), Error> {
+        const BACKOFF_DELAY_USEC: u32 = 50_000; // 50 msec delay
+
+        self.chip.single_reg_write(Regs::ChipReset.into(), 0)?;
+        // back-off delay
+        self.chip.delay_us(BACKOFF_DELAY_USEC);
+
+        Ok(())
+    }
+
+    /// Halt the chip.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - If the chip was successfully halted.
+    /// * `Err(Error)` - If an error occurs while halting the chip.
+    pub(crate) fn chip_halt(&mut self) -> Result<(), Error> {
+        let mut reg = self.chip.single_reg_read(Regs::ChipHalt.into())?;
+
+        self.chip
+            .single_reg_write(Regs::ChipHalt.into(), reg | HALT_BIT)?;
+
+        reg = self.chip.single_reg_read(Regs::ChipReset.into())?;
+
+        if (reg & RESET_BIT) == RESET_BIT {
+            reg &= !RESET_BIT;
+
+            self.chip.single_reg_write(Regs::ChipReset.into(), reg)?;
+            _ = self.chip.single_reg_read(Regs::ChipReset.into())?;
+        }
+
+        Ok(())
+    }
+
+    /// Resets the SPI bus
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - If the bus was reset successfully.
+    /// * `Err(Error)` - If an error occurs while resetting the SPI bus.
+    pub(crate) fn spi_bus_reset(&mut self) -> Result<(), Error> {
+        self.chip.bus_reset()
+    }
+
+    /// Wake up the chip.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - If the chip is successfully woken up.
+    /// * `Err(Error)` - If any error occurs while waking up the chip.
+    pub(crate) fn chip_wake(&mut self) -> Result<(), Error> {
+        const WAKEUP_DELAY_USEC: u32 = 2000; // 2 msec delay
+        const WAKEUP_OP_RETRIES: u8 = 4;
+
+        let mut reg = self.chip.single_reg_read(Regs::HostToCortusComm.into())?;
+
+        // bit 0 indicates host wakeup
+        if (reg & WAKEUP_BIT) == 0 {
+            self.chip
+                .single_reg_write(Regs::HostToCortusComm.into(), reg | WAKEUP_BIT)?;
+        }
+
+        reg = self.chip.single_reg_read(Regs::WakeClock.into())?;
+        // Set the WAKEUP_CLK_BIT (bit 1); hardware will assert CLK_EN_BIT when ready.
+        if (reg & WAKEUP_CLK_BIT) == 0 {
+            self.chip
+                .single_reg_write(Regs::WakeClock.into(), reg | WAKEUP_CLK_BIT)?;
+        }
+
+        let mut retries = WAKEUP_OP_RETRIES;
+        loop {
+            if retries == 0 {
+                error!("Reading enable clock register timed out.");
+                return Err(Error::OperationRetriesExceeded);
+            }
+
+            reg = self.chip.single_reg_read(Regs::EnableClock.into())?;
+
+            if (reg & CLK_EN_BIT) > 0 {
+                break;
+            }
+
+            retries -= 1;
+            // backoff delay
+            self.chip.delay_us(WAKEUP_DELAY_USEC);
+        }
+
+        // reset spi bus
+        self.spi_bus_reset()
+    }
+
+    /// Boots the chip into normal mode.
+    ///
+    /// # Arguments
+    ///
+    /// * `state` - Updated boot state.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(bool)` - Whether the chip completed boot (true) or is still booting (false).
+    /// * `Err(Error)` - If an error occurs during the boot process.
+    pub(crate) fn boot_the_chip(&mut self, state: &mut BootState) -> Result<bool, Error> {
+        const MAX_LOOPS: u32 = 10;
+        const FINISH_BOOT_ROM: u32 = 0x10add09e;
+
+        debug!("Waiting for chip start .. stage: {:?}", state.stage);
+        match state.stage {
+            BootStage::Start => {
+                debug!("chip id {:x} rev:{:x}", self.chip_id()?, self.chip_rev()?);
+                self.configure_spi_packetsize()?;
+                state.stage = BootStage::StartBootrom;
+                state.loop_value = 0;
+            }
+            BootStage::StartBootrom => {
+                if state.loop_value >= MAX_LOOPS {
+                    return Err(Error::BootRomStart);
+                }
+                let efuse =
+                    self.chip.single_reg_read(Regs::EFuseRead.into())? & EFUSE_LOAD_DONE_BIT;
+                if efuse != 0 {
+                    state.stage = BootStage::Stage2;
+                }
+            }
+            BootStage::Stage2 => {
+                let host_wait =
+                    self.chip.single_reg_read(Regs::WaitForHost.into())? & WAIT_FOR_HOST_BIT;
+                if host_wait != 0 {
+                    state.stage = BootStage::Stage4;
+                } else {
+                    state.stage = BootStage::Stage3;
+                    state.loop_value = 0;
+                }
+            }
+            BootStage::Stage3 => {
+                if state.loop_value >= MAX_LOOPS {
+                    return Err(Error::BootRomStart);
+                }
+                let host_wait = self.chip.single_reg_read(Regs::BootRom.into())?;
+                if host_wait == FINISH_BOOT_ROM {
+                    state.stage = BootStage::Stage4;
+                }
+            }
+            BootStage::Stage4 => {
+                const START_FIRMWARE: u32 = 0xef522f61;
+
+                let driver_rev = 0x13521352; // todo
+                self.chip
+                    .single_reg_write(Regs::NmiState.into(), driver_rev)?;
+                self.chip_id()?;
+                // Write Boot Mode configuration.
+                let conf = u32::from(state.mode) | NMI_GP1_PMU_EN_BIT;
+                self.chip.single_reg_write(Regs::NmiGp1.into(), conf)?;
+                let verify = self.chip.single_reg_read(Regs::NmiGp1.into())?;
+                // Verify the configuration
+                if verify == conf {
+                    self.chip
+                        .single_reg_write(Regs::BootRom.into(), START_FIRMWARE)?;
+                    state.stage = BootStage::StageStartFirmware;
+                    state.loop_value = 0;
+                } else if state.loop_value >= MAX_LOOPS {
+                    return Err(Error::FirmwareStart);
+                }
+            }
+            BootStage::StageStartFirmware => {
+                const FINISH_INIT: u32 = 0x02532636;
+                const BACKOFF_DELAY_USEC: u32 = 2000; // 2 msec
+
+                if state.loop_value >= MAX_LOOPS {
+                    return Err(Error::FirmwareStart);
+                }
+
+                self.delay_us(BACKOFF_DELAY_USEC);
+                let reg = self.chip.single_reg_read(Regs::NmiState.into())?;
+                if reg == FINISH_INIT {
+                    state.stage = BootStage::FinishFirmwareBoot;
+                }
+            }
+            BootStage::FinishFirmwareBoot => {
+                self.chip.single_reg_write(Regs::NmiState.into(), 0)?;
+                self.enable_interrupt_pins()?;
+                // After chip boot, we can go a lot faster
+                self.chip.switch_to_high_speed();
+                return Ok(true);
+            }
+        }
+        state.loop_value += 1;
+        Ok(false)
+    }
+
+    /// Configures the SPI packet size to 8 KB for the WINC1500.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - If the SPI packet size was successfully configured.
+    /// * `Err(Error)` - If configuration fails.
+    pub(crate) fn configure_spi_packetsize(&mut self) -> Result<(), Error> {
+        const CLEAR_SPI_CONFIG: u32 = 0xFFFF_FF0F;
+        const PACKET_SIZE_8K: u32 = 0x0000_0050;
+
+        let mut conf = self.chip.single_reg_read(Regs::SpiConfig.into())?;
+        conf &= CLEAR_SPI_CONFIG; // clear
+        conf |= PACKET_SIZE_8K; // set to 8k packet size
+        self.chip.single_reg_write(Regs::SpiConfig.into(), conf)?;
+        trace!("Set spiconfig to {:x}", conf);
+        Ok(())
+    }
+
+    /// Enables interrupts on the module's pins.
+    ///
+    /// # Returns
+    ///
+    /// * `()` - If the interrupts were successfully enabled.
+    /// * `Error` - If an error occurs while enabling the interrupts.
+    pub(crate) fn enable_interrupt_pins(&mut self) -> Result<(), Error> {
+        let mut pinmux = self.chip.single_reg_read(Regs::NmiPinMux0.into())?;
+        pinmux |= NMI_PIN_MUX0_EN_BIT;
+        self.chip
+            .single_reg_write(Regs::NmiPinMux0.into(), pinmux)?;
+        trace!("Set pinmux to {:x}", pinmux);
+
+        let mut int_enable = self.chip.single_reg_read(Regs::NmiIntrEnable.into())?;
+        int_enable |= NMI_IRQ_EN_BIT;
+        self.chip
+            .single_reg_write(Regs::NmiIntrEnable.into(), int_enable)?;
+        trace!("Set int enable to {:x}", int_enable);
+        Ok(())
+    }
+
+    /// Disables all the interrupts in the module.
+    ///
+    /// # Returns
+    ///
+    /// * `()` - If the interrupts were successfully disabled.
+    /// * `Error` - If an error occurs while disabling the interrupts.
+    pub(crate) fn disable_internal_interrupt(&mut self) -> Result<(), Error> {
+        self.chip.single_reg_write(Regs::CortusIrq.into(), 0)
+    }
+
+    /// Retrieves the full firmware version of the device.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(FirmwareInfo)` - The full firmware version information.
+    /// * `Err(Error)` - If an error occurred while reading the firmware version.
+    pub(crate) fn get_firmware_ver_full(&mut self) -> Result<FirmwareInfo, Error> {
+        const LOW_WORD_MASK: u32 = 0x0000_FFFF;
+
+        let (_, address) = self.read_regs_from_otp_efuse()?;
+        debug!("Got address {:#x}", address);
+        let mod_address = (address & LOW_WORD_MASK) | EFUSE_OTP_MAC_OTA_BIT;
+        let mut data = [0u8; FW_INFO_RESP_PACKET_SIZE];
+        debug!("Calculated address: {:#x}", mod_address);
+        self.chip.dma_block_read(mod_address, data.as_mut_slice())?;
+        let fw = read_firmware_info_reply(&data)?;
+        Ok(fw)
+    }
+
+    /// Connects to a previously saved access point.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - If the connection request was successfully sent.
+    /// * `Err(Error)` - If an error occurred while sending the connection request.
+    pub(crate) fn send_default_connect(&mut self) -> Result<(), Error> {
         self.write_hif_header(HifRequest::Wifi(WifiRequest::DefaultConnect), &[], false)?;
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
     }
@@ -902,7 +1201,7 @@ impl<X: Xfer> Manager<X> {
     ///
     /// * `()` - If the request is successfully sent.
     /// * `Error` - If an error occurred while preparing or sending the connect request.
-    pub fn send_connect(
+    pub(crate) fn send_connect(
         &mut self,
         ssid: &Ssid,
         credentials: &Credentials,
@@ -916,16 +1215,40 @@ impl<X: Xfer> Manager<X> {
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
     }
 
-    pub fn send_get_current_rssi(&mut self) -> Result<(), Error> {
+    /// Sends a request to retrieve the current RSSI (signal strength) of the active Wi-Fi connection.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - If the RSSI request was successfully sent.
+    /// * `Err(Error)` - If an error occurred while sending the request.
+    pub(crate) fn send_get_current_rssi(&mut self) -> Result<(), Error> {
         self.write_hif_header(HifRequest::Wifi(WifiRequest::CurrentRssi), &[], false)?;
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
     }
 
-    pub fn send_get_conn_info(&mut self) -> Result<(), Error> {
+    /// Sends a request to retrieve the current Wi-Fi connection information.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - If the connection info request was successfully sent.
+    /// * `Err(Error)` - If an error occurred while sending the request.
+    pub(crate) fn send_get_conn_info(&mut self) -> Result<(), Error> {
         self.write_hif_header(HifRequest::Wifi(WifiRequest::GetConnInfo), &[], false)?;
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
     }
-    pub fn send_scan(&mut self, channel: u8, scantime: u16) -> Result<(), Error> {
+
+    /// Sends a request to initiate a Wi-Fi scan on the specified channel for a given duration.
+    ///
+    /// # Arguments
+    ///
+    /// * `channel` - The Wi-Fi channel to scan.
+    /// * `scantime` - The scan duration in milliseconds.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - If the scan request was successfully sent.
+    /// * `Err(Error)` - If an error occurred while sending the scan request.
+    pub(crate) fn send_scan(&mut self, channel: u8, scantime: u16) -> Result<(), Error> {
         let req = write_scan_req(channel, scantime)?;
         self.write_hif_header(HifRequest::Wifi(WifiRequest::Scan), &req, false)?;
         self.chip
@@ -933,7 +1256,17 @@ impl<X: Xfer> Manager<X> {
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
     }
 
-    pub fn send_get_scan_result(&mut self, index: u8) -> Result<(), Error> {
+    /// Sends a request to retrieve the result of a Wi-Fi scan at the specified index.
+    ///
+    /// # Arguments
+    ///
+    /// * `index` - The index of the scan result to retrieve.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - If the scan result request was successfully sent.
+    /// * `Err(Error)` - If an error occurred while sending the scan result request.
+    pub(crate) fn send_get_scan_result(&mut self, index: u8) -> Result<(), Error> {
         let req = [index, 0, 0, 0];
         self.write_hif_header(HifRequest::Wifi(WifiRequest::ScanResult), &req, false)?;
         self.chip
@@ -943,7 +1276,20 @@ impl<X: Xfer> Manager<X> {
 
     // #region ipsend
 
-    pub fn send_ping_req(
+    /// Sends a ping request to the specified IPv4 address.
+    ///
+    /// # Arguments
+    ///
+    /// * `dest` - The destination IPv4 address to ping.
+    /// * `ttl` - Time-to-live value for the ICMP packets.
+    /// * `count` - Number of ping requests to send.
+    /// * `marker` - An identifier used to match ping responses.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - If the ping request was successfully sent.
+    /// * `Err(Error)` - If an error occured while sending the ping request.
+    pub(crate) fn send_ping_req(
         &mut self,
         dest: Ipv4Addr,
         ttl: u8,
@@ -957,7 +1303,17 @@ impl<X: Xfer> Manager<X> {
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
     }
 
-    pub fn send_gethostbyname(&mut self, host: &str) -> Result<(), Error> {
+    /// Sends a request to resolve a hostname to an IPv4 address.
+    ///
+    /// # Arguments
+    ///
+    /// * `host` - The hostname to resolve.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - If the hostname resolution request was successfully sent.
+    /// * `Err(Error)` - If an error occurred while sending the request to retrieve the hostname.
+    pub(crate) fn send_gethostbyname(&mut self, host: &str) -> Result<(), Error> {
         const GET_HOSTNAME_PACKET_SIZE: usize = 64;
 
         let mut buffer = [0x0u8; GET_HOSTNAME_PACKET_SIZE];
@@ -980,7 +1336,7 @@ impl<X: Xfer> Manager<X> {
     ///
     /// * `Ok(())` - If the bind request was successfully sent.
     /// * `Err(Error)` - If an error occurred while sending the bind request.
-    pub fn send_bind(&mut self, socket: Socket, address: SocketAddrV4) -> Result<(), Error> {
+    pub(crate) fn send_bind(&mut self, socket: Socket, address: SocketAddrV4) -> Result<(), Error> {
         let req = write_bind_req(socket, address)?;
         let cmd = self.get_ssl_ip_code(&socket, IpCode::Bind);
 
@@ -989,7 +1345,19 @@ impl<X: Xfer> Manager<X> {
             .dma_block_write(self.not_a_reg_ctrl_4_dma + HIF_HEADER_OFFSET as u32, &req)?;
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
     }
-    pub fn send_listen(&mut self, socket: Socket, backlog: u8) -> Result<(), Error> {
+
+    /// Sends a request to start listening for incoming connections on a TCP socket.
+    ///
+    /// # Arguments
+    ///
+    /// * `socket` - The socket to listen on.
+    /// * `backlog` - The maximum number of pending incomming connections.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - If the listen request was successfully sent.
+    /// * `Err(Error)` - If an error occurred while sending the socket listen request.
+    pub(crate) fn send_listen(&mut self, socket: Socket, backlog: u8) -> Result<(), Error> {
         let req = write_listen_req(socket, backlog)?;
         self.write_hif_header(HifRequest::Ip(IpCode::Listen), &req, false)?;
         self.chip
@@ -1007,8 +1375,8 @@ impl<X: Xfer> Manager<X> {
     /// # Returns
     ///
     /// * `Ok(())` - If the connection request was successfully sent.
-    /// * `Err(Error)` - If an error occurred while sending the connection request.
-    pub fn send_socket_connect(
+    /// * `Err(Error)` - If an error occurred while sending the socket connection request.
+    pub(crate) fn send_socket_connect(
         &mut self,
         socket: Socket,
         address: SocketAddrV4,
@@ -1022,7 +1390,19 @@ impl<X: Xfer> Manager<X> {
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
     }
 
-    pub fn send_sendto(
+    /// Sends UDP send request.
+    ///
+    /// # Arguments
+    ///
+    /// * `socket` - The UDP socket to use for sending the data.
+    /// * `address` - The destination IPv4 address and port.
+    /// * `data` - The payload to send.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - If the send request was successfully sent.
+    /// * `Err(Error)` - If an error occurred while sending the data through the socket.
+    pub(crate) fn send_sendto(
         &mut self,
         socket: Socket,
         address: SocketAddrV4,
@@ -1052,7 +1432,7 @@ impl<X: Xfer> Manager<X> {
     ///
     /// * `Ok(())` - If the data was successfully sent.
     /// * `Err(Error)` - If an error occurred during the send operation.
-    pub fn send_send(&mut self, socket: Socket, data: &[u8]) -> Result<(), Error> {
+    pub(crate) fn send_send(&mut self, socket: Socket, data: &[u8]) -> Result<(), Error> {
         const TCP_IP_HEADER_LENGTH: usize = 40;
         const TCP_TX_PACKET_OFFSET: usize = IP_PACKET_OFFSET + TCP_IP_HEADER_LENGTH;
 
@@ -1097,18 +1477,18 @@ impl<X: Xfer> Manager<X> {
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
     }
 
-    /// Sends a request to receive data from the specified socket, with a timeout.
+    /// Sends a request to receive data from the specified TCP socket, with a timeout.
     ///
     /// # Arguments
     ///
-    /// * `socket` - The socket from which to receive data.
+    /// * `socket` - The TCP socket from which to receive data.
     /// * `timeout` - The timeout duration in milliseconds.
     ///
     /// # Returns
     ///
-    /// * `Ok(())` - If the receive request was successfully sent.
-    /// * `Err(Error)` - If an error occurred while sending the receive request.
-    pub fn send_recv(&mut self, socket: Socket, timeout: u32) -> Result<(), Error> {
+    /// * `Ok(())` - If the TCP receive request was successfully sent.
+    /// * `Err(Error)` - If an error occurred while sending the TCP receive request.
+    pub(crate) fn send_recv(&mut self, socket: Socket, timeout: u32) -> Result<(), Error> {
         let req = write_recv_req(socket, timeout)?;
         let cmd = self.get_ssl_ip_code(&socket, IpCode::Recv);
 
@@ -1118,7 +1498,18 @@ impl<X: Xfer> Manager<X> {
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
     }
 
-    pub fn send_recvfrom(&mut self, socket: Socket, timeout: u32) -> Result<(), Error> {
+    /// Sends a request to receive data from the specified UDP socket, with a timeout.
+    ///
+    /// # Arguments
+    ///
+    /// * `socket` - The UDP socket to receive data from.
+    /// * `timeout` - The timeout duration in milliseconds.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - If the UDP receive request was successfully sent.
+    /// * `Err(Error)` - If an error occurred while sending the UDP receive request.
+    pub(crate) fn send_recvfrom(&mut self, socket: Socket, timeout: u32) -> Result<(), Error> {
         let req = write_recv_req(socket, timeout)?;
         self.write_hif_header(HifRequest::Ip(IpCode::RecvFrom), &req, false)?;
         self.chip
@@ -1136,7 +1527,7 @@ impl<X: Xfer> Manager<X> {
     ///
     /// * `Ok(())` - If the close request was successfully sent.
     /// * `Err(Error)` - If an error occurred while sending the request.
-    pub fn send_close(&mut self, socket: Socket) -> Result<(), Error> {
+    pub(crate) fn send_close(&mut self, socket: Socket) -> Result<(), Error> {
         let req = write_close_req(socket)?;
         let cmd = self.get_ssl_ip_code(&socket, IpCode::Close);
 
@@ -1155,9 +1546,13 @@ impl<X: Xfer> Manager<X> {
     ///
     /// # Returns
     ///
-    /// * `()` - If the request is successfully sent.
-    /// * `Error` - If an error occurred while preparing or sending the request.
-    pub fn send_setsockopt(&mut self, socket: Socket, option: &UdpSockOpts) -> Result<(), Error> {
+    /// * `Ok(())` - If the request is successfully sent.
+    /// * `Err(Error)` - If an error occurred while preparing or sending the request.
+    pub(crate) fn send_setsockopt(
+        &mut self,
+        socket: Socket,
+        option: &UdpSockOpts,
+    ) -> Result<(), Error> {
         let req = write_setsockopt_req(socket, (*option).into(), option.get_value())?;
         self.write_hif_header(HifRequest::Ip(IpCode::SetSocketOption), &req, false)?;
         self.chip
@@ -1174,10 +1569,10 @@ impl<X: Xfer> Manager<X> {
     ///
     /// # Returns
     ///
-    /// * `()` - If the request is successfully sent.
-    /// * `Error` - If an error occurred while preparing or sending the request.
+    /// * `Ok(())` - If the request is successfully sent.
+    /// * `Err(Error)` - If an error occurred while preparing or sending the request.
     #[cfg(feature = "ssl")]
-    pub fn send_ssl_setsockopt(
+    pub(crate) fn send_ssl_setsockopt(
         &mut self,
         socket: Socket,
         option: &SslSockOpts,
@@ -1194,9 +1589,9 @@ impl<X: Xfer> Manager<X> {
     ///
     /// # Returns
     ///
-    /// * `()` - If the request is successfully sent.
-    /// * `Error` - If an error occurred while preparing or sending the request.
-    pub fn send_disconnect(&mut self) -> Result<(), Error> {
+    /// * `Ok(())` - If the request is successfully sent.
+    /// * `Err(Error)` - If an error occurred while preparing or sending the request.
+    pub(crate) fn send_disconnect(&mut self) -> Result<(), Error> {
         self.write_hif_header(HifRequest::Wifi(WifiRequest::Disconnect), &[], false)?;
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
     }
@@ -1215,9 +1610,9 @@ impl<X: Xfer> Manager<X> {
     ///
     /// # Returns
     ///
-    /// * `()` - If the request is successfully sent.
-    /// * `Error` - If an error occurred during the PRNG packet request or preparation.
-    pub fn send_prng(&mut self, addr: u32, len: u16) -> Result<(), Error> {
+    /// * `Ok(())` - If the request is successfully sent.
+    /// * `Err(Error)` - If an error occurred during the PRNG packet request or preparation.
+    pub(crate) fn send_prng(&mut self, addr: u32, len: u16) -> Result<(), Error> {
         let req = write_prng_req(addr, len)?;
         self.write_hif_header(HifRequest::Wifi(WifiRequest::GetPrng), &req, true)?;
         self.chip
@@ -1237,9 +1632,9 @@ impl<X: Xfer> Manager<X> {
     ///
     /// # Returns
     ///
-    /// * `()` - If the request is successfully sent.
-    /// * `Error` - If an error occurs during packet preparation or sending.
-    pub fn send_start_provisioning(
+    /// * `Ok(())` - If the request is successfully sent.
+    /// * `Err(Error)` - If an error occurs during packet preparation or sending.
+    pub(crate) fn send_start_provisioning(
         &mut self,
         ap: &AccessPoint,
         hostname: &HostName,
@@ -1260,9 +1655,9 @@ impl<X: Xfer> Manager<X> {
     ///
     /// # Returns
     ///
-    /// * `()` - If the request is successfully sent.
-    /// * `Error` - If an error occurs during packet preparation or transmission.
-    pub fn send_stop_provisioning(&mut self) -> Result<(), Error> {
+    /// * `Ok(())` - If the request is successfully sent.
+    /// * `Err(Error)` - If an error occurs during packet preparation or transmission.
+    pub(crate) fn send_stop_provisioning(&mut self) -> Result<(), Error> {
         self.write_hif_header(HifRequest::Wifi(WifiRequest::StopProvisionMode), &[], false)?;
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
     }
@@ -1275,9 +1670,9 @@ impl<X: Xfer> Manager<X> {
     ///
     /// # Returns
     ///
-    /// * `()` - If the request is successfully sent.
-    /// * `Error` - If an error occurs during packet preparation or sending.
-    pub fn send_enable_access_point(&mut self, ap: &AccessPoint) -> Result<(), Error> {
+    /// * `Ok(())` - If the request is successfully sent.
+    /// * `Err(Error)` - If an error occurs during packet preparation or sending.
+    pub(crate) fn send_enable_access_point(&mut self, ap: &AccessPoint) -> Result<(), Error> {
         let req = write_en_ap_req(ap)?;
         self.write_hif_header(HifRequest::Wifi(WifiRequest::EnableAp), &req, true)?;
         self.chip
@@ -1289,14 +1684,13 @@ impl<X: Xfer> Manager<X> {
     ///
     /// # Returns
     ///
-    /// * `()` - If the request is successfully sent.
-    /// * `Error` - If an error occurs during packet preparation or sending.
-    pub fn send_disable_access_point(&mut self) -> Result<(), Error> {
+    /// * `Ok(())` - If the request is successfully sent.
+    /// * `Err(Error)` - If an error occurs during packet preparation or sending.
+    pub(crate) fn send_disable_access_point(&mut self) -> Result<(), Error> {
         self.write_hif_header(HifRequest::Wifi(WifiRequest::DisableAp), &[], false)?;
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
     }
 
-    #[cfg(feature = "experimental-ota")]
     /// Send a request to start the OTA update for either winc1500 network stack or cortus processor.
     ///
     /// # Arguments
@@ -1306,9 +1700,10 @@ impl<X: Xfer> Manager<X> {
     ///
     /// # Returns
     ///
-    /// * `()` - If the request is successfully sent.
-    /// * `Error` - If an error occurs during packet preparation or sending.
-    pub fn send_start_ota_update(
+    /// * `Ok(())` - If the request is successfully sent.
+    /// * `Err(Error)` - If an error occurs during packet preparation or sending.
+    #[cfg(feature = "experimental-ota")]
+    pub(crate) fn send_start_ota_update(
         &mut self,
         server_url: &[u8],
         cortus_update: bool,
@@ -1327,7 +1722,6 @@ impl<X: Xfer> Manager<X> {
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
     }
 
-    #[cfg(feature = "experimental-ota")]
     /// Sends an OTA request (rollback, abort, switch) either for the
     /// WINC1500 network stack or the Cortus processor.
     ///
@@ -1337,94 +1731,21 @@ impl<X: Xfer> Manager<X> {
     ///
     /// # Returns
     ///
-    /// * `()` - If the request is successfully sent.
-    /// * `Error` - If an error occurs during packet preparation or sending.
-    pub fn send_ota_request(&mut self, request: OtaRequest) -> Result<(), Error> {
+    /// * `Ok(())` - If the request is successfully sent.
+    /// * `Err(Error)` - If an error occurs during packet preparation or sending.
+    #[cfg(feature = "experimental-ota")]
+    pub(crate) fn send_ota_request(&mut self, request: OtaRequest) -> Result<(), Error> {
         self.write_hif_header(HifRequest::Ota(request), &[], false)?;
         self.write_ctrl3(self.not_a_reg_ctrl_4_dma)
     }
 
-    #[cfg(feature = "flash-rw")]
-    /// Checks the flash data transfer register.
-    ///
-    /// # Returns
-    ///
-    /// * `()` - If the flash transfer is complete.
-    /// * `Error` - If an error occurs while reading the register or the process times out.
-    fn check_flash_tx_complete(&mut self) -> Result<(), Error> {
-        let mut retries = FLASH_REG_READ_RETRIES;
-        let mut res = self.chip.single_reg_read(Regs::FlashTransferDone.into())?;
-
-        while res != 1 {
-            if retries == 0 {
-                error!("Reading flash transfer complete register timed out.");
-                return Err(Error::OperationRetriesExceeded);
-            }
-
-            retries -= 1;
-
-            res = self.chip.single_reg_read(Regs::FlashTransferDone.into())?;
-        }
-
-        Ok(())
-    }
-
-    #[cfg(feature = "flash-rw")]
-    /// Sends a command to write data (less than a page size) from Cortus memory to flash.
-    ///
-    /// # Arguments
-    ///
-    /// * `flash_addr` – The flash address where data will be written.
-    /// * `data_size` – The size of the data to write.
-    ///
-    /// # Returns
-    ///
-    /// * `()` - The data was successfully written to flash.
-    /// * `Error` - If an error occurs while writing the data from Cortus memory to flash.
-    fn send_flash_write_page(&mut self, flash_addr: u32, data_size: usize) -> Result<(), Error> {
-        const LOW_20_BIT_MASK: u32 = 0x000F_FFFF;
-        const DATA_SIZE_OFFSET: u32 = 0x08;
-        // 0x04 CMD length, 4 bits are high.
-        const CMD_SIZE_IN_BITS: u32 = 0x0F;
-
-        if data_size > FLASH_PAGE_SIZE {
-            return Err(Error::ExceedsFlashPageSize);
-        }
-
-        let cmd = {
-            let b = flash_addr.to_be_bytes();
-            [FlashOpCode::PageProgram.into(), b[1], b[2], b[3]]
-        };
-
-        // Flash CMD length: 0x04 + MASK: 0x80
-        let cmd_count: u32 = cmd.len() as u32 + FLASH_CMD_CNT_MASK;
-
-        self.chip
-            .single_reg_write(Regs::FlashDataCount.into(), 0x00)?;
-        self.chip
-            .single_reg_write(Regs::FlashBuffer1.into(), u32::from_le_bytes(cmd))?;
-        self.chip
-            .single_reg_write(Regs::FlashBufferDirectory.into(), CMD_SIZE_IN_BITS)?;
-        self.chip
-            .single_reg_write(Regs::FlashDmaAddress.into(), Regs::FlashSharedMemory.into())?;
-
-        // Mask data_size to 20 bits, shift to high bytes, and set 0x84 as the low byte
-        let size = cmd_count | ((data_size as u32 & LOW_20_BIT_MASK) << DATA_SIZE_OFFSET);
-
-        self.chip
-            .single_reg_write(Regs::FlashCommandCount.into(), size as u32)?;
-
-        // read transfer complete register.
-        self.check_flash_tx_complete()
-    }
-
-    #[cfg(feature = "flash-rw")]
     /// Sends a command to read the flash status register.
     ///
     /// # Returns
     ///
-    /// * `u8` – The value of the status register.
-    /// * `Error` – If an error occurs while reading the status register.
+    /// * `Ok(u8)` – The value of the status register.
+    /// * `Err(Error)` – If an error occurs while reading the status register.
+    #[cfg(feature = "flash-rw")]
     pub(crate) fn send_flash_read_status_register(&mut self) -> Result<u8, Error> {
         // 0x01 CMD length, 1 bits are high.
         const CMD_SIZE_IN_BITS: u32 = 0x01;
@@ -1453,53 +1774,6 @@ impl<X: Xfer> Manager<X> {
         Ok(res as u8)
     }
 
-    #[cfg(feature = "flash-rw")]
-    /// Sends a command to load data from flash into Cortus processor memory.
-    ///
-    /// # Arguments
-    ///
-    /// * `flash_addr` – The flash address to load data from.
-    /// * `data_size` – The size of the data to load.
-    ///
-    /// # Returns
-    ///
-    /// * `()` - Data is successfully loaded into Cortus processor memory.
-    /// * `Error` - If an error occurs while loading the flash data into Cortus memory.
-    fn send_flash_load_data_to_cortus_memory(
-        &mut self,
-        flash_addr: u32,
-        data_size: usize,
-    ) -> Result<(), Error> {
-        // 0x05 CMD length, 5 bits are high.
-        const CMD_SIZE_IN_BITS: u32 = 0x1F;
-        // Last byte of command
-        const CMD_LAST_BYTE: u32 = 0xA5;
-
-        let cmd = {
-            let b = flash_addr.to_be_bytes();
-            [FlashOpCode::FastRead.into(), b[1], b[2], b[3]]
-        };
-
-        // Flash CMD bytes: 0x05 + MASK: 0x80
-        let cmd_count: u32 = (cmd.len() as u32 + 1) | FLASH_CMD_CNT_MASK;
-
-        self.chip
-            .single_reg_write(Regs::FlashDataCount.into(), data_size as u32)?;
-        self.chip
-            .single_reg_write(Regs::FlashBuffer1.into(), u32::from_le_bytes(cmd))?;
-        self.chip
-            .single_reg_write(Regs::FlashBuffer2.into(), CMD_LAST_BYTE)?;
-        self.chip
-            .single_reg_write(Regs::FlashBufferDirectory.into(), CMD_SIZE_IN_BITS)?;
-        self.chip
-            .single_reg_write(Regs::FlashDmaAddress.into(), Regs::FlashSharedMemory.into())?;
-        self.chip
-            .single_reg_write(Regs::FlashCommandCount.into(), cmd_count)?;
-        // read transfer complete register.
-        self.check_flash_tx_complete()
-    }
-
-    #[cfg(feature = "flash-rw")]
     /// Sends a command to erase a flash sector (4KB).
     ///
     /// # Arguments
@@ -1508,8 +1782,9 @@ impl<X: Xfer> Manager<X> {
     ///
     /// # Returns
     ///
-    /// * `()` - The flash sector was successfully erased.
-    /// * `Error` - If an error occurs while erasing the flash sector.
+    /// * `Ok(())` - The flash sector was successfully erased.
+    /// * `Err(Error)` - If an error occurs while erasing the flash sector.
+    #[cfg(feature = "flash-rw")]
     pub(crate) fn send_flash_erase_sector(&mut self, flash_addr: u32) -> Result<(), Error> {
         // 0x04 CMD length, 4 bits are high.
         const CMD_SIZE_IN_BITS: u32 = 0x0F;
@@ -1537,7 +1812,6 @@ impl<X: Xfer> Manager<X> {
         self.check_flash_tx_complete()
     }
 
-    #[cfg(feature = "flash-rw")]
     /// Sends a command to enable or disable write access to the flash.
     ///
     /// # Arguments
@@ -1546,8 +1820,9 @@ impl<X: Xfer> Manager<X> {
     ///
     /// # Returns
     ///
-    /// * `()` – Write access to the flash was successfully enabled or disabled.
-    /// * `Error` – If an error occurs while sending the command to change write access.
+    /// * `Ok(())` – Write access to the flash was successfully enabled or disabled.
+    /// * `Err(Error)` – If an error occurs while sending the command to change write access.
+    #[cfg(feature = "flash-rw")]
     pub(crate) fn send_flash_write_access(&mut self, enable: bool) -> Result<(), Error> {
         // 0x01 CMD length, 1 bits are high.
         const CMD_SIZE_IN_BITS: u32 = 0x01;
@@ -1573,7 +1848,6 @@ impl<X: Xfer> Manager<X> {
         self.check_flash_tx_complete()
     }
 
-    #[cfg(feature = "flash-rw")]
     /// Sends a command to write data to a flash memory.
     ///
     /// # Arguments
@@ -1583,8 +1857,9 @@ impl<X: Xfer> Manager<X> {
     ///
     /// # Returns
     ///
-    /// * `()` - The data was successfully written to flash memory.
-    /// * `Error` - If an error occurs while writing the data to flash.
+    /// * `Ok(())` - The data was successfully written to flash memory.
+    /// * `Err(Error)` - If an error occurs while writing the data to flash.
+    #[cfg(feature = "flash-rw")]
     pub(crate) fn send_flash_write(&mut self, flash_addr: u32, data: &[u8]) -> Result<(), Error> {
         if data.is_empty() {
             error!("Invalid data buffer");
@@ -1619,13 +1894,13 @@ impl<X: Xfer> Manager<X> {
         self.send_flash_write_access(false)
     }
 
-    #[cfg(feature = "flash-rw")]
     /// Sends a command to read the flash ID.
     ///
     /// # Returns
     ///
-    /// * `u32` - The flash ID.
-    /// * `Error` - If an error occurs while reading the flash ID.
+    /// * `Ok(u32)` - The flash ID.
+    /// * `Err(Error)` - If an error occurs while reading the flash ID.
+    #[cfg(feature = "flash-rw")]
     pub(crate) fn send_flash_read_id(&mut self) -> Result<u32, Error> {
         // 0x01 CMD length, 1 bits are high.
         const CMD_SIZE_IN_BITS: u32 = 0x01;
@@ -1654,7 +1929,6 @@ impl<X: Xfer> Manager<X> {
         Ok(value)
     }
 
-    #[cfg(feature = "flash-rw")]
     /// Sends a command to the flash to enter or exit low power mode.
     ///
     /// # Arguments
@@ -1663,8 +1937,9 @@ impl<X: Xfer> Manager<X> {
     ///
     /// # Returns
     ///
-    /// * `()` – The flash successfully entered or exited low power mode.
-    /// * `Error` – If an error occurs while attempting to change the flash power mode.
+    /// * `Ok(())` – The flash successfully entered or exited low power mode.
+    /// * `Err(Error)` – If an error occurs while attempting to change the flash power mode.
+    #[cfg(feature = "flash-rw")]
     pub(crate) fn send_flash_low_power_mode(&mut self, enable: bool) -> Result<(), Error> {
         // 0x01 CMD length, so 1 bits are high.
         const CMD_SIZE_IN_BITS: u32 = 0x01;
@@ -1690,7 +1965,6 @@ impl<X: Xfer> Manager<X> {
         self.check_flash_tx_complete()
     }
 
-    #[cfg(feature = "flash-rw")]
     /// Sends a command to enable or disable flash pinmux.
     ///
     /// # Arguments
@@ -1699,8 +1973,9 @@ impl<X: Xfer> Manager<X> {
     ///
     /// # Returns
     ///
-    /// * `()` – Pinmux was successfully enabled or disabled on the flash.
-    /// * `Error` – If an error occurs while enabling or disabling the flash pinmux.
+    /// * `Ok(())` – Pinmux was successfully enabled or disabled on the flash.
+    /// * `Err(Error)` – If an error occurs while enabling or disabling the flash pinmux.
+    #[cfg(feature = "flash-rw")]
     pub(crate) fn send_flash_pin_mux(&mut self, enable: bool) -> Result<(), Error> {
         let mut val = self.chip.single_reg_read(Regs::FlashPinMux.into())?;
 
@@ -1715,7 +1990,6 @@ impl<X: Xfer> Manager<X> {
         self.chip.single_reg_write(Regs::FlashPinMux.into(), val)
     }
 
-    #[cfg(feature = "flash-rw")]
     /// Sends a command to read data from flash memory.
     ///
     /// # Arguments
@@ -1725,8 +1999,9 @@ impl<X: Xfer> Manager<X> {
     ///
     /// # Returns
     ///
-    /// * `()` – Data was successfully read from flash memory.
-    /// * `Error` – If an error occurs while reading data from the flash.
+    /// * `Ok(())` – Data was successfully read from flash memory.
+    /// * `Err(Error)` – If an error occurs while reading data from the flash.
+    #[cfg(feature = "flash-rw")]
     pub(crate) fn send_flash_read(
         &mut self,
         flash_addr: u32,
@@ -2001,8 +2276,6 @@ impl<X: Xfer> Manager<X> {
 
         Ok(())
     }
-
-    // #endregion write
 }
 
 #[cfg(test)]
@@ -2012,9 +2285,11 @@ mod tests {
 
     #[test]
     fn test_hif_header() {
+        let mut buff = [0u8];
+        let mgr = make_manager(buff.as_mut_slice());
         let hif_header = [0x01u8, 0x2C, 0x16, 0x00];
         assert_eq!(
-            hif_header_parse(hif_header),
+            mgr.hif_header_parse(hif_header),
             Ok((HifGroup::Wifi(WifiResponse::ConStateChanged), 22))
         );
     }

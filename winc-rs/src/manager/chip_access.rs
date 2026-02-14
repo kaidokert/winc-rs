@@ -12,15 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::errors::CommError as Error;
-
-use crate::transfer::*;
-
-use crc_any::CRC;
-
 use super::registers::{Regs, CORTUS_READ_MAX_REG, CORTUS_WRITE_MAX_REG, INTR_REG_RW_EN_BIT};
+use crate::errors::CommError as Error;
+use crate::transfer::*;
 use crate::HexWrap;
 use crate::{trace, warn};
+use crc_any::CRC;
 
 /// ACK for a read register or data response.
 // Lower bits are start=1/mid=2/end=3, usually 3
@@ -34,24 +31,7 @@ const CRC16_DIGEST_HIGH_BYTE: u8 = 0x99;
 /// Low byte of the CRC-16 digest.
 const CRC16_DIGEST_LOW_BYTE: u8 = 0xc0;
 
-fn find_first_neq_index<T: PartialEq>(a1: &[T], a2: &[T]) -> Option<usize> {
-    a1.iter().zip(a2.iter()).position(|(a, b)| a != b)
-}
-
-fn crc7(input: &[u8]) -> u8 {
-    let mut crc = CRC::crc7();
-    crc.digest(&[CRC7_DIGEST]); // reset crc to initial value
-    crc.digest(input);
-    (crc.get_crc() << 1) as u8
-}
-
-fn crc16(input: &[u8]) -> u16 {
-    let mut crc = CRC::crc16aug_ccitt();
-    crc.digest(&[CRC16_DIGEST_HIGH_BYTE, CRC16_DIGEST_LOW_BYTE]); // reset crc to initial value
-    crc.digest(input);
-    crc.get_crc() as u16
-}
-
+/// Commands for HIF protocol.
 #[derive(Copy, Clone)]
 pub enum Cmd {
     /// Cortus Register Write
@@ -70,6 +50,7 @@ pub enum Cmd {
     BusReset = 0xcf,
 }
 
+/// A structure for communicating with the WINC1500.
 pub struct ChipAccess<X: Xfer> {
     xfer: X,
     pub crc: bool,
@@ -77,26 +58,68 @@ pub struct ChipAccess<X: Xfer> {
     pub verify: bool,
 }
 
-impl<X: Xfer> ChipAccess<X> {
-    pub fn new(xfer: X) -> Self {
-        Self {
-            xfer,
-            crc: true,
-            check_crc: false,
-            verify: true,
-        }
-    }
-    #[cfg(test)]
-    pub fn set_unit_test_mode(&mut self) {
-        self.crc = false;
-        self.verify = false;
-        self.check_crc = false;
-    }
-    // Todo: remove this
-    pub fn delay_us(&mut self, delay: u32) {
-        self.xfer.delay_us(delay);
-    }
+/// Finds the index of the first element where two slices differ.
+///
+/// # Arguments
+///
+/// * `a1` - The first slice to compare.
+/// * `a2` - The second slice to compare.
+///
+/// # Returns
+///
+/// * `Option<usize>` -
+///     - `Some(index)` of the first differing element,
+///     - `None` if the slices are equal up to the length of the shorter slice.
+fn find_first_neq_index<T: PartialEq>(a1: &[T], a2: &[T]) -> Option<usize> {
+    a1.iter().zip(a2.iter()).position(|(a, b)| a != b)
+}
 
+/// Computes the CRC-7 for the given input buffer.
+///
+/// # Arguments
+///
+/// * `input` - A slice of bytes for which the CRC-7 is calculated.
+///
+/// # Returns
+///
+/// * `u8` - A 7-bit CRC value computed from the input data.
+fn crc7(input: &[u8]) -> u8 {
+    let mut crc = CRC::crc7();
+    crc.digest(&[CRC7_DIGEST]); // reset crc to initial value
+    crc.digest(input);
+    (crc.get_crc() << 1) as u8
+}
+
+/// Computes the CRC-16 for the given input buffer.
+///
+/// # Arguments
+///
+/// * `input` - A slice of bytes for which the CRC-16 is calculated.
+///
+/// # Returns
+///
+/// * `u16` - A 16-bit CRC value computed from the input data.
+fn crc16(input: &[u8]) -> u16 {
+    let mut crc = CRC::crc16aug_ccitt();
+    crc.digest(&[CRC16_DIGEST_HIGH_BYTE, CRC16_DIGEST_LOW_BYTE]); // reset crc to initial value
+    crc.digest(input);
+    crc.get_crc() as u16
+}
+
+/// Implementation of `ChipAccess` structure.
+impl<X: Xfer> ChipAccess<X> {
+    /// Verifies that the received buffer matches the expected data.
+    ///
+    /// # Arguments
+    ///
+    /// * `msg` - A error message describing the error stage.
+    /// * `buffer` - The received byte buffer to validate.
+    /// * `expected` - The expected byte sequence.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - If the buffer matches the expected data.
+    /// * `Err(Error)` - If the buffer does not match the expected data or verification fails.
     fn protocol_verify(
         &mut self,
         msg: &'static str,
@@ -114,18 +137,56 @@ impl<X: Xfer> ChipAccess<X> {
         }
     }
 
-    #[cfg(feature = "irq")]
+    /// Creates a new `ChipAccess` instance.
+    ///
+    /// # Arguments
+    ///
+    /// * `xfer` - A type that implements the `Xfer` trait.
+    ///
+    /// # Returns
+    ///
+    /// * `ChipAccess` - A new `ChipAccess` instance on success.
+    pub(super) fn new(xfer: X) -> Self {
+        Self {
+            xfer,
+            crc: true,
+            check_crc: false,
+            verify: true,
+        }
+    }
+
+    /// Enables unit test mode.
+    #[cfg(test)]
+    pub(super) fn set_unit_test_mode(&mut self) {
+        self.crc = false;
+        self.verify = false;
+        self.check_crc = false;
+    }
+
+    // Todo: remove this
+    /// Blocks execution for the specified number of microseconds.
+    ///
+    /// # Arguments
+    ///
+    /// * `delay` - The number of microseconds to wait.
+    pub(super) fn delay_us(&mut self, delay: u32) {
+        self.xfer.delay_us(delay);
+    }
+
     /// Wait for Interrupt on IRQ Pin
-    pub fn wait_for_interrupt(&mut self) {
+    #[cfg(feature = "irq")]
+    pub(super) fn wait_for_interrupt(&mut self) {
         #[cfg(not(test))]
         self.xfer.wait_for_interrupt()
     }
 
-    pub fn switch_to_high_speed(&mut self) {
+    /// Switches to higher clock speed of SPI interface.
+    pub(super) fn switch_to_high_speed(&mut self) {
         self.xfer.switch_to_high_speed();
     }
+
     // todo: change reg arg to enum
-    /// Reads a value from the module's register.
+    /// Reads a value from the WINC/Cortex register.
     ///
     /// # Arguments
     ///
@@ -133,9 +194,9 @@ impl<X: Xfer> ChipAccess<X> {
     ///
     /// # Returns
     ///
-    /// * `u32` - The value read from the register.
-    /// * `Error` - If an error occurs while reading the register.
-    pub fn single_reg_read(&mut self, reg: u32) -> Result<u32, Error> {
+    /// * `Ok(u32)` - The value read from the register.
+    /// * `Err(Error)` - If an error occurs while reading the register.
+    pub(super) fn single_reg_read(&mut self, reg: u32) -> Result<u32, Error> {
         const CRC_START_POS: usize = 4;
 
         let r = reg.to_le_bytes();
@@ -199,7 +260,7 @@ impl<X: Xfer> ChipAccess<X> {
     }
 
     // todo: change register argument to enum
-    /// Writes a value to the module's register.
+    /// Writes a value to the WINC/Cortex register.
     ///
     /// # Arguments
     ///
@@ -208,9 +269,9 @@ impl<X: Xfer> ChipAccess<X> {
     ///
     /// # Returns
     ///
-    /// * `()` - If the value was successfully written.
-    /// * `Error` - If an error occurs while writing the value to the register.
-    pub fn single_reg_write(&mut self, reg: u32, val: u32) -> Result<(), Error> {
+    /// * `Ok(())` - If the value was successfully written.
+    /// * `Err(Error)` - If an error occurs while writing the value to the register.
+    pub(super) fn single_reg_write(&mut self, reg: u32, val: u32) -> Result<(), Error> {
         let v = val.to_le_bytes();
         let r = reg.to_le_bytes();
 
@@ -271,7 +332,7 @@ impl<X: Xfer> ChipAccess<X> {
         Ok(())
     }
 
-    /// Reads a block of data from the module's DMA register.
+    /// Reads a block of data from the WINC DMA register.
     ///
     /// # Arguments
     ///
@@ -280,9 +341,9 @@ impl<X: Xfer> ChipAccess<X> {
     ///
     /// # Returns
     ///
-    /// * `()` - If the data was successfully read into the buffer.
-    /// * `Error` - If an error occurs during the DMA read operation.
-    pub fn dma_block_read(&mut self, reg: u32, data: &mut [u8]) -> Result<(), Error> {
+    /// * `Ok(())` - If the data was successfully read into the buffer.
+    /// * `Err(Error)` - If an error occurs while reading data from WINC DMA register.
+    pub(super) fn dma_block_read(&mut self, reg: u32, data: &mut [u8]) -> Result<(), Error> {
         const CRC_START_POS: usize = 7;
 
         let r = reg.to_le_bytes();
@@ -330,7 +391,7 @@ impl<X: Xfer> ChipAccess<X> {
         Ok(())
     }
 
-    /// Writes a block of data to the module's DMA register.
+    /// Writes a block of data to the WINC DMA register.
     ///
     /// # Arguments
     ///
@@ -339,9 +400,9 @@ impl<X: Xfer> ChipAccess<X> {
     ///
     /// # Returns
     ///
-    /// * `()` - If the data was successfully written.
-    /// * `Error` - If an error occurs during the DMA write operation.
-    pub fn dma_block_write(&mut self, reg: u32, data: &[u8]) -> Result<(), Error> {
+    /// * `Ok(())` - If the data was successfully written.
+    /// * `Err(Error)` - If an error occurs while reading data from WINC DMA register.
+    pub(super) fn dma_block_write(&mut self, reg: u32, data: &[u8]) -> Result<(), Error> {
         const CRC_START_POS: usize = 7;
         const F3_MARKER: u8 = 0xF3;
         const EXPECTED_ACK: u8 = 0xC3;
@@ -392,9 +453,9 @@ impl<X: Xfer> ChipAccess<X> {
     ///
     /// # Returns
     ///
-    /// * `()` - If the bus was reset successfully.
-    /// * `Error` - If an error occurs while resetting the SPI bus.
-    pub(crate) fn bus_reset(&mut self) -> Result<(), Error> {
+    /// * `Ok(())` - If the bus was reset successfully.
+    /// * `Err(Error)` - If an error occurs while resetting the SPI bus.
+    pub(super) fn bus_reset(&mut self) -> Result<(), Error> {
         const CRC_START_POS: usize = 4;
 
         let mut cmd = [Cmd::BusReset as u8, 0xff, 0xff, 0xff, 0x00];

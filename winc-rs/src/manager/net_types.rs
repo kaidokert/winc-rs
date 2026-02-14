@@ -12,21 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::StackError;
-
-use arrayvec::ArrayString;
-
 use super::constants::{
-    AuthType, WifiChannel, MAX_HOST_NAME_LEN, MAX_PSK_KEY_LEN, MAX_S802_PASSWORD_LEN,
-    MAX_S802_USERNAME_LEN, MAX_SSID_LEN, MIN_PSK_KEY_LEN,
+    AuthType, WifiChannel, FW_INFO_BUILD_DATE_LEN, FW_INFO_BUILD_TIME_LEN, MAX_HOST_NAME_LEN,
+    MAX_PSK_KEY_LEN, MAX_S802_PASSWORD_LEN, MAX_S802_USERNAME_LEN, MAX_SSID_LEN, MIN_PSK_KEY_LEN,
 };
+use crate::StackError;
+use arrayvec::ArrayString;
+use core::net::Ipv4Addr;
 
 #[cfg(feature = "experimental-ecc")]
 use super::constants::{EccCurveType, EccRequestType};
 
 #[cfg(feature = "wep")]
 use super::constants::WepKeyIndex;
-use core::net::Ipv4Addr;
+
+#[cfg(feature = "defmt")]
+use crate::Ipv4AddrFormatWrapper;
 
 /// Default IP address "192.168.1.1" for access point and provisioning mode.
 const DEFAULT_AP_IP: u32 = 0xC0A80101;
@@ -241,7 +242,7 @@ pub(crate) struct SslCallbackInfo {
 }
 
 /// MAC Address
-#[derive(Debug, PartialEq, Eq, Default)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct MacAddress {
     mac: [u8; MAX_OCTETS_IN_MAC_ADDRESS],
 }
@@ -252,6 +253,58 @@ pub(crate) struct EthernetRxInfo {
     pub(crate) packet_size: u16,
     pub(crate) data_offset: u16,
     pub(crate) hif_address: u32,
+}
+
+/// A revision number of the firmware.
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[derive(Debug, PartialEq)]
+pub struct Revision {
+    pub major: u8,
+    pub minor: u8,
+    pub patch: u8,
+}
+
+/// Information about the firmware version of the Wifi module.
+pub struct FirmwareInfo {
+    pub chip_id: u32,
+    pub firmware_revision: Revision,
+    pub driver_revision: Revision,
+    pub build_date: ArrayString<FW_INFO_BUILD_DATE_LEN>,
+    pub build_time: ArrayString<FW_INFO_BUILD_TIME_LEN>,
+    pub svn_rev: u16,
+}
+
+/// Connected network information.
+#[derive(Debug, PartialEq)]
+pub struct ConnectionInfo {
+    pub ssid: Ssid,
+    pub auth: AuthType,
+    pub ip: Ipv4Addr,
+    pub mac: MacAddress,
+    pub rssi: i8,
+}
+
+/// Result of a scan for access points.
+#[derive(Debug, PartialEq)]
+pub struct ScanResult {
+    pub index: u8,
+    pub rssi: i8,
+    pub auth: AuthType,
+    pub channel: u8,
+    pub bssid: Bssid,
+    /// SSID of the access point
+    pub ssid: Ssid,
+}
+
+/// IPv4 configuration assigned by a DHCP server
+/// when connected to an access point.
+#[derive(PartialEq, Debug, Clone)]
+pub struct IPConf {
+    pub ip: Ipv4Addr,
+    pub gateway: Ipv4Addr,
+    pub dns: Ipv4Addr,
+    pub subnet: Ipv4Addr,
+    pub lease_time: u32,
 }
 
 /// Implementation to convert the Credentials to Authentication Type
@@ -301,8 +354,8 @@ impl Credentials {
     ///
     /// # Returns
     ///
-    /// * `Credentials::WpaPSK` - Configured WPA-PSK credentials on success.
-    /// * `StackError` - If any parameter validation fails.
+    /// * `Ok(Credentials::WpaPSK)` - Configured WPA-PSK credentials on success.
+    /// * `Err(StackError)` - If any parameter validation fails.
     pub fn from_wpa(password: &str) -> Result<Self, StackError> {
         if password.len() < MIN_PSK_KEY_LEN {
             return Err(StackError::InvalidParameters);
@@ -322,8 +375,8 @@ impl Credentials {
     ///
     /// # Returns
     ///
-    /// * `Credentials::S802_1X` - Configured 802.1X credentials on success.
-    /// * `StackError` - If any parameter validation fails.
+    /// * `Ok(Credentials::S802_1X)` - Configured 802.1X credentials on success.
+    /// * `Err(StackError)` - If any parameter validation fails.
     pub fn from_s802(username: &str, password: &str) -> Result<Self, StackError> {
         let username = S8Username::from(username).map_err(|_| StackError::InvalidParameters)?;
         let password = S8Password::from(password).map_err(|_| StackError::InvalidParameters)?;
@@ -368,7 +421,7 @@ impl From<UdpSockOpts> for u8 {
 /// Implementation to get 32-bit value stored in UDP socket option.
 impl UdpSockOpts {
     /// Get the value of the Socket option.
-    pub fn get_value(&self) -> u32 {
+    pub(crate) fn get_value(&self) -> u32 {
         match self {
             UdpSockOpts::ReceiveTimeout(val) => *val,
             UdpSockOpts::SetUdpSendCallback(val) => *val as u32,
@@ -393,8 +446,11 @@ impl From<TcpSockOpts> for u8 {
 
 /// Implementation to get 32-bit value stored in TCP socket option.
 impl TcpSockOpts {
+    // TODO: Remove this API if not used in the changeset
+    // supporting the updated WINC driver (19.7.x).
+    #[allow(dead_code)]
     /// Get the value of the Socket option.
-    pub fn get_value(&self) -> u32 {
+    pub(crate) fn get_value(&self) -> u32 {
         match self {
             TcpSockOpts::ReceiveTimeout(val) => *val,
             // SSL values don't have 32 bit values.
@@ -441,8 +497,8 @@ impl SslSockOpts {
     ///
     /// # Returns
     ///
-    /// * `HostName` – The stored hostname as a string array.
-    /// * `StackError` – If the method is called for any SSL socket option other than `SetSni`.
+    /// * `Ok(&HostName)` – The stored hostname as a string array.
+    /// * `Err(StackError)` – If the method is called for any SSL socket option other than `SetSni`.
     pub(crate) fn get_sni_value(&self) -> Result<&HostName, StackError> {
         match self {
             SslSockOpts::SetSni(hostname) => Ok(hostname),
@@ -526,8 +582,8 @@ impl SocketOptions {
     ///
     /// # Returns
     ///
-    /// * `SocketOptions` – The configured socket option on success.
-    /// * `StackError` – If the hostname length is invalid.
+    /// * `Ok(SocketOptions)` – The configured socket option on success.
+    /// * `Err(StackError)` – If the hostname length is invalid.
     #[cfg(feature = "ssl")]
     pub fn set_sni(hostname: &str) -> Result<Self, StackError> {
         let host = HostName::from(hostname).map_err(|_| StackError::InvalidParameters)?;
@@ -571,8 +627,8 @@ impl<'a> AccessPoint<'a> {
     ///
     /// # Returns
     ///
-    /// * `AccessPoint` - Configured access point structure on success.
-    /// * `StackError` - If validation of any parameters fails.
+    /// * `Ok(AccessPoint)` - Configured access point structure on success.
+    /// * `Err(StackError)` - If validation of any parameters fails.
     pub fn new(
         ssid: &'a Ssid,
         key: Credentials,
@@ -673,8 +729,8 @@ impl<'a> AccessPoint<'a> {
     ///
     /// # Returns
     ///
-    /// * `()` - If the IP address is successfully set.
-    /// * `StackError` - If the IP address is invalid.
+    /// * `Ok(())` - If the IP address is successfully set.
+    /// * `Err(StackError)` - If the IP address is invalid.
     pub fn set_ip(&mut self, ip: Ipv4Addr) -> Result<(), StackError> {
         let octets = ip.octets();
         // WINC firmware limitation; IP address of client is always x.x.x.100
@@ -715,6 +771,15 @@ impl MacAddress {
     }
 
     /// Creates a MAC address from a byte slice.
+    ///
+    /// # Arguments
+    ///
+    /// * `bytes` - A byte slice containing mac address.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(Self)` - If the slice contains a valid 6-byte MAC address.
+    /// * `Err(StackError)` - If the slice length is not of 6 bytes.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, StackError> {
         if bytes.len() != MAX_OCTETS_IN_MAC_ADDRESS {
             return Err(StackError::InvalidParameters);
@@ -782,6 +847,131 @@ impl defmt::Format for MacAddress {
             self.mac[4],
             self.mac[5]
         )
+    }
+}
+
+/// Formatter for Firmware version.
+#[cfg(feature = "defmt")]
+impl defmt::Format for FirmwareInfo {
+    fn format(&self, f: defmt::Formatter) {
+        defmt::write!(
+            f,
+            "Firmware rev: {}.{}.{}\n\
+             Driver rev: {}.{}.{}\n\
+             Build Date: {}\n\
+             Build Time: {}\n\
+             SVN rev: {}",
+            self.firmware_revision.major,
+            self.firmware_revision.minor,
+            self.firmware_revision.patch,
+            self.driver_revision.major,
+            self.driver_revision.minor,
+            self.driver_revision.patch,
+            self.build_date.as_str(),
+            self.build_time.as_str(),
+            self.svn_rev
+        );
+    }
+}
+
+/// Implements `defmt::Format` to display connection
+/// details received from an access point.
+#[cfg(feature = "defmt")]
+impl defmt::Format for ConnectionInfo {
+    fn format(&self, f: defmt::Formatter) {
+        defmt::write!(
+            f,
+            "Connection Info:\n\
+             ssid: {}\n\
+             authtype: {:?}\n\
+             ip: {}\n\
+             mac: {:?}\n\
+             rssi: {}",
+            self.ssid.as_str(),
+            self.auth,
+            Ipv4AddrFormatWrapper::new(&self.ip),
+            self.mac,
+            self.rssi
+        );
+    }
+}
+
+/// Implements `core::fmt::Display` to display connection
+/// details received from an access point.
+#[cfg(feature = "log")]
+impl core::fmt::Display for ConnectionInfo {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "ssid:{} authtype:{:?} ip:{} mac:{:?} rssi:{}",
+            self.ssid.as_str(),
+            self.auth,
+            self.ip,
+            self.mac,
+            self.rssi
+        )
+    }
+}
+
+/// Implements `core::fmt::Display` to display Wi-Fi scan results.
+#[cfg(feature = "log")]
+impl core::fmt::Display for ScanResult {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "index:{} rssi:{} authtype:{:?} channel:{} bssid:{:?} ssid:{}",
+            self.index,
+            self.rssi,
+            self.auth,
+            self.channel,
+            self.bssid,
+            self.ssid.as_str()
+        )
+    }
+}
+
+/// Implements `defmt::Format` to display Wi-Fi scan results.
+#[cfg(feature = "defmt")]
+impl defmt::Format for ScanResult {
+    fn format(&self, f: defmt::Formatter) {
+        defmt::write!(
+            f,
+            "index:{} rssi:{} authtype:{:?} channel:{} bssid:{:?} ssid:{}",
+            self.index,
+            self.rssi,
+            self.auth,
+            self.channel,
+            self.bssid,
+            self.ssid.as_str()
+        );
+    }
+}
+
+/// Implements `core::fmt::Display` to display IP configuration details.
+#[cfg(feature = "log")]
+impl core::fmt::Display for IPConf {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "ip:{} gateway:{} dns:{} subnet:{} lease:{}",
+            self.ip, self.gateway, self.dns, self.subnet, self.lease_time
+        )
+    }
+}
+
+/// Implements `defmt::Format` to display IP configuration details.
+#[cfg(feature = "defmt")]
+impl defmt::Format for IPConf {
+    fn format(&self, f: defmt::Formatter) {
+        defmt::write!(
+            f,
+            "lease_time:{} ip:{} gateway:{} dns:{} subnet:{}",
+            self.lease_time,
+            Ipv4AddrFormatWrapper::new(&self.ip),
+            Ipv4AddrFormatWrapper::new(&self.gateway),
+            Ipv4AddrFormatWrapper::new(&self.dns),
+            Ipv4AddrFormatWrapper::new(&self.subnet),
+        );
     }
 }
 

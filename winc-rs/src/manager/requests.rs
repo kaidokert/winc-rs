@@ -12,14 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use super::constants::{AuthType, WifiChannel, AF_INET, PRNG_PACKET_SIZE};
+use super::net_types::{AccessPoint, Credentials, HostName, Ssid, WepKey, WpaKey};
 use crate::readwrite::{BufferOverflow, Write};
-
 use crate::socket::Socket;
 use core::net::{Ipv4Addr, SocketAddrV4};
-
-use super::constants::{AuthType, WifiChannel, AF_INET, PRNG_PACKET_SIZE};
-
-use super::net_types::{AccessPoint, Credentials, HostName, Ssid, WepKey, WpaKey};
 
 #[cfg(feature = "ssl")]
 use super::net_types::SslSockOpts;
@@ -72,9 +69,9 @@ pub(super) const ENABLE_AP_REQ_PACKET_SIZE: usize = 136;
 ///
 /// # Returns
 ///
-/// * `[u8; CONNECT_AP_REQ_PACKET_SIZE])` - The connect request packet as a fixed-size byte array.
-/// * `BufferOverflow` - If the input data exceeds allowed size or the buffer limit.
-pub fn write_connect_request(
+/// * `Ok([u8; CONNECT_AP_REQ_PACKET_SIZE])` - The connect request packet as a fixed-size byte array.
+/// * `Err(BufferOverflow)` - If the input data exceeds allowed size or the buffer limit.
+pub(super) fn write_connect_request(
     ssid: &Ssid,
     credentials: &Credentials,
     channel: WifiChannel,
@@ -138,8 +135,18 @@ pub fn write_connect_request(
     Ok(result)
 }
 
-// tstrM2MScan
-pub fn write_scan_req(
+/// Prepares the packet to request a scan operation.
+///
+/// # Arguments
+///
+/// * `channel` - The Wi-Fi RF channel to scan.
+/// * `scantime` - The scan duration in milliseconds.
+///
+/// # Returns
+///
+/// * `Ok([u8; SCAN_REQ_PACKET_SIZE])` - The scan request packet as a fixed-size byte array.
+/// * `Err(BufferOverflow)` - If the input data exceeds allowed size or the buffer limit.
+pub(super) fn write_scan_req(
     channel: u8,
     scantime: u16,
 ) -> Result<[u8; SCAN_REQ_PACKET_SIZE], BufferOverflow> {
@@ -151,8 +158,18 @@ pub fn write_scan_req(
     Ok(result)
 }
 
-// no request struct, just C-string
-pub fn write_gethostbyname_req<'a, const N: usize>(
+/// Prepares the packet to resolve a hostname (DNS lookup).
+///
+/// # Arguments
+///
+/// * `host` - The hostname to resolve (e.g., `"example.com"`).
+/// * `buffer` - A mutable byte buffer used to construct the request packet.
+///
+/// # Returns
+///
+/// * `Ok(&[u8])` - A slice containing the request packet.
+/// * `Err(BufferOverflow)` - If the hostname or packet data exceeds the provided buffer size.
+pub(super) fn write_gethostbyname_req<'a, const N: usize>(
     host: &str,
     buffer: &'a mut [u8; N],
 ) -> Result<&'a [u8], BufferOverflow> {
@@ -165,8 +182,20 @@ pub fn write_gethostbyname_req<'a, const N: usize>(
     Ok(&buffer[0..len + 1])
 }
 
-// tstrPingCmd
-pub fn write_ping_req(
+/// Prepares the packet to send an ICMP ping request.
+///
+/// # Arguments
+///
+/// * `dest_ip` - The destination IPv4 address to ping.
+/// * `ttl` - The time-to-live (maximum hop count) for the packet.
+/// * `count` - The number of echo requests to send.
+/// * `marker` - A user-defined marker value included in the request.
+///
+/// # Returns
+///
+/// * `Ok([u8; PING_REQ_PACKET_SIZE])` - The ping request packet as a fixed-size byte array.
+/// * `Err(BufferOverflow)` - If the input data exceeds allowed size or the buffer limit.
+pub(super) fn write_ping_req(
     dest_ip: Ipv4Addr,
     ttl: u8,
     count: u16,
@@ -186,14 +215,14 @@ pub fn write_ping_req(
 ///
 /// # Arguments
 ///
-/// * `socket` – The socket to bind.
-/// * `address` – The IPv4 address to bind the socket to.
+/// * `socket` - The socket to bind.
+/// * `address` - The IPv4 address to bind the socket to.
 ///
 /// # Returns
 ///
-/// * `[u8; SOCK_BIND_REQ_PACKET_SIZE]` – Bind request as fixed size array..
-/// * `BufferOverflow` – If the data exceeds the buffer capacity.
-pub fn write_bind_req(
+/// * `Ok([u8; SOCK_BIND_REQ_PACKET_SIZE])` - Bind request as fixed size array.
+/// * `Err(BufferOverflow)` - If the data exceeds the buffer capacity.
+pub(super) fn write_bind_req(
     socket: Socket,
     address: SocketAddrV4,
 ) -> Result<[u8; SOCK_BIND_REQ_PACKET_SIZE], BufferOverflow> {
@@ -209,8 +238,20 @@ pub fn write_bind_req(
     Ok(result)
 }
 
-// tstrConnectCmd
-pub fn write_connect_req(
+/// Prepares the packet to initiate a socket connection.
+///
+/// # Arguments
+///
+/// * `socket` - The socket identifier to use for the connection.
+/// * `address_family` - The address family (e.g., IPv4).
+/// * `address` - The remote IPv4 socket address (IP and port).
+/// * `ssl_flags` - SSL/TLS configuration flags for the connection.
+///
+/// # Returns
+///
+/// * `Ok([u8; SOCK_CONNECT_REQ_PACKET_SIZE])` - The socket connect request packet as a fixed-size byte array.
+/// * `Err(BufferOverflow)` - If the data exceeds the buffer capacity.
+pub(super) fn write_connect_req(
     socket: Socket,
     address_family: u16,
     address: SocketAddrV4,
@@ -227,8 +268,20 @@ pub fn write_connect_req(
     Ok(result)
 }
 
-// tstrSendCmd
-pub fn write_sendto_req(
+/// Prepares the packet to send data to a UDP socket.
+///
+/// # Arguments
+///
+/// * `socket` - The socket identifier.
+/// * `address_family` - The address family (e.g., IPv4).
+/// * `address` - The destination IPv4 socket address (IP and port).
+/// * `len` - The length of the payload to be sent (in bytes).
+///
+/// # Returns
+///
+/// * `Ok([u8; SOCK_UDP_SEND_REQ_PACKET_SIZE])` - The UDP send request packet as a fixed-size byte array.
+/// * `Err(BufferOverflow)` - If the data exceeds the buffer capacity.
+pub(super) fn write_sendto_req(
     socket: Socket,
     address_family: u16,
     address: SocketAddrV4,
@@ -247,8 +300,18 @@ pub fn write_sendto_req(
     Ok(result)
 }
 
-// tstrListenCmd
-pub fn write_listen_req(
+/// Prepares the packet to place a TCP socket into listening mode.
+///
+/// # Arguments
+///
+/// * `socket` - The socket identifier to configure for listening.
+/// * `backlog` - The maximum number of pending incoming connections.
+///
+/// # Returns
+///
+/// * `Ok([u8; SOCK_TCP_LISTEN_REQ_PACKET_SIZE])` - The listen request packet as a fixed-size byte array.
+/// * `Err(BufferOverflow)` - If the data exceeds the buffer capacity.
+pub(super) fn write_listen_req(
     socket: Socket,
     backlog: u8,
 ) -> Result<[u8; SOCK_TCP_LISTEN_REQ_PACKET_SIZE], BufferOverflow> {
@@ -259,8 +322,18 @@ pub fn write_listen_req(
     Ok(result)
 }
 
-//tstrRecvCmd
-pub fn write_recv_req(
+/// Prepares the packet to receive data from a TCP socket.
+///
+/// # Arguments
+///
+/// * `socket` - The socket identifier to receive data from.
+/// * `timeout` - The receive timeout duration (in milliseconds).
+///
+/// # Returns
+///
+/// * `Ok([u8; SOCK_TCP_RECV_REQ_PACKET_SIZE])` - The receive request packet as a fixed-size byte array.
+/// * `Err(BufferOverflow)` - If the data exceeds the buffer capacity.
+pub(super) fn write_recv_req(
     socket: Socket,
     timeout: u32,
 ) -> Result<[u8; SOCK_TCP_RECV_REQ_PACKET_SIZE], BufferOverflow> {
@@ -272,8 +345,19 @@ pub fn write_recv_req(
     Ok(result)
 }
 
-// tstrCloseCmd
-pub fn write_close_req(socket: Socket) -> Result<[u8; SOCK_CLOSE_REQ_PACKET_SIZE], BufferOverflow> {
+/// Prepares the packet to close a socket.
+///
+/// # Arguments
+///
+/// * `socket` - The socket identifier to close.
+///
+/// # Returns
+///
+/// * `Ok([u8; SOCK_CLOSE_REQ_PACKET_SIZE])` - The close request packet as a fixed-size byte array.
+/// * `Err(BufferOverflow)` - If the data exceeds the buffer capacity.
+pub(super) fn write_close_req(
+    socket: Socket,
+) -> Result<[u8; SOCK_CLOSE_REQ_PACKET_SIZE], BufferOverflow> {
     let mut result = [0x0u8; SOCK_CLOSE_REQ_PACKET_SIZE];
     let mut slice = result.as_mut_slice();
     slice.write(&[socket.v, 0])?;
@@ -291,9 +375,9 @@ pub fn write_close_req(socket: Socket) -> Result<[u8; SOCK_CLOSE_REQ_PACKET_SIZE
 ///
 /// # Returns
 ///
-/// * `[u8; SET_SOCK_OPTS_REQ_PACKET_SIZE]` – Set socket option request packet as fixed-array.
-/// * `BufferOverflow` – If the buffer overflows while preparing the packet.
-pub fn write_setsockopt_req(
+/// * `Ok([u8; SET_SOCK_OPTS_REQ_PACKET_SIZE])` - Set socket option request packet as fixed-array.
+/// * `Err(BufferOverflow)` - If the buffer overflows while preparing the packet.
+pub(super) fn write_setsockopt_req(
     socket: Socket,
     option: u8,
     value: u32,
@@ -318,10 +402,10 @@ pub fn write_setsockopt_req(
 ///
 /// # Returns
 ///
-/// * `[u8; SET_SSL_SOCK_OPTS_REQ_PACKET_SIZE]` – Set SSL socket option request packet as fixed-array.
-/// * `BufferOverflow` – If the buffer overflows while preparing the packet.
+/// * `Ok([u8; SET_SSL_SOCK_OPTS_REQ_PACKET_SIZE])` - Set SSL socket option request packet as fixed-array.
+/// * `Err(BufferOverflow)` - If the buffer overflows while preparing the packet.
 #[cfg(feature = "ssl")]
-pub fn write_ssl_setsockopt_req(
+pub(super) fn write_ssl_setsockopt_req(
     socket: Socket,
     option: &SslSockOpts,
 ) -> Result<[u8; SET_SSL_SOCK_OPTS_REQ_PACKET_SIZE], BufferOverflow> {
@@ -358,9 +442,12 @@ pub fn write_ssl_setsockopt_req(
 ///
 /// # Returns
 ///
-/// * `[u8]` - An array of 8 bytes representing the request packet for PRNG.
-/// * `BufferOverflow` - If the data exceeds the buffer limit during packet preparation.
-pub fn write_prng_req(addr: u32, len: u16) -> Result<[u8; PRNG_PACKET_SIZE], BufferOverflow> {
+/// * `Ok([u8; PRNG_PACKET_SIZE])` - An array of 8 bytes representing the request packet for PRNG.
+/// * `Err(BufferOverflow)` - If the data exceeds the buffer limit during packet preparation.
+pub(super) fn write_prng_req(
+    addr: u32,
+    len: u16,
+) -> Result<[u8; PRNG_PACKET_SIZE], BufferOverflow> {
     let mut req = [0x00u8; PRNG_PACKET_SIZE];
     let mut slice = req.as_mut_slice();
     slice.write(&addr.to_le_bytes())?;
@@ -391,9 +478,9 @@ pub fn write_prng_req(addr: u32, len: u16) -> Result<[u8; PRNG_PACKET_SIZE], Buf
 ///
 /// # Returns
 ///
-/// * `[u8; START_PROV_REQ_PACKET_SIZE])` - The provisioning request packet as a fixed-size byte array.
-/// * `BufferOverflow` - If the input data exceeds allowed size or the buffer limit.
-pub fn write_start_provisioning_req(
+/// * `Ok([u8; START_PROV_REQ_PACKET_SIZE])` - The provisioning request packet as a fixed-size byte array.
+/// * `Err(BufferOverflow)` - If the input data exceeds allowed size or the buffer limit.
+pub(super) fn write_start_provisioning_req(
     ap: &AccessPoint,
     hostname: &HostName,
     http_redirect: bool,
@@ -482,9 +569,9 @@ pub fn write_start_provisioning_req(
 ///
 /// # Returns
 ///
-/// * `[u8; ENABLE_AP_REQ_PACKET_SIZE])` - The access point mode request packet as a fixed-size byte array.
-/// * `BufferOverflow` - If the input data exceeds allowed size or the buffer limit.
-pub fn write_en_ap_req(
+/// * `Ok([u8; ENABLE_AP_REQ_PACKET_SIZE])` - The access point mode request packet as a fixed-size byte array.
+/// * `Err(BufferOverflow)` - If the input data exceeds allowed size or the buffer limit.
+pub(super) fn write_en_ap_req(
     ap: &AccessPoint,
 ) -> Result<[u8; ENABLE_AP_REQ_PACKET_SIZE], BufferOverflow> {
     let mut req = [0u8; ENABLE_AP_REQ_PACKET_SIZE];
@@ -553,10 +640,10 @@ pub fn write_en_ap_req(
 ///
 /// # Returns
 ///
-/// * `Ok([u8; SSL_ECC_REQ_PACKET_SIZE])` – A fixed-size byte array containing the ECC response packet.
-/// * `Err(BufferOverflow)` – If the input data exceeds the allowed size or buffer limit.
+/// * `Ok([u8; SSL_ECC_REQ_PACKET_SIZE])` - A fixed-size byte array containing the ECC response packet.
+/// * `Err(BufferOverflow)` - If the input data exceeds the allowed size or buffer limit.
 #[cfg(feature = "experimental-ecc")]
-pub(crate) fn write_ssl_ecc_resp(
+pub(super) fn write_ssl_ecc_resp(
     ecc_info: &EccInfo,
     ecdh_info: Option<&EcdhInfo>,
 ) -> Result<[u8; SSL_ECC_REQ_PACKET_SIZE], BufferOverflow> {
@@ -609,7 +696,7 @@ pub(crate) fn write_ssl_ecc_resp(
 ///   packet request.
 /// * `Err(BufferOverflow)` - If the packet data exceeds the available buffer size.
 #[cfg(feature = "ethernet")]
-pub(crate) fn write_send_net_pkt_req(
+pub(super) fn write_send_net_pkt_req(
     net_pkt_len: u16,
     net_header_len: u16,
 ) -> Result<[u8; NET_XFER_PACKET_SIZE], BufferOverflow> {

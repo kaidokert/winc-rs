@@ -52,6 +52,12 @@ pub(super) const AF_INET: u16 = 2;
 pub(super) const CONN_INFO_RESP_PACKET_SIZE: usize = 48;
 /// Packet size of the Scan Result response.
 pub(super) const SCAN_RESULT_RESP_PACKET_SIZE: usize = 44;
+/// Total size of the firmware info response packet, in bytes.
+pub(super) const FW_INFO_RESP_PACKET_SIZE: usize = 40;
+/// Length of the firmware build date.
+pub(super) const FW_INFO_BUILD_DATE_LEN: usize = 12;
+/// Length of the firmware build time.
+pub(super) const FW_INFO_BUILD_TIME_LEN: usize = 9;
 
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[derive(Debug, PartialEq)]
