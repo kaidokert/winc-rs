@@ -404,7 +404,7 @@ pub(super) fn read_send_reply<'a>(mut response: &[u8]) -> Result<(Socket, i16), 
 /// * `Ok((Socket, SocketAddrV4, i16, u16))`:
 ///     - `Socket` - The socket that received the data.
 ///     - `SocketAddrV4` - The remote IPv4 address and port from which the data was received.
-///     - `i16` - Positive value indicating number of bytes successfully sent,
+///     - `i16` - Positive value indicating number of bytes successfully received,
 ///       Negative value indicating failure.
 ///     - `u16` - Register offset from where received data can be read.
 /// * `Err(Error)` - If an error occurred while parsing or validating the response.
