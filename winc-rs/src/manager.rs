@@ -34,6 +34,8 @@ use registers::*;
 use requests::*;
 use responses::*;
 
+pub(crate) use constants::{BootMode, PRNG_DATA_LENGTH, SOCKET_BUFFER_MAX_LENGTH};
+
 #[cfg(feature = "ssl")]
 pub(crate) use self::{
     constants::{SslRequest, SslResponse},
@@ -46,8 +48,6 @@ pub(crate) use self::{
     registers::{FLASH_READ_STATUS_BIT, FLASH_SIZE_INFO_SHIFT, LOW_12_BIT_MASK},
 };
 
-pub(crate) use constants::{BootMode, PRNG_DATA_LENGTH, SOCKET_BUFFER_MAX_LENGTH};
-
 #[cfg(feature = "experimental-ota")]
 pub(crate) use constants::{OtaRequest, OtaResponse, OtaUpdateStatus};
 
@@ -59,6 +59,13 @@ pub(crate) use net_types::EccRequest;
 
 #[cfg(feature = "ethernet")]
 pub(crate) use net_types::EthernetRxInfo;
+
+pub use constants::{AuthType, PingError, SocketError, WifiChannel, WifiConnError, WifiConnState};
+pub use net_types::{
+    AccessPoint, ConnectionInfo, Credentials, FirmwareInfo, HostName, IPConf, MacAddress,
+    ProvisioningInfo, S8Password, S8Username, ScanResult, SocketOptions, Ssid, TcpSockOpts,
+    UdpSockOpts, WpaKey,
+};
 
 #[cfg(feature = "experimental-ecc")]
 pub use self::{
@@ -78,16 +85,8 @@ pub use constants::OtaUpdateError;
 #[cfg(feature = "ethernet")]
 pub use constants::MAX_TX_ETHERNET_PACKET_SIZE;
 
-pub use constants::{AuthType, PingError, SocketError, WifiChannel, WifiConnError, WifiConnState};
-
 #[cfg(feature = "wep")]
 pub use self::{constants::WepKeyIndex, net_types::WepKey};
-
-pub use net_types::{
-    AccessPoint, ConnectionInfo, Credentials, FirmwareInfo, HostName, IPConf, MacAddress,
-    ProvisioningInfo, S8Password, S8Username, ScanResult, SocketOptions, Ssid, TcpSockOpts,
-    UdpSockOpts, WpaKey,
-};
 
 /// Header offset for HIF registers.
 const HIF_HEADER_OFFSET: usize = 8;
@@ -99,14 +98,14 @@ const ETHERNET_HEADER_OFFSET: usize = 34;
 const IP_PACKET_OFFSET: usize = ETHERNET_HEADER_LENGTH + ETHERNET_HEADER_OFFSET; // - HIF_HEADER_OFFSET;
 /// Number of retries to wait for WINC to become ready to receive new data.
 const HIF_SEND_RETRIES: usize = 1000;
+/// Packet size for both HIF header requests and responses.
+const HIF_HEADER_PACKET_SIZE: usize = 4;
 /// Number of retries to attempt when reading a flash register.
 #[cfg(feature = "flash-rw")]
 const FLASH_REG_READ_RETRIES: usize = 10;
 /// Dummy value (dummy cycles) used for flash operations.
 #[cfg(feature = "flash-rw")]
 const FLASH_DUMMY_VALUE: u32 = 0x1084;
-/// Packet size for both HIF header requests and responses.
-const HIF_HEADER_PACKET_SIZE: usize = 4;
 // TODO: MAX_WAKERS should be a parameter on Manager<X: Xfer, const MAX_WAKERS: usize = 4>
 #[cfg(feature = "async")]
 const MAX_WAKERS: usize = 4; // Reasonable limit for concurrent async operations
@@ -306,28 +305,25 @@ pub struct Manager<X: Xfer> {
     wakers: [Option<core::task::Waker>; MAX_WAKERS],
 }
 
+/// Parses a HIF header packet and extracts its group and length.
+///
+/// # Arguments
+///
+/// * `hdr` - A fixed-size array representing the HIF header packet.
+///
+/// # Returns
+///
+/// * `Ok((HifGroup, u16))` - The parsed HIF group and the payload length.
+/// * `Err(Error)` - If the header is invalid or cannot be parsed.
+fn hif_header_parse(hdr: [u8; HIF_HEADER_PACKET_SIZE]) -> Result<(HifGroup, u16), Error> {
+    let code: [u8; 2] = hdr[..2].try_into().unwrap();
+    let len = u16::from_le_bytes(hdr[2..].try_into().unwrap());
+    Ok((code.into(), len))
+}
+
 /// Implementation of `Manager` structure.
 impl<X: Xfer> Manager<X> {
     // #region read
-
-    /// Parses a HIF header packet and extracts its group and length.
-    ///
-    /// # Arguments
-    ///
-    /// * `hdr` - A fixed-size array representing the HIF header packet.
-    ///
-    /// # Returns
-    ///
-    /// * `Ok((HifGroup, u16))` - The parsed HIF group and the payload length.
-    /// * `Err(Error)` - If the header is invalid or cannot be parsed.
-    fn hif_header_parse(
-        &self,
-        hdr: [u8; HIF_HEADER_PACKET_SIZE],
-    ) -> Result<(HifGroup, u16), Error> {
-        let code: [u8; 2] = hdr[..2].try_into().unwrap();
-        let len = u16::from_le_bytes(hdr[2..].try_into().unwrap());
-        Ok((code.into(), len))
-    }
 
     /// Checks whether an interrupt is pending on the WINC1500.
     ///
@@ -358,7 +354,7 @@ impl<X: Xfer> Manager<X> {
             .single_reg_write(Regs::WifiHostRcvCtrl0.into(), setval)
     }
 
-    /// Reads the MAC address and OTA firmware version register address
+    /// Reads the MAC address and OTA firmware version register addresses
     /// from the OTP (One-Time Programmable) eFuse memory.
     ///
     /// # Returns
@@ -411,7 +407,7 @@ impl<X: Xfer> Manager<X> {
         let mut hif_header = [0u8; HIF_HEADER_PACKET_SIZE];
         let slicebuffer = hif_header.as_mut_slice();
         self.chip.dma_block_read(address, slicebuffer)?;
-        let hifhdr = self.hif_header_parse(hif_header)?;
+        let hifhdr = hif_header_parse(hif_header)?;
         Ok((hifhdr.0, hifhdr.1, address))
     }
 
@@ -481,7 +477,8 @@ impl<X: Xfer> Manager<X> {
 
     // #region write
 
-    /// Sends the HIF header. (Todo: This is messy)
+    // Todo: This is messy
+    /// Sends the HIF header.
     ///
     /// # Arguments
     ///
@@ -2012,7 +2009,7 @@ impl<X: Xfer> Manager<X> {
         }
         // load data to shared memory between flash and cortus processor.
         self.send_flash_load_data_to_cortus_memory(flash_addr, buffer.len())?;
-        // read the data from th shared from memory
+        // read the data from the shared memory
         self.chip
             .dma_block_read(Regs::FlashSharedMemory.into(), buffer)
     }
@@ -2285,11 +2282,9 @@ mod tests {
 
     #[test]
     fn test_hif_header() {
-        let mut buff = [0u8];
-        let mgr = make_manager(buff.as_mut_slice());
         let hif_header = [0x01u8, 0x2C, 0x16, 0x00];
         assert_eq!(
-            mgr.hif_header_parse(hif_header),
+            hif_header_parse(hif_header),
             Ok((HifGroup::Wifi(WifiResponse::ConStateChanged), 22))
         );
     }

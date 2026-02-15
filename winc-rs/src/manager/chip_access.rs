@@ -67,7 +67,7 @@ pub struct ChipAccess<X: Xfer> {
 ///
 /// # Returns
 ///
-/// * `Option<usize>` -
+/// * `Option<usize>`:
 ///     - `Some(index)` of the first differing element,
 ///     - `None` if the slices are equal up to the length of the shorter slice.
 fn find_first_neq_index<T: PartialEq>(a1: &[T], a2: &[T]) -> Option<usize> {
@@ -401,7 +401,7 @@ impl<X: Xfer> ChipAccess<X> {
     /// # Returns
     ///
     /// * `Ok(())` - If the data was successfully written.
-    /// * `Err(Error)` - If an error occurs while reading data from WINC DMA register.
+    /// * `Err(Error)` - If an error occurs while writing data to the WINC DMA register.
     pub(super) fn dma_block_write(&mut self, reg: u32, data: &[u8]) -> Result<(), Error> {
         const CRC_START_POS: usize = 7;
         const F3_MARKER: u8 = 0xF3;

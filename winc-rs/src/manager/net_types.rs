@@ -965,12 +965,12 @@ impl defmt::Format for IPConf {
     fn format(&self, f: defmt::Formatter) {
         defmt::write!(
             f,
-            "lease_time:{} ip:{} gateway:{} dns:{} subnet:{}",
-            self.lease_time,
+            "ip:{} gateway:{} dns:{} subnet:{} lease:{}",
             Ipv4AddrFormatWrapper::new(&self.ip),
             Ipv4AddrFormatWrapper::new(&self.gateway),
             Ipv4AddrFormatWrapper::new(&self.dns),
             Ipv4AddrFormatWrapper::new(&self.subnet),
+            self.lease_time,
         );
     }
 }

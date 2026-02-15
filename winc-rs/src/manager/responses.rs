@@ -499,8 +499,9 @@ pub(super) fn read_connect_socket_reply(
 ///
 /// # Returns
 ///
-/// * `Ok(u32)` - The memory address of the input buffer.
-/// * `Ok(u16)` - The length of the generated random bytes.
+/// * `Ok(u32, u16)`:
+///     - `u32` - The memory address of the input buffer.
+///     - `u16` - The length of the generated random bytes.
 /// * `Err(Error)` - If an error occurred while reading the PRNG response.
 pub(super) fn read_prng_reply(mut response: &[u8]) -> Result<(u32, u16), Error> {
     let reader = &mut response;
