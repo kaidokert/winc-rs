@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1770783817586,
+  "lastUpdate": 1771432680512,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -5427,6 +5427,40 @@ window.BENCHMARK_DATA = {
           {
             "name": "iperf3_client",
             "value": 51352,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "142439476+umarbinzahid@users.noreply.github.com",
+            "name": "Umar Bin Zahid",
+            "username": "umarbinzahid"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "29ba7ead264584cf20aec08c4675ba7f69bdfdcf",
+          "message": "Manager module refactoring and documentation improvements. (#131)\n\n* Code cleaned-up in Manger module.",
+          "timestamp": "2026-02-18T08:36:56-08:00",
+          "tree_id": "9278b9809969df2f1aead2880c8389bcb63a7bf8",
+          "url": "https://github.com/kaidokert/winc-rs/commit/29ba7ead264584cf20aec08c4675ba7f69bdfdcf"
+        },
+        "date": 1771432679992,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 37192,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 51456,
             "unit": "byte"
           }
         ]
