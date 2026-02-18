@@ -499,7 +499,7 @@ pub(super) fn read_connect_socket_reply(
 ///
 /// # Returns
 ///
-/// * `Ok(u32, u16)`:
+/// * `Ok((u32, u16))`:
 ///     - `u32` - The memory address of the input buffer.
 ///     - `u16` - The length of the generated random bytes.
 /// * `Err(Error)` - If an error occurred while reading the PRNG response.
@@ -526,9 +526,9 @@ pub(super) fn read_prng_reply(mut response: &[u8]) -> Result<(u32, u16), Error> 
 ///
 /// # Returns
 ///
-/// * `Ok(Ssid, Passphrase, u8, bool)` on success, containing:
+/// * `Ok(Ssid, WpaKey, u8, bool)` on success, containing:
 ///   - `Ssid` - The Wi-Fi SSID in bytes.
-///   - `Passphrase` - The Wi-Fi passphrase in bytes.
+///   - `WpaKey` - The Wi-Fi WPA key (passphrase) in bytes.
 ///   - `u8` - The security type.
 ///   - `bool` - The provisioning status (`true` if provisioned).
 /// * `Err(Error)` - If the data is invalid or incomplete.
@@ -542,7 +542,7 @@ pub(super) fn read_provisioning_reply(
     reader.read_exact(&mut ssid)?;
     // read the null terminator
     read8(reader)?;
-    // read the passphrase
+    // read the WPA key (passphrase)
     reader.read_exact(&mut key)?;
     // read the null terminator (+1 for extra PSK key byte)
     read16(reader)?;
