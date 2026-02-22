@@ -1,3 +1,4 @@
+use crate::net_ops::op::OpImpl;
 use crate::stack::sock_holder::SocketStore;
 use crate::stack::socket_callbacks::SocketCallbacks;
 use crate::StackError;
@@ -70,6 +71,34 @@ impl<X: Xfer> AsyncClient<'_, X> {
     pub fn heartbeat(&self) -> Result<(), StackError> {
         self.dispatch_events()?;
         Ok(())
+    }
+
+    /// Polls the provided operation `OpImpl` until completion.
+    ///
+    /// # Arguments
+    ///
+    /// * `op` - The operation to be polled.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(O::Output)` - The operation completed successfully.
+    /// * `Err(StackError)` - The operation failed while being polled.
+    async fn poll_op<O: OpImpl<X, Error = StackError>>(
+        &mut self,
+        op: &mut O,
+    ) -> Result<O::Output, StackError> {
+        loop {
+            self.dispatch_events()?;
+            let mut manager = self.manager.borrow_mut();
+            let mut callbacks = self.callbacks.borrow_mut();
+            match op.poll_impl(&mut manager, &mut callbacks) {
+                Ok(Some(result)) => return Ok(result),
+                Ok(None) => {
+                    self.yield_once().await;
+                }
+                Err(e) => return Err(e),
+            }
+        }
     }
 
     /// Yield control back to the async runtime, allowing other tasks to run.

@@ -1,12 +1,9 @@
 use super::AsyncClient;
 use super::StackError;
 use crate::manager::{BootMode, BootState, Credentials, Ssid, WifiChannel};
+use crate::net_ops::module::StationMode;
 use crate::stack::socket_callbacks::WifiModuleState;
 use crate::transfer::Xfer;
-
-// todo: deduplicate this
-// 1 minute max, if no other delays are added
-const AP_CONNECT_TIMEOUT_MILLISECONDS: u32 = 60_000;
 
 impl<X: Xfer> AsyncClient<'_, X> {
     /// Initializes the Wifi module in normal mode - boots the firmware and
@@ -35,65 +32,10 @@ impl<X: Xfer> AsyncClient<'_, X> {
         }
     }
 
-    /// Connects with the access point by calling the provided connection function.
-    ///
-    /// # Arguments
-    ///
-    /// * `connect_fn` - A closure taking `&mut self` that performs the low-level
-    ///   connection operation and returns a `CommError` on failure.
-    ///
-    /// # Returns
-    ///
-    /// * `()` - Successfully connected to the access point.
-    /// * `StackError` - If an error occurs while connecting.
-    async fn connect_to_ap_impl(
-        &mut self,
-        connect_fn: impl Fn(&mut Self) -> Result<(), crate::errors::CommError>,
-    ) -> Result<(), StackError> {
-        let mut countdown = AP_CONNECT_TIMEOUT_MILLISECONDS;
-
-        loop {
-            let read_state = self.callbacks.borrow().state.clone();
-            match read_state {
-                WifiModuleState::Unconnected => {
-                    self.callbacks.borrow_mut().state = WifiModuleState::ConnectingToAp;
-                    connect_fn(self)?;
-                }
-                WifiModuleState::ConnectionFailed => {
-                    let mut callbacks = self.callbacks.borrow_mut();
-                    // conn_error should always be Some in ConnectionFailed state,
-                    // but use defensive fallback just in case
-                    let res = callbacks
-                        .connection_state
-                        .conn_error
-                        .take()
-                        .unwrap_or(crate::manager::WifiConnError::Unhandled);
-                    return Err(StackError::ApJoinFailed(res));
-                }
-                WifiModuleState::ConnectingToAp => {
-                    countdown -= 1;
-                    if countdown == 0 {
-                        return Err(StackError::GeneralTimeout);
-                    }
-                }
-                WifiModuleState::ConnectedToAp => {
-                    return Ok(());
-                }
-                _ => {
-                    return Err(StackError::InvalidState);
-                }
-            }
-            self.dispatch_events()?;
-            self.yield_once().await;
-        }
-    }
-
     /// Connect to access point with previously saved credentials.
     pub async fn connect_to_saved_ap(&mut self) -> Result<(), StackError> {
-        self.connect_to_ap_impl(|inner_self: &mut Self| {
-            inner_self.manager.borrow_mut().send_default_connect()
-        })
-        .await
+        let mut op = StationMode::from_defaults();
+        self.poll_op(&mut op).await
     }
 
     /// Connects to the access point with the given SSID and credentials.
@@ -116,14 +58,71 @@ impl<X: Xfer> AsyncClient<'_, X> {
         channel: WifiChannel,
         save_credentials: bool,
     ) -> Result<(), StackError> {
-        self.connect_to_ap_impl(|inner_self: &mut Self| {
-            inner_self.manager.borrow_mut().send_connect(
-                ssid,
-                credentials,
-                channel,
-                !save_credentials,
-            )
-        })
-        .await
+        let mut op = StationMode::from_credentials(ssid, credentials, channel, save_credentials);
+        self.poll_op(&mut op).await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::tests::make_test_client;
+    use super::*;
+    use crate::manager::{EventListener, WifiConnError, WifiConnState, WpaKey};
+    use crate::stack::socket_callbacks::SocketCallbacks;
+    use macro_rules_attribute::apply;
+    use smol_macros::test;
+
+    #[apply(test!)]
+    async fn test_async_connect_to_saved_ap_invalid_state() {
+        let mut client = make_test_client();
+        let result = client.connect_to_saved_ap().await;
+        assert_eq!(result, Err(StackError::InvalidState));
+    }
+
+    #[apply(test!)]
+    async fn test_async_connect_to_saved_ap_timeout() {
+        let result = {
+            let mut client = make_test_client();
+            client.callbacks.borrow_mut().state = WifiModuleState::Unconnected;
+            client.connect_to_saved_ap().await
+        };
+        assert_eq!(result, Err(StackError::GeneralTimeout));
+    }
+
+    #[apply(test!)]
+    async fn test_async_connect_to_saved_ap_invalid_credentials() {
+        let mut my_debug = |callbacks: &mut SocketCallbacks| {
+            callbacks.on_connstate_changed(WifiConnState::Disconnected, WifiConnError::AuthFail);
+        };
+
+        let result = {
+            let mut client = make_test_client();
+            client.callbacks.borrow_mut().state = WifiModuleState::Unconnected;
+            *client.debug_callback.borrow_mut() = Some(&mut my_debug);
+            client.connect_to_saved_ap().await
+        };
+        assert_eq!(
+            result,
+            Err(StackError::ApJoinFailed(WifiConnError::AuthFail))
+        );
+    }
+
+    #[apply(test!)]
+    async fn test_async_connect_to_ap_success() {
+        let ssid = Ssid::from("test").unwrap();
+        let key = Credentials::WpaPSK(WpaKey::from("test").unwrap());
+        let mut my_debug = |callbacks: &mut SocketCallbacks| {
+            callbacks.on_connstate_changed(WifiConnState::Connected, WifiConnError::Unhandled);
+        };
+
+        let result = {
+            let mut client = make_test_client();
+            client.callbacks.borrow_mut().state = WifiModuleState::Unconnected;
+            *client.debug_callback.borrow_mut() = Some(&mut my_debug);
+            client
+                .connect_to_ap(&ssid, &key, WifiChannel::Channel1, false)
+                .await
+        };
+        assert!(result.is_ok());
     }
 }

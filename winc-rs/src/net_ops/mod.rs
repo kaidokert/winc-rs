@@ -1,4 +1,5 @@
 pub mod dns;
+pub mod module;
 pub mod op;
 pub mod tcp_accept;
 pub mod tcp_connect;

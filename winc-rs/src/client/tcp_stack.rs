@@ -21,7 +21,7 @@ use crate::stack::sock_holder::SocketStore;
 use crate::stack::constants::MAX_SEND_LENGTH_TEST;
 
 impl<X: Xfer> WincClient<'_, X> {
-    fn poll_op<O: OpImpl<X, Error = StackError>>(
+    pub(crate) fn poll_op<O: OpImpl<X, Error = StackError>>(
         &mut self,
         op: &mut O,
     ) -> nb::Result<O::Output, StackError> {

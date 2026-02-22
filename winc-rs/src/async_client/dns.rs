@@ -42,7 +42,6 @@ mod tests {
 
     use crate::manager::EventListener;
     use crate::stack::socket_callbacks::SocketCallbacks;
-    use core::cell::RefCell;
     use core::net::{IpAddr, Ipv4Addr};
 
     use super::super::tests::make_test_client;
@@ -76,7 +75,7 @@ mod tests {
 
         // Inner scope: client lives here
         let result = {
-            let mut client = make_test_client();
+            let client = make_test_client();
             *client.debug_callback.borrow_mut() = Some(&mut my_debug);
             client.get_host_by_name("example.com", AddrType::IPv4).await
         }; // client dropped, borrow ends
@@ -93,7 +92,7 @@ mod tests {
 
         // Inner scope: client lives here
         let result = {
-            let mut client = make_test_client();
+            let client = make_test_client();
             *client.debug_callback.borrow_mut() = Some(&mut my_debug);
             client
                 .get_host_by_name("nonexistent.com", AddrType::IPv4)

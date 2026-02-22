@@ -5,8 +5,10 @@ use embedded_nal::nb;
 use crate::manager::{
     AccessPoint, AuthType, BootMode, BootState, Credentials, FirmwareInfo, HostName, IPConf,
     MacAddress, ProvisioningInfo, ScanResult, SocketOptions, Ssid, TcpSockOpts, UdpSockOpts,
-    WifiChannel, WifiConnError,
+    WifiChannel,
 };
+
+use crate::net_ops::module::StationMode;
 
 #[cfg(feature = "ssl")]
 use crate::manager::{SslSockConfig, SslSockOpts};
@@ -17,8 +19,6 @@ use super::{Handle, PingResult, StackError, WincClient, Xfer};
 
 use crate::{error, info};
 
-// 1 minute max, if no other delays are added
-const AP_CONNECT_TIMEOUT_MILLISECONDS: u32 = 60_000;
 // 5 seconds max, assuming no additional delays
 const AP_DISCONNECT_TIMEOUT_MILLISECONDS: u32 = 5_000;
 // Timeout for Provisioning
@@ -144,48 +144,10 @@ impl<X: Xfer> WincClient<'_, X> {
         }
     }
 
-    fn connect_to_ap_impl(
-        &mut self,
-        connect_fn: impl FnOnce(&mut Self) -> Result<(), crate::errors::CommError>,
-    ) -> nb::Result<(), StackError> {
-        match self.callbacks.state {
-            WifiModuleState::Unconnected => {
-                self.operation_countdown = AP_CONNECT_TIMEOUT_MILLISECONDS;
-                self.callbacks.state = WifiModuleState::ConnectingToAp;
-                connect_fn(self)?;
-                Err(nb::Error::WouldBlock)
-            }
-            WifiModuleState::ConnectingToAp => {
-                self.delay_us(self.poll_loop_delay_us); // absolute minimum delay to make timeout possible
-                self.dispatch_events_may_wait()?;
-                self.operation_countdown -= 1;
-                if self.operation_countdown == 0 {
-                    return Err(nb::Error::Other(StackError::GeneralTimeout));
-                }
-                Err(nb::Error::WouldBlock)
-            }
-            WifiModuleState::ConnectionFailed => {
-                // Change the state to `Unconnected` so that the client can make subsequent connection requests.
-                self.callbacks.state = WifiModuleState::Unconnected;
-                Err(nb::Error::Other(StackError::ApJoinFailed(
-                    self.callbacks
-                        .connection_state
-                        .conn_error
-                        .take()
-                        .unwrap_or(WifiConnError::Unhandled),
-                )))
-            }
-            WifiModuleState::ConnectedToAp => {
-                info!("connect_to_ap: got Connected to AP");
-                Ok(())
-            }
-            _ => Err(nb::Error::Other(StackError::InvalidState)),
-        }
-    }
-
     /// Connect to access point with previously saved credentials
     pub fn connect_to_saved_ap(&mut self) -> nb::Result<(), StackError> {
-        self.connect_to_ap_impl(|inner_self: &mut Self| inner_self.manager.send_default_connect())
+        let mut op = StationMode::from_defaults();
+        self.poll_op(&mut op)
     }
 
     /// Connect to access point with given SSID and credentials.
@@ -208,11 +170,8 @@ impl<X: Xfer> WincClient<'_, X> {
         channel: WifiChannel,
         save_credentials: bool,
     ) -> nb::Result<(), StackError> {
-        self.connect_to_ap_impl(|inner_self: &mut Self| {
-            inner_self
-                .manager
-                .send_connect(ssid, credentials, channel, !save_credentials)
-        })
+        let mut op = StationMode::from_credentials(ssid, credentials, channel, save_credentials);
+        self.poll_op(&mut op)
     }
 
     /// Trigger a scan for available access points
