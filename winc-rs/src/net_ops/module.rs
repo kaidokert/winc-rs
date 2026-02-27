@@ -13,7 +13,6 @@ pub(crate) struct StationMode<'a> {
     channel: WifiChannel,
     save_credentials: bool,
     use_defaults: bool,
-    timeout: u32,
 }
 
 impl<'a> StationMode<'a> {
@@ -43,19 +42,17 @@ impl<'a> StationMode<'a> {
             channel,
             save_credentials,
             use_defaults: false,
-            timeout: 0,
         }
     }
 
     /// Creates a new `StationMode` instance configured to use saved credentials.
-    pub fn from_defaults() -> Self {
+    pub(crate) fn from_defaults() -> Self {
         Self {
             ssid: None,
             credentials: None,
             channel: WifiChannel::Channel1,
             save_credentials: false,
             use_defaults: true,
-            timeout: 0,
         }
     }
 }
@@ -86,7 +83,7 @@ impl<X: Xfer> OpImpl<X> for StationMode<'_> {
         match state {
             WifiModuleState::Unconnected => {
                 callbacks.state = WifiModuleState::ConnectingToAp;
-                self.timeout = AP_CONNECT_TIMEOUT_MILLISECONDS;
+                manager.set_operation_timeout(AP_CONNECT_TIMEOUT_MILLISECONDS);
                 if self.use_defaults {
                     manager.send_default_connect()?;
                 } else {
@@ -99,6 +96,7 @@ impl<X: Xfer> OpImpl<X> for StationMode<'_> {
                 }
             }
             WifiModuleState::ConnectionFailed => {
+                callbacks.state = WifiModuleState::Unconnected;
                 // conn_error should always be Some in ConnectionFailed state,
                 // but use defensive fallback just in case
                 let res = callbacks
@@ -109,10 +107,12 @@ impl<X: Xfer> OpImpl<X> for StationMode<'_> {
                 return Err(StackError::ApJoinFailed(res));
             }
             WifiModuleState::ConnectingToAp => {
-                if self.timeout == 0 {
+                let mut timeout = manager.get_operation_timeout();
+                if timeout == 0 {
                     return Err(StackError::GeneralTimeout);
                 }
-                self.timeout -= 1;
+                timeout -= 1;
+                manager.set_operation_timeout(timeout);
             }
             WifiModuleState::ConnectedToAp => {
                 return Ok(Some(()));

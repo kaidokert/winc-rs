@@ -7,7 +7,6 @@ use pac::{CorePeripherals, Peripherals};
 
 use bsp::periph_alias;
 use bsp::pin_alias;
-use core::convert::Infallible;
 use hal::clock::GenericClockController;
 use hal::time::{Hertz, KiloHertz, MegaHertz};
 
@@ -15,7 +14,7 @@ use hal::ehal::digital::InputPin;
 use hal::ehal::digital::OutputPin;
 use hal::ehal::i2c::I2c;
 
-use super::shared::SpiBus;
+use super::shared::{FailureSource, SpiBus};
 
 use systick_timer::SystickDriver;
 
@@ -36,19 +35,6 @@ embassy_time_driver::time_driver_impl!(static DRIVER: SystickDriver<MAX_TASKS>
 const WIFI_RESET_DELAY_DOWN: u64 = 50;
 const WIFI_RESET_DELAY_UP: u64 = 20;
 const WIFI_RESET_DELAY_WAIT: u64 = 50;
-
-#[derive(Debug, defmt::Format)]
-pub enum FailureSource {
-    Periph,
-    Core,
-    Clock,
-}
-
-impl From<Infallible> for FailureSource {
-    fn from(_: Infallible) -> Self {
-        todo!()
-    }
-}
 
 pub struct InitResult<
     SPI: SpiBus,

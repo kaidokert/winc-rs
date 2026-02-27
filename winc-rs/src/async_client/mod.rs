@@ -89,9 +89,12 @@ impl<X: Xfer> AsyncClient<'_, X> {
     ) -> Result<O::Output, StackError> {
         loop {
             self.dispatch_events()?;
-            let mut manager = self.manager.borrow_mut();
-            let mut callbacks = self.callbacks.borrow_mut();
-            match op.poll_impl(&mut manager, &mut callbacks) {
+            let result = {
+                let mut manager = self.manager.borrow_mut();
+                let mut callbacks = self.callbacks.borrow_mut();
+                op.poll_impl(&mut manager, &mut callbacks)
+            };
+            match result {
                 Ok(Some(result)) => return Ok(result),
                 Ok(None) => {
                     self.yield_once().await;

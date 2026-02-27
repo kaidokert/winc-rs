@@ -303,6 +303,8 @@ pub struct Manager<X: Xfer> {
     /// Wakers for async operations.
     #[cfg(feature = "async")]
     wakers: [Option<core::task::Waker>; MAX_WAKERS],
+    /// Operation Timeout
+    operation_countdown: u32,
 }
 
 /// Parses a HIF header packet and extracts its group and length.
@@ -805,6 +807,7 @@ impl<X: Xfer> Manager<X> {
             chip: ChipAccess::new(xfer),
             #[cfg(feature = "async")]
             wakers: core::array::from_fn(|_| None),
+            operation_countdown: 0,
         }
     }
 
@@ -843,6 +846,24 @@ impl<X: Xfer> Manager<X> {
                 }
             }
         }
+    }
+
+    /// Sets the timeout (countdown) for the current Async/Sync operation.
+    ///
+    /// # Arguments
+    ///
+    /// * `countdown` - The timeout value.
+    pub(crate) fn set_operation_timeout(&mut self, countdown: u32) {
+        self.operation_countdown = countdown
+    }
+
+    /// Currently configured timeout (countdown) for the Async/Sync operation.
+    ///
+    /// # Returns
+    ///
+    /// * `u32` - The configured timeout value.
+    pub(crate) fn get_operation_timeout(&self) -> u32 {
+        self.operation_countdown
     }
 
     // Todo: remove this
