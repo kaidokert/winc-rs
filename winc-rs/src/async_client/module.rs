@@ -6,33 +6,45 @@ use crate::stack::socket_callbacks::WifiModuleState;
 use crate::transfer::Xfer;
 
 impl<X: Xfer> AsyncClient<'_, X> {
-    /// Initializes the Wifi module in normal mode - boots the firmware and
-    /// completes the remaining initialization.
+    /// Initializes the WiFi module in the requested boot mode (`Normal` or `Ethernet`)
+    /// by booting the firmware and completing the remaining initialization steps.
     ///
     /// # Returns
     ///
-    /// * `()` - The Wifi module has started successfully.
-    /// * `StackError` - Starting the Wifi module failed.
-    pub async fn start_wifi_module(&mut self) -> Result<(), StackError> {
-        if self.callbacks.borrow().state != WifiModuleState::Reset {
-            return Err(StackError::InvalidState);
-        }
-        self.callbacks.borrow_mut().state = WifiModuleState::Starting;
-        self.manager.borrow_mut().set_crc_state(true);
+    /// * `Ok(())` - If the WiFi module starts successfully.
+    /// * `Err(StackError)` - If an error occurs during initialization.
+    async fn start_wifi_module_impl(&mut self, boot_mode: BootMode) -> Result<(), StackError> {
+        let mut boot = self
+            .boot
+            .take()
+            .unwrap_or_else(|| BootState::new(boot_mode));
 
-        let mut state = BootState::new(BootMode::Normal);
-        loop {
-            let result = self.manager.borrow_mut().boot_the_chip(&mut state)?;
-            if result {
-                self.callbacks.borrow_mut().state = WifiModuleState::Unconnected;
-                return Ok(());
-            }
-            self.dispatch_events()?;
-            self.yield_once().await; // todo: busy loop, maybe should delay here
-        }
+        self.poll_op(&mut boot).await?;
+        self.boot = Some(boot);
+        Ok(())
     }
 
-    /// Connect to access point with previously saved credentials.
+    /// Initializes the WiFi module in normal mode.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - If the WiFi module starts successfully.
+    /// * `Err(StackError)` - If an error occurs during initialization.
+    pub async fn start_wifi_module(&mut self) -> Result<(), StackError> {
+        self.start_wifi_module_impl(BootMode::Normal).await
+    }
+
+    /// Initializes the WiFi module in ethernet mode.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - If the WiFi module starts successfully.
+    /// * `Err(StackError)` - If an error occurs during initialization.
+    #[cfg(feature = "ethernet")]
+    pub async fn start_in_ethernet_mode(&mut self) -> Result<(), StackError> {
+        self.start_wifi_module_impl(BootMode::Ethernet).await
+    }
+
     pub async fn connect_to_saved_ap(&mut self) -> Result<(), StackError> {
         let mut op = StationMode::from_defaults();
         self.poll_op(&mut op).await

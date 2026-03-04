@@ -46,28 +46,20 @@ impl<X: Xfer> WincClient<'_, X> {
     /// * `nb::Error::WouldBlock` - The Wifi module is still starting.
     /// * `StackError` - An error occurred while starting the Wifi module.
     fn start_wifi_module_impl(&mut self, boot_mode: BootMode) -> nb::Result<(), StackError> {
-        match self.callbacks.state {
-            WifiModuleState::Reset => {
-                self.callbacks.state = WifiModuleState::Starting;
-                self.manager.set_crc_state(true);
-                self.boot = Some(BootState::new(boot_mode));
-                Err(nb::Error::WouldBlock)
-            }
-            WifiModuleState::Starting => {
-                if let Some(state) = self.boot.as_mut() {
-                    let result = self.manager.boot_the_chip(state)?;
-                    if result {
-                        self.callbacks.state = WifiModuleState::Unconnected;
-                        self.boot = None;
-                        return Ok(());
-                    }
-                    Err(nb::Error::WouldBlock)
-                } else {
-                    Err(nb::Error::Other(StackError::InvalidState))
-                }
-            }
-            _ => Err(nb::Error::Other(StackError::InvalidState)),
+        let mut boot = self
+            .boot
+            .take()
+            .unwrap_or_else(|| BootState::new(boot_mode));
+
+        let result = self.poll_op(&mut boot);
+
+        if result == Err(nb::Error::WouldBlock) || result.is_ok() {
+            self.boot = Some(boot);
+        } else {
+            self.boot = None
         }
+
+        result
     }
 
     /// Initializes the Wifi module in normal mode - boots the firmware and

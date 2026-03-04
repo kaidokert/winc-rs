@@ -1,8 +1,9 @@
+use crate::manager::{BootState, Manager};
 use crate::net_ops::op::OpImpl;
 use crate::stack::sock_holder::SocketStore;
 use crate::stack::socket_callbacks::SocketCallbacks;
 use crate::StackError;
-use crate::{manager::Manager, transfer::Xfer, Handle};
+use crate::{transfer::Xfer, Handle};
 
 use core::cell::RefCell;
 use core::marker::PhantomData;
@@ -18,6 +19,7 @@ pub struct AsyncClient<'a, X: Xfer> {
     next_session_id: RefCell<u16>,
     // Socket for UnconnectedUdp operations - kept alive across send/receive
     udp_socket: RefCell<Option<crate::Handle>>,
+    boot: Option<BootState>,
     _phantom: PhantomData<&'a ()>,
     #[cfg(test)]
     debug_callback: RefCell<Option<&'a mut dyn FnMut(&mut SocketCallbacks)>>,
@@ -40,6 +42,7 @@ impl<X: Xfer> AsyncClient<'_, X> {
             callbacks: RefCell::new(SocketCallbacks::new()),
             next_session_id: RefCell::new(0),
             udp_socket: RefCell::new(None),
+            boot: None,
             _phantom: Default::default(),
             #[cfg(test)]
             debug_callback: RefCell::new(None),
