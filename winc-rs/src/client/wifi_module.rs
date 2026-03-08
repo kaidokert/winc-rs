@@ -53,9 +53,11 @@ impl<X: Xfer> WincClient<'_, X> {
 
         let result = self.poll_op(&mut boot);
 
-        if result == Err(nb::Error::WouldBlock) || result.is_ok() {
+        if result == Err(nb::Error::WouldBlock) {
             self.boot = Some(boot);
         } else {
+            // On success (`Ok`) or other errors (`Err::Other`), the operation is complete,
+            // so we clear the boot state.
             self.boot = None
         }
 
@@ -95,45 +97,9 @@ impl<X: Xfer> WincClient<'_, X> {
     /// * `()` - The Wi-Fi module has successfully started in download mode.
     /// * `nb::Error::WouldBlock` - The Wifi module is still starting.
     /// * `StackError` - An error occurred while starting the Wifi module.
+    #[cfg(feature = "flash-rw")]
     pub fn start_in_download_mode(&mut self) -> nb::Result<(), StackError> {
-        match self.callbacks.state {
-            WifiModuleState::Reset => {
-                self.manager.set_crc_state(true);
-                // wake-up the chip
-                self.manager.chip_wake()?;
-                // reset the chip
-                self.manager.chip_reset()?;
-                // halt the chip
-                self.manager.chip_halt()?;
-                self.callbacks.state = WifiModuleState::Starting;
-                Err(nb::Error::WouldBlock)
-            }
-
-            WifiModuleState::Starting => {
-                // set the spi packet size
-                self.manager.configure_spi_packetsize()?;
-                // read the chip id
-                let chip_id = self.manager.chip_id()?;
-                let chip_rev = self.manager.chip_rev()?;
-                // disable all internal interrupts
-                self.manager.disable_internal_interrupt()?;
-                // enable the chip interrupts
-                self.manager.enable_interrupt_pins()?;
-                info!(
-                    "Chip id: {:x} rev: {:x} booted into download mode.",
-                    chip_id, chip_rev
-                );
-                self.callbacks.state = WifiModuleState::DownloadMode;
-                Ok(())
-            }
-
-            WifiModuleState::DownloadMode => {
-                info!("Chip is already in download mode.");
-                Ok(())
-            }
-
-            _ => Err(nb::Error::Other(StackError::InvalidState)),
-        }
+        self.start_wifi_module_impl(BootMode::Download)
     }
 
     /// Connect to access point with previously saved credentials

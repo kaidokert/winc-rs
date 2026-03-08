@@ -868,11 +868,13 @@ impl From<SslCipherSuite> for u32 {
 
 /// Wifi Boot Mode
 #[repr(u32)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 pub enum BootMode {
     Normal = 0x00,
     #[cfg(feature = "ethernet")]
     Ethernet = 0x80,
+    #[cfg(feature = "flash-rw")]
+    Download = 0x100,
 }
 
 /// Implementation to convert `BootMode` to `u32`.

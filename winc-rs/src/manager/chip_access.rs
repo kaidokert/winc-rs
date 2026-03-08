@@ -47,6 +47,7 @@ pub enum Cmd {
     /// Winc DMA Read
     DmaRead = 0xc8,
     /// SPI Bus Reset
+    #[cfg(feature = "flash-rw")]
     BusReset = 0xcf,
 }
 
@@ -455,6 +456,7 @@ impl<X: Xfer> ChipAccess<X> {
     ///
     /// * `Ok(())` - If the bus was reset successfully.
     /// * `Err(Error)` - If an error occurs while resetting the SPI bus.
+    #[cfg(feature = "flash-rw")]
     pub(super) fn bus_reset(&mut self) -> Result<(), Error> {
         const CRC_START_POS: usize = 4;
 
@@ -690,6 +692,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "flash-rw")]
     fn test_bus_reset() {
         let mut writebuf = [
             0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xAA, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,

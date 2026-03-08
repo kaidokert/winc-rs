@@ -42,6 +42,7 @@ pub(crate) enum WifiModuleState {
     Disconnecting,
     Provisioning,
     AccessPoint,
+    #[cfg(feature = "flash-rw")]
     DownloadMode,
 }
 

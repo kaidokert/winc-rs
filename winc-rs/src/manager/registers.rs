@@ -16,16 +16,6 @@
 pub(super) const INTR_REG_RW_EN_BIT: u8 = 0x80;
 /// Read OTA firmware version and MAC address from EFUSE OTP.
 pub(super) const EFUSE_OTP_MAC_OTA_BIT: u32 = 0x30000;
-/// Halt the Cortus processor.
-pub(super) const HALT_BIT: u32 = 0x01;
-/// Reset the Cortus processor.
-pub(super) const RESET_BIT: u32 = 0x400;
-/// Wake up the Cortus processor.
-pub(super) const WAKEUP_BIT: u32 = 0x01;
-/// Check the Cortus clock when waking from power-off or sleep.
-pub(super) const WAKEUP_CLK_BIT: u32 = 0x02;
-/// Check Cortus clock is enabled after waking up from sleep or power-down.
-pub(super) const CLK_EN_BIT: u32 = 0x04;
 /// EFUSE is ready to be read.
 pub(super) const EFUSE_LOAD_DONE_BIT: u32 = 0x8000_0000;
 /// Check whether the `Wait for Host` register is ready.
@@ -61,6 +51,21 @@ pub(super) const FLASH_CMD_CNT_MASK: u32 = 0x80;
 /// Offset for pin mux of flash memory.
 #[cfg(feature = "flash-rw")]
 pub(super) const FLASH_PINMUX_OFFSET: u32 = 0x0C;
+/// Halt the Cortus processor.
+#[cfg(feature = "flash-rw")]
+pub(super) const HALT_BIT: u32 = 0x01;
+/// Reset the Cortus processor.
+#[cfg(feature = "flash-rw")]
+pub(super) const RESET_BIT: u32 = 0x400;
+/// Wake up the Cortus processor.
+#[cfg(feature = "flash-rw")]
+pub(super) const WAKEUP_BIT: u32 = 0x01;
+/// Check the Cortus clock when waking from power-off or sleep.
+#[cfg(feature = "flash-rw")]
+pub(super) const WAKEUP_CLK_BIT: u32 = 0x02;
+/// Check Cortus clock is enabled after waking up from sleep or power-down.
+#[cfg(feature = "flash-rw")]
+pub(super) const CLK_EN_BIT: u32 = 0x04;
 /// Mask for extracting the lower 12 bits.
 pub(crate) const LOW_12_BIT_MASK: u32 = 0x0000_0FFF;
 /// Flash memory read-status bit.
@@ -73,12 +78,7 @@ pub(crate) const FLASH_SIZE_INFO_SHIFT: u32 = 0x10;
 /// WINC(NMI) and Cortus Register
 #[repr(u32)]
 pub(super) enum Regs {
-    WakeClock = 0x01,
-    HostToCortusComm = 0x0b,
-    EnableClock = 0x0f,
     ChipReset = 0x1400,
-    ChipHalt = 0x1118,
-    CortusIrq = 0x20300,
     SpiConfig = 0xE824,
     ChipId = 0x1000,
     EFuseRead = 0x1014,
@@ -96,6 +96,16 @@ pub(super) enum Regs {
     WifiHostRcvCtrl2 = 0x1078,
     WifiHostRcvCtrl3 = 0x106c,
     WifiHostRcvCtrl4 = 0x150400,
+    #[cfg(feature = "flash-rw")]
+    WakeClock = 0x01,
+    #[cfg(feature = "flash-rw")]
+    HostToCortusComm = 0x0b,
+    #[cfg(feature = "flash-rw")]
+    EnableClock = 0x0f,
+    #[cfg(feature = "flash-rw")]
+    ChipHalt = 0x1118,
+    #[cfg(feature = "flash-rw")]
+    CortusIrq = 0x20300,
     #[cfg(feature = "flash-rw")]
     FlashCommandCount = 0x10204,
     #[cfg(feature = "flash-rw")]

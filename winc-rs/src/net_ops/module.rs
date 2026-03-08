@@ -145,7 +145,7 @@ impl<X: Xfer> OpImpl<X> for BootState {
     /// * `Ok(Some(output))` - Operation completed successfully.
     /// * `Ok(None)` - Operation is still in progress.
     /// * `Err(Self::Error)` - An error occurred while polling.
-    fn poll_impl(
+fn poll_impl(
         &mut self,
         manager: &mut Manager<X>,
         callbacks: &mut SocketCallbacks,
