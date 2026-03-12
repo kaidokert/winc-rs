@@ -309,6 +309,11 @@ impl BootState {
             mode,
         }
     }
+
+    /// Returns the current boot mode of the system.
+    pub(crate) fn get_boot_mode(&self) -> BootMode {
+        self.mode
+    }
 }
 
 /// Structure to manage communication and the interface to the WINC1500 device.
@@ -1082,7 +1087,7 @@ impl<X: Xfer> Manager<X> {
                 self.configure_spi_packetsize()?;
                 state.stage = BootStage::StartBootrom;
                 #[cfg(feature = "flash-rw")]
-                if state.mode == BootMode::Download {
+                if state.get_boot_mode() == BootMode::Download {
                     state.stage = BootStage::FinishFirmwareBoot;
                 }
                 state.loop_value = 0;

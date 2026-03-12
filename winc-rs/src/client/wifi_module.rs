@@ -46,10 +46,15 @@ impl<X: Xfer> WincClient<'_, X> {
     /// * `nb::Error::WouldBlock` - The Wifi module is still starting.
     /// * `StackError` - An error occurred while starting the Wifi module.
     fn start_wifi_module_impl(&mut self, boot_mode: BootMode) -> nb::Result<(), StackError> {
-        let mut boot = self
-            .boot
-            .take()
-            .unwrap_or_else(|| BootState::new(boot_mode));
+        let mut boot = match self.boot.take() {
+            Some(boot) => {
+                if boot.get_boot_mode() != boot_mode {
+                    return Err(nb::Error::Other(StackError::InvalidParameters));
+                }
+                boot
+            }
+            None => BootState::new(boot_mode),
+        };
 
         let result = self.poll_op(&mut boot);
 
@@ -559,6 +564,30 @@ mod tests {
             result,
             Err(StackError::WincWifiFail(Error::BootRomStart).into())
         );
+    }
+
+    #[test]
+    fn test_start_wifi_module_invalid_state() {
+        let mut client = make_test_client();
+        client.callbacks.state = WifiModuleState::Provisioning;
+        let result = nb::block!(client.start_wifi_module());
+        assert_eq!(result, Err(StackError::InvalidState));
+    }
+
+    #[cfg(feature = "ethernet")]
+    #[test]
+    fn test_start_wifi_module_invalid_parameters() {
+        let mut client = make_test_client();
+        loop {
+            let result = client.start_wifi_module();
+            if result.is_ok() || result.err() == Some(nb::Error::WouldBlock) {
+                break;
+            } else {
+                assert!(false);
+            }
+        }
+        let result = nb::block!(client.start_in_ethernet_mode());
+        assert_eq!(result, Err(StackError::InvalidParameters));
     }
 
     #[test]

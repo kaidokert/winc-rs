@@ -135,3 +135,50 @@ mod tests {
         assert!(result.is_ok());
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::tests::make_test_client;
+    use super::*;
+    use crate::errors::CommError as Error;
+    use macro_rules_attribute::apply;
+    use smol_macros::test;
+
+    #[apply(test!)]
+    async fn test_async_start_wifi_module_fail() {
+        let mut client = make_test_client();
+        let result = client.start_wifi_module().await;
+        assert_eq!(
+            result,
+            Err(StackError::WincWifiFail(Error::BootRomStart).into())
+        )
+    }
+
+    #[apply(test!)]
+    async fn test_async_start_wifi_module_invalid_state() {
+        let mut client = make_test_client();
+        client.callbacks.borrow_mut().state = WifiModuleState::Unconnected;
+        let result = client.start_wifi_module().await;
+        assert_eq!(result, Err(StackError::InvalidState.into()))
+    }
+
+    #[cfg(feature = "flash-rw")]
+    #[apply(test!)]
+    async fn test_async_start_in_download_mode_fail() {
+        let mut client = make_test_client();
+        let result = client.start_in_download_mode().await;
+        assert_eq!(
+            result,
+            Err(StackError::WincWifiFail(Error::OperationRetriesExceeded))
+        );
+    }
+
+    #[cfg(feature = "flash-rw")]
+    #[apply(test!)]
+    async fn test_async_start_in_download_mode_invalid_state() {
+        let mut client = make_test_client();
+        client.callbacks.borrow_mut().state = WifiModuleState::Unconnected;
+        let result = client.start_in_download_mode().await;
+        assert_eq!(result, Err(StackError::InvalidState.into()))
+    }
+}
