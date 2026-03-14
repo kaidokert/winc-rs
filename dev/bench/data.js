@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1771432680512,
+  "lastUpdate": 1773528339847,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -5461,6 +5461,40 @@ window.BENCHMARK_DATA = {
           {
             "name": "iperf3_client",
             "value": 51456,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "142439476+umarbinzahid@users.noreply.github.com",
+            "name": "Umar Bin Zahid",
+            "username": "umarbinzahid"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "0ef2102dec9ed3be186f75ecb8b1dd45f246c81a",
+          "message": "Added support to connect with AP in Async (#134)\n\n* Added support to connect with AP in async\n\n* Refactored the connection function to support both async and sync  while keeping the core logic shared.",
+          "timestamp": "2026-03-14T15:44:35-07:00",
+          "tree_id": "db38fd14f21530c51952064ec6333cc38a76df92",
+          "url": "https://github.com/kaidokert/winc-rs/commit/0ef2102dec9ed3be186f75ecb8b1dd45f246c81a"
+        },
+        "date": 1773528338854,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 36784,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 50656,
             "unit": "byte"
           }
         ]
