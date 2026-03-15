@@ -2,7 +2,6 @@ use super::AsyncClient;
 use super::StackError;
 use crate::manager::{BootMode, BootState, Credentials, Ssid, WifiChannel};
 use crate::net_ops::module::StationMode;
-use crate::stack::socket_callbacks::WifiModuleState;
 use crate::transfer::Xfer;
 
 impl<X: Xfer> AsyncClient<'_, X> {
@@ -42,6 +41,7 @@ impl<X: Xfer> AsyncClient<'_, X> {
         self.poll_op(&mut boot).await
     }
 
+    /// Connect to access point with previously saved credentials.
     pub async fn connect_to_saved_ap(&mut self) -> Result<(), StackError> {
         let mut op = StationMode::from_defaults();
         self.poll_op(&mut op).await
@@ -76,8 +76,9 @@ impl<X: Xfer> AsyncClient<'_, X> {
 mod tests {
     use super::super::tests::make_test_client;
     use super::*;
+    use crate::errors::CommError as Error;
     use crate::manager::{EventListener, WifiConnError, WifiConnState, WpaKey};
-    use crate::stack::socket_callbacks::SocketCallbacks;
+    use crate::stack::socket_callbacks::{SocketCallbacks, WifiModuleState};
     use macro_rules_attribute::apply;
     use smol_macros::test;
 
@@ -134,15 +135,6 @@ mod tests {
         };
         assert!(result.is_ok());
     }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::super::tests::make_test_client;
-    use super::*;
-    use crate::errors::CommError as Error;
-    use macro_rules_attribute::apply;
-    use smol_macros::test;
 
     #[apply(test!)]
     async fn test_async_start_wifi_module_fail() {

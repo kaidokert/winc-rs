@@ -1,6 +1,6 @@
 #[cfg(feature = "flash-rw")]
 use crate::manager::BootMode;
-use crate::manager::{BootState, Manager, Credentials, Ssid};
+use crate::manager::{BootState, Credentials, Manager, Ssid};
 use crate::net_ops::op::OpImpl;
 use crate::stack::socket_callbacks::{SocketCallbacks, WifiModuleState};
 use crate::transfer::Xfer;
@@ -128,7 +128,6 @@ impl<X: Xfer> OpImpl<X> for StationMode<'_> {
     }
 }
 
-
 impl<X: Xfer> OpImpl<X> for BootState {
     type Output = ();
     type Error = StackError;
@@ -145,7 +144,7 @@ impl<X: Xfer> OpImpl<X> for BootState {
     /// * `Ok(Some(output))` - Operation completed successfully.
     /// * `Ok(None)` - Operation is still in progress.
     /// * `Err(Self::Error)` - An error occurred while polling.
-fn poll_impl(
+    fn poll_impl(
         &mut self,
         manager: &mut Manager<X>,
         callbacks: &mut SocketCallbacks,
