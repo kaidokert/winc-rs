@@ -9,6 +9,7 @@ compile_error!("Features 'defmt' and 'log' are mutually exclusive. Enable only o
 #[cfg(not(any(feature = "defmt", feature = "log")))]
 compile_error!("Must enable either 'defmt' or 'log' feature for logging support.");
 
+pub mod http_client;
 pub mod udp_client;
 pub mod udp_server;
 

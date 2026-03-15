@@ -10,6 +10,7 @@ use core::ops::DerefMut;
 
 mod dns;
 mod module;
+mod tcp_stack;
 mod udp_stack;
 
 pub struct AsyncClient<'a, X: Xfer> {
@@ -84,7 +85,7 @@ impl<X: Xfer> AsyncClient<'_, X> {
     /// * `Ok(O::Output)` - The operation completed successfully.
     /// * `Err(StackError)` - The operation failed while being polled.
     async fn poll_op<O: OpImpl<X, Error = StackError>>(
-        &mut self,
+        &self,
         op: &mut O,
     ) -> Result<O::Output, StackError> {
         loop {

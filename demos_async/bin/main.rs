@@ -2,13 +2,14 @@ use clap::Parser;
 use std::net::Ipv4Addr;
 use std::str::FromStr;
 
-use demos_async::udp_client;
+use demos_async::{http_client, udp_client};
 use embedded_nal_async::UdpStack;
 use std_embedded_nal_async::Stack;
 
 #[derive(Clone, clap::Subcommand, Debug)]
 enum Mode {
     UdpClient,
+    HttpClient,
 }
 
 #[derive(Parser)]
@@ -25,6 +26,9 @@ struct Cli {
 
     #[arg(short, long)]
     port: Option<u16>,
+
+    #[arg(short = 'o', long)]
+    hostname: Option<String>,
 }
 
 #[derive(Debug)]
@@ -96,6 +100,15 @@ fn main() -> Result<(), LocalErrors> {
                     recv_len,
                     &recv_buffer[..recv_len]
                 );
+                Ok::<(), LocalErrors>(())
+            })?;
+        }
+
+        Mode::HttpClient => {
+            smol::block_on(async {
+                http_client::run_http_client(&mut stack, ip_addr, port, cli.hostname.as_deref())
+                    .await
+                    .map_err(|e| LocalErrors::IoError(e.to_string()))?;
                 Ok::<(), LocalErrors>(())
             })?;
         }
