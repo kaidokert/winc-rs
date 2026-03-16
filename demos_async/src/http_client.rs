@@ -7,11 +7,14 @@ use defmt::info;
 #[cfg(feature = "log")]
 use log::info;
 
+// Max length of Hostname
+pub const MAX_HOSTNAME_LEN: usize = 64;
+
 pub async fn run_http_client<T: TcpConnect>(
     stack: &mut T,
     server_ip: Ipv4Addr,
     server_port: u16,
-    hostname: Option<&str>,
+    hostname: Option<&[u8; MAX_HOSTNAME_LEN]>,
 ) -> Result<(), T::Error> {
     let remote = SocketAddr::new(IpAddr::V4(server_ip), server_port);
     info!(
@@ -27,7 +30,7 @@ pub async fn run_http_client<T: TcpConnect>(
 
     let mut http_get_buf = [0u8; 256];
     let http_get = match hostname {
-        Some(host) => {
+        Some(host_bytes) => {
             let base = b"GET / HTTP/1.1\r\nHost: ";
             let suffix = b"\r\n\r\n";
             let mut pos = 0;
@@ -35,7 +38,6 @@ pub async fn run_http_client<T: TcpConnect>(
             http_get_buf[..base.len()].copy_from_slice(base);
             pos += base.len();
 
-            let host_bytes = host.as_bytes();
             http_get_buf[pos..pos + host_bytes.len()].copy_from_slice(host_bytes);
             pos += host_bytes.len();
 
@@ -54,7 +56,11 @@ pub async fn run_http_client<T: TcpConnect>(
     let resplen = tcp_client.read(&mut respbuf).await?;
     info!("-----Response received {}-----", resplen);
     let the_received_slice = &respbuf[..resplen];
-    let recvd_str = core::str::from_utf8(the_received_slice).unwrap();
+    let recvd_str = match core::str::from_utf8(the_received_slice) {
+        Err(err) => core::str::from_utf8(&the_received_slice[..err.valid_up_to()])
+            .unwrap_or("Invalid bytes received."),
+        Ok(s) => s,
+    };
     info!("-----Response: {}-----", recvd_str);
 
     Ok(())

@@ -39,7 +39,9 @@ impl<X: Xfer> OpImpl<X> for TcpReceiveOp<'_> {
         if let ClientSocketOp::AsyncOp(AsyncOp::Recv(Some(ref mut recv_result)), AsyncState::Done) =
             op
         {
-            if recv_result.return_offset < recv_result.recv_len {
+            if recv_result.return_offset < recv_result.recv_len
+                && recv_result.error == SocketError::NoError
+            {
                 let remaining_data = recv_result.recv_len - recv_result.return_offset;
                 let copy_len = remaining_data.min(self.buffer.len());
 

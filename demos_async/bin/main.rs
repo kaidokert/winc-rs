@@ -27,7 +27,7 @@ struct Cli {
     #[arg(short, long)]
     port: Option<u16>,
 
-    #[arg(short = 'o', long)]
+    #[arg(short = 'o', long, value_parser = validate_hostname, help = "Optional hostname (max 64 chars)")]
     hostname: Option<String>,
 }
 
@@ -47,6 +47,28 @@ impl From<Box<dyn std::error::Error>> for LocalErrors {
     fn from(e: Box<dyn std::error::Error>) -> Self {
         LocalErrors::IoError(e.to_string())
     }
+}
+
+/// Validator function for CLI parser
+fn validate_hostname(s: &str) -> Result<String, String> {
+    if s.len() > http_client::MAX_HOSTNAME_LEN {
+        Err(format!(
+            "hostname too long, max {} characters",
+            http_client::MAX_HOSTNAME_LEN
+        ))
+    } else {
+        Ok(s.to_string())
+    }
+}
+
+/// Converts hostname to string
+fn hostname_to_buf(host: Option<String>) -> Option<[u8; http_client::MAX_HOSTNAME_LEN]> {
+    host.map(|s| {
+        let mut buf = [0u8; http_client::MAX_HOSTNAME_LEN];
+        let bytes = s.as_bytes();
+        buf[..bytes.len()].copy_from_slice(bytes);
+        buf
+    })
 }
 
 fn main() -> Result<(), LocalErrors> {
@@ -106,7 +128,9 @@ fn main() -> Result<(), LocalErrors> {
 
         Mode::HttpClient => {
             smol::block_on(async {
-                http_client::run_http_client(&mut stack, ip_addr, port, cli.hostname.as_deref())
+                let hostname_buf: Option<[u8; http_client::MAX_HOSTNAME_LEN]> =
+                    hostname_to_buf(cli.hostname);
+                http_client::run_http_client(&mut stack, ip_addr, port, hostname_buf.as_ref())
                     .await
                     .map_err(|e| LocalErrors::IoError(e.to_string()))?;
                 Ok::<(), LocalErrors>(())

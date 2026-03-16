@@ -3,6 +3,7 @@
 
 use core::net::Ipv4Addr;
 use core::str::FromStr;
+use demos_async::http_client;
 use embassy_time::Timer;
 use feather_async::hal::ehal::digital::OutputPin;
 use feather_async::init::init;
@@ -13,6 +14,31 @@ const DEFAULT_TEST_IP: &str = "192.168.1.100";
 const DEFAULT_TEST_PORT: &str = "80";
 
 async fn program() -> Result<(), StackError> {
+    // Parse server configuration
+    let server_ip_str = option_env!("TEST_IP").unwrap_or(DEFAULT_TEST_IP);
+    let server_port_str = option_env!("TEST_PORT").unwrap_or(DEFAULT_TEST_PORT);
+    let test_host = match option_env!("TEST_HOST") {
+        Some(s) => {
+            let bytes = s.as_bytes();
+            if bytes.len() > http_client::MAX_HOSTNAME_LEN {
+                defmt::error!(
+                    "hostname too long, max {} characters",
+                    http_client::MAX_HOSTNAME_LEN
+                );
+                return Err(StackError::InvalidParameters);
+            }
+
+            let mut buf = [0u8; http_client::MAX_HOSTNAME_LEN];
+            buf[..bytes.len()].copy_from_slice(bytes);
+            Some(buf)
+        }
+        None => None,
+    };
+
+    let server_ip = Ipv4Addr::from_str(server_ip_str).map_err(|_| StackError::InvalidParameters)?;
+    let server_port = u16::from_str(server_port_str).map_err(|_| StackError::InvalidParameters)?;
+
+    // init the feather board.
     let ini = init().await.map_err(|_| StackError::Unexpected)?;
 
     defmt::info!("Embassy-time async Http client");
@@ -22,23 +48,15 @@ async fn program() -> Result<(), StackError> {
     defmt::info!("Initializing module");
     module.start_wifi_module().await?;
 
+    defmt::info!("Connecting to saved network");
+    module.connect_to_saved_ap().await?;
+    defmt::info!("Connected to saved network");
+
     // Give network time to stabilize
     for _ in 0..20 {
         Timer::after_millis(100).await;
         let _ = module.heartbeat();
     }
-
-    defmt::info!("Connecting to saved network");
-    module.connect_to_saved_ap().await?;
-    defmt::info!("Connected to saved network");
-
-    // Parse server configuration
-    let server_ip_str = option_env!("TEST_IP").unwrap_or(DEFAULT_TEST_IP);
-    let server_port_str = option_env!("TEST_PORT").unwrap_or(DEFAULT_TEST_PORT);
-    let test_host = option_env!("TEST_HOST");
-
-    let server_ip = Ipv4Addr::from_str(server_ip_str).map_err(|_| StackError::InvalidParameters)?;
-    let server_port = u16::from_str(server_port_str).unwrap_or(12345);
 
     defmt::info!(
         "Server configured: {}.{}.{}.{}:{}",
@@ -50,8 +68,13 @@ async fn program() -> Result<(), StackError> {
     );
 
     defmt::info!("---- Starting HTTP client ---- ");
-    demos_async::http_client::run_http_client(&mut module, server_ip, server_port, test_host)
-        .await?;
+    demos_async::http_client::run_http_client(
+        &mut module,
+        server_ip,
+        server_port,
+        test_host.as_ref(),
+    )
+    .await?;
     defmt::info!("---- HTTP Client done ---- ");
 
     loop {
