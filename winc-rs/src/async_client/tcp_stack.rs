@@ -5,7 +5,7 @@ use crate::transfer::Xfer;
 use crate::StackError;
 use embedded_nal_async::TcpConnect;
 
-/// Structure for Asynchronous TCP conenction.
+/// Structure for Asynchronous TCP connection.
 pub struct AsyncTcpConnection<'a, 'b, X: Xfer> {
     client: &'b AsyncClient<'a, X>,
     socket: Option<Handle>,
