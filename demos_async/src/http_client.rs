@@ -31,6 +31,12 @@ pub async fn run_http_client<T: TcpConnect>(
     let mut http_get_buf = [0u8; 256];
     let http_get = match hostname {
         Some(host_bytes) => {
+            // Trim null/padding bytes from the fixed-size hostname array
+            let host_len = host_bytes
+                .iter()
+                .position(|&b| b == 0)
+                .unwrap_or(host_bytes.len());
+            let host_slice = &host_bytes[..host_len];
             let base = b"GET / HTTP/1.1\r\nHost: ";
             let suffix = b"\r\n\r\n";
             let mut pos = 0;
@@ -38,8 +44,8 @@ pub async fn run_http_client<T: TcpConnect>(
             http_get_buf[..base.len()].copy_from_slice(base);
             pos += base.len();
 
-            http_get_buf[pos..pos + host_bytes.len()].copy_from_slice(host_bytes);
-            pos += host_bytes.len();
+            http_get_buf[pos..pos + host_slice.len()].copy_from_slice(host_slice);
+            pos += host_slice.len();
 
             http_get_buf[pos..pos + suffix.len()].copy_from_slice(suffix);
             pos += suffix.len();

@@ -163,10 +163,16 @@ impl<X: Xfer> AsyncClient<'_, X> {
         ) {
             if let Some((sock, _)) = callbacks.tcp_sockets.get(handle) {
                 if let Err(e) = manager.send_close(*sock) {
-                    crate::warn!("Failed to close TCP socket {:?} in drop: {:?}", sock, e);
+                    crate::error!("Failed to close TCP socket {:?} in drop: {:?}", sock, e);
+                } else {
+                    callbacks.tcp_sockets.remove(handle);
                 }
-                callbacks.tcp_sockets.remove(handle);
             }
+        } else {
+            crate::error!(
+                "Failed to clean up TCP socket handle {:?}: resources busy",
+                handle
+            );
         }
     }
 }
