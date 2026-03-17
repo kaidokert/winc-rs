@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1773528339847,
+  "lastUpdate": 1773710692521,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -5495,6 +5495,40 @@ window.BENCHMARK_DATA = {
           {
             "name": "iperf3_client",
             "value": 50656,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "142439476+umarbinzahid@users.noreply.github.com",
+            "name": "Umar Bin Zahid",
+            "username": "umarbinzahid"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "92cfbc1db64e9f917a1aaf3ae393dd8d5dfce81f",
+          "message": "Add support to boot the module in normal, ethernet and download in Async. (#135)\n\n* Updated async functions to boot the chip in normal and ethernet modes.\n\n* Added support for booting into download mode in async and made it\nfeature-gated.",
+          "timestamp": "2026-03-16T18:23:44-07:00",
+          "tree_id": "82b1e253aaf7c97e62387fc47ec7c9e3434701ca",
+          "url": "https://github.com/kaidokert/winc-rs/commit/92cfbc1db64e9f917a1aaf3ae393dd8d5dfce81f"
+        },
+        "date": 1773710692209,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 36896,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 50868,
             "unit": "byte"
           }
         ]
