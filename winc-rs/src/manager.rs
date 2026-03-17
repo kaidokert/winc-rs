@@ -183,6 +183,8 @@ pub(crate) enum HifGroup {
 #[derive(Debug, PartialEq)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub(crate) enum BootStage {
+    #[cfg(feature = "flash-rw")]
+    Reset,
     Start,
     StartBootrom,
     Stage2,
@@ -285,12 +287,32 @@ impl BootState {
     /// # Returns
     ///
     /// * `BootState` - A new `BootState` instance on success.
-    pub fn new(mode: BootMode) -> Self {
+    pub(crate) fn new(mode: BootMode) -> Self {
+        let stage = {
+            #[cfg(feature = "flash-rw")]
+            {
+                if mode == BootMode::Download {
+                    BootStage::Reset
+                } else {
+                    BootStage::Start
+                }
+            }
+
+            #[cfg(not(feature = "flash-rw"))]
+            {
+                BootStage::Start
+            }
+        };
         Self {
-            stage: BootStage::Start,
+            stage,
             loop_value: 0,
             mode,
         }
+    }
+
+    /// Returns the current boot mode of the system.
+    pub(crate) fn get_boot_mode(&self) -> BootMode {
+        self.mode
     }
 }
 
@@ -938,6 +960,7 @@ impl<X: Xfer> Manager<X> {
     ///
     /// * `Ok(())` - If the chip was successfully reset.
     /// * `Err(Error)` - If an error occurs while resetting the chip.
+    #[cfg(feature = "flash-rw")]
     pub(crate) fn chip_reset(&mut self) -> Result<(), Error> {
         const BACKOFF_DELAY_USEC: u32 = 50_000; // 50 msec delay
 
@@ -954,6 +977,7 @@ impl<X: Xfer> Manager<X> {
     ///
     /// * `Ok(())` - If the chip was successfully halted.
     /// * `Err(Error)` - If an error occurs while halting the chip.
+    #[cfg(feature = "flash-rw")]
     pub(crate) fn chip_halt(&mut self) -> Result<(), Error> {
         let mut reg = self.chip.single_reg_read(Regs::ChipHalt.into())?;
 
@@ -978,6 +1002,7 @@ impl<X: Xfer> Manager<X> {
     ///
     /// * `Ok(())` - If the bus was reset successfully.
     /// * `Err(Error)` - If an error occurs while resetting the SPI bus.
+    #[cfg(feature = "flash-rw")]
     pub(crate) fn spi_bus_reset(&mut self) -> Result<(), Error> {
         self.chip.bus_reset()
     }
@@ -988,6 +1013,7 @@ impl<X: Xfer> Manager<X> {
     ///
     /// * `Ok(())` - If the chip is successfully woken up.
     /// * `Err(Error)` - If any error occurs while waking up the chip.
+    #[cfg(feature = "flash-rw")]
     pub(crate) fn chip_wake(&mut self) -> Result<(), Error> {
         const WAKEUP_DELAY_USEC: u32 = 2000; // 2 msec delay
         const WAKEUP_OP_RETRIES: u8 = 4;
@@ -1045,10 +1071,25 @@ impl<X: Xfer> Manager<X> {
 
         debug!("Waiting for chip start .. stage: {:?}", state.stage);
         match state.stage {
+            #[cfg(feature = "flash-rw")]
+            BootStage::Reset => {
+                // wake-up the chip
+                self.chip_wake()?;
+                // reset the chip
+                self.chip_reset()?;
+                // halt the chip
+                self.chip_halt()?;
+                // update the
+                state.stage = BootStage::Start;
+            }
             BootStage::Start => {
                 debug!("chip id {:x} rev:{:x}", self.chip_id()?, self.chip_rev()?);
                 self.configure_spi_packetsize()?;
                 state.stage = BootStage::StartBootrom;
+                #[cfg(feature = "flash-rw")]
+                if state.get_boot_mode() == BootMode::Download {
+                    state.stage = BootStage::FinishFirmwareBoot;
+                }
                 state.loop_value = 0;
             }
             BootStage::StartBootrom => {
@@ -1088,6 +1129,11 @@ impl<X: Xfer> Manager<X> {
                     .single_reg_write(Regs::NmiState.into(), driver_rev)?;
                 self.chip_id()?;
                 // Write Boot Mode configuration.
+                #[cfg(feature = "flash-rw")]
+                if state.mode == BootMode::Download {
+                    error!("Invalid boot mode detected during startup.");
+                    return Err(Error::FirmwareStart);
+                }
                 let conf = u32::from(state.mode) | NMI_GP1_PMU_EN_BIT;
                 self.chip.single_reg_write(Regs::NmiGp1.into(), conf)?;
                 let verify = self.chip.single_reg_read(Regs::NmiGp1.into())?;
@@ -1116,10 +1162,22 @@ impl<X: Xfer> Manager<X> {
                 }
             }
             BootStage::FinishFirmwareBoot => {
-                self.chip.single_reg_write(Regs::NmiState.into(), 0)?;
+                #[cfg(not(feature = "flash-rw"))]
+                {
+                    self.chip.single_reg_write(Regs::NmiState.into(), 0)?;
+                    // After chip boot, we can go a lot faster
+                    self.chip.switch_to_high_speed();
+                }
+                #[cfg(feature = "flash-rw")]
+                if state.mode == BootMode::Download {
+                    // disable all internal interrupts
+                    self.disable_internal_interrupt()?;
+                } else {
+                    self.chip.single_reg_write(Regs::NmiState.into(), 0)?;
+                    // After chip boot, we can go a lot faster
+                    self.chip.switch_to_high_speed();
+                }
                 self.enable_interrupt_pins()?;
-                // After chip boot, we can go a lot faster
-                self.chip.switch_to_high_speed();
                 return Ok(true);
             }
         }
@@ -1172,6 +1230,7 @@ impl<X: Xfer> Manager<X> {
     ///
     /// * `()` - If the interrupts were successfully disabled.
     /// * `Error` - If an error occurs while disabling the interrupts.
+    #[cfg(feature = "flash-rw")]
     pub(crate) fn disable_internal_interrupt(&mut self) -> Result<(), Error> {
         self.chip.single_reg_write(Regs::CortusIrq.into(), 0)
     }

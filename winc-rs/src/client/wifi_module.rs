@@ -46,28 +46,27 @@ impl<X: Xfer> WincClient<'_, X> {
     /// * `nb::Error::WouldBlock` - The Wifi module is still starting.
     /// * `StackError` - An error occurred while starting the Wifi module.
     fn start_wifi_module_impl(&mut self, boot_mode: BootMode) -> nb::Result<(), StackError> {
-        match self.callbacks.state {
-            WifiModuleState::Reset => {
-                self.callbacks.state = WifiModuleState::Starting;
-                self.manager.set_crc_state(true);
-                self.boot = Some(BootState::new(boot_mode));
-                Err(nb::Error::WouldBlock)
-            }
-            WifiModuleState::Starting => {
-                if let Some(state) = self.boot.as_mut() {
-                    let result = self.manager.boot_the_chip(state)?;
-                    if result {
-                        self.callbacks.state = WifiModuleState::Unconnected;
-                        self.boot = None;
-                        return Ok(());
-                    }
-                    Err(nb::Error::WouldBlock)
-                } else {
-                    Err(nb::Error::Other(StackError::InvalidState))
+        let mut boot = match self.boot.take() {
+            Some(boot) => {
+                if boot.get_boot_mode() != boot_mode {
+                    return Err(nb::Error::Other(StackError::InvalidParameters));
                 }
+                boot
             }
-            _ => Err(nb::Error::Other(StackError::InvalidState)),
+            None => BootState::new(boot_mode),
+        };
+
+        let result = self.poll_op(&mut boot);
+
+        if result == Err(nb::Error::WouldBlock) {
+            self.boot = Some(boot);
+        } else {
+            // On success (`Ok`) or other errors (`Err::Other`), the operation is complete,
+            // so we clear the boot state.
+            self.boot = None
         }
+
+        result
     }
 
     /// Initializes the Wifi module in normal mode - boots the firmware and
@@ -103,45 +102,9 @@ impl<X: Xfer> WincClient<'_, X> {
     /// * `()` - The Wi-Fi module has successfully started in download mode.
     /// * `nb::Error::WouldBlock` - The Wifi module is still starting.
     /// * `StackError` - An error occurred while starting the Wifi module.
+    #[cfg(feature = "flash-rw")]
     pub fn start_in_download_mode(&mut self) -> nb::Result<(), StackError> {
-        match self.callbacks.state {
-            WifiModuleState::Reset => {
-                self.manager.set_crc_state(true);
-                // wake-up the chip
-                self.manager.chip_wake()?;
-                // reset the chip
-                self.manager.chip_reset()?;
-                // halt the chip
-                self.manager.chip_halt()?;
-                self.callbacks.state = WifiModuleState::Starting;
-                Err(nb::Error::WouldBlock)
-            }
-
-            WifiModuleState::Starting => {
-                // set the spi packet size
-                self.manager.configure_spi_packetsize()?;
-                // read the chip id
-                let chip_id = self.manager.chip_id()?;
-                let chip_rev = self.manager.chip_rev()?;
-                // disable all internal interrupts
-                self.manager.disable_internal_interrupt()?;
-                // enable the chip interrupts
-                self.manager.enable_interrupt_pins()?;
-                info!(
-                    "Chip id: {:x} rev: {:x} booted into download mode.",
-                    chip_id, chip_rev
-                );
-                self.callbacks.state = WifiModuleState::DownloadMode;
-                Ok(())
-            }
-
-            WifiModuleState::DownloadMode => {
-                info!("Chip is already in download mode.");
-                Ok(())
-            }
-
-            _ => Err(nb::Error::Other(StackError::InvalidState)),
-        }
+        self.start_wifi_module_impl(BootMode::Download)
     }
 
     /// Connect to access point with previously saved credentials
@@ -601,6 +564,30 @@ mod tests {
             result,
             Err(StackError::WincWifiFail(Error::BootRomStart).into())
         );
+    }
+
+    #[test]
+    fn test_start_wifi_module_invalid_state() {
+        let mut client = make_test_client();
+        client.callbacks.state = WifiModuleState::Provisioning;
+        let result = nb::block!(client.start_wifi_module());
+        assert_eq!(result, Err(StackError::InvalidState));
+    }
+
+    #[cfg(feature = "ethernet")]
+    #[test]
+    fn test_start_wifi_module_invalid_parameters() {
+        let mut client = make_test_client();
+        loop {
+            let result = client.start_wifi_module();
+            if result.is_ok() || result.err() == Some(nb::Error::WouldBlock) {
+                break;
+            } else {
+                assert!(false);
+            }
+        }
+        let result = nb::block!(client.start_in_ethernet_mode());
+        assert_eq!(result, Err(StackError::InvalidParameters));
     }
 
     #[test]

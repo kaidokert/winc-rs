@@ -1,6 +1,8 @@
-use crate::manager::{Credentials, Ssid};
+#[cfg(feature = "flash-rw")]
+use crate::manager::BootMode;
+use crate::manager::{BootState, Credentials, Manager, Ssid};
 use crate::net_ops::op::OpImpl;
-use crate::stack::socket_callbacks::WifiModuleState;
+use crate::stack::socket_callbacks::{SocketCallbacks, WifiModuleState};
 use crate::transfer::Xfer;
 use crate::{StackError, WifiChannel};
 
@@ -120,6 +122,63 @@ impl<X: Xfer> OpImpl<X> for StationMode<'_> {
             _ => {
                 return Err(StackError::InvalidState);
             }
+        }
+
+        Ok(None)
+    }
+}
+
+impl<X: Xfer> OpImpl<X> for BootState {
+    type Output = ();
+    type Error = StackError;
+
+    /// Polls the internal state machine and attempts to boot the chip.
+    ///
+    /// # Arguments
+    ///
+    /// * `manager` - The stack manager handling low-level operations.
+    /// * `callbacks` - Socket callback handlers.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(Some(output))` - Operation completed successfully.
+    /// * `Ok(None)` - Operation is still in progress.
+    /// * `Err(Self::Error)` - An error occurred while polling.
+    fn poll_impl(
+        &mut self,
+        manager: &mut Manager<X>,
+        callbacks: &mut SocketCallbacks,
+    ) -> Result<Option<Self::Output>, Self::Error> {
+        let state = callbacks.state.clone();
+        match state {
+            WifiModuleState::Reset => {
+                manager.set_crc_state(true);
+                callbacks.state = WifiModuleState::Starting;
+            }
+            WifiModuleState::Starting => {
+                let result = manager.boot_the_chip(self)?;
+                if result {
+                    #[cfg(feature = "flash-rw")]
+                    {
+                        if self.get_boot_mode() == BootMode::Download {
+                            callbacks.state = WifiModuleState::DownloadMode;
+                            crate::info!("Chip booted into download mode.");
+                            return Ok(Some(()));
+                        }
+                    }
+                    callbacks.state = WifiModuleState::Unconnected;
+                    return Ok(Some(()));
+                }
+            }
+            #[cfg(feature = "flash-rw")]
+            WifiModuleState::DownloadMode => {
+                if self.get_boot_mode() == BootMode::Download {
+                    crate::info!("Chip is already in download mode.");
+                    return Ok(Some(()));
+                }
+                return Err(StackError::InvalidState);
+            }
+            _ => return Err(StackError::InvalidState),
         }
 
         Ok(None)

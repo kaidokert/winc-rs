@@ -2,34 +2,43 @@ use super::AsyncClient;
 use super::StackError;
 use crate::manager::{BootMode, BootState, Credentials, Ssid, WifiChannel};
 use crate::net_ops::module::StationMode;
-use crate::stack::socket_callbacks::WifiModuleState;
 use crate::transfer::Xfer;
 
 impl<X: Xfer> AsyncClient<'_, X> {
-    /// Initializes the Wifi module in normal mode - boots the firmware and
-    /// completes the remaining initialization.
+    /// Initializes the WiFi module in normal mode.
     ///
     /// # Returns
     ///
-    /// * `()` - The Wifi module has started successfully.
-    /// * `StackError` - Starting the Wifi module failed.
+    /// * `Ok(())` - If the WiFi module starts successfully.
+    /// * `Err(StackError)` - If an error occurs during initialization.
     pub async fn start_wifi_module(&mut self) -> Result<(), StackError> {
-        if self.callbacks.borrow().state != WifiModuleState::Reset {
-            return Err(StackError::InvalidState);
-        }
-        self.callbacks.borrow_mut().state = WifiModuleState::Starting;
-        self.manager.borrow_mut().set_crc_state(true);
+        let mut boot = BootState::new(BootMode::Normal);
+        self.poll_op(&mut boot).await
+    }
 
-        let mut state = BootState::new(BootMode::Normal);
-        loop {
-            let result = self.manager.borrow_mut().boot_the_chip(&mut state)?;
-            if result {
-                self.callbacks.borrow_mut().state = WifiModuleState::Unconnected;
-                return Ok(());
-            }
-            self.dispatch_events()?;
-            self.yield_once().await; // todo: busy loop, maybe should delay here
-        }
+    /// Initializes the WiFi module in ethernet mode.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - If the WiFi module starts successfully.
+    /// * `Err(StackError)` - If an error occurs during initialization.
+    #[cfg(feature = "ethernet")]
+    pub async fn start_in_ethernet_mode(&mut self) -> Result<(), StackError> {
+        let mut boot = BootState::new(BootMode::Ethernet);
+        self.poll_op(&mut boot).await
+    }
+
+    /// Initializes the Wifi module in download mode to update
+    /// firmware or download SSL certificates.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - The Wi-Fi module has successfully started in download mode.
+    /// * `Err(StackError)` - An error occurred while starting the Wifi module.
+    #[cfg(feature = "flash-rw")]
+    pub async fn start_in_download_mode(&mut self) -> Result<(), StackError> {
+        let mut boot = BootState::new(BootMode::Download);
+        self.poll_op(&mut boot).await
     }
 
     /// Connect to access point with previously saved credentials.
@@ -67,8 +76,9 @@ impl<X: Xfer> AsyncClient<'_, X> {
 mod tests {
     use super::super::tests::make_test_client;
     use super::*;
+    use crate::errors::CommError as Error;
     use crate::manager::{EventListener, WifiConnError, WifiConnState, WpaKey};
-    use crate::stack::socket_callbacks::SocketCallbacks;
+    use crate::stack::socket_callbacks::{SocketCallbacks, WifiModuleState};
     use macro_rules_attribute::apply;
     use smol_macros::test;
 
@@ -124,5 +134,43 @@ mod tests {
                 .await
         };
         assert!(result.is_ok());
+    }
+
+    #[apply(test!)]
+    async fn test_async_start_wifi_module_fail() {
+        let mut client = make_test_client();
+        let result = client.start_wifi_module().await;
+        assert_eq!(
+            result,
+            Err(StackError::WincWifiFail(Error::BootRomStart).into())
+        )
+    }
+
+    #[apply(test!)]
+    async fn test_async_start_wifi_module_invalid_state() {
+        let mut client = make_test_client();
+        client.callbacks.borrow_mut().state = WifiModuleState::Unconnected;
+        let result = client.start_wifi_module().await;
+        assert_eq!(result, Err(StackError::InvalidState.into()))
+    }
+
+    #[cfg(feature = "flash-rw")]
+    #[apply(test!)]
+    async fn test_async_start_in_download_mode_fail() {
+        let mut client = make_test_client();
+        let result = client.start_in_download_mode().await;
+        assert_eq!(
+            result,
+            Err(StackError::WincWifiFail(Error::OperationRetriesExceeded))
+        );
+    }
+
+    #[cfg(feature = "flash-rw")]
+    #[apply(test!)]
+    async fn test_async_start_in_download_mode_invalid_state() {
+        let mut client = make_test_client();
+        client.callbacks.borrow_mut().state = WifiModuleState::Unconnected;
+        let result = client.start_in_download_mode().await;
+        assert_eq!(result, Err(StackError::InvalidState.into()))
     }
 }
