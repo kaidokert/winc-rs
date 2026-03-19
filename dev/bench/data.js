@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1773710692521,
+  "lastUpdate": 1773900025955,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -5529,6 +5529,40 @@ window.BENCHMARK_DATA = {
           {
             "name": "iperf3_client",
             "value": 50868,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "142439476+umarbinzahid@users.noreply.github.com",
+            "name": "Umar Bin Zahid",
+            "username": "umarbinzahid"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "cd0da61a409f53daf9cc14a36913d72bf532ab33",
+          "message": "Add support for Async TCP Client (#136)\n\n* Added support for Async TCP Client\n\n* Added docs, unit test cases and addressed PR comments.\n\n* Addressed the PR comments.\n\n* Spellings corrected.",
+          "timestamp": "2026-03-18T22:59:29-07:00",
+          "tree_id": "6530af7079d197ab71c6de29b308e9d7ca21292a",
+          "url": "https://github.com/kaidokert/winc-rs/commit/cd0da61a409f53daf9cc14a36913d72bf532ab33"
+        },
+        "date": 1773900025473,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 36908,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 50872,
             "unit": "byte"
           }
         ]
