@@ -37,7 +37,7 @@ impl<X: Xfer> OpImpl<X> for TcpSendOp<'_> {
 
         match op {
             ClientSocketOp::AsyncOp(AsyncOp::Send(req, Some(len)), AsyncState::Done) => {
-                // Validate callback length parameter
+                // Validate callback length parameter for error.
                 let callback_len = *len;
                 if callback_len < 0 {
                     // Negative length is invalid - treat as error
@@ -45,13 +45,17 @@ impl<X: Xfer> OpImpl<X> for TcpSendOp<'_> {
                     return Err(StackError::OpFailed(callback_len.into()));
                 }
 
-                // Validate callback length doesn't exceed remaining data in buffer
+                // Validate `total_sent` length doesn't exceed remaining data in buffer
+                // It is possible that the WINC sends data in multiple iterations before
+                // `AsyncState::Done` is called from the callback, so use the `total_sent`
+                // field from `SentRequest` to check the sent data length instead of
+                // `callback_len`.
                 let remaining_in_buffer = self.data.len() - req.offset;
-                let validated_len = if callback_len as usize > remaining_in_buffer {
+                let validated_len = if req.total_sent as usize > remaining_in_buffer {
                     // Clamp to remaining data if callback reports more than possible
                     remaining_in_buffer
                 } else {
-                    callback_len as usize
+                    req.total_sent as usize
                 };
 
                 // Ensure validated_len fits in i16 for arithmetic
