@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1773900025955,
+  "lastUpdate": 1774130764720,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -5563,6 +5563,40 @@ window.BENCHMARK_DATA = {
           {
             "name": "iperf3_client",
             "value": 50872,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "142439476+umarbinzahid@users.noreply.github.com",
+            "name": "Umar Bin Zahid",
+            "username": "umarbinzahid"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "a154f8878d1cbd1ef531c35e51e7114b893de2eb",
+          "message": "Refactor: Remove `not_a_reg_ctrl_4_dma` field from the `Manager` struct. (#137)\n\n* Updated variable name.\n\n* Move DMA address from struct to function return value.\n\n* Minor updates.",
+          "timestamp": "2026-03-21T15:05:09-07:00",
+          "tree_id": "c374497bca1ad17fa9ed666edc226c5d48fc239e",
+          "url": "https://github.com/kaidokert/winc-rs/commit/a154f8878d1cbd1ef531c35e51e7114b893de2eb"
+        },
+        "date": 1774130764151,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 37144,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 51052,
             "unit": "byte"
           }
         ]
