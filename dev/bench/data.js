@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1774130764720,
+  "lastUpdate": 1774210997167,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -5597,6 +5597,40 @@ window.BENCHMARK_DATA = {
           {
             "name": "iperf3_client",
             "value": 51052,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "142439476+umarbinzahid@users.noreply.github.com",
+            "name": "Umar Bin Zahid",
+            "username": "umarbinzahid"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "dea6e698ffe653ed63dded2f0fd773ecf1dcebea",
+          "message": "BUG: Fix HIF header offset and TCP/UDP multi-iteration send issue (#140)\n\n* fix: resolve HIF header issue and TCP/UDP multi-iteration send bug\n\n* added unit test.",
+          "timestamp": "2026-03-22T13:22:19-07:00",
+          "tree_id": "e2efda168047aa556e59646959281efe6cb3a720",
+          "url": "https://github.com/kaidokert/winc-rs/commit/dea6e698ffe653ed63dded2f0fd773ecf1dcebea"
+        },
+        "date": 1774210996687,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 37156,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 51076,
             "unit": "byte"
           }
         ]
