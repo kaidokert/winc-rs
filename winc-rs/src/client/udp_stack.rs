@@ -354,6 +354,34 @@ mod test {
     }
 
     #[test]
+    fn test_udp_send_chunked_callback() {
+        let mut client = make_test_client();
+        let mut udp_socket = client.socket().unwrap();
+        let packet = "Hello, World"; // 12 bytes
+        let socket_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 80);
+
+        let mut my_debug = |callbacks: &mut SocketCallbacks| {
+            callbacks.on_send_to(Socket::new(7, 0), 9 as i16);
+        };
+
+        client.debug_callback = Some(&mut my_debug);
+
+        let result = {
+            // send request + poll for callback (9 bytes polled)
+            let _ = client.send_to(&mut udp_socket, socket_addr, packet.as_bytes());
+            // update the chunk
+            let mut debug = |callbacks: &mut SocketCallbacks| {
+                callbacks.on_send_to(Socket::new(7, 0), 3 as i16);
+            };
+            client.debug_callback = Some(&mut debug);
+            // poll second callback (3 bytes polled) and get result
+            client.send_to(&mut udp_socket, socket_addr, packet.as_bytes())
+        };
+
+        assert_eq!(result.ok(), Some(()));
+    }
+
+    #[test]
     fn test_udp_check_max_send_buffer() {
         let mut client = make_test_client();
         let mut udp_socket = client.socket().unwrap();

@@ -268,6 +268,33 @@ mod test {
     }
 
     #[test]
+    fn test_tcp_send_chunked_callback() {
+        let mut client = make_test_client();
+        let mut tcp_socket = client.socket().unwrap();
+        let packet = "Hello, World";
+
+        let mut my_debug = |callbacks: &mut SocketCallbacks| {
+            callbacks.on_send(Socket::new(0, 0), 9 as i16);
+        };
+
+        client.debug_callback = Some(&mut my_debug);
+
+        let result = {
+            // send request + poll for callback (9 bytes polled)
+            let _ = client.send(&mut tcp_socket, packet.as_bytes());
+            // update the chunk
+            let mut debug = |callbacks: &mut SocketCallbacks| {
+                callbacks.on_send(Socket::new(0, 0), 3 as i16);
+            };
+            client.debug_callback = Some(&mut debug);
+            // poll second callback (3 bytes polled) and get result
+            client.send(&mut tcp_socket, packet.as_bytes())
+        };
+
+        assert_eq!(result.ok(), Some(packet.len()));
+    }
+
+    #[test]
     fn test_tcp_receive() {
         let mut client = make_test_client();
         let mut tcp_socket = client.socket().unwrap();
