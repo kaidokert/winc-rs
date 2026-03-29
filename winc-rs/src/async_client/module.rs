@@ -1,7 +1,7 @@
-use super::AsyncClient;
-use super::StackError;
-use crate::manager::{BootMode, BootState, Credentials, Ssid, WifiChannel};
+use super::{AsyncClient, Handle, StackError};
+use crate::manager::{BootMode, BootState, Credentials, SocketOptions, Ssid, WifiChannel};
 use crate::net_ops::module::StationMode;
+use crate::stack::Stack;
 use crate::transfer::Xfer;
 
 impl<X: Xfer> AsyncClient<'_, X> {
@@ -69,6 +69,34 @@ impl<X: Xfer> AsyncClient<'_, X> {
     ) -> Result<(), StackError> {
         let mut op = StationMode::from_credentials(ssid, credentials, channel, save_credentials);
         self.poll_op(&mut op).await
+    }
+
+    /// Sets the specified socket option on the given socket.
+    ///
+    /// # Arguments
+    ///
+    /// * `socket` - A socket handle to configure.
+    /// * `option` - The socket option to apply.
+    ///
+    /// # Returns
+    ///
+    /// * `()` - If the socket option was successfully applied.
+    /// * `StackError` - If an error occurs while applying the socket option.
+    pub fn set_socket_option(
+        &mut self,
+        socket: &Handle,
+        option: &SocketOptions,
+    ) -> Result<(), StackError> {
+        let mut manager = self
+            .manager
+            .try_borrow_mut()
+            .map_err(|_| StackError::ResourceBusy)?;
+        let mut callbacks = self
+            .callbacks
+            .try_borrow_mut()
+            .map_err(|_| StackError::ResourceBusy)?;
+        let mut stack = Stack::new(&mut manager, &mut callbacks);
+        stack.set_socket_option(socket, option)
     }
 }
 
