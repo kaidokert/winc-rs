@@ -1,13 +1,23 @@
-#[cfg(feature = "flash-rw")]
-use crate::manager::BootMode;
-use crate::manager::{BootState, Credentials, Manager, Ssid};
+use crate::manager::{BootState, Credentials, Manager, Ssid, TcpSockOpts, UdpSockOpts};
 use crate::net_ops::op::OpImpl;
+use crate::stack::sock_holder::SocketStore;
 use crate::stack::socket_callbacks::{SocketCallbacks, WifiModuleState};
 use crate::transfer::Xfer;
-use crate::{StackError, WifiChannel};
+use crate::{Handle, SocketOptions, StackError, WifiChannel};
+
+#[cfg(feature = "ssl")]
+use crate::manager::{SslSockConfig, SslSockOpts};
+
+#[cfg(feature = "flash-rw")]
+use crate::manager::BootMode;
 
 // 1 minute max, if no other delays are added
 const AP_CONNECT_TIMEOUT_MILLISECONDS: u32 = 60_000;
+
+pub(crate) struct SocketOptionOp<'a> {
+    socket: &'a Handle,
+    socket_options: &'a SocketOptions,
+}
 
 pub(crate) struct StationMode<'a> {
     ssid: Option<&'a Ssid>,
@@ -15,6 +25,76 @@ pub(crate) struct StationMode<'a> {
     channel: WifiChannel,
     save_credentials: bool,
     use_defaults: bool,
+}
+
+impl<'a> SocketOptionOp<'a> {
+    pub fn new(socket: &'a Handle, options: &'a SocketOptions) -> Self {
+        Self {
+            socket,
+            socket_options: options,
+        }
+    }
+}
+
+impl<X: Xfer> OpImpl<X> for SocketOptionOp<'_> {
+    type Output = ();
+    type Error = StackError;
+
+    fn poll_impl(
+        &mut self,
+        manager: &mut crate::manager::Manager<X>,
+        callbacks: &mut crate::stack::socket_callbacks::SocketCallbacks,
+    ) -> Result<Option<Self::Output>, Self::Error> {
+        match self.socket_options {
+            SocketOptions::Udp(opts) => {
+                let (sock, _) = callbacks
+                    .udp_sockets
+                    .get(*self.socket)
+                    .ok_or(StackError::SocketNotFound)?;
+
+                if let UdpSockOpts::ReceiveTimeout(timeout) = opts {
+                    // Receive timeout are handled by winc stack not by module.
+                    sock.set_recv_timeout(*timeout);
+                } else {
+                    manager.send_setsockopt(*sock, opts)?;
+                }
+            }
+
+            SocketOptions::Tcp(opts) => {
+                let (sock, _) = callbacks
+                    .tcp_sockets
+                    .get(*self.socket)
+                    .ok_or(StackError::SocketNotFound)?;
+
+                match opts {
+                    #[cfg(feature = "ssl")]
+                    TcpSockOpts::Ssl(ssl_opts) => {
+                        match *ssl_opts {
+                            SslSockOpts::SetSni(_) => {
+                                manager.send_ssl_setsockopt(*sock, ssl_opts)?;
+                            }
+                            SslSockOpts::Config(cfg, en) => {
+                                if cfg == SslSockConfig::EnableSSL && en {
+                                    if (sock.get_ssl_cfg() & u8::from(cfg)) == cfg.into() {
+                                        return Ok(Some(()));
+                                    } else {
+                                        manager.send_ssl_sock_create(*sock)?;
+                                    }
+                                }
+                                // Set the SSL flags
+                                sock.set_ssl_cfg(cfg.into(), en);
+                            }
+                        }
+                    }
+                    TcpSockOpts::ReceiveTimeout(timeout) => {
+                        // Receive timeout are handled by winc stack not by module.
+                        sock.set_recv_timeout(*timeout);
+                    }
+                }
+            }
+        }
+        Ok(Some(()))
+    }
 }
 
 impl<'a> StationMode<'a> {
