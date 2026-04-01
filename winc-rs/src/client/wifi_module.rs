@@ -1,19 +1,16 @@
 use crate::errors::CommError as Error;
+use crate::net_ops::op::OpImpl;
 
 use embedded_nal::nb;
 
 use crate::manager::{
     AccessPoint, AuthType, BootMode, BootState, Credentials, FirmwareInfo, HostName, IPConf,
-    MacAddress, ProvisioningInfo, ScanResult, SocketOptions, Ssid, TcpSockOpts, UdpSockOpts,
-    WifiChannel,
+    MacAddress, ProvisioningInfo, ScanResult, SocketOptions, Ssid, WifiChannel,
 };
 
-use crate::net_ops::module::StationMode;
+use crate::net_ops::module::{SocketOptionOp, StationMode};
 
-#[cfg(feature = "ssl")]
-use crate::manager::{SslSockConfig, SslSockOpts};
-
-use crate::stack::{sock_holder::SocketStore, socket_callbacks::WifiModuleState};
+use crate::stack::socket_callbacks::WifiModuleState;
 
 use super::{Handle, PingResult, StackError, WincClient, Xfer};
 
@@ -464,58 +461,9 @@ impl<X: Xfer> WincClient<'_, X> {
         socket: &Handle,
         option: &SocketOptions,
     ) -> Result<(), StackError> {
-        match option {
-            SocketOptions::Udp(opts) => {
-                let (sock, _) = self
-                    .callbacks
-                    .udp_sockets
-                    .get(*socket)
-                    .ok_or(StackError::SocketNotFound)?;
-
-                if let UdpSockOpts::ReceiveTimeout(timeout) = opts {
-                    // Receive timeout are handled by winc stack not by module.
-                    sock.set_recv_timeout(*timeout);
-                } else {
-                    self.manager.send_setsockopt(*sock, opts)?;
-                }
-            }
-
-            SocketOptions::Tcp(opts) => {
-                let (sock, _) = self
-                    .callbacks
-                    .tcp_sockets
-                    .get(*socket)
-                    .ok_or(StackError::SocketNotFound)?;
-
-                match opts {
-                    #[cfg(feature = "ssl")]
-                    TcpSockOpts::Ssl(ssl_opts) => {
-                        match *ssl_opts {
-                            SslSockOpts::SetSni(_) => {
-                                self.manager.send_ssl_setsockopt(*sock, ssl_opts)?;
-                            }
-                            SslSockOpts::Config(cfg, en) => {
-                                if cfg == SslSockConfig::EnableSSL && en {
-                                    if (sock.get_ssl_cfg() & u8::from(cfg)) == cfg.into() {
-                                        return Ok(());
-                                    } else {
-                                        self.manager.send_ssl_sock_create(*sock)?;
-                                    }
-                                }
-                                // Set the SSL flags
-                                sock.set_ssl_cfg(cfg.into(), en);
-                            }
-                        }
-                    }
-                    TcpSockOpts::ReceiveTimeout(timeout) => {
-                        // Receive timeout are handled by winc stack not by module.
-                        sock.set_recv_timeout(*timeout);
-                    }
-                }
-            }
-        }
-
-        Ok(())
+        let mut opts = SocketOptionOp::new(socket, option);
+        opts.poll_impl(&mut self.manager, &mut self.callbacks)?
+            .ok_or(StackError::Unexpected)
     }
 
     /// Retrieves the MAC address from the WINC network interface.
@@ -543,6 +491,7 @@ mod tests {
     use crate::client::{test_shared::*, SocketCallbacks};
     use crate::errors::CommError as Error;
     use crate::manager::{Bssid, EventListener, PingError, Ssid, WifiConnError, WifiConnState};
+    use crate::stack::sock_holder::SocketStore;
     use crate::{ConnectionInfo, Credentials, S8Password, S8Username, WifiChannel, WpaKey};
     #[cfg(feature = "wep")]
     use crate::{WepKey, WepKeyIndex};
