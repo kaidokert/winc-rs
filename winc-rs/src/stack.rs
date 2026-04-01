@@ -7,26 +7,20 @@ pub mod stack_error;
 use crate::socket::Socket;
 use socket_callbacks::{ClientSocketOp, Handle};
 
-#[cfg(feature = "async")]
 use crate::manager::{Manager, SocketOptions, TcpSockOpts, UdpSockOpts};
-#[cfg(all(feature = "ssl", feature = "async"))]
+#[cfg(feature = "ssl")]
 use crate::manager::{SslSockConfig, SslSockOpts};
-#[cfg(feature = "async")]
 use crate::transfer::Xfer;
-#[cfg(feature = "async")]
 use sock_holder::SocketStore;
-#[cfg(feature = "async")]
 use socket_callbacks::SocketCallbacks;
 
 pub use stack_error::StackError;
 
-#[cfg(feature = "async")]
 pub(crate) struct Stack<'a, X: Xfer> {
     manager: &'a mut Manager<X>,
     callbacks: &'a mut SocketCallbacks,
 }
 
-#[cfg(feature = "async")]
 impl<'a, X: Xfer> Stack<'a, X> {
     pub(crate) fn new(manager: &'a mut Manager<X>, callbacks: &'a mut SocketCallbacks) -> Self {
         Self { manager, callbacks }
