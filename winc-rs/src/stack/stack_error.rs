@@ -56,6 +56,9 @@ pub enum StackError {
     #[cfg(feature = "async")]
     /// Too many concurrent async operations (waker array full)
     TooManyWakers,
+    /// If acquiring resources such as a manager or callback fails.
+    #[cfg(feature = "async")]
+    ResourceBusy,
 }
 
 impl From<core::convert::Infallible> for StackError {
@@ -141,6 +144,8 @@ impl core::fmt::Display for StackError {
             Self::OtaFail(err) => write!(f, "Ota failure: {:?}", err),
             #[cfg(feature = "async")]
             Self::TooManyWakers => write!(f, "Too many concurrent async operations"),
+            #[cfg(feature = "async")]
+            Self::ResourceBusy => write!(f, "Resources busy"),
         }
     }
 }
