@@ -1,5 +1,4 @@
 use crate::errors::CommError as Error;
-use crate::net_ops::op::OpImpl;
 
 use embedded_nal::nb;
 
@@ -8,7 +7,7 @@ use crate::manager::{
     MacAddress, ProvisioningInfo, ScanResult, SocketOptions, Ssid, WifiChannel,
 };
 
-use crate::net_ops::module::{SocketOptionOp, StationMode};
+use crate::net_ops::module::{NoPollOp, StationMode};
 
 use crate::stack::socket_callbacks::WifiModuleState;
 
@@ -178,7 +177,6 @@ impl<X: Xfer> WincClient<'_, X> {
     /// # Returns
     ///
     /// * `ScanResult` - The scan result for the access point.
-    ///
     pub fn get_scan_result(&mut self, index: u8) -> nb::Result<ScanResult, StackError> {
         match &mut self.callbacks.connection_state.scan_results {
             None => {
@@ -230,8 +228,6 @@ impl<X: Xfer> WincClient<'_, X> {
     /// # Returns
     ///
     /// * `ConnectionInfo` - The current connection info for the access point.
-    ///
-    ///
     pub fn get_connection_info(
         &mut self,
     ) -> nb::Result<crate::manager::ConnectionInfo, StackError> {
@@ -253,7 +249,10 @@ impl<X: Xfer> WincClient<'_, X> {
 
     /// Get the firmware version of the Wifi module
     pub fn get_firmware_version(&mut self) -> Result<FirmwareInfo, StackError> {
-        Ok(self.manager.get_firmware_ver_full()?)
+        let mut op = NoPollOp::get_firmware_version();
+        self.poll_op(&mut op)?;
+
+        op.retrieve_firmware_version()
     }
 
     /// Sends a ping request to the given IP address
@@ -391,15 +390,8 @@ impl<X: Xfer> WincClient<'_, X> {
     /// * `()` - If provisioning mode starts successfully.
     /// * `StackError` - If an error occurs while stopping provisioning mode.
     pub fn stop_provisioning_mode(&mut self) -> Result<(), StackError> {
-        if self.callbacks.state == WifiModuleState::Provisioning {
-            self.manager.send_stop_provisioning()?;
-        } else {
-            return Err(StackError::InvalidState);
-        }
-
-        // change the state to unconnected
-        self.callbacks.state = WifiModuleState::Unconnected;
-        Ok(())
+        let mut op = NoPollOp::stop_provisioning_mode();
+        self.poll_once(&mut op)
     }
 
     /// Enable the Access Point mode.
@@ -413,19 +405,8 @@ impl<X: Xfer> WincClient<'_, X> {
     /// * `()` - Access point mode is successfully enabled.
     /// * `StackError` - If an error occurs while enabling access point mode.
     pub fn enable_access_point(&mut self, ap: &AccessPoint) -> Result<(), StackError> {
-        if self.callbacks.state == WifiModuleState::Unconnected {
-            let auth: AuthType = ap.key.into();
-            if auth == AuthType::S802_1X {
-                error!("Enterprise Security is not supported in access point mode");
-                return Err(StackError::InvalidParameters);
-            }
-            self.manager.send_enable_access_point(ap)?;
-            self.callbacks.state = WifiModuleState::AccessPoint;
-        } else {
-            return Err(StackError::InvalidState);
-        }
-
-        Ok(())
+        let mut op = NoPollOp::enable_access_point(ap);
+        self.poll_once(&mut op)
     }
 
     /// Disable the Access Point mode.
@@ -435,14 +416,8 @@ impl<X: Xfer> WincClient<'_, X> {
     /// * `()` - Access point mode is successfully disabled.
     /// * `StackError` - If an error occurs while disabling access point mode.
     pub fn disable_access_point(&mut self) -> Result<(), StackError> {
-        if self.callbacks.state == WifiModuleState::AccessPoint {
-            self.manager.send_disable_access_point()?;
-            self.callbacks.state = WifiModuleState::Unconnected;
-        } else {
-            return Err(StackError::InvalidState);
-        }
-
-        Ok(())
+        let mut op = NoPollOp::disable_access_point();
+        self.poll_once(&mut op)
     }
 
     /// Sets the specified socket option on the given socket.
@@ -461,9 +436,8 @@ impl<X: Xfer> WincClient<'_, X> {
         socket: &Handle,
         option: &SocketOptions,
     ) -> Result<(), StackError> {
-        let mut opts = SocketOptionOp::new(socket, option);
-        opts.poll_impl(&mut self.manager, &mut self.callbacks)?
-            .ok_or(StackError::Unexpected)
+        let mut op = NoPollOp::set_socket_options(socket, option);
+        self.poll_once(&mut op)
     }
 
     /// Retrieves the MAC address from the WINC network interface.
@@ -476,10 +450,13 @@ impl<X: Xfer> WincClient<'_, X> {
         &mut self,
         #[cfg(test)] test_hook: bool,
     ) -> Result<MacAddress, StackError> {
-        Ok(self.manager.read_otp_mac_address(
+        let mut op = NoPollOp::get_winc_mac_address(
             #[cfg(test)]
             test_hook,
-        )?)
+        );
+        self.poll_once(&mut op)?;
+
+        op.retrieve_winc_mac_address()
     }
 }
 
