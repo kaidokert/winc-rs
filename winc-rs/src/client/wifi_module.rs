@@ -255,7 +255,7 @@ impl<X: Xfer> WincClient<'_, X> {
     /// * `Err(StackError)` - Returned if acquiring the firmware version fails.
     pub fn get_firmware_version(&mut self) -> Result<FirmwareInfo, StackError> {
         let mut op = SyncOp::get_firmware_version();
-        self.poll_op(&mut op)?;
+        self.poll_once(&mut op)?;
 
         op.retrieve_firmware_version()
     }

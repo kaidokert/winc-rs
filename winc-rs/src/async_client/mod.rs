@@ -383,7 +383,7 @@ mod tests {
                 _manager: &mut crate::manager::Manager<X>,
                 _callbacks: &mut crate::stack::socket_callbacks::SocketCallbacks,
             ) -> Result<Option<Self::Output>, Self::Error> {
-                return Ok(None);
+                Ok(None)
             }
         }
 

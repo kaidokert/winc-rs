@@ -263,18 +263,10 @@ impl<'a> SyncOp<'a> {
     ///
     /// # Returns
     ///
-    /// * `Ok(FirmwareInfo)` - WINC MAC address if available.
+    /// * `Ok(MacAddress)` - WINC MAC address if available.
     /// * `Err(StackError)` - If the MAC address request has not been made or if it failed.
     pub(crate) fn retrieve_winc_mac_address(&mut self) -> Result<MacAddress, StackError> {
-        if let SyncOpType::GetWincMacAddress {
-            #[cfg(test)]
-            test_hook,
-            ref mut mac,
-        } = self.op
-        {
-            #[cfg(test)]
-            let _ = test_hook; // eliminate unused variable warning.
-
+        if let SyncOpType::GetWincMacAddress { ref mut mac, .. } = self.op {
             if let Some(mac) = mac.take() {
                 return Ok(mac);
             }
@@ -481,7 +473,7 @@ impl<'a, X: Xfer> OpImpl<X> for SyncOp<'a> {
         match self.op {
             SyncOpType::GetFirmwareVersion { ref mut info } => {
                 if info.is_some() {
-                    return Err(StackError::InvalidParameters);
+                    return Err(StackError::InvalidState);
                 }
 
                 info.replace(manager.get_firmware_ver_full()?);
@@ -527,7 +519,7 @@ impl<'a, X: Xfer> OpImpl<X> for SyncOp<'a> {
                 ref mut mac,
             } => {
                 if mac.is_some() {
-                    return Err(StackError::InvalidParameters);
+                    return Err(StackError::InvalidState);
                 }
 
                 mac.replace(manager.read_otp_mac_address(
