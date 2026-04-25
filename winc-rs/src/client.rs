@@ -139,6 +139,30 @@ impl<X: Xfer> WincClient<'_, X> {
             elapsed += self.poll_loop_delay_us;
         }
     }
+
+    /// Polls the provided operation once.
+    ///
+    /// # Arguments
+    ///
+    /// * `op` - The operation to be polled.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(O::Output)` - Operation completed successfully.
+    /// * `Err(StackError::ContinueOperation)` - Operation is still in progress.
+    /// * `Err(StackError)` - Operation failed.
+    fn poll_once<O: crate::net_ops::op::OpImpl<X, Error = StackError>>(
+        &mut self,
+        op: &mut O,
+    ) -> Result<O::Output, StackError> {
+        let result = op.poll_impl(&mut self.manager, &mut self.callbacks);
+
+        match result {
+            Ok(Some(result)) => Ok(result),
+            Ok(None) => Err(StackError::ContinueOperation),
+            Err(e) => Err(e),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -192,4 +216,29 @@ mod tests {
 
     #[test]
     fn test_winc_client() {}
+
+    #[test]
+    fn test_poll_once_cont_op() {
+        #[derive(Default)]
+        struct Test;
+
+        impl<X: super::Xfer> crate::net_ops::op::OpImpl<X> for Test {
+            type Error = crate::StackError;
+            type Output = ();
+
+            fn poll_impl(
+                &mut self,
+                _manager: &mut crate::manager::Manager<X>,
+                _callbacks: &mut crate::stack::socket_callbacks::SocketCallbacks,
+            ) -> Result<Option<Self::Output>, Self::Error> {
+                Ok(None)
+            }
+        }
+
+        let mut test = Test::default();
+        let mut client = super::test_shared::make_test_client();
+        let result = client.poll_once(&mut test);
+
+        assert_eq!(result, Err(crate::StackError::ContinueOperation));
+    }
 }

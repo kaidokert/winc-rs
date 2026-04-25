@@ -70,6 +70,34 @@ impl<X: Xfer> AsyncClient<'_, X> {
             .dispatch_events_new(callbacks.deref_mut())
             .map_err(StackError::DispatchError)
     }
+
+    /// Polls the provided operation once.
+    ///
+    /// # Arguments
+    ///
+    /// * `op` - The operation to be polled.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(O::Output)` - Operation completed successfully.
+    /// * `Err(StackError::ContinueOperation)` - Operation is still in progress.
+    /// * `Err(StackError)` - Operation failed.
+    fn poll_once<O: OpImpl<X, Error = StackError>>(
+        &self,
+        op: &mut O,
+    ) -> Result<O::Output, StackError> {
+        let result = {
+            let mut manager = self.manager.borrow_mut();
+            let mut callbacks = self.callbacks.borrow_mut();
+            op.poll_impl(&mut manager, &mut callbacks)
+        };
+        match result {
+            Ok(Some(result)) => Ok(result),
+            Ok(None) => Err(StackError::ContinueOperation),
+            Err(e) => Err(e),
+        }
+    }
+
     pub fn heartbeat(&self) -> Result<(), StackError> {
         self.dispatch_events()?;
         Ok(())
@@ -339,5 +367,30 @@ mod tests {
         let client = AsyncClient::new(MockTransfer::default());
         client.set_unit_test_mode();
         client
+    }
+
+    #[test]
+    fn test_async_poll_once_cont_op() {
+        #[derive(Default)]
+        struct Test;
+
+        impl<X: Xfer> OpImpl<X> for Test {
+            type Error = StackError;
+            type Output = ();
+
+            fn poll_impl(
+                &mut self,
+                _manager: &mut crate::manager::Manager<X>,
+                _callbacks: &mut crate::stack::socket_callbacks::SocketCallbacks,
+            ) -> Result<Option<Self::Output>, Self::Error> {
+                Ok(None)
+            }
+        }
+
+        let mut test = Test::default();
+        let client = make_test_client();
+        let result = client.poll_once(&mut test);
+
+        assert_eq!(result, Err(StackError::ContinueOperation));
     }
 }
