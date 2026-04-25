@@ -19,8 +19,8 @@ use crate::manager::BootMode;
 // 1 minute max, if no other delays are added
 const AP_CONNECT_TIMEOUT_MILLISECONDS: u32 = 60_000;
 
-/// Non-blocking operations type.
-enum NoPollOpType<'a> {
+/// Synchronous operations type.
+enum SyncOpType<'a> {
     GetFirmwareVersion {
         info: Option<FirmwareInfo>,
     },
@@ -40,15 +40,15 @@ enum NoPollOpType<'a> {
     },
 }
 
-/// Container for managing non-blocking operations.
+/// Container for managing synchronous operations.
 ///
-/// This wrapper restricts how the fields of `NoPollOpType` can be
+/// This wrapper restricts how the fields of `SyncOpType` can be
 /// mutably accessed when implementing the `OpImpl` trait. By avoiding
 /// direct use of the enum, it prevents unintended mutable access to
 /// all fields, allowing mutation only where explicitly required.
-pub(crate) struct NoPollOp<'a> {
-    /// The non-blocking operation being managed.
-    op: NoPollOpType<'a>,
+pub(crate) struct SyncOp<'a> {
+    /// The synchronous operation being managed.
+    op: SyncOpType<'a>,
 }
 
 /// Structure to hold configuration for station mode.
@@ -60,8 +60,8 @@ pub(crate) struct StationMode<'a> {
     use_defaults: bool,
 }
 
-/// Constructors and helpers for non-blocking operations.
-impl<'a> NoPollOp<'a> {
+/// Constructors and helpers for synchronous operations.
+impl<'a> SyncOp<'a> {
     /// Sets UDP socket options on the given socket.
     ///
     /// # Arguments
@@ -186,7 +186,7 @@ impl<'a> NoPollOp<'a> {
         }
     }
 
-    /// Creates a non-blocking request to set socket options.
+    /// Creates a synchronous request to set socket options.
     ///
     /// # Arguments
     ///
@@ -195,47 +195,47 @@ impl<'a> NoPollOp<'a> {
     #[inline]
     pub(crate) fn set_socket_options(socket: &'a Handle, sock_opts: &'a SocketOptions) -> Self {
         Self {
-            op: NoPollOpType::SetSocketOption { socket, sock_opts },
+            op: SyncOpType::SetSocketOption { socket, sock_opts },
         }
     }
 
-    /// Creates a non-blocking request to get WINC firmware version.
+    /// Creates a synchronous request to get WINC firmware version.
     #[inline]
     pub(crate) fn get_firmware_version() -> Self {
         Self {
-            op: NoPollOpType::GetFirmwareVersion { info: None },
+            op: SyncOpType::GetFirmwareVersion { info: None },
         }
     }
 
-    /// Creates a non-blocking request to stop the provisioning mode.
+    /// Creates a synchronous request to stop the provisioning mode.
     #[inline]
     pub(crate) fn stop_provisioning_mode() -> Self {
         Self {
-            op: NoPollOpType::StopProvisioningMode,
+            op: SyncOpType::StopProvisioningMode,
         }
     }
 
-    /// Creates a non-blocking request to enable the access point.
+    /// Creates a synchronous request to enable the access point.
     #[inline]
     pub(crate) fn enable_access_point(ap: &'a AccessPoint) -> Self {
         Self {
-            op: NoPollOpType::EnableAccessPoint { ap },
+            op: SyncOpType::EnableAccessPoint { ap },
         }
     }
 
-    /// Creates a non-blocking request to disable the access point.
+    /// Creates a synchronous request to disable the access point.
     #[inline]
     pub(crate) fn disable_access_point() -> Self {
         Self {
-            op: NoPollOpType::DisableAccessPoint,
+            op: SyncOpType::DisableAccessPoint,
         }
     }
 
-    /// Creates a non-blocking request to request mac address of WINC.
+    /// Creates a synchronous request to request mac address of WINC.
     #[inline]
     pub(crate) fn get_winc_mac_address(#[cfg(test)] test_hook: bool) -> Self {
         Self {
-            op: NoPollOpType::GetWincMacAddress {
+            op: SyncOpType::GetWincMacAddress {
                 #[cfg(test)]
                 test_hook,
                 mac: None,
@@ -250,7 +250,7 @@ impl<'a> NoPollOp<'a> {
     /// * `Ok(FirmwareInfo)` - WINC firmware version if available.
     /// * `Err(StackError)` - If the firmware version request has not been made or if it failed.
     pub(crate) fn retrieve_firmware_version(&mut self) -> Result<FirmwareInfo, StackError> {
-        if let NoPollOpType::GetFirmwareVersion { ref mut info } = self.op {
+        if let SyncOpType::GetFirmwareVersion { ref mut info } = self.op {
             if let Some(info) = info.take() {
                 return Ok(info);
             }
@@ -266,7 +266,7 @@ impl<'a> NoPollOp<'a> {
     /// * `Ok(FirmwareInfo)` - WINC MAC address if available.
     /// * `Err(StackError)` - If the MAC address request has not been made or if it failed.
     pub(crate) fn retrieve_winc_mac_address(&mut self) -> Result<MacAddress, StackError> {
-        if let NoPollOpType::GetWincMacAddress {
+        if let SyncOpType::GetWincMacAddress {
             #[cfg(test)]
             test_hook,
             ref mut mac,
@@ -455,13 +455,13 @@ impl<X: Xfer> OpImpl<X> for BootState {
     }
 }
 
-/// Manages the non blocking operation.
-impl<'a, X: Xfer> OpImpl<X> for NoPollOp<'a> {
+/// Manages the synchronous operation.
+impl<'a, X: Xfer> OpImpl<X> for SyncOp<'a> {
     type Output = ();
     type Error = StackError;
 
     /// Polls the state machine once and manages to requested
-    /// non-blocking operation.
+    /// synchronous operation.
     ///
     /// # Arguments
     ///
@@ -478,9 +478,8 @@ impl<'a, X: Xfer> OpImpl<X> for NoPollOp<'a> {
         manager: &mut Manager<X>,
         callbacks: &mut SocketCallbacks,
     ) -> Result<Option<Self::Output>, Self::Error> {
-        // Mutable fields
         match self.op {
-            NoPollOpType::GetFirmwareVersion { ref mut info } => {
+            SyncOpType::GetFirmwareVersion { ref mut info } => {
                 if info.is_some() {
                     return Err(StackError::InvalidParameters);
                 }
@@ -488,7 +487,7 @@ impl<'a, X: Xfer> OpImpl<X> for NoPollOp<'a> {
                 info.replace(manager.get_firmware_ver_full()?);
             }
 
-            NoPollOpType::StopProvisioningMode => {
+            SyncOpType::StopProvisioningMode => {
                 if callbacks.state == WifiModuleState::Provisioning {
                     manager.send_stop_provisioning()?;
                 } else {
@@ -498,7 +497,7 @@ impl<'a, X: Xfer> OpImpl<X> for NoPollOp<'a> {
                 // change the state to unconnected
                 callbacks.state = WifiModuleState::Unconnected;
             }
-            NoPollOpType::EnableAccessPoint { ap } => {
+            SyncOpType::EnableAccessPoint { ap } => {
                 if callbacks.state == WifiModuleState::Unconnected {
                     let auth: AuthType = ap.key.into();
                     if auth == AuthType::S802_1X {
@@ -511,7 +510,7 @@ impl<'a, X: Xfer> OpImpl<X> for NoPollOp<'a> {
                     return Err(StackError::InvalidState);
                 }
             }
-            NoPollOpType::DisableAccessPoint => {
+            SyncOpType::DisableAccessPoint => {
                 if callbacks.state == WifiModuleState::AccessPoint {
                     manager.send_disable_access_point()?;
                     callbacks.state = WifiModuleState::Unconnected;
@@ -519,10 +518,10 @@ impl<'a, X: Xfer> OpImpl<X> for NoPollOp<'a> {
                     return Err(StackError::InvalidState);
                 }
             }
-            NoPollOpType::SetSocketOption { socket, sock_opts } => {
+            SyncOpType::SetSocketOption { socket, sock_opts } => {
                 self.set_socket_options_impl(manager, callbacks, socket, sock_opts)?;
             }
-            NoPollOpType::GetWincMacAddress {
+            SyncOpType::GetWincMacAddress {
                 #[cfg(test)]
                 test_hook,
                 ref mut mac,
@@ -548,7 +547,7 @@ mod test {
 
     #[test]
     fn test_async_retrieve_winc_fw_ver() {
-        let mut op = NoPollOp::get_firmware_version();
+        let mut op = SyncOp::get_firmware_version();
         let result = op.retrieve_firmware_version();
 
         assert!(result.is_err());
@@ -557,7 +556,7 @@ mod test {
 
     #[test]
     fn test_async_retrieve_winc_mac_addr() {
-        let mut op = NoPollOp::get_winc_mac_address(false);
+        let mut op = SyncOp::get_winc_mac_address(false);
         let result = op.retrieve_winc_mac_address();
 
         assert!(result.is_err());

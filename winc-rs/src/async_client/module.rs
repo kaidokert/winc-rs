@@ -1,8 +1,9 @@
 use super::{AsyncClient, Handle, StackError};
 use crate::manager::{
-    AccessPoint, BootMode, BootState, Credentials, MacAddress, SocketOptions, Ssid, WifiChannel,
+    AccessPoint, BootMode, BootState, Credentials, FirmwareInfo, MacAddress, SocketOptions, Ssid,
+    WifiChannel,
 };
-use crate::net_ops::module::{NoPollOp, StationMode};
+use crate::net_ops::module::{StationMode, SyncOp};
 use crate::transfer::Xfer;
 
 impl<X: Xfer> AsyncClient<'_, X> {
@@ -88,7 +89,7 @@ impl<X: Xfer> AsyncClient<'_, X> {
         socket: &Handle,
         option: &SocketOptions,
     ) -> Result<(), StackError> {
-        let mut op = NoPollOp::set_socket_options(socket, option);
+        let mut op = SyncOp::set_socket_options(socket, option);
         self.poll_once(&mut op)
     }
 
@@ -99,7 +100,7 @@ impl<X: Xfer> AsyncClient<'_, X> {
     /// * `()` - If provisioning mode starts successfully.
     /// * `StackError` - If an error occurs while stopping provisioning mode.
     pub fn stop_provisioning_mode(&mut self) -> Result<(), StackError> {
-        let mut op = NoPollOp::stop_provisioning_mode();
+        let mut op = SyncOp::stop_provisioning_mode();
         self.poll_once(&mut op)
     }
 
@@ -114,7 +115,7 @@ impl<X: Xfer> AsyncClient<'_, X> {
     /// * `()` - Access point mode is successfully enabled.
     /// * `StackError` - If an error occurs while enabling access point mode.
     pub fn enable_access_point(&mut self, ap: &AccessPoint) -> Result<(), StackError> {
-        let mut op = NoPollOp::enable_access_point(ap);
+        let mut op = SyncOp::enable_access_point(ap);
         self.poll_once(&mut op)
     }
 
@@ -125,7 +126,7 @@ impl<X: Xfer> AsyncClient<'_, X> {
     /// * `()` - Access point mode is successfully disabled.
     /// * `StackError` - If an error occurs while disabling access point mode.
     pub fn disable_access_point(&mut self) -> Result<(), StackError> {
-        let mut op = NoPollOp::disable_access_point();
+        let mut op = SyncOp::disable_access_point();
         self.poll_once(&mut op)
     }
 
@@ -139,13 +140,26 @@ impl<X: Xfer> AsyncClient<'_, X> {
         &mut self,
         #[cfg(test)] test_hook: bool,
     ) -> Result<MacAddress, StackError> {
-        let mut op = NoPollOp::get_winc_mac_address(
+        let mut op = SyncOp::get_winc_mac_address(
             #[cfg(test)]
             test_hook,
         );
         self.poll_once(&mut op)?;
 
         op.retrieve_winc_mac_address()
+    }
+
+    /// Retrieves the firmware version of the WiFi module.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(FirmwareInfo)` - The firmware version of the WINC module.
+    /// * `Err(StackError)` - Returned if acquiring the firmware version fails.
+    pub fn get_firmware_version(&mut self) -> Result<FirmwareInfo, StackError> {
+        let mut op = SyncOp::get_firmware_version();
+        self.poll_once(&mut op)?;
+
+        op.retrieve_firmware_version()
     }
 }
 
@@ -539,5 +553,13 @@ mod tests {
             mac.err(),
             Some(StackError::WincWifiFail(Error::BufferReadError))
         );
+    }
+
+    #[test]
+    fn test_async_get_firmware_version_ok() {
+        let mut client = make_test_client();
+        client.callbacks.borrow_mut().state = WifiModuleState::Unconnected;
+        let result = client.get_firmware_version();
+        assert_eq!(result.unwrap().chip_id, 0);
     }
 }
