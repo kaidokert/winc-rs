@@ -44,7 +44,8 @@ impl<CS: AnyPin, Spi: SpiBus> SpiStream<CS, Spi> {
 
             let result = self.spi.transfer_in_place(buf);
             cortex_m::asm::delay(self.wait_cycles);
-            if end {
+
+            if end || result.is_err() {
                 pin.set_high().ok();
             }
 

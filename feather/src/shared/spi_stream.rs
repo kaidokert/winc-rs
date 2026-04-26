@@ -61,7 +61,8 @@ impl<CS: OutputPin, Spi: SpiBus> SpiStream<CS, Spi> {
 
             let result = self.spi.transfer_in_place(buf);
             cortex_m::asm::delay(self.wait_cycles);
-            if end {
+
+            if end || result.is_err() {
                 // Pin errors are Infallible, safe to discard
                 OutputPin::set_high(&mut cs).ok();
             }
