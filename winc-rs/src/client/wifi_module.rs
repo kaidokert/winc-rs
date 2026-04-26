@@ -1,5 +1,3 @@
-use crate::errors::CommError as Error;
-
 use embedded_nal::nb;
 
 use crate::manager::{
@@ -7,7 +5,7 @@ use crate::manager::{
     MacAddress, ProvisioningInfo, ScanResult, SocketOptions, Ssid, WifiChannel,
 };
 
-use crate::net_ops::module::{StationMode, SyncOp};
+use crate::net_ops::module::{ProvisioningMode, StationMode, SyncOp};
 
 use crate::stack::socket_callbacks::WifiModuleState;
 
@@ -17,11 +15,6 @@ use crate::{error, info};
 
 // 5 seconds max, assuming no additional delays
 const AP_DISCONNECT_TIMEOUT_MILLISECONDS: u32 = 5_000;
-// Timeout for Provisioning
-#[cfg(not(test))]
-const PROVISIONING_TIMEOUT: u32 = 60 * 1000;
-#[cfg(test)]
-const PROVISIONING_TIMEOUT: u32 = 1000;
 
 impl<X: Xfer> WincClient<'_, X> {
     /// Call this periodically to receive network events
@@ -324,7 +317,8 @@ impl<X: Xfer> WincClient<'_, X> {
         }
     }
 
-    /// Starts the provisioning mode. This command is only applicable when the chip is in station mode.
+    /// Starts the provisioning mode. This command is only applicable when the chip is
+    /// in station mode or unconnected.
     ///
     /// # Arguments
     ///
@@ -337,55 +331,15 @@ impl<X: Xfer> WincClient<'_, X> {
     ///
     /// * `ProvisioningInfo` - Wifi Credentials received from provisioning.
     /// * `StackError` - If an error occurs while starting provisioning mode or receiving provisioning information.
-    pub fn provisioning_mode(
+    pub fn start_provisioning_mode(
         &mut self,
         ap: &AccessPoint,
         hostname: &HostName,
         http_redirect: bool,
         timeout: u32,
     ) -> nb::Result<ProvisioningInfo, StackError> {
-        match &mut self.callbacks.state {
-            WifiModuleState::Unconnected | WifiModuleState::ConnectedToAp => {
-                let auth = <Credentials as Into<AuthType>>::into(ap.key);
-
-                if auth == AuthType::S802_1X {
-                    error!("Enterprise Security in provisioning mode is not supported");
-                    return Err(nb::Error::Other(StackError::InvalidParameters));
-                }
-
-                self.manager
-                    .send_start_provisioning(ap, hostname, http_redirect)?;
-
-                self.callbacks.state = WifiModuleState::Provisioning;
-                self.callbacks.provisioning_info = None;
-            }
-            WifiModuleState::Provisioning => match &mut self.callbacks.provisioning_info {
-                None => {
-                    self.operation_countdown = timeout * PROVISIONING_TIMEOUT;
-                    self.callbacks.provisioning_info = Some(None);
-                }
-                Some(result) => {
-                    if let Some(info) = result.take() {
-                        if info.status {
-                            return Ok(info);
-                        }
-                        return Err(nb::Error::Other(StackError::WincWifiFail(Error::Failed)));
-                    } else {
-                        self.delay_us(self.poll_loop_delay_us);
-                        self.operation_countdown -= 1;
-                        if self.operation_countdown == 0 {
-                            return Err(nb::Error::Other(StackError::GeneralTimeout));
-                        }
-                    }
-                }
-            },
-            _ => {
-                return Err(nb::Error::Other(StackError::InvalidState));
-            }
-        }
-
-        self.dispatch_events_may_wait()?;
-        Err(nb::Error::WouldBlock)
+        let mut op = ProvisioningMode::new(ap, hostname, http_redirect, timeout);
+        self.poll_op(&mut op)
     }
 
     /// Stops provisioning mode. This command is only applicable when the chip is in provisioning mode.
@@ -723,7 +677,7 @@ mod tests {
         // set the module state to unconnected.
         client.callbacks.state = WifiModuleState::Unconnected;
 
-        let result = nb::block!(client.provisioning_mode(&ap, &hostname, false, 1));
+        let result = nb::block!(client.start_provisioning_mode(&ap, &hostname, false, 1));
 
         assert!(result.is_ok());
         if let Ok(info) = result {
@@ -759,7 +713,7 @@ mod tests {
         // set the module state to unconnected.
         client.callbacks.state = WifiModuleState::Unconnected;
 
-        let result = nb::block!(client.provisioning_mode(&ap, &hostname, false, 1));
+        let result = nb::block!(client.start_provisioning_mode(&ap, &hostname, false, 1));
 
         assert!(result.is_ok());
         if let Ok(info) = result {
@@ -800,7 +754,7 @@ mod tests {
         // set the module state to unconnected.
         client.callbacks.state = WifiModuleState::Unconnected;
 
-        let result = nb::block!(client.provisioning_mode(&ap, &hostname, false, 1));
+        let result = nb::block!(client.start_provisioning_mode(&ap, &hostname, false, 1));
 
         assert!(result.is_ok());
         if let Ok(info) = result {
@@ -839,7 +793,7 @@ mod tests {
         // set the module state to unconnected.
         client.callbacks.state = WifiModuleState::Unconnected;
 
-        let result = nb::block!(client.provisioning_mode(&ap, &hostname, false, 1));
+        let result = nb::block!(client.start_provisioning_mode(&ap, &hostname, false, 1));
 
         assert!(result.is_err());
         if let Err(error) = result {
@@ -863,7 +817,7 @@ mod tests {
         // set the module state to unconnected.
         client.callbacks.state = WifiModuleState::ConnectingToAp;
 
-        let result = nb::block!(client.provisioning_mode(&ap, &hostname, false, 1));
+        let result = nb::block!(client.start_provisioning_mode(&ap, &hostname, false, 1));
 
         assert!(result.is_err());
         if let Err(err) = result {
@@ -887,7 +841,7 @@ mod tests {
         // set the module state to unconnected.
         client.callbacks.state = WifiModuleState::Unconnected;
 
-        let result = nb::block!(client.provisioning_mode(&ap, &hostname, false, 1500)); // Time is in milliseconds
+        let result = nb::block!(client.start_provisioning_mode(&ap, &hostname, false, 1500));
 
         assert!(result.is_err());
         if let Err(err) = result {
@@ -921,7 +875,7 @@ mod tests {
         // set the module state to unconnected.
         client.callbacks.state = WifiModuleState::Unconnected;
 
-        let result = nb::block!(client.provisioning_mode(&ap, &hostname, false, 1));
+        let result = nb::block!(client.start_provisioning_mode(&ap, &hostname, false, 1));
 
         assert!(result.is_err());
         if let Err(error) = result {
