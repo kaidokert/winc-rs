@@ -41,13 +41,19 @@ impl<CS: AnyPin, Spi: SpiBus> SpiStream<CS, Spi> {
                 pin.set_low().ok();
                 cortex_m::asm::delay(self.wait_cycles);
             }
-            self.spi.transfer_in_place(buf)?;
+
+            let result = self.spi.transfer_in_place(buf);
             cortex_m::asm::delay(self.wait_cycles);
-            if end {
+
+            if end || result.is_err() {
                 pin.set_high().ok();
             }
 
+            // Restore CS before returning
             self.cs.get_or_insert(pin.into_mode().into());
+            // propagate error after restoring CS
+            result?;
+
             trace!("recv: {=[u8]:#x}", buf);
         }
         Ok(())

@@ -58,18 +58,20 @@ impl<CS: OutputPin, Spi: SpiBus> SpiStream<CS, Spi> {
                 OutputPin::set_low(&mut cs).ok();
                 cortex_m::asm::delay(self.wait_cycles);
             }
+
             let result = self.spi.transfer_in_place(buf);
-            if let Err(e) = result {
-                self.cs.get_or_insert(cs);
-                return Err(e);
-            }
             cortex_m::asm::delay(self.wait_cycles);
-            if end {
+
+            if end || result.is_err() {
                 // Pin errors are Infallible, safe to discard
                 OutputPin::set_high(&mut cs).ok();
             }
 
+            // Restore CS before returning
             self.cs.get_or_insert(cs);
+            // propagate error after restoring CS
+            result?;
+
             #[cfg(feature = "defmt")]
             defmt::trace!("recv: {=[u8]:#x}", buf);
         }
