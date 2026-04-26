@@ -54,7 +54,7 @@ fn program() -> Result<(), StackError> {
             "Starting Provisioning Mode for {} minutes",
             DEFAULT_PROVISIONING_TIMEOUT_IN_MINS
         );
-        let result = nb::block!(stack.provisioning_mode(
+        let result = nb::block!(stack.start_provisioning_mode(
             &access_point,
             &hostname,
             true,
@@ -77,7 +77,8 @@ fn program() -> Result<(), StackError> {
             Err(err) => {
                 if err == StackError::GeneralTimeout {
                     error!(
-                        "No information was received for 15 minutes. Stopping provisioning mode."
+                        "No information was received for {} minutes. Stopping provisioning mode.",
+                        DEFAULT_PROVISIONING_TIMEOUT_IN_MINS
                     );
                     stack.stop_provisioning_mode()?;
                 } else {
