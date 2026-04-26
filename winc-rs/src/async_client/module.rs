@@ -112,6 +112,9 @@ mod tests {
     use macro_rules_attribute::apply;
     use smol_macros::test;
 
+    #[cfg(feature = "wep")]
+    use crate::{WepKey, WepKeyIndex};
+
     #[apply(test!)]
     async fn test_async_connect_to_saved_ap_invalid_state() {
         let mut client = make_test_client();
