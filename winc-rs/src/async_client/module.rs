@@ -202,6 +202,9 @@ mod tests {
     #[cfg(feature = "ssl")]
     use crate::manager::SslSockConfig;
 
+    #[cfg(feature = "wep")]
+    use crate::{WepKey, WepKeyIndex};
+
     #[apply(test!)]
     async fn test_async_connect_to_saved_ap_invalid_state() {
         let mut client = make_test_client();
@@ -354,7 +357,7 @@ mod tests {
 
         assert_eq!(result.err(), Some(StackError::InvalidParameters));
     }
-    
+
     #[apply(test!)]
     async fn test_async_provisioning_mode_open_success() {
         // ssid for access point configuration.
@@ -497,9 +500,26 @@ mod tests {
             ssid_hidden: false,
             ip: Ipv4Addr::new(192, 168, 1, 1),
         };
-        let result = client.enable_access_point(&ap);
 
-        assert_eq!(result.err(), Some(StackError::InvalidParameters));
+        // hostname for access point.
+        let hostname = HostName::from("admin").unwrap();
+
+        let result = {
+            // test client
+            let mut client = make_test_client();
+            // set the module state to unconnected.
+            client.callbacks.borrow_mut().state = WifiModuleState::Unconnected;
+            client
+                .start_provisioning_mode(&ap, &hostname, false, 1)
+                .await
+        };
+
+        assert!(result.is_err());
+        if let Err(error) = result {
+            assert_eq!(error, StackError::InvalidParameters);
+        } else {
+            assert!(false);
+        }
     }
 
     #[test]
@@ -732,26 +752,6 @@ mod tests {
         client.callbacks.borrow_mut().state = WifiModuleState::Unconnected;
         let result = client.get_firmware_version();
         assert_eq!(result.unwrap().chip_id, 0);
-
-        // hostname for access point.
-        let hostname = HostName::from("admin").unwrap();
-
-        let result = {
-            // test client
-            let mut client = make_test_client();
-            // set the module state to unconnected.
-            client.callbacks.borrow_mut().state = WifiModuleState::Unconnected;
-            client
-                .start_provisioning_mode(&ap, &hostname, false, 1)
-                .await
-        };
-
-        assert!(result.is_err());
-        if let Err(error) = result {
-            assert_eq!(error, StackError::InvalidParameters);
-        } else {
-            assert!(false);
-        }
     }
 
     #[apply(test!)]

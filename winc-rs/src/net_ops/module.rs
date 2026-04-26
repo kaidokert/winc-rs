@@ -603,7 +603,8 @@ impl<'a, X: Xfer> OpImpl<X> for ProvisioningMode<'a> {
             }
             WifiModuleState::Provisioning => match &mut callbacks.provisioning_info {
                 None => {
-                    manager.set_operation_timeout(self.timeout * PROVISIONING_TIMEOUT);
+                    manager
+                        .set_operation_timeout(self.timeout.saturating_mul(PROVISIONING_TIMEOUT));
                     callbacks.provisioning_info = Some(None);
                 }
                 Some(result) => {
@@ -611,6 +612,7 @@ impl<'a, X: Xfer> OpImpl<X> for ProvisioningMode<'a> {
                         if info.status {
                             return Ok(Some(info));
                         }
+                        callbacks.provisioning_info = Some(None);
                         return Err(StackError::WincWifiFail(Error::Failed));
                     } else {
                         let mut timeout = manager.get_operation_timeout();
