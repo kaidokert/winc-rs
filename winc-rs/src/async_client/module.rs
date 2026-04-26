@@ -176,7 +176,7 @@ impl<X: Xfer> AsyncClient<'_, X> {
     pub async fn start_provisioning_mode<'a>(
         &mut self,
         ap: &'a AccessPoint<'a>,
-        hostname: &HostName,
+        hostname: &'a HostName,
         http_redirect: bool,
         timeout: u32,
     ) -> Result<ProvisioningInfo, StackError> {

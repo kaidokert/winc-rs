@@ -345,7 +345,7 @@ impl<'a> ProvisioningMode<'a> {
     /// * `http_redirect` - Whether HTTP redirection is enabled.
     /// * `timeout` - The timeout duration for provisioning, in minutes.
     pub fn new(
-        ap: &'a AccessPoint,
+        ap: &'a AccessPoint<'a>,
         hostname: &'a HostName,
         http_redirect: bool,
         timeout: u32,
