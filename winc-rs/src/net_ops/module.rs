@@ -612,7 +612,7 @@ impl<'a, X: Xfer> OpImpl<X> for ProvisioningMode<'a> {
                         if info.status {
                             return Ok(Some(info));
                         }
-                        callbacks.provisioning_info = Some(None);
+                        callbacks.provisioning_info = None;
                         return Err(StackError::WincWifiFail(Error::Failed));
                     } else {
                         let mut timeout = manager.get_operation_timeout();
