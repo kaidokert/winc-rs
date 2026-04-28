@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1774210997167,
+  "lastUpdate": 1777359598259,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -5631,6 +5631,40 @@ window.BENCHMARK_DATA = {
           {
             "name": "iperf3_client",
             "value": 51076,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "142439476+umarbinzahid@users.noreply.github.com",
+            "name": "Umar Bin Zahid",
+            "username": "umarbinzahid"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "cbbe0352ea08dd9da495bd7838d6193f6457503e",
+          "message": "Reduce clock speed of SPI for sync examples (#145)\n\n* Reduce the speed of spi for sync examples.\n\n* Restores CS high if transfer fails.",
+          "timestamp": "2026-04-28T13:58:46+07:00",
+          "tree_id": "cb55b5a016c85b2dcfedf395eea3830fb4768c33",
+          "url": "https://github.com/kaidokert/winc-rs/commit/cbbe0352ea08dd9da495bd7838d6193f6457503e"
+        },
+        "date": 1777359597304,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 37136,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 50664,
             "unit": "byte"
           }
         ]
