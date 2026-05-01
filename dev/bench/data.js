@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1777359598259,
+  "lastUpdate": 1777646003145,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -5655,6 +5655,40 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/kaidokert/winc-rs/commit/cbbe0352ea08dd9da495bd7838d6193f6457503e"
         },
         "date": 1777359597304,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 37136,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 50664,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "142439476+umarbinzahid@users.noreply.github.com",
+            "name": "Umar Bin Zahid",
+            "username": "umarbinzahid"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "9fe5edba4baf36564cc2bfa9f4bff1b06377b497",
+          "message": "Support non-blocking features using a shared codebase for sync and async clients (#143)\n\n* Added opimpl trait for socket options\n\n* Added changes in async client\n\n* Added support for non-blocking operations.\n\n* Renamed variables and added function to get firmware version in async client.\n\n* Addressed AI comments.",
+          "timestamp": "2026-05-01T07:32:24-07:00",
+          "tree_id": "412a5b745691b2ad4ac2bfd940c92ca438ed6ab8",
+          "url": "https://github.com/kaidokert/winc-rs/commit/9fe5edba4baf36564cc2bfa9f4bff1b06377b497"
+        },
+        "date": 1777646002778,
         "tool": "customSmallerIsBetter",
         "benches": [
           {
