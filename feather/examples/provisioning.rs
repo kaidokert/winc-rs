@@ -49,19 +49,19 @@ fn program() -> Result<(), StackError> {
         }
         // Configure the access point with WPA/WPA2 security using the provided SSID and password.
         let access_point = AccessPoint::wpa(&ap_ssid, &ap_password);
-        // Start the provising mode.
+        // Start the provisioning mode.
         info!(
             "Starting Provisioning Mode for {} minutes",
             DEFAULT_PROVISIONING_TIMEOUT_IN_MINS
         );
-        let result = nb::block!(stack.provisioning_mode(
+        let result = nb::block!(stack.start_provisioning_mode(
             &access_point,
             &hostname,
             true,
             DEFAULT_PROVISIONING_TIMEOUT_IN_MINS,
         ));
 
-        // Check for provisioning information is receieved for 15 minutes.
+        // Check for provisioning information is received for 15 minutes.
         match result {
             Ok(info) => {
                 info!("Credentials received from provisioning; connecting to access point.");
@@ -77,7 +77,8 @@ fn program() -> Result<(), StackError> {
             Err(err) => {
                 if err == StackError::GeneralTimeout {
                     error!(
-                        "No information was received for 15 minutes. Stopping provisioning mode."
+                        "No information was received for {} minutes. Stopping provisioning mode.",
+                        DEFAULT_PROVISIONING_TIMEOUT_IN_MINS
                     );
                     stack.stop_provisioning_mode()?;
                 } else {

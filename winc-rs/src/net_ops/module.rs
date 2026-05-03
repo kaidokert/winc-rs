@@ -1,6 +1,8 @@
+use crate::error;
+use crate::errors::CommError as Error;
 use crate::manager::{
-    AccessPoint, AuthType, BootState, Credentials, FirmwareInfo, MacAddress, Manager,
-    SocketOptions, Ssid, TcpSockOpts, UdpSockOpts, WifiChannel,
+    AccessPoint, AuthType, BootState, Credentials, FirmwareInfo, HostName, MacAddress, Manager,
+    ProvisioningInfo, SocketOptions, Ssid, TcpSockOpts, UdpSockOpts, WifiChannel,
 };
 use crate::net_ops::op::OpImpl;
 use crate::stack::{
@@ -18,6 +20,11 @@ use crate::manager::BootMode;
 
 // 1 minute max, if no other delays are added
 const AP_CONNECT_TIMEOUT_MILLISECONDS: u32 = 60_000;
+// Timeout for Provisioning
+#[cfg(not(test))]
+const PROVISIONING_TIMEOUT: u32 = 60 * 1000;
+#[cfg(test)]
+const PROVISIONING_TIMEOUT: u32 = 1000;
 
 /// Synchronous operations type.
 enum SyncOpType<'a> {
@@ -58,6 +65,14 @@ pub(crate) struct StationMode<'a> {
     channel: WifiChannel,
     save_credentials: bool,
     use_defaults: bool,
+}
+
+/// Structure to hold configuration for Provisioning Mode.
+pub(crate) struct ProvisioningMode<'a> {
+    ap: &'a AccessPoint<'a>,
+    hostname: &'a HostName,
+    http_redirect: bool,
+    timeout: u32,
 }
 
 /// Constructors and helpers for synchronous operations.
@@ -319,6 +334,31 @@ impl<'a> StationMode<'a> {
     }
 }
 
+/// Creates configuration instances for Wi-Fi provisioning mode.
+impl<'a> ProvisioningMode<'a> {
+    /// Creates a new `ProvisioningMode` instance with the given configuration.
+    ///
+    /// # Arguments
+    ///
+    /// * `ap` - An `AccessPoint` struct containing the SSID, password, and other network details.
+    /// * `hostname` - Device domain name. Must not include `.local`.
+    /// * `http_redirect` - Whether HTTP redirection is enabled.
+    /// * `timeout` - The timeout duration for provisioning, in minutes.
+    pub fn new(
+        ap: &'a AccessPoint<'a>,
+        hostname: &'a HostName,
+        http_redirect: bool,
+        timeout: u32,
+    ) -> Self {
+        Self {
+            ap,
+            hostname,
+            http_redirect,
+            timeout,
+        }
+    }
+}
+
 /// Handles Wi-Fi connection operations in station mode.
 impl<X: Xfer> OpImpl<X> for StationMode<'_> {
     type Output = ();
@@ -344,7 +384,7 @@ impl<X: Xfer> OpImpl<X> for StationMode<'_> {
         let state = callbacks.state.clone();
 
         match state {
-            WifiModuleState::Unconnected => {
+            WifiModuleState::Unconnected | WifiModuleState::Provisioning => {
                 callbacks.state = WifiModuleState::ConnectingToAp;
                 manager.set_operation_timeout(AP_CONNECT_TIMEOUT_MILLISECONDS);
                 if self.use_defaults {
@@ -530,6 +570,74 @@ impl<'a, X: Xfer> OpImpl<X> for SyncOp<'a> {
         }
 
         Ok(Some(()))
+    }
+}
+
+/// `OpImpl` trait implementation for `ProvisioningMode`.
+impl<'a, X: Xfer> OpImpl<X> for ProvisioningMode<'a> {
+    type Output = ProvisioningInfo;
+    type Error = StackError;
+
+    /// Polls the state machine and attempts to initiate provisioning mode.
+    ///
+    /// # Arguments
+    ///
+    /// * `manager` - The stack manager handling low-level operations.
+    /// * `callbacks` - Socket callback handlers.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(Some(output))` - Operation completed successfully.
+    /// * `Ok(None)` - Operation is still in progress.
+    /// * `Err(Self::Error)` - An error occurred while polling.
+    fn poll_impl(
+        &mut self,
+        manager: &mut crate::manager::Manager<X>,
+        callbacks: &mut crate::stack::socket_callbacks::SocketCallbacks,
+    ) -> Result<Option<Self::Output>, Self::Error> {
+        match &mut callbacks.state {
+            WifiModuleState::Unconnected | WifiModuleState::ConnectedToAp => {
+                let auth = <Credentials as Into<AuthType>>::into(self.ap.key);
+
+                if auth == AuthType::S802_1X {
+                    error!("Enterprise Security in provisioning mode is not supported");
+                    return Err(StackError::InvalidParameters);
+                }
+
+                manager.send_start_provisioning(self.ap, self.hostname, self.http_redirect)?;
+
+                callbacks.state = WifiModuleState::Provisioning;
+                callbacks.provisioning_info = None;
+            }
+            WifiModuleState::Provisioning => match &mut callbacks.provisioning_info {
+                None => {
+                    manager
+                        .set_operation_timeout(self.timeout.saturating_mul(PROVISIONING_TIMEOUT));
+                    callbacks.provisioning_info = Some(None);
+                }
+                Some(result) => {
+                    if let Some(info) = result.take() {
+                        if info.status {
+                            return Ok(Some(info));
+                        }
+                        callbacks.provisioning_info = None;
+                        return Err(StackError::WincWifiFail(Error::Failed));
+                    } else {
+                        let mut timeout = manager.get_operation_timeout();
+                        if timeout == 0 {
+                            return Err(StackError::GeneralTimeout);
+                        }
+                        timeout -= 1;
+                        manager.set_operation_timeout(timeout);
+                    }
+                }
+            },
+            _ => {
+                return Err(StackError::InvalidState);
+            }
+        }
+
+        Ok(None)
     }
 }
 
