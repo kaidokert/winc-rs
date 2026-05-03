@@ -1,8 +1,8 @@
 use embedded_nal::nb;
 
 use crate::manager::{
-    AccessPoint, AuthType, BootMode, BootState, Credentials, FirmwareInfo, HostName, IPConf,
-    MacAddress, ProvisioningInfo, ScanResult, SocketOptions, Ssid, WifiChannel,
+    AccessPoint, BootMode, BootState, Credentials, FirmwareInfo, HostName, IPConf, MacAddress,
+    ProvisioningInfo, ScanResult, SocketOptions, Ssid, WifiChannel,
 };
 
 use crate::net_ops::module::{ProvisioningMode, StationMode, SyncOp};
@@ -11,7 +11,7 @@ use crate::stack::socket_callbacks::WifiModuleState;
 
 use super::{Handle, PingResult, StackError, WincClient, Xfer};
 
-use crate::{error, info};
+use crate::info;
 
 // 5 seconds max, assuming no additional delays
 const AP_DISCONNECT_TIMEOUT_MILLISECONDS: u32 = 5_000;
@@ -426,7 +426,9 @@ mod tests {
     use super::*;
     use crate::client::{test_shared::*, SocketCallbacks};
     use crate::errors::CommError as Error;
-    use crate::manager::{Bssid, EventListener, PingError, Ssid, WifiConnError, WifiConnState};
+    use crate::manager::{
+        AuthType, Bssid, EventListener, PingError, Ssid, WifiConnError, WifiConnState,
+    };
     use crate::stack::sock_holder::SocketStore;
     use crate::{ConnectionInfo, Credentials, S8Password, S8Username, WifiChannel, WpaKey};
     #[cfg(feature = "wep")]

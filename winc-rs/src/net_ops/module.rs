@@ -1,8 +1,8 @@
 use crate::error;
 use crate::errors::CommError as Error;
 use crate::manager::{
-    AccessPoint, AuthType, BootState, Credentials, FirmwareInfo, MacAddress, Manager,
-    SocketOptions, Ssid, TcpSockOpts, UdpSockOpts, WifiChannel, ProvisioningInfo, HostName
+    AccessPoint, AuthType, BootState, Credentials, FirmwareInfo, HostName, MacAddress, Manager,
+    ProvisioningInfo, SocketOptions, Ssid, TcpSockOpts, UdpSockOpts, WifiChannel,
 };
 use crate::net_ops::op::OpImpl;
 use crate::stack::{
@@ -579,6 +579,14 @@ impl<'a, X: Xfer> OpImpl<X> for ProvisioningMode<'a> {
     type Error = StackError;
 
     /// Polls the state machine and attempts to initiate provisioning mode.
+    ///
+    /// # Arguments
+    ///
+    /// * `manager` - The stack manager handling low-level operations.
+    /// * `callbacks` - Socket callback handlers.
+    ///
+    /// # Returns
+    ///
     /// * `Ok(Some(output))` - Operation completed successfully.
     /// * `Ok(None)` - Operation is still in progress.
     /// * `Err(Self::Error)` - An error occurred while polling.
