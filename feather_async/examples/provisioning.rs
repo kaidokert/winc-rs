@@ -64,7 +64,7 @@ async fn program() -> Result<(), AppError> {
                     "No information was received for {} minutes. Stopping provisioning mode.",
                     DEFAULT_PROVISIONING_TIMEOUT_IN_MINS
                 );
-                //stack.stop_provisioning_mode()?; // Todo
+                stack.stop_provisioning_mode()?;
             } else {
                 defmt::error!("Provisioning Failed");
             }
