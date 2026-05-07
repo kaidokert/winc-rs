@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1777646003145,
+  "lastUpdate": 1778164761901,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -5699,6 +5699,40 @@ window.BENCHMARK_DATA = {
           {
             "name": "iperf3_client",
             "value": 50664,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "142439476+umarbinzahid@users.noreply.github.com",
+            "name": "Umar Bin Zahid",
+            "username": "umarbinzahid"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "bb6c4792214a1e94df100348f65de304f51900ea",
+          "message": "Support for Provisioning Mode in Async Client. (#146)\n\n* Added support for provisioning mode in the async client.\n\n* updated lifetimes.\n\n* Addressed AI comments.\n\n* Fixed new attempt timeout issue.\n\n* fixed rebasing issues.\n\n* example updated.",
+          "timestamp": "2026-05-07T07:38:17-07:00",
+          "tree_id": "6d70bd25144a6499f37f68621f7f6554f4ec7c00",
+          "url": "https://github.com/kaidokert/winc-rs/commit/bb6c4792214a1e94df100348f65de304f51900ea"
+        },
+        "date": 1778164761477,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 37108,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 50648,
             "unit": "byte"
           }
         ]
