@@ -34,8 +34,6 @@ const DEFAULT_AP_IP: u32 = 0xC0A80101;
 /// Maximum size of a point on an elliptic curve.
 #[cfg(feature = "experimental-ecc")]
 const ECC_POINT_MAX_SIZE: usize = 32;
-/// Maximum number of octets in Mac Address
-const MAX_OCTETS_IN_MAC_ADDRESS: usize = 6;
 /// Length for 104 bit string passphrase.
 const MAX_WEP_KEY_LEN: usize = 26;
 /// Length for 40 bit string passphrase.
@@ -43,6 +41,8 @@ const MAX_WEP_KEY_LEN: usize = 26;
 const MIN_WEP_KEY_LEN: usize = 10;
 /// Last byte of IPV4 address, total bytes: 4 (0-3)
 const LAST_BYTE_OF_IP_ADDRESS: usize = 3;
+/// Maximum number of octets in Mac Address
+pub(crate) const MAX_OCTETS_IN_MAC_ADDRESS: usize = 6;
 
 /// Device Domain name.
 pub type HostName = ArrayString<MAX_HOST_NAME_LEN>;
