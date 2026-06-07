@@ -13,8 +13,8 @@ use super::Xfer;
 
 use crate::debug;
 use crate::manager::SocketError;
-use crate::net_ops::udp_receive::UdpReceiveOp;
-use crate::net_ops::udp_send::UdpSendOp;
+use crate::ops::net_ops::udp_receive::UdpReceiveOp;
+use crate::ops::net_ops::udp_send::UdpSendOp;
 use crate::ops::op::OpImpl;
 use crate::stack::socket_callbacks::NUM_TCP_SOCKETS;
 use embedded_nal::nb;

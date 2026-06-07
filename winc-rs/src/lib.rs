@@ -136,4 +136,3 @@ mod nonstd;
 use nonstd::Ipv4AddrFormatWrapper;
 
 mod ops;
-pub(crate) use ops::net_ops;

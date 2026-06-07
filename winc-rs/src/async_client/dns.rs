@@ -18,7 +18,7 @@ impl<X: Xfer> Dns for AsyncClient<'_, X> {
             unimplemented!("IPv6 not supported");
         }
 
-        let dns_op = crate::net_ops::dns::DnsOp::new(host, Self::DNS_TIMEOUT)?;
+        let dns_op = crate::ops::net_ops::dns::DnsOp::new(host, Self::DNS_TIMEOUT)?;
         let async_dns_op = AsyncOp::new(dns_op, &self.manager, &self.callbacks, || {
             self.dispatch_events()
         });

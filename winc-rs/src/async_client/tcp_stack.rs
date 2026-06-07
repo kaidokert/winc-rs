@@ -1,5 +1,7 @@
 use super::AsyncClient;
-use crate::net_ops::{tcp_connect::TcpConnectOp, tcp_receive::TcpReceiveOp, tcp_send::TcpSendOp};
+use crate::ops::net_ops::{
+    tcp_connect::TcpConnectOp, tcp_receive::TcpReceiveOp, tcp_send::TcpSendOp,
+};
 use crate::stack::{sock_holder::SocketStore, socket_callbacks::Handle};
 use crate::transfer::Xfer;
 use crate::StackError;
