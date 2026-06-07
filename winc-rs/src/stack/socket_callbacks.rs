@@ -249,7 +249,7 @@ pub enum ClientSocketOp {
 /// PRNG (Pseudorandom Number Generator) structure.
 /// The `defmt` feature derives `defmt::Format` for logging/serialization if enabled.
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub struct Prng {
+pub(crate) struct Prng {
     pub offset: usize,
     pub rcv_buffer: Option<[u8; PRNG_DATA_LENGTH]>,
 }

@@ -1,18 +1,11 @@
+use super::{StackError, WincClient, Xfer};
+use crate::ops::module::PrngOp;
 use embedded_nal::nb;
+
 #[cfg(feature = "rng")]
 use rand_core::impls;
 #[cfg(feature = "rng")]
 use rand_core::RngCore;
-
-use crate::manager::PRNG_DATA_LENGTH;
-use crate::stack::socket_callbacks::Prng;
-
-use super::StackError;
-use super::WincClient;
-use super::Xfer;
-
-// 5 seconds max, assuming no additional delays
-const PRNG_REQUEST_TIMEOUT_MILLISECONDS: u32 = 5_000;
 
 impl<X: Xfer> WincClient<'_, X> {
     /// Generates a deterministic sequence of random bytes using the pseudo-random number generator (PRNG).
@@ -30,60 +23,8 @@ impl<X: Xfer> WincClient<'_, X> {
     /// * `()` - If the random bytes are successfully generated.
     /// * `StackError` - If an error occurs during random byte generation.
     pub fn get_random_bytes(&mut self, data: &mut [u8]) -> nb::Result<(), StackError> {
-        match &mut self.callbacks.prng {
-            None => {
-                self.operation_countdown = PRNG_REQUEST_TIMEOUT_MILLISECONDS;
-                let to_recv = data.len().min(PRNG_DATA_LENGTH);
-                let data = Prng {
-                    offset: 0,
-                    rcv_buffer: None,
-                };
-                self.manager
-                    .send_prng(&data as *const _ as u32, to_recv as u16)?;
-                self.callbacks.prng = Some(Some(data));
-            }
-            Some(op_prng) => {
-                match op_prng {
-                    Some(prng) => {
-                        if let Some(rcv_buff) = prng.rcv_buffer {
-                            let rcvd_len = rcv_buff.len().min((data[prng.offset..]).len());
-                            // copy the buffer
-                            data[prng.offset..(prng.offset + rcvd_len)]
-                                .copy_from_slice(&rcv_buff[..rcvd_len]);
-                            // add the offset
-                            let offset = prng.offset + rcvd_len;
-                            // check if total length is received
-                            if offset >= data.len() {
-                                self.callbacks.prng = None;
-                                return Ok(());
-                            } else {
-                                // resend the command
-                                let new_data = Prng {
-                                    offset,
-                                    rcv_buffer: None,
-                                };
-                                let to_recv = (data[offset..]).len().min(PRNG_DATA_LENGTH);
-                                self.manager
-                                    .send_prng(&data as *const _ as u32, to_recv as u16)?;
-                                self.callbacks.prng = Some(Some(new_data));
-                            }
-                        } else {
-                            self.delay_us(self.poll_loop_delay_us);
-                            self.operation_countdown -= 1;
-                            if self.operation_countdown == 0 {
-                                self.callbacks.prng = None;
-                                return Err(nb::Error::Other(StackError::GeneralTimeout));
-                            }
-                        }
-                    }
-                    _ => {
-                        return Err(nb::Error::Other(StackError::Unexpected));
-                    }
-                }
-            }
-        }
-        self.dispatch_events()?;
-        Err(nb::Error::WouldBlock)
+        let mut op = PrngOp::new(data);
+        self.poll_op(&mut op)
     }
 }
 
@@ -130,7 +71,7 @@ impl<X: Xfer> RngCore for WincClient<'_, X> {
 mod tests {
     use super::*;
     use crate::client::{test_shared::*, SocketCallbacks};
-    use crate::manager::EventListener;
+    use crate::manager::{EventListener, PRNG_DATA_LENGTH};
     #[cfg(feature = "rng")]
     use rand_core::RngCore;
 
