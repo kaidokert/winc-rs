@@ -4,7 +4,7 @@ use crate::manager::{
     AccessPoint, AuthType, BootState, Credentials, FirmwareInfo, HostName, MacAddress, Manager,
     ProvisioningInfo, SocketOptions, Ssid, TcpSockOpts, UdpSockOpts, WifiChannel,
 };
-use crate::net_ops::op::OpImpl;
+use crate::ops::op::OpImpl;
 use crate::stack::{
     sock_holder::SocketStore,
     socket_callbacks::{Handle, SocketCallbacks, WifiModuleState},

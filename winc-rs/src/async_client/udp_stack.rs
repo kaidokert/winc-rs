@@ -1,6 +1,6 @@
-use crate::net_ops::op::OpImpl;
 use crate::net_ops::udp_receive::UdpReceiveOp;
 use crate::net_ops::udp_send::UdpSendOp;
+use crate::ops::op::OpImpl;
 use crate::stack::sock_holder::SocketStore;
 use crate::transfer::Xfer;
 use crate::Handle;

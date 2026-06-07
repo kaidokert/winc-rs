@@ -151,7 +151,7 @@ impl<X: Xfer> WincClient<'_, X> {
     /// * `Ok(O::Output)` - Operation completed successfully.
     /// * `Err(StackError::ContinueOperation)` - Operation is still in progress.
     /// * `Err(StackError)` - Operation failed.
-    fn poll_once<O: crate::net_ops::op::OpImpl<X, Error = StackError>>(
+    fn poll_once<O: crate::ops::op::OpImpl<X, Error = StackError>>(
         &mut self,
         op: &mut O,
     ) -> Result<O::Output, StackError> {
@@ -222,7 +222,7 @@ mod tests {
         #[derive(Default)]
         struct Test;
 
-        impl<X: super::Xfer> crate::net_ops::op::OpImpl<X> for Test {
+        impl<X: super::Xfer> crate::ops::op::OpImpl<X> for Test {
             type Error = crate::StackError;
             type Output = ();
 

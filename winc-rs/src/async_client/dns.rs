@@ -1,4 +1,4 @@
-use crate::net_ops::op::AsyncOp;
+use crate::ops::op::AsyncOp;
 use crate::transfer::Xfer;
 use crate::StackError;
 use embedded_nal_async::AddrType;

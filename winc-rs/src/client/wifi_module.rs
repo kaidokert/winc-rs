@@ -5,7 +5,7 @@ use crate::manager::{
     ProvisioningInfo, ScanResult, SocketOptions, Ssid, WifiChannel,
 };
 
-use crate::net_ops::module::{ProvisioningMode, StationMode, SyncOp};
+use crate::ops::module::{ProvisioningMode, StationMode, SyncOp};
 
 use crate::stack::socket_callbacks::WifiModuleState;
 

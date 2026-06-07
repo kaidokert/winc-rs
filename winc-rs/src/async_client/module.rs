@@ -3,7 +3,7 @@ use crate::manager::{
     AccessPoint, BootMode, BootState, Credentials, FirmwareInfo, HostName, MacAddress,
     ProvisioningInfo, SocketOptions, Ssid, WifiChannel,
 };
-use crate::net_ops::module::{ProvisioningMode, StationMode, SyncOp};
+use crate::ops::module::{ProvisioningMode, StationMode, SyncOp};
 use crate::transfer::Xfer;
 
 impl<X: Xfer> AsyncClient<'_, X> {

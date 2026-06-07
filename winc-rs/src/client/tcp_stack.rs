@@ -7,11 +7,11 @@ use super::StackError;
 use super::WincClient;
 use super::Xfer;
 use crate::manager::SocketError;
-use crate::net_ops::op::OpImpl;
 use crate::net_ops::tcp_accept::TcpAcceptOp;
 use crate::net_ops::tcp_connect::TcpConnectOp;
 use crate::net_ops::tcp_receive::TcpReceiveOp;
 use crate::net_ops::tcp_send::TcpSendOp;
+use crate::ops::op::OpImpl;
 use crate::{debug, info};
 use embedded_nal::nb;
 

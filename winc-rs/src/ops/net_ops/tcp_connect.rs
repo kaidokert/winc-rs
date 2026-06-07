@@ -1,6 +1,6 @@
 use core::net::SocketAddrV4;
 
-use super::op::OpImpl;
+use super::super::op::OpImpl;
 use crate::client::ClientSocketOp;
 use crate::manager::SocketError;
 use crate::stack::sock_holder::SocketStore;

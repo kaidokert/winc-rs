@@ -1,4 +1,4 @@
-use super::op::OpImpl;
+use super::super::op::OpImpl;
 use crate::client::ClientSocketOp;
 use crate::stack::constants::MAX_SEND_LENGTH;
 use crate::stack::sock_holder::SocketStore;

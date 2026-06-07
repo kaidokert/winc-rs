@@ -5,7 +5,7 @@ use embedded_nal::Dns;
 
 use super::StackError;
 use crate::net_ops::dns::DnsOp;
-use crate::net_ops::op::OpImpl;
+use crate::ops::op::OpImpl;
 use crate::transfer::Xfer;
 use crate::WincClient;
 

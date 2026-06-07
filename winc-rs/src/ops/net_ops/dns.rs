@@ -1,7 +1,7 @@
 use core::net::IpAddr;
 use core::net::Ipv4Addr;
 
-use super::op::OpImpl;
+use super::super::op::OpImpl;
 use crate::stack::constants::MAX_HOST_NAME_LEN;
 use crate::transfer::Xfer;
 use crate::StackError;
