@@ -927,4 +927,17 @@ mod tests {
             offset += step;
         }
     }
+
+    #[apply(test!)]
+    async fn test_async_prng_empty_buffer() {
+        let mut input_buffer = [0x0u8; 0];
+
+        let result = {
+            let mut client = make_test_client();
+            client.get_random_bytes(&mut input_buffer).await
+        };
+
+        assert_eq!(result, Ok(()));
+        assert!(input_buffer.is_empty());
+    }
 }

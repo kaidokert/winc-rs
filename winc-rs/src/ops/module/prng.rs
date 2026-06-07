@@ -57,6 +57,10 @@ impl<'a, X: Xfer> OpImpl<X> for PrngOp<'a> {
         manager: &mut crate::manager::Manager<X>,
         callbacks: &mut SocketCallbacks,
     ) -> Result<Option<Self::Output>, Self::Error> {
+        if self.data.is_empty() {
+            callbacks.prng = None;
+            return Ok(Some(()));
+        }
         match &mut callbacks.prng {
             None => {
                 manager.set_operation_timeout(PRNG_REQUEST_TIMEOUT_MILLISECONDS);
@@ -93,12 +97,12 @@ impl<'a, X: Xfer> OpImpl<X> for PrngOp<'a> {
                                 callbacks.prng = Some(Some(new_data));
                             }
                         } else {
-                            let timeout = manager.get_operation_timeout() - 1;
+                            let timeout = manager.get_operation_timeout();
                             if timeout == 0 {
                                 callbacks.prng = None;
                                 return Err(StackError::GeneralTimeout);
                             }
-                            manager.set_operation_timeout(timeout);
+                            manager.set_operation_timeout(timeout - 1);
                         }
                     }
                     _ => {

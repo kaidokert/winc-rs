@@ -127,6 +127,17 @@ mod tests {
         }
     }
 
+    #[test]
+    fn test_prng_empty_buffer() {
+        let mut client = make_test_client();
+        let mut input_buffer = [0x0u8; 0];
+
+        let result = client.get_random_bytes(&mut input_buffer);
+
+        assert_eq!(result, Ok(()));
+        assert!(input_buffer.is_empty());
+    }
+
     #[cfg(feature = "rng")]
     #[test]
     fn test_rng_fill_bytes_success() {
