@@ -137,7 +137,7 @@ impl<X: Xfer> AsyncClient<'_, X> {
     /// * `Ok(MacAddress)` - The current MAC address of the WINC module on success.
     /// * `Err(StackError)` - If the MAC address could not be retrieved.
     pub fn get_winc_mac_address(
-        &mut self,
+        &self,
         #[cfg(test)] test_hook: bool,
     ) -> Result<MacAddress, StackError> {
         let mut op = SyncOp::get_winc_mac_address(
@@ -589,7 +589,7 @@ mod tests {
 
     #[test]
     fn test_async_get_winc_mac_address_success() {
-        let mut client = make_test_client();
+        let client = make_test_client();
         let mac = client.get_winc_mac_address(true);
 
         assert!(mac.is_ok());
@@ -598,7 +598,7 @@ mod tests {
 
     #[test]
     fn test_async_get_winc_mac_address_failure() {
-        let mut client = make_test_client();
+        let client = make_test_client();
         let mac = client.get_winc_mac_address(false);
 
         assert_eq!(

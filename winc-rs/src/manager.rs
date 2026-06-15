@@ -35,6 +35,8 @@ use requests::*;
 use responses::*;
 
 pub(crate) use constants::{BootMode, PRNG_DATA_LENGTH, SOCKET_BUFFER_MAX_LENGTH};
+#[cfg(feature = "embassy-net")]
+pub(crate) use net_types::MAX_OCTETS_IN_MAC_ADDRESS;
 
 #[cfg(feature = "ssl")]
 pub(crate) use self::{

@@ -8,7 +8,7 @@ version = "0.1.0"
 harness = false
 
 [dependencies]
-cortex-m = { version = "0.7.3", features = ["critical-section-single-core"] }
+cortex-m = { version = "0.7.7", features = ["critical-section-single-core"] }
 cortex-m-rt = "0.7.5"
 defmt = "0.3"
 defmt-rtt = "0.4"
@@ -22,9 +22,26 @@ wincwifi = { path = "../winc-rs", default-features = false, features=["defmt", "
 embassy-executor = { version = "0.7" , features= ["arch-cortex-m", "executor-thread", "defmt", "task-arena-size-6144"] }
 systick-timer = { version = "0.2.2",  features=["cortex-m","embassy-time-driver"] }
 embassy-time-driver = { version ="0.2" }
-embassy-time = { version = "0.4" }
+embassy-time = { version = "0.5.1" }
 embedded-nal-async = { version = "0.9" }
 demos_async = { path = "../demos_async", default-features = false, features = ["defmt"] }
+embassy-futures = { version = "0.1.2", default-features = false, optional = true }
+static_cell = { version = "2.1.1", default-features = false, optional = true }
+portable-atomic = { version = "1.13.1", default-features = false, features = ["critical-section"] }
+
+# Embassy Net
+[dependencies.embassy-net]
+version = "0.9.1"
+default-features = false
+optional = true
+features = ["medium-ethernet", "proto-ipv4", "raw", "udp", "icmp", "dns", "dhcpv4-hostname", "dhcpv4", "auto-icmp-echo-reply"]
+
+[[example]]
+name = "bypass_mode"
+required-features = ["external-tcp-stack"]
+
+[features]
+external-tcp-stack = ["wincwifi/embassy-net", "dep:embassy-net", "dep:embassy-futures", "dep:static_cell"]
 
 # cargo build/run
 [profile.dev]
