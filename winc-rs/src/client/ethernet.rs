@@ -65,12 +65,13 @@ impl<X: Xfer> WincClient<'_, X> {
     }
 }
 
+/// Implements `smoltcp::phy::Device` for `WincClient`.
 #[cfg(feature = "smoltcp")]
 mod smoltcp_impl {
     use super::{WincClient, Xfer};
     use crate::error;
     use crate::manager::{Manager, SOCKET_BUFFER_MAX_LENGTH};
-    use crate::net_ops::ethernet_receive::RxEthernetPacketInfo;
+    use crate::ops::net_ops::ethernet_receive::RxEthernetPacketInfo;
     use embedded_nal::nb;
     use smoltcp::{
         phy::{self, DeviceCapabilities, Medium},

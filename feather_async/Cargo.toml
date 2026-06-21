@@ -25,9 +25,8 @@ embassy-time-driver = { version ="0.2" }
 embassy-time = { version = "0.5.1" }
 embedded-nal-async = { version = "0.9" }
 demos_async = { path = "../demos_async", default-features = false, features = ["defmt"] }
-embassy-futures = { version = "0.1.2", default-features = false, optional = true }
 static_cell = { version = "2.1.1", default-features = false, optional = true }
-portable-atomic = { version = "1.13.1", default-features = false, features = ["critical-section"] }
+portable-atomic = { version = "1.13.1", default-features = false, features = ["critical-section"], optional = true }
 
 # Embassy Net
 [dependencies.embassy-net]
@@ -41,7 +40,7 @@ name = "bypass_mode"
 required-features = ["external-tcp-stack"]
 
 [features]
-external-tcp-stack = ["wincwifi/embassy-net", "dep:embassy-net", "dep:embassy-futures", "dep:static_cell"]
+external-tcp-stack = ["wincwifi/embassy-net", "dep:embassy-net", "dep:static_cell", "dep:portable-atomic"]
 
 # cargo build/run
 [profile.dev]
