@@ -69,7 +69,7 @@ impl<'a, X: Xfer> OpImpl<X> for PrngOp<'a> {
                     offset: 0,
                     rcv_buffer: None,
                 };
-                manager.send_prng(&data as *const _ as u32, to_recv as u16)?;
+                manager.send_prng(self.data.as_ptr() as u32, to_recv as u16)?;
                 callbacks.prng = Some(Some(data));
             }
             Some(op_prng) => {
@@ -93,7 +93,7 @@ impl<'a, X: Xfer> OpImpl<X> for PrngOp<'a> {
                                     rcv_buffer: None,
                                 };
                                 let to_recv = (self.data[offset..]).len().min(PRNG_DATA_LENGTH);
-                                manager.send_prng(&self.data as *const _ as u32, to_recv as u16)?;
+                                manager.send_prng(self.data.as_ptr() as u32, to_recv as u16)?;
                                 callbacks.prng = Some(Some(new_data));
                             }
                         } else {
