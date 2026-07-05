@@ -67,6 +67,11 @@ impl<X: Xfer> OpImpl<X> for RxEthernetPacketInfo<'_> {
                         }
                         Some(buffer) => buffer,
                     };
+                    // If no data is recevied from module, return early
+                    if recv_buffer.is_empty() {
+                        callbacks.eth_rx_info = None;
+                        return Ok(Some(0));
+                    }
                     let len_to_read = recv_buffer.len().min(info.packet_size as usize);
                     let rx_done = len_to_read >= info.packet_size as usize;
                     manager.recv_ethernet_packet(

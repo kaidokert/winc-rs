@@ -106,7 +106,7 @@ mod embassy_net {
                 Ok(length) => length,
                 Err(e) => {
                     if e == StackError::GeneralTimeout {
-                        error!("Ethernet receive timeout");
+                        crate::warn!("Ethernet receive timeout");
                     }
                     // register the waker if no packet is available
                     if let Err(e) = self
@@ -114,7 +114,7 @@ mod embassy_net {
                         .borrow_mut()
                         .register_waker_if_new(cx.waker().clone())
                     {
-                        error!("Too many wakers registered: {:?}", e);
+                        crate::warn!("Too many wakers registered: {:?}", e);
                     }
                     return None;
                 }
