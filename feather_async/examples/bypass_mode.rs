@@ -60,7 +60,10 @@ async fn wait_for_dhcp(stack: &Stack<'static>) -> Result<(), AppError> {
     loop {
         if let Some(config) = stack.config_v4() {
             let ip: [u8; MAX_IP_BYTES] = config.address.address().octets();
-            let gateway: [u8; MAX_IP_BYTES] = config.gateway.unwrap().octets();
+            let gateway: [u8; MAX_IP_BYTES] = config
+                .gateway
+                .ok_or(AppError::WincError(StackError::InvalidResponse))?
+                .octets();
             let mask: [u8; MAX_IP_BYTES] = config.address.netmask().octets();
             defmt::info!("IP address: {}.{}.{}.{}", ip[0], ip[1], ip[2], ip[3]);
             defmt::info!(
@@ -98,8 +101,11 @@ async fn wait_for_dhcp(stack: &Stack<'static>) -> Result<(), AppError> {
 #[embassy_executor::task]
 async fn ping_task(stack: Stack<'static>, destination_ip: Ipv4Addr, count: u16) -> ! {
     // Wait for DHCP
-    if let Err(_) = wait_for_dhcp(&stack).await {
-        loop {}
+    if let Err(err) = wait_for_dhcp(&stack).await {
+        defmt::error!("DHCP error: {:?}", err);
+        loop {
+            Timer::after(Duration::from_secs(1)).await
+        }
     }
 
     // Then we can use it!
@@ -142,7 +148,9 @@ async fn ping_task(stack: Stack<'static>, destination_ip: Ipv4Addr, count: u16) 
         }
     }
 
-    loop {}
+    loop {
+        embassy_time::Timer::after_secs(3600).await
+    }
 }
 
 /// Main Program
@@ -155,7 +163,7 @@ async fn program(spwaner: Spawner) -> Result<(), AppError> {
     let test_ip: Ipv4Addr =
         Ipv4Addr::from_str(test_ip).map_err(|_| StackError::InvalidParameters)?;
     let test_count = option_env!("TEST_COUNT").unwrap_or(DEFAULT_TEST_COUNT);
-    let test_count = u16::from_str(test_count).unwrap();
+    let test_count = u16::from_str(test_count).map_err(|_| StackError::InvalidParameters)?;
 
     let ssid = Ssid::from(option_env!("TEST_SSID").unwrap_or(DEFAULT_TEST_SSID))
         .map_err(|_| StackError::InvalidParameters)?;

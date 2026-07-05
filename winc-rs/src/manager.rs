@@ -874,6 +874,39 @@ impl<X: Xfer> Manager<X> {
         }
     }
 
+    /// Registers a waker only if it is not already registered.
+    ///
+    /// # Arguments
+    ///
+    /// * `waker` - The task waker to register.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - If the waker was registered or was already registered.
+    /// * `StackError` - If too many wakers are already registered.
+    #[cfg(all(feature = "async", feature = "embassy-net"))]
+    pub(crate) fn register_waker_if_new(
+        &mut self,
+        waker: core::task::Waker,
+    ) -> Result<(), crate::StackError> {
+        // Already registered?
+        for slot in &self.wakers {
+            if let Some(ref stored) = slot {
+                if stored.will_wake(&waker) {
+                    return Ok(());
+                }
+            }
+        }
+        // Find empty slot
+        for slot in &mut self.wakers {
+            if slot.is_none() {
+                *slot = Some(waker);
+                return Ok(());
+            }
+        }
+        Err(crate::StackError::TooManyWakers)
+    }
+
     /// Sets the timeout (countdown) for the current Async/Sync operation.
     ///
     /// # Arguments

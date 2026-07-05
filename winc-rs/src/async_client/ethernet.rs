@@ -14,7 +14,7 @@ impl<X: Xfer> AsyncClient<'_, X> {
     /// # Arguments
     ///
     /// * `buffer` - A mutable slice used to store the received Ethernet packet.
-    /// * `timeout` - An optional duration to wait for a packet.
+    /// * `timeout` - An optional duration to wait for an Ethernet packet.
     ///   If `None`, the default timeout value `ETHERNET_RX_TIMEOUT_MSEC` is used.
     ///
     /// # Returns
@@ -23,11 +23,11 @@ impl<X: Xfer> AsyncClient<'_, X> {
     /// * `Err(StackError)` - If an error occurs while reading the ethernet packet.
     pub async fn read_ethernet_packet(
         &mut self,
-        buffer: Option<&mut [u8]>,
+        buffer: &mut [u8],
         timeout: Option<Duration>,
     ) -> Result<usize, StackError> {
         let timeout_ms: Option<u32> = timeout.map(|d| d.as_millis().min(u32::MAX as u128) as u32);
-        let mut op = RxEthernetPacketInfo::new(buffer, timeout_ms);
+        let mut op = RxEthernetPacketInfo::new(Some(buffer), timeout_ms);
         self.poll_op(&mut op).await
     }
 
@@ -53,7 +53,7 @@ impl<X: Xfer> AsyncClient<'_, X> {
 
 #[cfg(feature = "embassy-net")]
 mod embassy_net {
-    use super::{AsyncClient, Xfer};
+    use super::{AsyncClient, StackError, Xfer};
     use crate::error;
     use crate::manager::{Manager, MAX_OCTETS_IN_MAC_ADDRESS, SOCKET_BUFFER_MAX_LENGTH};
     use crate::ops::net_ops::ethernet_receive::RxEthernetPacketInfo;
@@ -93,7 +93,7 @@ mod embassy_net {
         /// Construct a token pair consisting of one receive token and one transmit token.
         fn receive(
             &mut self,
-            _cx: &mut Context<'_>,
+            cx: &mut Context<'_>,
         ) -> Option<(Self::RxToken<'_>, Self::TxToken<'_>)> {
             // poll for new events
             let _ = self.heartbeat();
@@ -102,9 +102,26 @@ mod embassy_net {
             let mut rx_op = RxEthernetPacketInfo::new(None, Some(ETH_RECV_TIMEOUT_MSEC));
             let result = self.poll_once(&mut rx_op);
 
-            let Ok(read_length) = result else {
-                return None;
+            let read_length = match result {
+                Ok(length) => length,
+                Err(e) => {
+                    if e == StackError::GeneralTimeout {
+                        error!("Ethernet receive timeout");
+                    }
+                    // register the waker if no packet is available
+                    if let Err(e) = self
+                        .manager
+                        .borrow_mut()
+                        .register_waker_if_new(cx.waker().clone())
+                    {
+                        error!("Too many wakers registered: {:?}", e);
+                    }
+                    return None;
+                }
             };
+
+            // Got a packet - remove the waker.
+            self.manager.borrow_mut().unregister_waker(&cx.waker());
 
             let rx_token = WincRxToken {
                 callback: &self.callbacks,
@@ -234,7 +251,7 @@ mod tests {
             let mut client = make_test_client();
             *client.debug_callback.borrow_mut() = Some(&mut my_debug);
             client
-                .read_ethernet_packet(Some(rx_buffer.as_mut_slice()), None)
+                .read_ethernet_packet(rx_buffer.as_mut_slice(), None)
                 .await
         };
 
@@ -248,7 +265,7 @@ mod tests {
         let timeout = Some(Duration::from_millis(1000));
 
         let result = client
-            .read_ethernet_packet(Some(rx_buffer.as_mut_slice()), timeout)
+            .read_ethernet_packet(rx_buffer.as_mut_slice(), timeout)
             .await;
 
         assert_eq!(result, Err(StackError::GeneralTimeout));
