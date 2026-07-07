@@ -1,5 +1,5 @@
 use crate::manager::Manager;
-use crate::net_ops::op::OpImpl;
+use crate::ops::op::OpImpl;
 use crate::stack::sock_holder::SocketStore;
 use crate::stack::socket_callbacks::SocketCallbacks;
 use crate::StackError;

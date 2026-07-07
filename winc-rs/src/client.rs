@@ -32,7 +32,7 @@ pub struct WincClient<'a, X: Xfer> {
     next_session_id: u16,
     boot: Option<crate::manager::BootState>,
     operation_countdown: u32,
-    dns_op: Option<crate::net_ops::dns::DnsOp>,
+    dns_op: Option<crate::ops::net_ops::dns::DnsOp>,
     phantom: core::marker::PhantomData<&'a ()>,
     #[cfg(test)]
     debug_callback: Option<&'a mut dyn FnMut(&mut SocketCallbacks)>,
@@ -151,7 +151,7 @@ impl<X: Xfer> WincClient<'_, X> {
     /// * `Ok(O::Output)` - Operation completed successfully.
     /// * `Err(StackError::ContinueOperation)` - Operation is still in progress.
     /// * `Err(StackError)` - Operation failed.
-    fn poll_once<O: crate::net_ops::op::OpImpl<X, Error = StackError>>(
+    fn poll_once<O: crate::ops::op::OpImpl<X, Error = StackError>>(
         &mut self,
         op: &mut O,
     ) -> Result<O::Output, StackError> {
@@ -222,7 +222,7 @@ mod tests {
         #[derive(Default)]
         struct Test;
 
-        impl<X: super::Xfer> crate::net_ops::op::OpImpl<X> for Test {
+        impl<X: super::Xfer> crate::ops::op::OpImpl<X> for Test {
             type Error = crate::StackError;
             type Output = ();
 
