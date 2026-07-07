@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1778164761901,
+  "lastUpdate": 1783400384475,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -5733,6 +5733,40 @@ window.BENCHMARK_DATA = {
           {
             "name": "iperf3_client",
             "value": 50648,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "142439476+umarbinzahid@users.noreply.github.com",
+            "name": "Umar Bin Zahid",
+            "username": "umarbinzahid"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "916d5c3fdbb28925ff9465221fac7d52020a9103",
+          "message": "Added Ops module for better structuring of network and winc operations. (#147)\n\n* Added Ops modules for better  structuring for stack operations.\n\n* Addressed AI comments",
+          "timestamp": "2026-07-06T21:58:46-07:00",
+          "tree_id": "c932f80768b27b80cd3879c3fb971c5680b5c52f",
+          "url": "https://github.com/kaidokert/winc-rs/commit/916d5c3fdbb28925ff9465221fac7d52020a9103"
+        },
+        "date": 1783400384171,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 37088,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 50568,
             "unit": "byte"
           }
         ]
