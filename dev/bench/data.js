@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1783400384475,
+  "lastUpdate": 1783437005041,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -5757,6 +5757,40 @@ window.BENCHMARK_DATA = {
           "url": "https://github.com/kaidokert/winc-rs/commit/916d5c3fdbb28925ff9465221fac7d52020a9103"
         },
         "date": 1783400384171,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 37088,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 50568,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "142439476+umarbinzahid@users.noreply.github.com",
+            "name": "Umar Bin Zahid",
+            "username": "umarbinzahid"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "7bb284cc18a9055a8b3daac0b2392966e3b4909f",
+          "message": "Support for PRNG in Async Client (#148)\n\n* Added support for prng in Async.\n\n* Addressed AI comments.\n\n* cleanup the raw pointer syntax.",
+          "timestamp": "2026-07-07T08:09:05-07:00",
+          "tree_id": "79d9cf5e83517c1e4c0c320a48a368082e181210",
+          "url": "https://github.com/kaidokert/winc-rs/commit/7bb284cc18a9055a8b3daac0b2392966e3b4909f"
+        },
+        "date": 1783437004488,
         "tool": "customSmallerIsBetter",
         "benches": [
           {
