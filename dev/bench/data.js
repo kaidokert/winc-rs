@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1783437005041,
+  "lastUpdate": 1783789559695,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -5796,6 +5796,40 @@ window.BENCHMARK_DATA = {
           {
             "name": "http_server",
             "value": 37088,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 50568,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "142439476+umarbinzahid@users.noreply.github.com",
+            "name": "Umar Bin Zahid",
+            "username": "umarbinzahid"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "ec6c951e8a6c39404cebab62e4281e12c2303702",
+          "message": "Support for Async Ethernet Mode (#149)\n\n* changed visibility\n\n* Initial support for ethernet mode in async.\n\n* Added test cases and did cleanup.",
+          "timestamp": "2026-07-11T10:05:02-07:00",
+          "tree_id": "450260a949fbb082b4430cd86f82770314a468da",
+          "url": "https://github.com/kaidokert/winc-rs/commit/ec6c951e8a6c39404cebab62e4281e12c2303702"
+        },
+        "date": 1783789559128,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 37072,
             "unit": "byte"
           },
           {
