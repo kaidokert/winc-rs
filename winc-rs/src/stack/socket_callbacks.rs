@@ -99,7 +99,7 @@ pub struct SystemTime {
 }
 
 pub(crate) struct ConnectionState {
-    conn_state: WifiConnState,
+    pub conn_state: WifiConnState,
     pub conn_error: Option<WifiConnError>,
     pub ip_conf: Option<crate::manager::IPConf>,
     system_time: Option<SystemTime>,

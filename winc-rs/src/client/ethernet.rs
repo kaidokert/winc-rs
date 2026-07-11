@@ -13,10 +13,10 @@
 // limitations under the License.
 
 use super::{StackError, WincClient, Xfer};
+use crate::ops::module::SyncOp;
+use crate::ops::net_ops::ethernet_receive::RxEthernetPacketInfo;
+use core::time::Duration;
 use embedded_nal::nb;
-
-/// 1 second timeout to read an ethernet packet.
-const ETHERNET_RX_TIMEOUT_MSEC: u32 = 1000;
 
 impl<X: Xfer> WincClient<'_, X> {
     /// Tries to read an Ethernet packet from the module within a specified timeout.
@@ -27,10 +27,8 @@ impl<X: Xfer> WincClient<'_, X> {
     ///
     /// # Arguments
     ///
-    /// * `buffer` - An optional mutable slice used to store the received Ethernet packet.
-    ///   If `None`, the internal receive buffer with a capacity of `SOCKET_BUFFER_MAX_LENGTH`
-    ///   bytes is used.
-    /// * `timeout` - An optional timeout in milliseconds, to wait for an Ethernet packet.
+    /// * `buffer` - A mutable slice used to store the received Ethernet packet.
+    /// * `timeout` - An optional duration to wait for a packet.
     ///   If `None`, the default timeout value `ETHERNET_RX_TIMEOUT_MSEC` is used.
     ///
     /// # Returns
@@ -39,54 +37,12 @@ impl<X: Xfer> WincClient<'_, X> {
     /// * `Err(StackError)` - If an error occurs while reading the ethernet packet.
     pub fn read_ethernet_packet(
         &mut self,
-        buffer: Option<&mut [u8]>,
-        timeout: Option<u32>,
+        buffer: &mut [u8],
+        timeout: Option<Duration>,
     ) -> nb::Result<usize, StackError> {
-        match &mut self.callbacks.eth_rx_info {
-            None => {
-                self.callbacks.eth_rx_info = Some(None);
-                let timeout_ms = timeout.unwrap_or(ETHERNET_RX_TIMEOUT_MSEC);
-                // todo clean-up
-                self.operation_countdown = (timeout_ms * 1000) / self.poll_loop_delay_us;
-            }
-            Some(info) => {
-                if let Some(info) = info {
-                    let recv_buffer = match buffer {
-                        None => {
-                            self.callbacks.recv_buffer.fill(0);
-                            self.callbacks.recv_buffer.as_mut_slice()
-                        }
-                        Some(buffer) => buffer,
-                    };
-                    let len_to_read = recv_buffer.len().min(info.packet_size as usize);
-                    let rx_done = len_to_read >= info.packet_size as usize;
-                    self.manager.recv_ethernet_packet(
-                        info.hif_address + info.data_offset as u32,
-                        &mut recv_buffer[..len_to_read],
-                        rx_done,
-                    )?;
-                    // check if all data is read from the module.
-                    if rx_done {
-                        // no bytes left to read
-                        self.callbacks.eth_rx_info = None;
-                    } else {
-                        info.data_offset += len_to_read as u16;
-                        info.packet_size -= len_to_read as u16;
-                    }
-
-                    return Ok(len_to_read);
-                } else {
-                    self.delay_us(self.poll_loop_delay_us);
-                    if self.operation_countdown == 0 {
-                        self.callbacks.eth_rx_info = None;
-                        return Err(nb::Error::Other(StackError::GeneralTimeout));
-                    }
-                    self.operation_countdown -= 1;
-                }
-            }
-        }
-        self.dispatch_events()?;
-        Err(nb::Error::WouldBlock)
+        let timeout_ms: Option<u32> = timeout.map(|d| d.as_millis().min(u32::MAX as u128) as u32);
+        let mut op = RxEthernetPacketInfo::new(Some(buffer), timeout_ms);
+        self.poll_op(&mut op)
     }
 
     /// Sends an Ethernet packet to the module.
@@ -104,20 +60,24 @@ impl<X: Xfer> WincClient<'_, X> {
     /// * `Ok(())` - If packet is successfully sent to the module.
     /// * `Err(StackError)` - If an error occurred while sending the ethernet packet.
     pub fn send_ethernet_packet(&mut self, net_pkt: &[u8]) -> Result<(), StackError> {
-        Ok(self.manager.send_ethernet_packet(net_pkt)?)
+        let mut op = SyncOp::send_ethernet_packet(net_pkt);
+        self.poll_once(&mut op)
     }
 }
 
+/// Implements `smoltcp::phy::Device` for `WincClient`.
 #[cfg(feature = "smoltcp")]
 mod smoltcp_impl {
     use super::{WincClient, Xfer};
     use crate::error;
     use crate::manager::{Manager, SOCKET_BUFFER_MAX_LENGTH};
+    use crate::ops::net_ops::ethernet_receive::RxEthernetPacketInfo;
     use embedded_nal::nb;
     use smoltcp::{
         phy::{self, DeviceCapabilities, Medium},
         time::Instant,
     };
+
     // 100 milliseconds timeout to wait for ethernet packet to arrive.
     const ETH_RECV_TIMEOUT_MSEC: u32 = 100;
 
@@ -149,7 +109,8 @@ mod smoltcp_impl {
             &mut self,
             _timestamp: Instant,
         ) -> Option<(Self::RxToken<'_>, Self::TxToken<'_>)> {
-            let result = nb::block!(self.read_ethernet_packet(None, Some(ETH_RECV_TIMEOUT_MSEC)));
+            let mut rx_op = RxEthernetPacketInfo::new(None, Some(ETH_RECV_TIMEOUT_MSEC));
+            let result = nb::block!(self.poll_op(&mut rx_op));
 
             let Ok(read_length) = result else {
                 return None;
@@ -256,7 +217,7 @@ mod tests {
         };
         client.debug_callback = Some(&mut my_debug);
 
-        let result = nb::block!(client.read_ethernet_packet(Some(&mut rx_buffer), None));
+        let result = nb::block!(client.read_ethernet_packet(&mut rx_buffer, None));
 
         assert!(result.is_ok());
     }
@@ -265,9 +226,9 @@ mod tests {
     fn test_read_ethernet_packet_timeout() {
         let mut client = make_test_client();
         let mut rx_buffer = [0u8; 200];
-        let timeout = 1000 as u32;
+        let timeout = Some(Duration::from_millis(1000));
 
-        let result = nb::block!(client.read_ethernet_packet(Some(&mut rx_buffer), Some(timeout)));
+        let result = nb::block!(client.read_ethernet_packet(&mut rx_buffer, timeout));
 
         assert_eq!(result, Err(StackError::GeneralTimeout));
     }
@@ -277,14 +238,16 @@ mod tests {
         let mut client = make_test_client();
         client.callbacks.recv_buffer.fill(0xff);
         let rx_info = (1600 as u16, 111 as u16, 0xAABBCCDD as u32);
-        let timeout = 1000 as u32;
+        let timeout = Some(1000 as u32);
 
         let mut my_debug = |callbacks: &mut SocketCallbacks| {
             callbacks.on_eth(rx_info.0, rx_info.1, rx_info.2);
         };
         client.debug_callback = Some(&mut my_debug);
 
-        let result = nb::block!(client.read_ethernet_packet(None, Some(timeout)));
+        let mut op = RxEthernetPacketInfo::new(None, timeout);
+
+        let result = nb::block!(client.poll_op(&mut op));
 
         assert!(result.is_ok());
         assert!(client.callbacks.recv_buffer.iter().all(|&b| b == 0));

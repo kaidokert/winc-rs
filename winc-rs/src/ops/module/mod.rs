@@ -63,6 +63,10 @@ enum SyncOpType<'a> {
         test_hook: bool,
         mac: Option<MacAddress>,
     },
+    #[cfg(feature = "ethernet")]
+    SendEthernetPacket {
+        packet: &'a [u8],
+    },
 }
 
 /// Container for managing synchronous operations.
@@ -273,6 +277,14 @@ impl<'a> SyncOp<'a> {
                 test_hook,
                 mac: None,
             },
+        }
+    }
+
+    #[cfg(feature = "ethernet")]
+    #[inline]
+    pub(crate) fn send_ethernet_packet(packet: &'a [u8]) -> Self {
+        Self {
+            op: SyncOpType::SendEthernetPacket { packet },
         }
     }
 
@@ -585,6 +597,8 @@ impl<'a, X: Xfer> OpImpl<X> for SyncOp<'a> {
                     test_hook,
                 )?);
             }
+            #[cfg(feature = "ethernet")]
+            SyncOpType::SendEthernetPacket { packet } => manager.send_ethernet_packet(packet)?,
         }
 
         Ok(Some(()))

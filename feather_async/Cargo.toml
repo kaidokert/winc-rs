@@ -22,9 +22,25 @@ wincwifi = { path = "../winc-rs", default-features = false, features=["defmt", "
 embassy-executor = { version = "0.7" , features= ["arch-cortex-m", "executor-thread", "defmt", "task-arena-size-6144"] }
 systick-timer = { version = "0.2.2",  features=["cortex-m","embassy-time-driver"] }
 embassy-time-driver = { version ="0.2" }
-embassy-time = { version = "0.4" }
+embassy-time = { version = "0.5.1" }
 embedded-nal-async = { version = "0.9" }
 demos_async = { path = "../demos_async", default-features = false, features = ["defmt"] }
+static_cell = { version = "2.1.1", default-features = false, optional = true }
+portable-atomic = { version = "1.13.1", default-features = false, features = ["critical-section"], optional = true }
+
+# Embassy Net
+[dependencies.embassy-net]
+version = "0.9.1"
+default-features = false
+optional = true
+features = ["medium-ethernet", "proto-ipv4", "raw", "udp", "icmp", "dns", "dhcpv4-hostname", "dhcpv4", "auto-icmp-echo-reply"]
+
+[[example]]
+name = "bypass_mode"
+required-features = ["external-tcp-stack"]
+
+[features]
+external-tcp-stack = ["wincwifi/embassy-net", "dep:embassy-net", "dep:static_cell", "dep:portable-atomic"]
 
 # cargo build/run
 [profile.dev]

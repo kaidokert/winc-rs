@@ -14,6 +14,9 @@ mod module;
 mod tcp_stack;
 mod udp_stack;
 
+#[cfg(feature = "ethernet")]
+mod ethernet;
+
 pub struct AsyncClient<'a, X: Xfer> {
     manager: RefCell<Manager<X>>,
     callbacks: RefCell<SocketCallbacks>,
