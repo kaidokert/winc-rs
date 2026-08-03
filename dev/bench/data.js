@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1783789559695,
+  "lastUpdate": 1785720095644,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -5830,6 +5830,40 @@ window.BENCHMARK_DATA = {
           {
             "name": "http_server",
             "value": 37072,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 50568,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "kaidokert@gmail.com",
+            "name": "kaidokert",
+            "username": "kaidokert"
+          },
+          "committer": {
+            "email": "kaidokert@gmail.com",
+            "name": "kaidokert",
+            "username": "kaidokert"
+          },
+          "distinct": true,
+          "id": "a8c23fd8e9ea6c70b3e7aaa360fcad44b8e97778",
+          "message": "feat: net-stats feature — driver-level TCP/UDP + DNS counters\n\nGated behind net-stats (off by default, zero cost when unused). The WINC runs\nthe TCP/IP stack on-chip so the host can't see L2 frames — but the driver sees\nevery socket send/receive, so count them there.\n\n- Process-global atomic counters incremented in the TCP send/receive, UDP\n  send/receive, and DNS-query paths, on success only.\n- NetStats { tcp/udp _tx/_rx _bytes/_ops, dns_queries }.\n- WincClient::net_stats()/reset_net_stats() methods PLUS free wincwifi::\n  net_stats()/reset_net_stats() that read without borrowing the client (needed\n  when it's borrowed elsewhere, e.g. by a TLS stream).\n\nHonest semantics (documented): app-layer TCP/UDP payload, not L2; *_ops are\nsocket calls, not wire packets.",
+          "timestamp": "2026-08-02T18:20:02-07:00",
+          "tree_id": "e90b06d28e1b7277dbcbd04ee0a3549f406d19f4",
+          "url": "https://github.com/kaidokert/winc-rs/commit/a8c23fd8e9ea6c70b3e7aaa360fcad44b8e97778"
+        },
+        "date": 1785720095050,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 37048,
             "unit": "byte"
           },
           {
