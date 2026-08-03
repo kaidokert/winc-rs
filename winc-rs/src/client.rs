@@ -21,6 +21,111 @@ pub use crate::stack::socket_callbacks::ClientSocketOp;
 use crate::stack::socket_callbacks::SocketCallbacks;
 pub use crate::stack::socket_callbacks::{Handle, PingResult};
 
+/// Driver-level network counters (feature `net-stats`).
+///
+/// The WINC runs the TCP/IP stack on-chip, so the host never sees L2 frames — these
+/// count what crosses the *driver API*: successful socket send/receive calls and their
+/// payload byte totals, split by transport. It is therefore app-layer TCP/UDP traffic
+/// (ARP/DHCP/DNS/ICMP happen inside the chip and are invisible), and `*_ops` are socket
+/// calls, **not** wire packets (the WINC fragments/reassembles internally). `dns_queries`
+/// counts host-name lookups issued. All counters wrap at `u32`.
+#[cfg(feature = "net-stats")]
+#[derive(Clone, Copy, Default, Debug, PartialEq, Eq)]
+pub struct NetStats {
+    pub tcp_tx_bytes: u32,
+    pub tcp_rx_bytes: u32,
+    pub tcp_tx_ops: u32,
+    pub tcp_rx_ops: u32,
+    pub udp_tx_bytes: u32,
+    pub udp_rx_bytes: u32,
+    pub udp_tx_ops: u32,
+    pub udp_rx_ops: u32,
+    pub dns_queries: u32,
+}
+
+/// Process-global network counters (feature `net-stats`). Global rather than per-client
+/// so they can be read without borrowing the [`WincClient`] — the normal case is one WINC
+/// per system. Incremented from the socket send/receive paths.
+#[cfg(feature = "net-stats")]
+pub(crate) mod counters {
+    use super::NetStats;
+    use core::sync::atomic::{AtomicU32, Ordering::Relaxed};
+
+    static TCP_TX_BYTES: AtomicU32 = AtomicU32::new(0);
+    static TCP_RX_BYTES: AtomicU32 = AtomicU32::new(0);
+    static TCP_TX_OPS: AtomicU32 = AtomicU32::new(0);
+    static TCP_RX_OPS: AtomicU32 = AtomicU32::new(0);
+    static UDP_TX_BYTES: AtomicU32 = AtomicU32::new(0);
+    static UDP_RX_BYTES: AtomicU32 = AtomicU32::new(0);
+    static UDP_TX_OPS: AtomicU32 = AtomicU32::new(0);
+    static UDP_RX_OPS: AtomicU32 = AtomicU32::new(0);
+    static DNS_QUERIES: AtomicU32 = AtomicU32::new(0);
+
+    pub(crate) fn tcp_tx(bytes: usize) {
+        TCP_TX_BYTES.fetch_add(bytes as u32, Relaxed);
+        TCP_TX_OPS.fetch_add(1, Relaxed);
+    }
+    pub(crate) fn tcp_rx(bytes: usize) {
+        TCP_RX_BYTES.fetch_add(bytes as u32, Relaxed);
+        TCP_RX_OPS.fetch_add(1, Relaxed);
+    }
+    pub(crate) fn udp_tx(bytes: usize) {
+        UDP_TX_BYTES.fetch_add(bytes as u32, Relaxed);
+        UDP_TX_OPS.fetch_add(1, Relaxed);
+    }
+    pub(crate) fn udp_rx(bytes: usize) {
+        UDP_RX_BYTES.fetch_add(bytes as u32, Relaxed);
+        UDP_RX_OPS.fetch_add(1, Relaxed);
+    }
+    pub(crate) fn dns_query() {
+        DNS_QUERIES.fetch_add(1, Relaxed);
+    }
+
+    pub(crate) fn snapshot() -> NetStats {
+        NetStats {
+            tcp_tx_bytes: TCP_TX_BYTES.load(Relaxed),
+            tcp_rx_bytes: TCP_RX_BYTES.load(Relaxed),
+            tcp_tx_ops: TCP_TX_OPS.load(Relaxed),
+            tcp_rx_ops: TCP_RX_OPS.load(Relaxed),
+            udp_tx_bytes: UDP_TX_BYTES.load(Relaxed),
+            udp_rx_bytes: UDP_RX_BYTES.load(Relaxed),
+            udp_tx_ops: UDP_TX_OPS.load(Relaxed),
+            udp_rx_ops: UDP_RX_OPS.load(Relaxed),
+            dns_queries: DNS_QUERIES.load(Relaxed),
+        }
+    }
+    pub(crate) fn reset() {
+        for a in [
+            &TCP_TX_BYTES,
+            &TCP_RX_BYTES,
+            &TCP_TX_OPS,
+            &TCP_RX_OPS,
+            &UDP_TX_BYTES,
+            &UDP_RX_BYTES,
+            &UDP_TX_OPS,
+            &UDP_RX_OPS,
+            &DNS_QUERIES,
+        ] {
+            a.store(0, Relaxed);
+        }
+    }
+}
+
+/// Read a snapshot of the driver-level network counters (feature `net-stats`).
+///
+/// Free-function form of [`WincClient::net_stats`], readable even while the client is
+/// borrowed elsewhere (e.g. by a TLS stream). See [`NetStats`].
+#[cfg(feature = "net-stats")]
+pub fn net_stats() -> NetStats {
+    counters::snapshot()
+}
+
+/// Reset all driver-level network counters to zero (feature `net-stats`).
+#[cfg(feature = "net-stats")]
+pub fn reset_net_stats() {
+    counters::reset()
+}
+
 /// Client for the WincWifi chip.
 ///
 /// This manages the state of the chip and
@@ -66,6 +171,23 @@ impl<X: Xfer> WincClient<'_, X> {
             #[cfg(test)]
             debug_callback: None,
         }
+    }
+
+    /// Snapshot of the driver-level network counters (feature `net-stats`).
+    ///
+    /// Equivalent to the free [`net_stats()`](crate::net_stats) function — the counters
+    /// are process-global (one WINC per system), so they can also be read without a
+    /// borrow of the client (useful when the client is borrowed elsewhere, e.g. by a
+    /// TLS stream). See [`NetStats`] for exactly what is (and isn't) counted.
+    #[cfg(feature = "net-stats")]
+    pub fn net_stats(&self) -> NetStats {
+        net_stats()
+    }
+
+    /// Reset all network counters to zero (feature `net-stats`).
+    #[cfg(feature = "net-stats")]
+    pub fn reset_net_stats(&mut self) {
+        reset_net_stats()
     }
     // Todo: remove this
     fn delay_us(&mut self, delay: u32) {

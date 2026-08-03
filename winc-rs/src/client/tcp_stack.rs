@@ -71,6 +71,10 @@ impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {
     ) -> Result<usize, nb::Error<<Self as TcpClientStack>::Error>> {
         let mut op = TcpSendOp::new(*socket, data);
         let res = self.poll_op(&mut op);
+        #[cfg(feature = "net-stats")]
+        if let Ok(n) = res {
+            crate::client::counters::tcp_tx(n);
+        }
         self.test_hook();
         res
     }
@@ -85,6 +89,12 @@ impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {
     ) -> Result<usize, nb::Error<<Self as TcpClientStack>::Error>> {
         let mut op = TcpReceiveOp::new(*socket, data);
         let res = self.poll_op(&mut op);
+        #[cfg(feature = "net-stats")]
+        if let Ok(n) = res {
+            if n > 0 {
+                crate::client::counters::tcp_rx(n);
+            }
+        }
         self.test_hook();
         res
     }

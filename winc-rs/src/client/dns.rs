@@ -24,7 +24,11 @@ impl<X: Xfer> Dns for WincClient<'_, X> {
         // Initialize DNS op if not already started
         if self.dns_op.is_none() {
             match DnsOp::new(hostname, Self::DNS_TIMEOUT) {
-                Ok(dns_op) => self.dns_op = Some(dns_op),
+                Ok(dns_op) => {
+                    self.dns_op = Some(dns_op);
+                    #[cfg(feature = "net-stats")]
+                    crate::client::counters::dns_query();
+                }
                 Err(e) => return Err(nb::Error::Other(e)),
             }
         }

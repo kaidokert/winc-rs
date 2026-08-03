@@ -62,6 +62,10 @@ impl<X: Xfer> WincClient<'_, X> {
             Ok(None) => Err(nb::Error::WouldBlock),
             Err(e) => Err(nb::Error::Other(e)),
         };
+        #[cfg(feature = "net-stats")]
+        if result.is_ok() {
+            crate::client::counters::udp_tx(data.len());
+        }
         self.test_hook();
         result
     }
@@ -148,6 +152,10 @@ impl<X: Xfer> UdpClientStack for WincClient<'_, X> {
             Ok(None) => Err(nb::Error::WouldBlock),
             Err(e) => Err(nb::Error::Other(e)),
         };
+        #[cfg(feature = "net-stats")]
+        if let Ok((len, _)) = result {
+            crate::client::counters::udp_rx(len);
+        }
         self.test_hook();
         result
     }
