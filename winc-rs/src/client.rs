@@ -43,89 +43,6 @@ pub struct NetStats {
     pub dns_queries: u32,
 }
 
-/// Process-global network counters (feature `net-stats`). Global rather than per-client
-/// so they can be read without borrowing the [`WincClient`] — the normal case is one WINC
-/// per system. Incremented from the socket send/receive paths.
-#[cfg(feature = "net-stats")]
-pub(crate) mod counters {
-    use super::NetStats;
-    use core::sync::atomic::{AtomicU32, Ordering::Relaxed};
-
-    static TCP_TX_BYTES: AtomicU32 = AtomicU32::new(0);
-    static TCP_RX_BYTES: AtomicU32 = AtomicU32::new(0);
-    static TCP_TX_OPS: AtomicU32 = AtomicU32::new(0);
-    static TCP_RX_OPS: AtomicU32 = AtomicU32::new(0);
-    static UDP_TX_BYTES: AtomicU32 = AtomicU32::new(0);
-    static UDP_RX_BYTES: AtomicU32 = AtomicU32::new(0);
-    static UDP_TX_OPS: AtomicU32 = AtomicU32::new(0);
-    static UDP_RX_OPS: AtomicU32 = AtomicU32::new(0);
-    static DNS_QUERIES: AtomicU32 = AtomicU32::new(0);
-
-    pub(crate) fn tcp_tx(bytes: usize) {
-        TCP_TX_BYTES.fetch_add(bytes as u32, Relaxed);
-        TCP_TX_OPS.fetch_add(1, Relaxed);
-    }
-    pub(crate) fn tcp_rx(bytes: usize) {
-        TCP_RX_BYTES.fetch_add(bytes as u32, Relaxed);
-        TCP_RX_OPS.fetch_add(1, Relaxed);
-    }
-    pub(crate) fn udp_tx(bytes: usize) {
-        UDP_TX_BYTES.fetch_add(bytes as u32, Relaxed);
-        UDP_TX_OPS.fetch_add(1, Relaxed);
-    }
-    pub(crate) fn udp_rx(bytes: usize) {
-        UDP_RX_BYTES.fetch_add(bytes as u32, Relaxed);
-        UDP_RX_OPS.fetch_add(1, Relaxed);
-    }
-    pub(crate) fn dns_query() {
-        DNS_QUERIES.fetch_add(1, Relaxed);
-    }
-
-    pub(crate) fn snapshot() -> NetStats {
-        NetStats {
-            tcp_tx_bytes: TCP_TX_BYTES.load(Relaxed),
-            tcp_rx_bytes: TCP_RX_BYTES.load(Relaxed),
-            tcp_tx_ops: TCP_TX_OPS.load(Relaxed),
-            tcp_rx_ops: TCP_RX_OPS.load(Relaxed),
-            udp_tx_bytes: UDP_TX_BYTES.load(Relaxed),
-            udp_rx_bytes: UDP_RX_BYTES.load(Relaxed),
-            udp_tx_ops: UDP_TX_OPS.load(Relaxed),
-            udp_rx_ops: UDP_RX_OPS.load(Relaxed),
-            dns_queries: DNS_QUERIES.load(Relaxed),
-        }
-    }
-    pub(crate) fn reset() {
-        for a in [
-            &TCP_TX_BYTES,
-            &TCP_RX_BYTES,
-            &TCP_TX_OPS,
-            &TCP_RX_OPS,
-            &UDP_TX_BYTES,
-            &UDP_RX_BYTES,
-            &UDP_TX_OPS,
-            &UDP_RX_OPS,
-            &DNS_QUERIES,
-        ] {
-            a.store(0, Relaxed);
-        }
-    }
-}
-
-/// Read a snapshot of the driver-level network counters (feature `net-stats`).
-///
-/// Free-function form of [`WincClient::net_stats`], readable even while the client is
-/// borrowed elsewhere (e.g. by a TLS stream). See [`NetStats`].
-#[cfg(feature = "net-stats")]
-pub fn net_stats() -> NetStats {
-    counters::snapshot()
-}
-
-/// Reset all driver-level network counters to zero (feature `net-stats`).
-#[cfg(feature = "net-stats")]
-pub fn reset_net_stats() {
-    counters::reset()
-}
-
 /// Client for the WincWifi chip.
 ///
 /// This manages the state of the chip and
@@ -136,6 +53,16 @@ pub struct WincClient<'a, X: Xfer> {
     callbacks: SocketCallbacks,
     next_session_id: u16,
     boot: Option<crate::manager::BootState>,
+    /// Driver-level network counters (feature `net-stats`).
+    ///
+    /// A field, not a set of `static`s. They were process-global "so they can be
+    /// read without borrowing the WincClient" -- convenient, but it puts them in
+    /// the image's shared `.bss`, and a caller running unprivileged behind an MPU
+    /// has no grant for that. On Astrum the first `send()` took a DACCVIOL at
+    /// `TCP_TX_BYTES`. Every increment site is already inside a `&mut self`
+    /// method, so ownership costs nothing.
+    #[cfg(feature = "net-stats")]
+    stats: NetStats,
     operation_countdown: u32,
     dns_op: Option<crate::ops::net_ops::dns::DnsOp>,
     phantom: core::marker::PhantomData<&'a ()>,
@@ -144,6 +71,70 @@ pub struct WincClient<'a, X: Xfer> {
 }
 
 impl<X: Xfer> WincClient<'_, X> {
+    // Counter helpers come in cfg'd pairs so the call sites stay unconditional.
+    // An `#[cfg]` directly on the increment expression is an attribute on an
+    // expression, which is still unstable.
+    #[cfg(feature = "net-stats")]
+    #[inline]
+    fn count_tcp_tx(&mut self, n: usize) {
+        self.stats.tcp_tx_bytes = self.stats.tcp_tx_bytes.wrapping_add(n as u32);
+        self.stats.tcp_tx_ops = self.stats.tcp_tx_ops.wrapping_add(1);
+    }
+    #[cfg(not(feature = "net-stats"))]
+    #[inline]
+    fn count_tcp_tx(&mut self, _n: usize) {}
+
+    #[cfg(feature = "net-stats")]
+    #[inline]
+    fn count_tcp_rx(&mut self, n: usize) {
+        self.stats.tcp_rx_bytes = self.stats.tcp_rx_bytes.wrapping_add(n as u32);
+        self.stats.tcp_rx_ops = self.stats.tcp_rx_ops.wrapping_add(1);
+    }
+    #[cfg(not(feature = "net-stats"))]
+    #[inline]
+    fn count_tcp_rx(&mut self, _n: usize) {}
+
+    #[cfg(feature = "net-stats")]
+    #[inline]
+    fn count_udp_tx(&mut self, n: usize) {
+        self.stats.udp_tx_bytes = self.stats.udp_tx_bytes.wrapping_add(n as u32);
+        self.stats.udp_tx_ops = self.stats.udp_tx_ops.wrapping_add(1);
+    }
+    #[cfg(not(feature = "net-stats"))]
+    #[inline]
+    fn count_udp_tx(&mut self, _n: usize) {}
+
+    #[cfg(feature = "net-stats")]
+    #[inline]
+    fn count_udp_rx(&mut self, n: usize) {
+        self.stats.udp_rx_bytes = self.stats.udp_rx_bytes.wrapping_add(n as u32);
+        self.stats.udp_rx_ops = self.stats.udp_rx_ops.wrapping_add(1);
+    }
+    #[cfg(not(feature = "net-stats"))]
+    #[inline]
+    fn count_udp_rx(&mut self, _n: usize) {}
+
+    #[cfg(feature = "net-stats")]
+    #[inline]
+    fn count_dns_query(&mut self) {
+        self.stats.dns_queries = self.stats.dns_queries.wrapping_add(1);
+    }
+    #[cfg(not(feature = "net-stats"))]
+    #[inline]
+    fn count_dns_query(&mut self) {}
+
+    /// Snapshot of the driver-level network counters (feature `net-stats`).
+    #[cfg(feature = "net-stats")]
+    pub fn net_stats(&self) -> NetStats {
+        self.stats
+    }
+
+    /// Reset the driver-level network counters (feature `net-stats`).
+    #[cfg(feature = "net-stats")]
+    pub fn reset_net_stats(&mut self) {
+        self.stats = NetStats::default();
+    }
+
     const TCP_SOCKET_BACKLOG: u8 = 4;
     const LISTEN_TIMEOUT: u32 = 100;
     const BIND_TIMEOUT: u32 = 100;
@@ -165,6 +156,8 @@ impl<X: Xfer> WincClient<'_, X> {
             poll_loop_delay_us: Self::POLL_LOOP_DELAY_US,
             next_session_id: 0,
             boot: None,
+            #[cfg(feature = "net-stats")]
+            stats: NetStats::default(),
             operation_countdown: 0,
             dns_op: None,
             phantom: core::marker::PhantomData,
@@ -173,22 +166,6 @@ impl<X: Xfer> WincClient<'_, X> {
         }
     }
 
-    /// Snapshot of the driver-level network counters (feature `net-stats`).
-    ///
-    /// Equivalent to the free [`net_stats()`](crate::net_stats) function — the counters
-    /// are process-global (one WINC per system), so they can also be read without a
-    /// borrow of the client (useful when the client is borrowed elsewhere, e.g. by a
-    /// TLS stream). See [`NetStats`] for exactly what is (and isn't) counted.
-    #[cfg(feature = "net-stats")]
-    pub fn net_stats(&self) -> NetStats {
-        net_stats()
-    }
-
-    /// Reset all network counters to zero (feature `net-stats`).
-    #[cfg(feature = "net-stats")]
-    pub fn reset_net_stats(&mut self) {
-        reset_net_stats()
-    }
     // Todo: remove this
     fn delay_us(&mut self, delay: u32) {
         self.manager.delay_us(delay)

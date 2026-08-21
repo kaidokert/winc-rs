@@ -26,8 +26,7 @@ impl<X: Xfer> Dns for WincClient<'_, X> {
             match DnsOp::new(hostname, Self::DNS_TIMEOUT) {
                 Ok(dns_op) => {
                     self.dns_op = Some(dns_op);
-                    #[cfg(feature = "net-stats")]
-                    crate::client::counters::dns_query();
+                    self.count_dns_query();
                 }
                 Err(e) => return Err(nb::Error::Other(e)),
             }

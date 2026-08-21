@@ -82,11 +82,11 @@ mod transfer;
 pub use errors::CommError;
 pub use transfer::Xfer as Transfer;
 
+#[cfg(feature = "net-stats")]
+pub use client::NetStats;
 pub use client::PingResult;
 pub use client::StackError;
 pub use client::WincClient;
-#[cfg(feature = "net-stats")]
-pub use client::{net_stats, reset_net_stats, NetStats};
 pub use manager::AuthType;
 pub use manager::ConnectionInfo;
 pub use manager::FirmwareInfo;
