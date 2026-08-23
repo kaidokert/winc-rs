@@ -79,6 +79,7 @@ experimental-ecc = ["ssl"] # Enables the ECDSA/ECDH functions. Depends on "ssl".
 ethernet = [] # Support for ethernet mode.
 smoltcp = ["ethernet", "dep:smoltcp"]
 embassy-net = ["ethernet", "dep:embassy-net-driver"]
+net-stats = [] # Driver-level TCP/UDP byte+op counters + DNS query count (WincClient::net_stats).
 
 # Todo: add feature flags to save binary space
 # - TCP

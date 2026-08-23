@@ -82,6 +82,8 @@ mod transfer;
 pub use errors::CommError;
 pub use transfer::Xfer as Transfer;
 
+#[cfg(feature = "net-stats")]
+pub use client::NetStats;
 pub use client::PingResult;
 pub use client::StackError;
 pub use client::WincClient;
