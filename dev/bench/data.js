@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1785720095644,
+  "lastUpdate": 1787444980521,
   "repoUrl": "https://github.com/kaidokert/winc-rs",
   "entries": {
     "Benchmark": [
@@ -5869,6 +5869,40 @@ window.BENCHMARK_DATA = {
           {
             "name": "iperf3_client",
             "value": 50568,
+            "unit": "byte"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "kaidokert@gmail.com",
+            "name": "kaidokert",
+            "username": "kaidokert"
+          },
+          "committer": {
+            "email": "kaidokert@gmail.com",
+            "name": "kaidokert",
+            "username": "kaidokert"
+          },
+          "distinct": true,
+          "id": "bb7aed948f4ff9464c0245695ac226ca89e50939",
+          "message": "fix(net-stats): make NetStats a field of WincClient, not process globals\n\nThe counters added in #151 were process-global statics. The rationale is in the\ncomment I wrote at the time: 'Global rather than per-client so they can be read\nwithout borrowing the WincClient -- the normal case is one WINC per system.'\nThat convenience is exactly what breaks the driver for an MPU-isolated caller.\n\nStatics land in the image's shared .bss. A caller running this driver\nunprivileged behind an MPU has no grant for that region, so the first\nTcpClientStack::send faults on the counter rather than on anything WINC-related:\n\n    cfsr=0x00000082 (DACCVIOL|MMARVALID)\n    mmfar=0x20000888 -> wincwifi::client::counters::TCP_TX_BYTES\n    pc inside WincClient::send\n\nNetStats is now a single field of WincClient, so the counters live wherever the\ncaller put the client -- for an isolated caller, in memory it owns. Every\nincrement site was already inside a &mut self method, so ownership costs nothing\nat the call sites, and one struct rather than nine fields keeps partial borrows\nout of it.\n\nnet_stats()/reset_net_stats() are inherent methods now; the free functions and\nthe counters module are gone. Increments go through cfg'd helper pairs, so call\nsites are unconditional -- an #[cfg] on the increment expression itself is an\nattribute on an expression, still unstable, and guarding the call sites instead\nleft the no-op helpers dead under -D warnings.\n\nVerified: clippy --all-targets clean, builds with and without net-stats, and on\nan Astrum-partitioned SAM4S the driver runs with net-stats enabled and no\nMemManage.",
+          "timestamp": "2026-08-20T22:25:11-07:00",
+          "tree_id": "48d19ead31e6f4f9c7afc1cc13a031c71b504c6a",
+          "url": "https://github.com/kaidokert/winc-rs/commit/bb7aed948f4ff9464c0245695ac226ca89e50939"
+        },
+        "date": 1787444979838,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "http_server",
+            "value": 37112,
+            "unit": "byte"
+          },
+          {
+            "name": "iperf3_client",
+            "value": 50560,
             "unit": "byte"
           }
         ]
