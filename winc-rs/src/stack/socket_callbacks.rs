@@ -156,6 +156,44 @@ pub(crate) struct SocketCallbacks {
     pub ssl_cb_info: SslCallbackInfo,
     #[cfg(feature = "ethernet")]
     pub eth_rx_info: Option<Option<EthernetRxInfo>>,
+
+    /// Per-socket receive state, held outside `ClientSocketOp`.
+    ///
+    /// A socket has one op slot but TCP is full duplex, so a send and a receive
+    /// are independently in flight. Starting a send overwrites the op slot, and
+    /// with the receive tracked there the reply to an outstanding `send_recv`
+    /// arrived with no record that it had been asked for, and was discarded.
+    pub tcp_recv: [TcpRecvState; NUM_TCP_SOCKETS],
+}
+
+/// Receive state for one socket.
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub(crate) enum TcpRecvState {
+    /// Nothing asked for.
+    Idle,
+    /// `send_recv` issued, awaiting the reply. Carries the session id of the
+    /// socket that asked.
+    Requested(u16),
+    /// Reply received, possibly partly drained. Carries the session id of the
+    /// socket that asked.
+    Ready(u16, RecvResult),
+}
+
+impl TcpRecvState {
+    /// The session this state belongs to, if any.
+    ///
+    /// The array is indexed by socket *index*, and an index is reused when a
+    /// socket is closed and another opened. Without the session id a new
+    /// connection inherits the previous one's state: `Requested` would leave it
+    /// waiting for a reply it never asked for, and `Ready` would hand it the
+    /// previous session's bytes.
+    pub(crate) fn session(&self) -> Option<u16> {
+        match self {
+            Self::Idle => None,
+            Self::Requested(s) | Self::Ready(s, _) => Some(*s),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -231,7 +269,6 @@ pub enum AsyncOp {
     Connect(Option<ConnectResult>),
     Send(SendRequest, Option<i16>),
     SendTo(SendRequest, Option<i16>),
-    Recv(Option<RecvResult>),
     RecvFrom(Option<RecvResult>),
     Accept(Option<AcceptResult>),
 }
@@ -274,6 +311,7 @@ impl SocketCallbacks {
             ssl_cb_info: SslCallbackInfo::default(),
             #[cfg(feature = "ethernet")]
             eth_rx_info: None,
+            tcp_recv: [TcpRecvState::Idle; NUM_TCP_SOCKETS],
         }
     }
     pub fn resolve(&mut self, socket: Socket) -> Option<&mut (Socket, ClientSocketOp)> {
@@ -505,42 +543,43 @@ impl EventListener for SocketCallbacks {
         err: crate::manager::SocketError,
     ) {
         debug!("on_recv: socket {:?}", socket);
-        match self.resolve(socket) {
-            Some((s, ClientSocketOp::AsyncOp(
-                    AsyncOp::Recv(option),
-                    asyncstate @ AsyncState::Pending(_),))) => {
-                debug!(
-                    "on_recv: socket:{:?} address:{:?} data:{:?} len:{:?} error:{:?}",
-                    s,
-                    Ipv4AddrFormatWrapper::new(address.ip()),
-                    data,
-                    data.len(),
-                    err
-                );
-                option.replace(RecvResult {
-                    recv_len: data.len(),
-                    from_addr: address,
-                    error: err,
-                    return_offset: 0,
-                });
-                *asyncstate = AsyncState::Done;
-                self.recv_buffer[..data.len()].copy_from_slice(data);
-            }
-            Some((_, op)) => error!(
-                "Socket NOT in recv: socket:{:?} address:{:?} data:{:?} error:{:?} actual state:{:?}",
-                socket,
-                Ipv4AddrFormatWrapper::new(address.ip()),
-                data,
-                err, op
-            ),
-            None => error!(
+        // Recorded against the socket, not the op slot. This is the reply to a
+        // `send_recv` this socket issued; whether some other operation has
+        // since taken the op slot has no bearing on it.
+        let Some(slot) = self.tcp_recv.get_mut(socket.v as usize) else {
+            error!(
                 "UNKNOWN on_recv: socket:{:?} address:{:?} data:{:?} error:{:?}",
                 socket,
                 Ipv4AddrFormatWrapper::new(address.ip()),
                 data,
                 err
-            ),
+            );
+            return;
+        };
+        // Accepted only against an outstanding request. `Idle` means this
+        // socket has not asked for anything, so the delivery is unexpected and
+        // there is no buffer reserved for it; `Ready` means a previous reply is
+        // still being drained out of the shared `recv_buffer`.
+        if !matches!(slot, TcpRecvState::Requested(s) if *s == socket.s) {
+            error!(
+                "on_recv with no outstanding request: socket:{:?} address:{:?} data:{:?} error:{:?}",
+                socket,
+                Ipv4AddrFormatWrapper::new(address.ip()),
+                data,
+                err
+            );
+            return;
         }
+        *slot = TcpRecvState::Ready(
+            socket.s,
+            RecvResult {
+                recv_len: data.len(),
+                from_addr: address,
+                error: err,
+                return_offset: 0,
+            },
+        );
+        self.recv_buffer[..data.len()].copy_from_slice(data);
     }
     fn on_recvfrom(
         &mut self,
