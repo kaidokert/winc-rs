@@ -96,10 +96,6 @@ impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {
         let socket_id = sock.v as usize;
         self.callbacks.listening_sockets[socket_id] = false;
         self.callbacks.accept_backlog[socket_id] = None;
-        // Belt and braces with the session check in `on_recv`: the index is
-        // reused by the next socket, and leaving state here would have it
-        // waiting on a reply this connection asked for.
-        self.callbacks.tcp_recv[socket_id] = TcpRecvState::Idle;
         self.manager
             .send_close(*sock)
             .map_err(StackError::SendCloseFailed)?;
@@ -108,6 +104,15 @@ impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {
             .get(socket)
             .ok_or(StackError::CloseFailed)?;
         self.callbacks.tcp_sockets.remove(socket);
+        // Cleared only once the socket is actually gone. Doing it earlier
+        // discards the receive state of a socket that is still live if
+        // `send_close` fails, losing track of a request still outstanding at
+        // the chip -- the same loss this change exists to prevent.
+        //
+        // Belt and braces with the session check in `on_recv`: the index is
+        // reused by the next socket, and state left here would have it waiting
+        // on a reply it never asked for.
+        self.callbacks.tcp_recv[socket_id] = TcpRecvState::Idle;
         Ok(())
     }
 }
