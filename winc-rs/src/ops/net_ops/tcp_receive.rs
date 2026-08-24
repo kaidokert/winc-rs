@@ -35,6 +35,30 @@ impl<X: Xfer> OpImpl<X> for TcpReceiveOp<'_> {
             .ok_or(StackError::SocketNotFound)?;
         let socket = *sock;
 
+        // A delivery parked by `on_recv` because the op slot was busy with a
+        // send. Drained before the op state machine, and before the leftover
+        // path, because it is strictly older than anything a subsequent recv
+        // request will produce -- handing it back out of order would reorder
+        // the byte stream, which is the defect this exists to prevent.
+        if let Some((psock, ref mut pending)) = callbacks.pending_recv {
+            if psock.v == socket.v {
+                if pending.return_offset < pending.recv_len {
+                    let remaining = pending.recv_len - pending.return_offset;
+                    let copy_len = remaining.min(self.buffer.len());
+                    let from = pending.return_offset;
+                    self.buffer[..copy_len]
+                        .copy_from_slice(&callbacks.recv_buffer[from..from + copy_len]);
+                    pending.return_offset += copy_len;
+                    let done = pending.return_offset >= pending.recv_len;
+                    if done {
+                        callbacks.pending_recv = None;
+                    }
+                    return Ok(Some(copy_len));
+                }
+                callbacks.pending_recv = None;
+            }
+        }
+
         // First, handle leftover data from a previous operation
         if let ClientSocketOp::AsyncOp(AsyncOp::Recv(Some(ref mut recv_result)), AsyncState::Done) =
             op

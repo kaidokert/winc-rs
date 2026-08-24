@@ -176,6 +176,27 @@ pub(crate) struct SocketCallbacks {
     pub rx_dropped_ops: u32,
     #[cfg(feature = "net-stats")]
     pub rx_dropped_bytes: u32,
+    /// Deliveries that arrived with no receive in flight and were kept rather
+    /// than discarded. Non-zero here is the bug this fix addresses.
+    #[cfg(feature = "net-stats")]
+    pub rx_unsolicited_ops: u32,
+    /// Nibble history of the op state live at each discarded delivery.
+    #[cfg(feature = "net-stats")]
+    pub rx_drop_kinds: u32,
+
+    /// A received payload that arrived while the socket's single op slot was
+    /// busy with something else -- in practice a `Send`.
+    ///
+    /// `ClientSocketOp` is one slot per socket, so a socket cannot express
+    /// "send in flight AND data pending". Every delivery arriving during a send
+    /// therefore reached the discard arm of `on_recv` and was lost silently.
+    /// On a request/response protocol that is the common case, not an edge
+    /// case: measured on an ATSAM4S, three consecutive drops of 1446 bytes
+    /// each, all with a `Send` live (astrum-rtos #160).
+    ///
+    /// One slot, matching the single shared `recv_buffer`; the socket is stored
+    /// alongside so a delivery is never handed to the wrong one.
+    pub pending_recv: Option<(Socket, RecvResult)>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -300,6 +321,11 @@ impl SocketCallbacks {
             rx_dropped_ops: 0,
             #[cfg(feature = "net-stats")]
             rx_dropped_bytes: 0,
+            #[cfg(feature = "net-stats")]
+            rx_unsolicited_ops: 0,
+            #[cfg(feature = "net-stats")]
+            rx_drop_kinds: 0,
+            pending_recv: None,
         }
     }
     pub fn resolve(&mut self, socket: Socket) -> Option<&mut (Socket, ClientSocketOp)> {
@@ -531,8 +557,16 @@ impl EventListener for SocketCallbacks {
         err: crate::manager::SocketError,
     ) {
         debug!("on_recv: socket {:?}", socket);
+        // Read before `resolve()` takes a mutable borrow of `self`.
+        let park_free = self.pending_recv.is_none();
         #[cfg(feature = "net-stats")]
         let mut dropped: Option<u32> = None;
+        #[cfg(feature = "net-stats")]
+        let mut unsolicited: Option<u32> = None;
+        #[cfg(feature = "net-stats")]
+        let mut drop_kind: Option<u32> = None;
+        #[cfg(feature = "net-stats")]
+        let mut parked: Option<u32> = None;
         match self.resolve(socket) {
             Some((
                 s,
@@ -559,6 +593,61 @@ impl EventListener for SocketCallbacks {
                 }
                 self.recv_buffer[..data.len()].copy_from_slice(data);
             }
+            // No receive in flight, but the previous one is fully drained, so
+            // `recv_buffer` is free: keep the data instead of discarding it.
+            //
+            // The WINC delivers socket data asynchronously, and `poll_impl`
+            // sets the op back to `None` the moment the last byte is handed to
+            // the caller. Anything the chip pushes between that point and the
+            // next `send_recv` therefore arrived with no op pending and fell
+            // into the discard arm below -- silently, since `on_recv` returns
+            // nothing and the `error!` compiles away in a build with `log` at
+            // `max_level_off`.
+            //
+            // For TCP that removes a span from the middle of a byte stream.
+            // Measured on an ATSAM4S: ~1446 bytes per occurrence, one whole
+            // segment, which desynchronised the TLS record framer above it and
+            // killed the session every ~27 s (astrum-rtos #160).
+            //
+            // Parking it as a completed receive is exactly the state a solicited
+            // delivery leaves behind, so the next `receive()` takes the ordinary
+            // leftover path and the stream stays contiguous.
+            Some((_, op @ ClientSocketOp::None)) => {
+                *op = ClientSocketOp::AsyncOp(
+                    AsyncOp::Recv(Some(RecvResult {
+                        recv_len: data.len(),
+                        from_addr: address,
+                        error: err,
+                        return_offset: 0,
+                    })),
+                    AsyncState::Done,
+                );
+                #[cfg(feature = "net-stats")]
+                {
+                    unsolicited = Some(data.len() as u32);
+                }
+                self.recv_buffer[..data.len()].copy_from_slice(data);
+            }
+            // Op slot busy (a Send, typically) but the shared recv_buffer is
+            // free: park the delivery rather than discard it. `poll_impl`
+            // drains this before consulting the op state machine.
+            Some((s2, op)) if park_free && !matches!(op, ClientSocketOp::None) => {
+                let sock = *s2;
+                #[cfg(feature = "net-stats")]
+                {
+                    parked = Some(data.len() as u32);
+                }
+                self.pending_recv = Some((
+                    sock,
+                    RecvResult {
+                        recv_len: data.len(),
+                        from_addr: address,
+                        error: err,
+                        return_offset: 0,
+                    },
+                ));
+                self.recv_buffer[..data.len()].copy_from_slice(data);
+            }
             Some((_, op)) => {
                 error!(
                     "Socket NOT in recv: socket:{:?} address:{:?} data:{:?} error:{:?} actual state:{:?}",
@@ -576,7 +665,26 @@ impl EventListener for SocketCallbacks {
                 // ended.
                 #[cfg(feature = "net-stats")]
                 {
+                    // Which op was live matters: `None` is now handled, so a
+                    // drop here means the socket was busy with something else.
+                    // A Send in flight is the suspected case -- there is one
+                    // op slot per socket, so a receive arriving during a send
+                    // has nowhere to be recorded.
+                    let kind = match op {
+                        ClientSocketOp::None => 1,
+                        ClientSocketOp::AsyncOp(AsyncOp::Recv(_), _) => 2,
+                        ClientSocketOp::AsyncOp(AsyncOp::Send(..), _) => 3,
+                        ClientSocketOp::AsyncOp(AsyncOp::SendTo(..), _) => 4,
+                        ClientSocketOp::AsyncOp(AsyncOp::RecvFrom(_), _) => 5,
+                        ClientSocketOp::AsyncOp(AsyncOp::Connect(_), _) => 6,
+                        ClientSocketOp::Bind(_) => 7,
+                        ClientSocketOp::Listen(_) => 8,
+                        ClientSocketOp::AsyncOp(AsyncOp::Accept(_), _) => 9,
+                        ClientSocketOp::New => 10,
+                        _ => 15,
+                    };
                     dropped = Some(data.len() as u32);
+                    drop_kind = Some(kind);
                 }
             }
             None => error!(
@@ -591,6 +699,22 @@ impl EventListener for SocketCallbacks {
         if let Some(n) = dropped {
             self.rx_dropped_ops = self.rx_dropped_ops.wrapping_add(1);
             self.rx_dropped_bytes = self.rx_dropped_bytes.wrapping_add(n);
+        }
+        #[cfg(feature = "net-stats")]
+        if let Some(k) = drop_kind {
+            // Shift a nibble in per drop, newest last: the recent history of
+            // states, not just the latest, in one word.
+            self.rx_drop_kinds = (self.rx_drop_kinds << 4) | (k & 0xf);
+        }
+        #[cfg(feature = "net-stats")]
+        if let Some(n) = parked {
+            self.chip_rx_bytes = self.chip_rx_bytes.wrapping_add(n);
+            self.rx_unsolicited_ops = self.rx_unsolicited_ops.wrapping_add(1);
+        }
+        #[cfg(feature = "net-stats")]
+        if let Some(n) = unsolicited {
+            self.chip_rx_bytes = self.chip_rx_bytes.wrapping_add(n);
+            self.rx_unsolicited_ops = self.rx_unsolicited_ops.wrapping_add(1);
         }
     }
     fn on_recvfrom(

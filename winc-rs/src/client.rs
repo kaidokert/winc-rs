@@ -50,6 +50,12 @@ pub struct NetStats {
     /// reports it.
     pub rx_dropped_ops: u32,
     pub rx_dropped_bytes: u32,
+    /// Deliveries that arrived with no receive in flight and were kept rather
+    /// than discarded. Non-zero means the condition winc-rs #152 describes is
+    /// occurring and is now being handled instead of losing data.
+    pub rx_unsolicited_ops: u32,
+    /// Nibble history of the op state live at each discarded delivery.
+    pub rx_drop_kinds: u32,
 }
 
 /// Client for the WincWifi chip.
@@ -141,6 +147,8 @@ impl<X: Xfer> WincClient<'_, X> {
         s.chip_rx_bytes = self.callbacks.chip_rx_bytes;
         s.rx_dropped_ops = self.callbacks.rx_dropped_ops;
         s.rx_dropped_bytes = self.callbacks.rx_dropped_bytes;
+        s.rx_unsolicited_ops = self.callbacks.rx_unsolicited_ops;
+        s.rx_drop_kinds = self.callbacks.rx_drop_kinds;
         s
     }
 
