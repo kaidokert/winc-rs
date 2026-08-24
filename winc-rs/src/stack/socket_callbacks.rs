@@ -156,6 +156,26 @@ pub(crate) struct SocketCallbacks {
     pub ssl_cb_info: SslCallbackInfo,
     #[cfg(feature = "ethernet")]
     pub eth_rx_info: Option<Option<EthernetRxInfo>>,
+
+    // Stream-integrity counters (feature `net-stats`).
+    //
+    // `count_tcp_rx` counts bytes *returned to the caller*, which is the same
+    // number the caller already has; it cannot show loss. These two count the
+    // other side of the boundary:
+    //
+    //   `chip_rx_bytes`  bytes handed to `on_recv` by the event listener, i.e.
+    //                    received from the WINC.
+    //   `rx_dropped_ops` `on_recv` deliveries discarded because the socket was
+    //                    not in `AsyncState::Pending`. That arm only logs, so
+    //                    the data is gone with no return value to signal it.
+    //
+    // chip_rx_bytes minus bytes delivered is loss inside the driver.
+    #[cfg(feature = "net-stats")]
+    pub chip_rx_bytes: u32,
+    #[cfg(feature = "net-stats")]
+    pub rx_dropped_ops: u32,
+    #[cfg(feature = "net-stats")]
+    pub rx_dropped_bytes: u32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -274,6 +294,12 @@ impl SocketCallbacks {
             ssl_cb_info: SslCallbackInfo::default(),
             #[cfg(feature = "ethernet")]
             eth_rx_info: None,
+            #[cfg(feature = "net-stats")]
+            chip_rx_bytes: 0,
+            #[cfg(feature = "net-stats")]
+            rx_dropped_ops: 0,
+            #[cfg(feature = "net-stats")]
+            rx_dropped_bytes: 0,
         }
     }
     pub fn resolve(&mut self, socket: Socket) -> Option<&mut (Socket, ClientSocketOp)> {
@@ -505,10 +531,13 @@ impl EventListener for SocketCallbacks {
         err: crate::manager::SocketError,
     ) {
         debug!("on_recv: socket {:?}", socket);
+        #[cfg(feature = "net-stats")]
+        let mut dropped: Option<u32> = None;
         match self.resolve(socket) {
-            Some((s, ClientSocketOp::AsyncOp(
-                    AsyncOp::Recv(option),
-                    asyncstate @ AsyncState::Pending(_),))) => {
+            Some((
+                s,
+                ClientSocketOp::AsyncOp(AsyncOp::Recv(option), asyncstate @ AsyncState::Pending(_)),
+            )) => {
                 debug!(
                     "on_recv: socket:{:?} address:{:?} data:{:?} len:{:?} error:{:?}",
                     s,
@@ -524,15 +553,32 @@ impl EventListener for SocketCallbacks {
                     return_offset: 0,
                 });
                 *asyncstate = AsyncState::Done;
+                #[cfg(feature = "net-stats")]
+                {
+                    self.chip_rx_bytes = self.chip_rx_bytes.wrapping_add(data.len() as u32);
+                }
                 self.recv_buffer[..data.len()].copy_from_slice(data);
             }
-            Some((_, op)) => error!(
-                "Socket NOT in recv: socket:{:?} address:{:?} data:{:?} error:{:?} actual state:{:?}",
-                socket,
-                Ipv4AddrFormatWrapper::new(address.ip()),
-                data,
-                err, op
-            ),
+            Some((_, op)) => {
+                error!(
+                    "Socket NOT in recv: socket:{:?} address:{:?} data:{:?} error:{:?} actual state:{:?}",
+                    socket,
+                    Ipv4AddrFormatWrapper::new(address.ip()),
+                    data,
+                    err, op
+                );
+                // The socket was not awaiting a receive, so this payload is
+                // discarded. `on_recv` returns nothing, so the loss is
+                // invisible to every layer above -- and a TCP stream missing a
+                // span of bytes desynchronises anything framing it.
+                //
+                // Counted after the `error!` so `op`'s borrow of `self` has
+                // ended.
+                #[cfg(feature = "net-stats")]
+                {
+                    dropped = Some(data.len() as u32);
+                }
+            }
             None => error!(
                 "UNKNOWN on_recv: socket:{:?} address:{:?} data:{:?} error:{:?}",
                 socket,
@@ -540,6 +586,11 @@ impl EventListener for SocketCallbacks {
                 data,
                 err
             ),
+        }
+        #[cfg(feature = "net-stats")]
+        if let Some(n) = dropped {
+            self.rx_dropped_ops = self.rx_dropped_ops.wrapping_add(1);
+            self.rx_dropped_bytes = self.rx_dropped_bytes.wrapping_add(n);
         }
     }
     fn on_recvfrom(

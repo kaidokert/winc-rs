@@ -41,6 +41,15 @@ pub struct NetStats {
     pub udp_tx_ops: u32,
     pub udp_rx_ops: u32,
     pub dns_queries: u32,
+    /// Bytes handed to `on_recv` by the event listener, i.e. received from the
+    /// WINC. `tcp_rx_bytes` counts bytes *returned to the caller*, so the two
+    /// differ by exactly what the driver lost internally.
+    pub chip_rx_bytes: u32,
+    /// `on_recv` deliveries discarded because the socket was not awaiting a
+    /// receive. That path only logs; the bytes are gone and no return value
+    /// reports it.
+    pub rx_dropped_ops: u32,
+    pub rx_dropped_bytes: u32,
 }
 
 /// Client for the WincWifi chip.
@@ -126,7 +135,13 @@ impl<X: Xfer> WincClient<'_, X> {
     /// Snapshot of the driver-level network counters (feature `net-stats`).
     #[cfg(feature = "net-stats")]
     pub fn net_stats(&self) -> NetStats {
-        self.stats
+        let mut s = self.stats;
+        // These live on SocketCallbacks, which is where the event listener
+        // delivers into; fold them in at read time.
+        s.chip_rx_bytes = self.callbacks.chip_rx_bytes;
+        s.rx_dropped_ops = self.callbacks.rx_dropped_ops;
+        s.rx_dropped_bytes = self.callbacks.rx_dropped_bytes;
+        s
     }
 
     /// Reset the driver-level network counters (feature `net-stats`).
