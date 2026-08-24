@@ -156,6 +156,11 @@ pub(crate) struct SocketCallbacks {
     pub ssl_cb_info: SslCallbackInfo,
     #[cfg(feature = "ethernet")]
     pub eth_rx_info: Option<Option<EthernetRxInfo>>,
+
+    /// A delivery that arrived while the socket's op slot held something else.
+    /// One slot, matching the shared `recv_buffer`; the socket is stored with it
+    /// so the data is never returned to a different one.
+    pub pending_recv: Option<(Socket, RecvResult)>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -274,6 +279,7 @@ impl SocketCallbacks {
             ssl_cb_info: SslCallbackInfo::default(),
             #[cfg(feature = "ethernet")]
             eth_rx_info: None,
+            pending_recv: None,
         }
     }
     pub fn resolve(&mut self, socket: Socket) -> Option<&mut (Socket, ClientSocketOp)> {
@@ -505,6 +511,7 @@ impl EventListener for SocketCallbacks {
         err: crate::manager::SocketError,
     ) {
         debug!("on_recv: socket {:?}", socket);
+        let park_free = self.pending_recv.is_none();
         match self.resolve(socket) {
             Some((s, ClientSocketOp::AsyncOp(
                     AsyncOp::Recv(option),
@@ -526,8 +533,28 @@ impl EventListener for SocketCallbacks {
                 *asyncstate = AsyncState::Done;
                 self.recv_buffer[..data.len()].copy_from_slice(data);
             }
+            // Data arriving while a send is in flight. A socket has one op
+            // slot, so this delivery has nowhere to be recorded and was
+            // discarded -- removing a span from the middle of a TCP stream,
+            // which desynchronises anything framing it. Park it instead;
+            // `recv_buffer` is free because no recv is outstanding.
+            Some((s, ClientSocketOp::AsyncOp(AsyncOp::Send(..) | AsyncOp::SendTo(..), _)))
+                if park_free =>
+            {
+                let sock = *s;
+                self.pending_recv = Some((
+                    sock,
+                    RecvResult {
+                        recv_len: data.len(),
+                        from_addr: address,
+                        error: err,
+                        return_offset: 0,
+                    },
+                ));
+                self.recv_buffer[..data.len()].copy_from_slice(data);
+            }
             Some((_, op)) => error!(
-                "Socket NOT in recv: socket:{:?} address:{:?} data:{:?} error:{:?} actual state:{:?}",
+                "Socket NOT in recv, and no room to park it: socket:{:?} address:{:?} data:{:?} error:{:?} actual state:{:?}",
                 socket,
                 Ipv4AddrFormatWrapper::new(address.ip()),
                 data,
