@@ -1,9 +1,8 @@
-use crate::client::ClientSocketOp;
 use crate::manager::SocketError;
 use crate::ops::op::OpImpl;
 use crate::stack::sock_holder::SocketStore;
 use crate::stack::socket_callbacks::SocketCallbacks;
-use crate::stack::socket_callbacks::{AsyncOp, AsyncState};
+use crate::stack::socket_callbacks::TcpRecvState;
 use crate::transfer::Xfer;
 use crate::Handle;
 use crate::StackError;
@@ -29,74 +28,55 @@ impl<X: Xfer> OpImpl<X> for TcpReceiveOp<'_> {
         manager: &mut crate::manager::Manager<X>,
         callbacks: &mut SocketCallbacks,
     ) -> Result<Option<Self::Output>, Self::Error> {
-        let (sock, op) = callbacks
+        let (sock, _) = callbacks
             .tcp_sockets
             .get(self.handle)
             .ok_or(StackError::SocketNotFound)?;
         let socket = *sock;
+        let index = socket.v as usize;
 
-        // First, handle leftover data from a previous operation
-        if let ClientSocketOp::AsyncOp(AsyncOp::Recv(Some(ref mut recv_result)), AsyncState::Done) =
-            op
-        {
-            if recv_result.return_offset < recv_result.recv_len
-                && recv_result.error == SocketError::NoError
-            {
-                let remaining_data = recv_result.recv_len - recv_result.return_offset;
-                let copy_len = remaining_data.min(self.buffer.len());
-
-                self.buffer[..copy_len].copy_from_slice(
-                    &callbacks.recv_buffer
-                        [recv_result.return_offset..recv_result.return_offset + copy_len],
-                );
-                recv_result.return_offset += copy_len;
-
-                if recv_result.return_offset >= recv_result.recv_len {
-                    *op = ClientSocketOp::None;
-                }
-                return Ok(Some(copy_len));
-            }
-        }
-
-        // If no leftover data, proceed with the operation state machine
-        match op {
-            ClientSocketOp::AsyncOp(AsyncOp::Recv(Some(recv_result)), _) => {
-                match recv_result.error {
-                    SocketError::NoError => {
-                        let recv_len = recv_result.recv_len;
-                        if recv_len == 0 {
-                            *op = ClientSocketOp::None;
-                            return Ok(Some(0));
-                        }
-                        let copy_len = recv_len.min(self.buffer.len());
-                        self.buffer[..copy_len].copy_from_slice(&callbacks.recv_buffer[..copy_len]);
-                        recv_result.return_offset = copy_len;
-
-                        if copy_len >= recv_len {
-                            *op = ClientSocketOp::None;
-                        }
-                        Ok(Some(copy_len))
-                    }
+        // Receive state lives per socket, not in the socket's single op slot:
+        // a send in flight must not disturb an outstanding receive.
+        match callbacks.tcp_recv[index] {
+            TcpRecvState::Ready(mut result) => {
+                match result.error {
+                    SocketError::NoError => {}
                     SocketError::Timeout => {
+                        // Timeouts are retried rather than surfaced.
                         manager
                             .send_recv(socket, socket.get_recv_timeout())
                             .map_err(StackError::ReceiveFailed)?;
-                        *op =
-                            ClientSocketOp::AsyncOp(AsyncOp::Recv(None), AsyncState::Pending(None));
-                        Ok(None)
+                        callbacks.tcp_recv[index] = TcpRecvState::Requested;
+                        return Ok(None);
                     }
                     error => {
-                        *op = ClientSocketOp::None;
-                        Err(StackError::OpFailed(error))
+                        callbacks.tcp_recv[index] = TcpRecvState::Idle;
+                        return Err(StackError::OpFailed(error));
                     }
                 }
+                if result.recv_len == 0 {
+                    callbacks.tcp_recv[index] = TcpRecvState::Idle;
+                    return Ok(Some(0));
+                }
+                let remaining = result.recv_len - result.return_offset;
+                let copy_len = remaining.min(self.buffer.len());
+                let from = result.return_offset;
+                self.buffer[..copy_len]
+                    .copy_from_slice(&callbacks.recv_buffer[from..from + copy_len]);
+                result.return_offset += copy_len;
+                callbacks.tcp_recv[index] = if result.return_offset >= result.recv_len {
+                    TcpRecvState::Idle
+                } else {
+                    TcpRecvState::Ready(result)
+                };
+                Ok(Some(copy_len))
             }
-            ClientSocketOp::AsyncOp(AsyncOp::Recv(None), AsyncState::Pending(_)) => Ok(None),
-            _ => {
+            TcpRecvState::Requested => Ok(None),
+            TcpRecvState::Idle => {
                 manager
                     .send_recv(socket, socket.get_recv_timeout())
                     .map_err(StackError::ReceiveFailed)?;
-                *op = ClientSocketOp::AsyncOp(AsyncOp::Recv(None), AsyncState::Pending(None));
+                callbacks.tcp_recv[index] = TcpRecvState::Requested;
                 Ok(None)
             }
         }
