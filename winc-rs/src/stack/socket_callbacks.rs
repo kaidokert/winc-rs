@@ -172,10 +172,28 @@ pub(crate) struct SocketCallbacks {
 pub(crate) enum TcpRecvState {
     /// Nothing asked for.
     Idle,
-    /// `send_recv` issued, awaiting the reply.
-    Requested,
-    /// Reply received, possibly partly drained.
-    Ready(RecvResult),
+    /// `send_recv` issued, awaiting the reply. Carries the session id of the
+    /// socket that asked.
+    Requested(u16),
+    /// Reply received, possibly partly drained. Carries the session id of the
+    /// socket that asked.
+    Ready(u16, RecvResult),
+}
+
+impl TcpRecvState {
+    /// The session this state belongs to, if any.
+    ///
+    /// The array is indexed by socket *index*, and an index is reused when a
+    /// socket is closed and another opened. Without the session id a new
+    /// connection inherits the previous one's state: `Requested` would leave it
+    /// waiting for a reply it never asked for, and `Ready` would hand it the
+    /// previous session's bytes.
+    pub(crate) fn session(&self) -> Option<u16> {
+        match self {
+            Self::Idle => None,
+            Self::Requested(s) | Self::Ready(s, _) => Some(*s),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -542,7 +560,7 @@ impl EventListener for SocketCallbacks {
         // socket has not asked for anything, so the delivery is unexpected and
         // there is no buffer reserved for it; `Ready` means a previous reply is
         // still being drained out of the shared `recv_buffer`.
-        if !matches!(slot, TcpRecvState::Requested) {
+        if !matches!(slot, TcpRecvState::Requested(s) if *s == socket.s) {
             error!(
                 "on_recv with no outstanding request: socket:{:?} address:{:?} data:{:?} error:{:?}",
                 socket,
@@ -552,12 +570,15 @@ impl EventListener for SocketCallbacks {
             );
             return;
         }
-        *slot = TcpRecvState::Ready(RecvResult {
-            recv_len: data.len(),
-            from_addr: address,
-            error: err,
-            return_offset: 0,
-        });
+        *slot = TcpRecvState::Ready(
+            socket.s,
+            RecvResult {
+                recv_len: data.len(),
+                from_addr: address,
+                error: err,
+                return_offset: 0,
+            },
+        );
         self.recv_buffer[..data.len()].copy_from_slice(data);
     }
     fn on_recvfrom(

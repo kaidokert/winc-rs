@@ -12,6 +12,7 @@ use crate::ops::net_ops::tcp_connect::TcpConnectOp;
 use crate::ops::net_ops::tcp_receive::TcpReceiveOp;
 use crate::ops::net_ops::tcp_send::TcpSendOp;
 use crate::ops::op::OpImpl;
+use crate::stack::socket_callbacks::TcpRecvState;
 use crate::{debug, info};
 use embedded_nal::nb;
 
@@ -95,6 +96,10 @@ impl<X: Xfer> embedded_nal::TcpClientStack for WincClient<'_, X> {
         let socket_id = sock.v as usize;
         self.callbacks.listening_sockets[socket_id] = false;
         self.callbacks.accept_backlog[socket_id] = None;
+        // Belt and braces with the session check in `on_recv`: the index is
+        // reused by the next socket, and leaving state here would have it
+        // waiting on a reply this connection asked for.
+        self.callbacks.tcp_recv[socket_id] = TcpRecvState::Idle;
         self.manager
             .send_close(*sock)
             .map_err(StackError::SendCloseFailed)?;
@@ -317,6 +322,85 @@ mod test {
 
         assert_eq!(result.ok(), Some(test_data.len()));
         assert_eq!(&recv_buff[..test_data.len()], test_data.as_bytes());
+    }
+
+    /// A socket index is reused after close. Receive state is held per index,
+    /// so without a session check the new connection inherits the old one's:
+    /// `Requested` leaves it waiting for a reply it never asked for, and
+    /// `Ready` hands it the previous session's bytes.
+    #[test]
+    fn test_tcp_recv_state_not_inherited_after_close() {
+        let mut client = make_test_client();
+        let socket_addr = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 80);
+        let mut recv_buff = [0u8; 32];
+
+        // First connection asks for data and closes before any reply arrives,
+        // leaving its index in `Requested`.
+        let mut first = client.socket().unwrap();
+        assert!(client.receive(&mut first, &mut recv_buff).is_err()); // WouldBlock
+        assert!(matches!(
+            client.callbacks.tcp_recv[0],
+            TcpRecvState::Requested(_)
+        ));
+        client.close(first).unwrap();
+
+        // Closing must clear it; otherwise the next socket on this index waits
+        // for a reply it never asked for and `poll_impl` never issues one.
+        assert_eq!(client.callbacks.tcp_recv[0], TcpRecvState::Idle);
+
+        // The index is reused. The new socket must issue its own request and
+        // complete, not inherit the previous session's state and stall.
+        let mut second = client.socket().unwrap();
+        assert_eq!(client.callbacks.tcp_recv[0], TcpRecvState::Idle);
+        let payload = b"second session";
+        let session = {
+            let (sock, _) = client.callbacks.tcp_sockets.get(second).unwrap();
+            sock.s
+        };
+        let mut my_debug = |callbacks: &mut SocketCallbacks| {
+            callbacks.on_recv(
+                Socket::new(0, session),
+                socket_addr,
+                payload,
+                SocketError::NoError,
+            );
+        };
+        client.debug_callback = Some(&mut my_debug);
+
+        let n = nb::block!(client.receive(&mut second, &mut recv_buff)).unwrap();
+        assert_eq!(n, payload.len());
+        assert_eq!(&recv_buff[..n], payload);
+    }
+
+    /// A reply that arrives after its session closed must not be handed to
+    /// whichever connection now occupies that index.
+    #[test]
+    fn test_tcp_recv_rejects_stale_session_reply() {
+        let mut client = make_test_client();
+        let socket_addr = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 80);
+        let mut recv_buff = [0u8; 32];
+
+        let mut sock = client.socket().unwrap();
+        let live_session = {
+            let (s, _) = client.callbacks.tcp_sockets.get(sock).unwrap();
+            s.s
+        };
+        // Put the index into `Requested` for the live session.
+        assert!(client.receive(&mut sock, &mut recv_buff).is_err());
+
+        // A reply tagged with a different session id is not ours.
+        let stale = live_session.wrapping_add(1);
+        client.callbacks.on_recv(
+            Socket::new(0, stale),
+            socket_addr,
+            b"stale payload",
+            SocketError::NoError,
+        );
+
+        assert!(matches!(
+            client.callbacks.tcp_recv[0],
+            TcpRecvState::Requested(s) if s == live_session
+        ));
     }
 
     #[test]

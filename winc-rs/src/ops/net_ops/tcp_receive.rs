@@ -37,8 +37,15 @@ impl<X: Xfer> OpImpl<X> for TcpReceiveOp<'_> {
 
         // Receive state lives per socket, not in the socket's single op slot:
         // a send in flight must not disturb an outstanding receive.
-        match callbacks.tcp_recv[index] {
-            TcpRecvState::Ready(mut result) => {
+        // State belonging to a different session is state this socket index
+        // inherited from a closed connection; treat it as `Idle` and ask again
+        // rather than waiting for, or returning, the previous session's reply.
+        let state = match callbacks.tcp_recv[index] {
+            s if s.session().is_some_and(|sess| sess != socket.s) => TcpRecvState::Idle,
+            s => s,
+        };
+        match state {
+            TcpRecvState::Ready(_, mut result) => {
                 match result.error {
                     SocketError::NoError => {}
                     SocketError::Timeout => {
@@ -46,7 +53,7 @@ impl<X: Xfer> OpImpl<X> for TcpReceiveOp<'_> {
                         manager
                             .send_recv(socket, socket.get_recv_timeout())
                             .map_err(StackError::ReceiveFailed)?;
-                        callbacks.tcp_recv[index] = TcpRecvState::Requested;
+                        callbacks.tcp_recv[index] = TcpRecvState::Requested(socket.s);
                         return Ok(None);
                     }
                     error => {
@@ -67,16 +74,16 @@ impl<X: Xfer> OpImpl<X> for TcpReceiveOp<'_> {
                 callbacks.tcp_recv[index] = if result.return_offset >= result.recv_len {
                     TcpRecvState::Idle
                 } else {
-                    TcpRecvState::Ready(result)
+                    TcpRecvState::Ready(socket.s, result)
                 };
                 Ok(Some(copy_len))
             }
-            TcpRecvState::Requested => Ok(None),
+            TcpRecvState::Requested(_) => Ok(None),
             TcpRecvState::Idle => {
                 manager
                     .send_recv(socket, socket.get_recv_timeout())
                     .map_err(StackError::ReceiveFailed)?;
-                callbacks.tcp_recv[index] = TcpRecvState::Requested;
+                callbacks.tcp_recv[index] = TcpRecvState::Requested(socket.s);
                 Ok(None)
             }
         }
